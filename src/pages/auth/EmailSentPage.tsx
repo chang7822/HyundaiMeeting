@@ -1,0 +1,75 @@
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import styled from 'styled-components';
+
+const Container = styled.div`
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+`;
+
+const Card = styled.div`
+  background: white;
+  border-radius: 20px;
+  padding: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+`;
+
+const Title = styled.h1`
+  color: #333;
+  margin-bottom: 1rem;
+`;
+
+const Description = styled.p`
+  color: #666;
+  margin-bottom: 2rem;
+  line-height: 1.6;
+`;
+
+const Button = styled.button`
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  margin: 0.5rem;
+  
+  &:hover {
+    transform: translateY(-2px);
+  }
+`;
+
+const EmailSentPage = () => {
+  const navigate = useNavigate();
+
+  return (
+    <Container>
+      <Card>
+        <Title>인증 메일 발송 완료</Title>
+        <Description>
+          입력하신 이메일 주소로 인증 메일을 발송했습니다.<br />
+          메일함을 확인하여 인증을 완료해주세요.
+        </Description>
+        
+        <Button onClick={() => navigate('/register/password')}>
+          다음 단계
+        </Button>
+        <Button onClick={() => navigate('/register/email-verification')}>
+          재발송
+        </Button>
+      </Card>
+    </Container>
+  );
+};
+
+export default EmailSentPage; 
