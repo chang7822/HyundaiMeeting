@@ -80,31 +80,31 @@ export const companyApi = {
         id: '2',
         name: '기아자동차',
         emailDomain: 'kia.com',
-        isActive: true
+        isActive: false
       },
       {
         id: '3',
         name: '현대모비스',
         emailDomain: 'mobis.co.kr',
-        isActive: true
+        isActive: false
       },
       {
         id: '4',
         name: '현대제철',
         emailDomain: 'hyundai-steel.com',
-        isActive: true
+        isActive: false
       },
       {
         id: '5',
         name: '현대엔지니어링',
         emailDomain: 'hdec.kr',
-        isActive: true
+        isActive: false
       },
       {
         id: '6',
         name: '현대글로비스',
         emailDomain: 'glovis.net',
-        isActive: true
+        isActive: false
       }
     ];
     

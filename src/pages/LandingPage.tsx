@@ -50,7 +50,7 @@ const ButtonContainer = styled.div`
   }
 `;
 
-const Button = styled.button<{ primary?: boolean }>`
+const Button = styled.button<{ $primary?: boolean }>`
   padding: 12px 24px;
   border: none;
   border-radius: 25px;
@@ -60,8 +60,8 @@ const Button = styled.button<{ primary?: boolean }>`
   transition: all 0.3s ease;
   min-width: 150px;
   
-  background: ${props => props.primary ? 'white' : 'transparent'};
-  color: ${props => props.primary ? '#667eea' : 'white'};
+  background: ${props => props.$primary ? 'white' : 'transparent'};
+  color: ${props => props.$primary ? '#667eea' : 'white'};
   border: 2px solid white;
   
   &:hover {
@@ -121,7 +121,7 @@ const LandingPage = () => {
         <Button onClick={() => navigate('/login')}>
           로그인
         </Button>
-        <Button primary onClick={() => navigate('/register')}>
+        <Button $primary onClick={() => navigate('/register')}>
           회원가입
         </Button>
       </ButtonContainer>
