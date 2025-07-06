@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { User, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ApiResponse } from '../types';
+import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ApiResponse, ProfileCategory, ProfileOption } from '../types/index.ts';
+import { toast } from 'react-toastify';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -14,8 +15,12 @@ const api = axios.create({
 // Add token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
+  console.log('[axios] 요청 URL:', config.url, '토큰:', token);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log('[axios] Authorization 헤더에 토큰 추가:', token);
+  } else {
+    console.log('[axios] 토큰 없음, Authorization 헤더 미포함');
   }
   return config;
 });
@@ -24,9 +29,16 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const isLoginRequest = error.config && error.config.url && error.config.url.includes('/auth/login');
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/login';
+      if (!isLoginRequest) {
+        toast.error('로그인 인증이 만료되었습니다. 다시 로그인해 주세요.');
+        localStorage.removeItem('token');
+        console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
+        // 이동 없이 에러도 반환하지 않음(페이지 멈춤)
+        return;
+      }
+      // /auth/login 요청이면 아무 토스트도 띄우지 않음 (실패 안내는 LoginPage에서 따로 처리)
     }
     return Promise.reject(error);
   }
@@ -40,6 +52,41 @@ export const authApi = {
   },
 
   register: async (userData: RegisterFormData): Promise<{ user: User; token: string }> => {
+    const response = await api.post('/auth/register', userData);
+    return response.data;
+  },
+
+  registerComplete: async (userData: {
+    email: string;
+    password: string;
+    nickname: string;
+    gender: string;
+    birthYear: number;
+    height?: number;
+    residence?: string;
+    company?: string;
+    maritalStatus?: string;
+    jobType?: string;
+    appeal?: string;
+    profileData: {
+      selected: { [categoryId: number]: number[] };
+      mbti?: string;
+      bodyType?: string;
+      residence?: string;
+      interests?: string[];
+      appearance?: string[];
+      personality?: string[];
+      religion?: string;
+      smoking?: string;
+      drinking?: string;
+    };
+    preferences: {
+      age: number[] | null;
+      height: number[] | null;
+      bodyType: string[] | null;
+      jobType: string[] | null;
+    };
+  }): Promise<{ user: User; token: string }> => {
     const response = await api.post('/auth/register', userData);
     return response.data;
   },
@@ -68,56 +115,9 @@ export const authApi = {
 // Company API
 export const companyApi = {
   getCompanies: async (): Promise<Company[]> => {
-    // 임시 하드코딩된 회사 리스트 (백엔드 서버가 없을 때 사용)
-    const mockCompanies: Company[] = [
-      {
-        id: '1',
-        name: '현대자동차',
-        emailDomain: 'hyundai.com',
-        isActive: true
-      },
-      {
-        id: '2',
-        name: '기아자동차',
-        emailDomain: 'kia.com',
-        isActive: false
-      },
-      {
-        id: '3',
-        name: '현대모비스',
-        emailDomain: 'mobis.co.kr',
-        isActive: false
-      },
-      {
-        id: '4',
-        name: '현대제철',
-        emailDomain: 'hyundai-steel.com',
-        isActive: false
-      },
-      {
-        id: '5',
-        name: '현대엔지니어링',
-        emailDomain: 'hdec.kr',
-        isActive: false
-      },
-      {
-        id: '6',
-        name: '현대글로비스',
-        emailDomain: 'glovis.net',
-        isActive: false
-      }
-    ];
-    
-    // 실제 API 호출 대신 임시 데이터 반환
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        resolve(mockCompanies);
-      }, 500); // 0.5초 지연으로 실제 API 호출 시뮬레이션
-    });
-    
-    // 백엔드 서버가 준비되면 아래 코드로 교체
-    // const response = await api.get('/companies');
-    // return response.data;
+    // 실제 API 호출
+    const response = await api.get('/companies');
+    return response.data;
   },
 
   getCompanyByDomain: async (domain: string): Promise<Company | null> => {
@@ -128,21 +128,60 @@ export const companyApi = {
 
 // User API
 export const userApi = {
-  updateProfile: async (userId: string, profileData: Partial<User>): Promise<User> => {
+  updateProfile: async (userId: string, profileData: Partial<UserProfile>): Promise<UserProfile> => {
     const response = await api.put(`/users/${userId}`, profileData);
     return response.data;
   },
 
-  getUser: async (userId: string): Promise<User> => {
+  getUser: async (userId: string): Promise<User & UserProfile> => {
     const response = await api.get(`/users/${userId}`);
     return response.data;
+  },
+
+  getUserProfile: async (userId: string): Promise<UserProfile> => {
+    const response = await api.get(`/users/${userId}/profile`);
+    return response.data;
+  },
+
+  // 내 정보 조회 (GET /users/me)
+  getMe: async (): Promise<User & UserProfile> => {
+    const response = await api.get('/users/me');
+    return response.data;
+  },
+
+  // 내 정보 수정 (PUT /users/me)
+  updateMe: async (profileData: Partial<UserProfile>): Promise<UserProfile> => {
+    const response = await api.put('/users/me', profileData);
+    return response.data.profile;
+  },
+
+  // 비밀번호 변경
+  changePassword: async (userId: string, currentPassword: string, newPassword: string): Promise<boolean> => {
+    const response = await api.put(`/users/${userId}/password`, { currentPassword, newPassword });
+    return response.data.success;
+  },
+
+  // 회원 탈퇴
+  deleteMe: async (): Promise<boolean> => {
+    const response = await api.delete('/users/me');
+    return response.data.success;
   },
 };
 
 // Matching API
 export const matchingApi = {
-  requestMatching: async (): Promise<Match> => {
-    const response = await api.post('/matching/request');
+  requestMatching: async (userId?: string): Promise<any> => {
+    const response = await api.post('/matching/request', userId ? { userId } : {});
+    return response.data;
+  },
+
+  getMatchingStatus: async (userId: string): Promise<any> => {
+    const response = await api.get('/matching/status', { params: { userId } });
+    return response.data;
+  },
+
+  cancelMatching: async (userId: string): Promise<any> => {
+    const response = await api.post('/matching/cancel', { userId });
     return response.data;
   },
 
@@ -161,17 +200,19 @@ export const matchingApi = {
     return response.data;
   },
 
-  cancelMatch: async (matchId: string): Promise<Match> => {
-    const response = await api.post(`/matching/${matchId}/cancel`);
+  // 매칭 기간 정보 조회
+  getMatchingPeriod: async () => {
+    const response = await api.get('/matching/period');
     return response.data;
   },
 };
 
 // Chat API
 export const chatApi = {
-  getMessages: async (matchId: string): Promise<ChatMessage[]> => {
-    const response = await api.get(`/chat/${matchId}/messages`);
-    return response.data;
+  getMessages: async (periodId: string, partnerUserId: string, userId: string) => {
+    const res = await fetch(`/api/chat/${periodId}/${partnerUserId}/messages?userId=${userId}`);
+    if (!res.ok) throw new Error('메시지 조회 실패');
+    return await res.json();
   },
 
   sendMessage: async (matchId: string, content: string): Promise<ChatMessage> => {
@@ -182,7 +223,7 @@ export const chatApi = {
 
 // Admin API
 export const adminApi = {
-  getAllUsers: async (): Promise<User[]> => {
+  getAllUsers: async (): Promise<(User & UserProfile)[]> => {
     const response = await api.get('/admin/users');
     return response.data;
   },
@@ -201,6 +242,85 @@ export const adminApi = {
     const response = await api.get('/admin/stats');
     return response.data;
   },
+};
+
+export const getProfileCategories = async (): Promise<ProfileCategory[]> => {
+  try {
+    const res = await api.get('/users/profile-categories');
+    return res.data;
+  } catch (error) {
+    console.warn('프로필 카테고리 로드 실패:', error);
+    return [];
+  }
+};
+
+export const getProfileOptions = async (): Promise<ProfileOption[]> => {
+  try {
+    const res = await api.get('/users/profile-options');
+    return res.data;
+  } catch (error) {
+    console.warn('프로필 옵션 로드 실패:', error);
+    return [];
+  }
+};
+
+// Preferences API (이제 user_profiles 테이블에 통합됨)
+export const preferencesApi = {
+  savePreferences: async (userId: string, preferences: {
+    age: number[] | null;
+    height: number[] | null;
+    bodyType: string[] | null;
+    jobType: string[] | null;
+  }): Promise<any> => {
+    const response = await api.put(`/users/${userId}`, {
+      preferred_age_min: preferences.age ? preferences.age[0] : null,
+      preferred_age_max: preferences.age ? preferences.age[1] : null,
+      preferred_height_min: preferences.height ? preferences.height[0] : null,
+      preferred_height_max: preferences.height ? preferences.height[1] : null,
+      preferred_body_types: preferences.bodyType ? JSON.stringify(preferences.bodyType) : null,
+      preferred_job_types: preferences.jobType ? JSON.stringify(preferences.jobType) : null
+    });
+    return response.data;
+  },
+
+  getPreferences: async (userId: string): Promise<{
+    age: number[] | null;
+    height: number[] | null;
+    bodyType: string[];
+    jobType: string[];
+  }> => {
+    const response = await api.get(`/users/${userId}/profile`);
+    const profile = response.data;
+    
+    return {
+      age: profile.preferred_age_min && profile.preferred_age_max ? 
+        [profile.preferred_age_min, profile.preferred_age_max] : null,
+      height: profile.preferred_height_min && profile.preferred_height_max ? 
+        [profile.preferred_height_min, profile.preferred_height_max] : null,
+      bodyType: profile.preferred_body_types ? JSON.parse(profile.preferred_body_types) : [],
+      jobType: profile.preferred_job_types ? JSON.parse(profile.preferred_job_types) : []
+    };
+  },
+};
+
+// Admin 카테고리/옵션 관리용 API
+export const getAdminProfileCategories = async () => {
+  const res = await api.get('/admin/profile-categories');
+  return res.data;
+};
+export const getAdminProfileOptions = async () => {
+  const res = await api.get('/admin/profile-options');
+  return res.data;
+};
+
+// Admin 카테고리/옵션 일괄 저장 API
+export const saveAdminProfileCategories = async (categories: any[]) => {
+  const res = await api.post('/admin/profile-categories/bulk-save', { categories });
+  return res.data;
+};
+export const saveAdminProfileOptions = async (options: any[]) => {
+  const res = await api.post('/admin/profile-options/bulk-save', { options });
+  return res.data;
 };
 
 export default api; 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { FaArrowLeft } from 'react-icons/fa';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -49,12 +50,47 @@ const Button = styled.button`
   }
 `;
 
+const BackButton = styled.button`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border: 2px solid #667eea;
+  color: #667eea;
+  font-size: 1.8rem;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  &:hover {
+    background: #667eea;
+    color: #fff;
+    border: 2px solid #667eea;
+  }
+  @media (max-width: 600px) {
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+  }
+`;
+
 const EmailSentPage = () => {
   const navigate = useNavigate();
 
   return (
     <Container>
-      <Card>
+      <Card style={{ position: 'relative' }}>
+        <BackButton onClick={() => navigate('/register/email-verification')} title="이전 단계로">
+          <FaArrowLeft />
+        </BackButton>
         <Title>인증 메일 발송 완료</Title>
         <Description>
           입력하신 이메일 주소로 인증 메일을 발송했습니다.<br />

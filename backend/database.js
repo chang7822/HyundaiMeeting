@@ -5,4 +5,6 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1Ni
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+console.log('supabaseKey:', supabaseKey);
+
 module.exports = { supabase }; 

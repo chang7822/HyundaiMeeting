@@ -1,61 +1,51 @@
 const express = require('express');
 const router = express.Router();
+const { supabase } = require('../database');
 
-// 임시 회사 데이터
-const companies = [
-  {
-    id: '1',
-    name: '현대자동차',
-    emailDomain: 'hyundai.com',
-    isActive: true
-  },
-  {
-    id: '2',
-    name: '기아자동차',
-    emailDomain: 'kia.com',
-    isActive: true
-  },
-  {
-    id: '3',
-    name: '현대모비스',
-    emailDomain: 'mobis.co.kr',
-    isActive: true
-  },
-  {
-    id: '4',
-    name: '현대제철',
-    emailDomain: 'hyundai-steel.com',
-    isActive: true
-  },
-  {
-    id: '5',
-    name: '현대엔지니어링',
-    emailDomain: 'hdec.kr',
-    isActive: true
-  },
-  {
-    id: '6',
-    name: '현대글로비스',
-    emailDomain: 'glovis.net',
-    isActive: true
+// 모든 회사 조회 (DB에서)
+router.get('/', async (req, res) => {
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .eq('is_active', true)
+    .order('id', { ascending: true });
+
+  if (error) {
+    return res.status(500).json({ message: '회사 목록을 불러오지 못했습니다.', error });
   }
-];
 
-// 모든 회사 조회
-router.get('/', (req, res) => {
-  res.json(companies.filter(company => company.isActive));
+  // emailDomains 필드명 맞추기
+  const companies = (data || []).map(company => ({
+    id: String(company.id),
+    name: company.name,
+    emailDomains: company.email_domains,
+    isActive: company.is_active
+  }));
+
+  res.json(companies);
 });
 
-// 도메인으로 회사 조회
-router.get('/domain/:domain', (req, res) => {
+// 도메인으로 회사 조회 (DB에서)
+router.get('/domain/:domain', async (req, res) => {
   const { domain } = req.params;
-  const company = companies.find(c => c.emailDomain === domain && c.isActive);
-  
-  if (company) {
-    res.json(company);
-  } else {
-    res.status(404).json({ message: '회사를 찾을 수 없습니다.' });
+  const { data, error } = await supabase
+    .from('companies')
+    .select('*')
+    .contains('email_domains', [domain])
+    .eq('is_active', true)
+    .single();
+
+  if (error || !data) {
+    return res.status(404).json({ message: '회사를 찾을 수 없습니다.' });
   }
+
+  const company = {
+    id: String(data.id),
+    name: data.name,
+    emailDomains: data.email_domains,
+    isActive: data.is_active
+  };
+  res.json(company);
 });
 
 module.exports = router; 

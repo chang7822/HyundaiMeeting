@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import styled from 'styled-components';
 import { companyApi } from '../../services/api.ts';
 import { Company } from '../../types/index.ts';
+import { FaArrowLeft } from 'react-icons/fa';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -71,6 +72,38 @@ const Button = styled.button`
   }
 `;
 
+const BackButton = styled.button`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border: 2px solid #667eea;
+  color: #667eea;
+  font-size: 1.8rem;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  &:hover {
+    background: #667eea;
+    color: #fff;
+    border: 2px solid #667eea;
+  }
+  @media (max-width: 600px) {
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+  }
+`;
+
 const CompanySelectionPage = () => {
   const navigate = useNavigate();
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -79,6 +112,7 @@ const CompanySelectionPage = () => {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm<{ company: string }>();
 
@@ -93,13 +127,16 @@ const CompanySelectionPage = () => {
         setIsLoading(false);
       }
     };
-
     fetchCompanies();
-  }, []);
+    // 복원: sessionStorage에 값이 있으면 setValue
+    const savedCompany = sessionStorage.getItem('userCompany');
+    if (savedCompany) {
+      setValue('company', savedCompany);
+    }
+  }, [setValue]);
 
   const onSubmit = (data: { company: string }) => {
-    // 회사 정보를 세션에 저장하고 다음 단계로 이동
-    sessionStorage.setItem('selectedCompany', data.company);
+    sessionStorage.setItem('userCompany', data.company);
     navigate('/register/email-verification');
   };
 
@@ -115,7 +152,10 @@ const CompanySelectionPage = () => {
 
   return (
     <Container>
-      <Card>
+      <Card style={{ position: 'relative' }}>
+        <BackButton onClick={() => navigate('/register')} title="이전 단계로">
+          <FaArrowLeft />
+        </BackButton>
         <Title>회사 선택</Title>
         <Form onSubmit={handleSubmit(onSubmit)}>
           <Select {...register('company', { required: '회사를 선택해주세요.' })}>

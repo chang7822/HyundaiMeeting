@@ -10,15 +10,20 @@
     "@types/node": "^16.11.56",
     "@types/styled-components": "^5.1.26",
     "axios": "^1.4.0",
+    "git": "^0.1.5",
+    "rc-slider": "^11.1.8",
     "react": "^18.2.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "react-datepicker": "^8.4.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.45.0",
     "react-icons": "^4.10.1",
+    "react-modal": "^3.16.3",
     "react-query": "^3.39.3",
     "react-router-dom": "^6.3.0",
     "react-scripts": "5.0.1",
     "react-toastify": "^9.1.3",
-    "socket.io-client": "^4.7.2",
+    "socket.io-client": "^4.8.1",
     "styled-components": "^6.0.0",
     "typescript": "^4.7.4",
     "web-vitals": "^2.1.4"
@@ -49,6 +54,7 @@
   },
   "proxy": "http://localhost:3001",
   "devDependencies": {
+    "@playwright/test": "^1.53.2",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6"
   }

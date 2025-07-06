@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { LoginCredentials } from '../../types/index.ts';
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
 
 const LoginContainer = styled.div`
   min-height: 100vh;
@@ -119,6 +120,7 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const {
     register,
@@ -163,18 +165,40 @@ const LoginPage = () => {
 
           <FormGroup>
             <Label>비밀번호</Label>
-            <Input
-              type="password"
-              {...register('password', {
-                required: '비밀번호를 입력해주세요.',
-                minLength: {
-                  value: 6,
-                  message: '비밀번호는 최소 6자 이상이어야 합니다.',
-                },
-              })}
-              className={errors.password ? 'error' : ''}
-              placeholder="비밀번호를 입력하세요"
-            />
+            <div style={{ position: 'relative' }}>
+              <Input
+                type={showPassword ? 'text' : 'password'}
+                {...register('password', {
+                  required: '비밀번호를 입력해주세요.',
+                  minLength: {
+                    value: 6,
+                    message: '비밀번호는 최소 6자 이상이어야 합니다.',
+                  },
+                })}
+                className={errors.password ? 'error' : ''}
+                placeholder="비밀번호를 입력하세요"
+                style={{ paddingRight: 40 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                style={{
+                  position: 'absolute',
+                  right: 10,
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  margin: 0
+                }}
+                tabIndex={-1}
+                aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+              >
+                {showPassword ? <FaEyeSlash /> : <FaEye />}
+              </button>
+            </div>
             {errors.password && <ErrorMessage>{errors.password.message}</ErrorMessage>}
           </FormGroup>
 

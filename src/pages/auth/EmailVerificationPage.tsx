@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
-import { authApi } from '../../services/api.ts';
+import { authApi, companyApi } from '../../services/api.ts';
+import { Company } from '../../types/index.ts';
+import { FaArrowLeft } from 'react-icons/fa';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -79,6 +81,25 @@ const VerificationSection = styled.div`
   margin-top: 2rem;
   padding-top: 2rem;
   border-top: 1px solid #e1e5e9;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+`;
+
+const VerificationButton = styled(Button)`
+  margin-top: 0;
+`;
+
+const SecondaryButton = styled(Button)`
+  background: transparent;
+  color: #667eea;
+  border: 2px solid #667eea;
+  margin-top: 0;
+  &:hover {
+    background: #f7f7fa;
+    color: #764ba2;
+  }
 `;
 
 const ErrorMessage = styled.span`
@@ -96,28 +117,131 @@ const SuccessMessage = styled.div`
   text-align: center;
 `;
 
+const Select = styled.select`
+  padding: 12px;
+  border: 2px solid #e1e5e9;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.3s ease;
+  
+  &:focus {
+    outline: none;
+    border-color: #667eea;
+  }
+  
+  &.error {
+    border-color: #e74c3c;
+  }
+`;
+
+const ResponsiveRow = styled.div`
+  display: flex;
+  gap: 8px;
+  @media (max-width: 600px) {
+    flex-direction: column;
+    gap: 0;
+  }
+`;
+
+const BackButton = styled.button`
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: white;
+  border: 2px solid #667eea;
+  color: #667eea;
+  font-size: 1.8rem;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  cursor: pointer;
+  z-index: 10;
+  transition: background 0.2s, color 0.2s, border 0.2s;
+  &:hover {
+    background: #667eea;
+    color: #fff;
+    border: 2px solid #667eea;
+  }
+  @media (max-width: 600px) {
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    font-size: 1.2rem;
+  }
+`;
+
 const EmailVerificationPage = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [isVerificationSent, setIsVerificationSent] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
-  
+  const [emailError, setEmailError] = useState('');
+  const [companyDomains, setCompanyDomains] = useState<string[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState('');
+
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
-  } = useForm<{ email: string }>();
+  } = useForm<{ emailId: string }>();
 
-  const onSubmit = async (data: { email: string }) => {
+  React.useEffect(() => {
+    // 회사 id로 도메인 목록 불러오기
+    const fetchDomains = async () => {
+      const companyId = sessionStorage.getItem('userCompany');
+      if (!companyId) return;
+      const companies = await companyApi.getCompanies();
+      const company = companies.find(c => c.id === companyId);
+      if (company && company.emailDomains && company.emailDomains.length > 0) {
+        setCompanyDomains(company.emailDomains);
+        // 복원: sessionStorage에 저장된 도메인 있으면 사용
+        const savedDomain = sessionStorage.getItem('userEmailDomain');
+        if (savedDomain && company.emailDomains.includes(savedDomain)) {
+          setSelectedDomain(savedDomain);
+        } else {
+          setSelectedDomain(company.emailDomains[0]);
+        }
+      }
+    };
+    fetchDomains();
+    // 복원: sessionStorage에 저장된 emailId 있으면 setValue
+    const savedEmail = sessionStorage.getItem('userEmail');
+    if (savedEmail && savedEmail.includes('@')) {
+      setValue('emailId', savedEmail.split('@')[0]);
+    }
+  }, [setValue]);
+
+  const onSubmit = async (data: { emailId: string }) => {
     setIsLoading(true);
+    setEmailError('');
     try {
-      sessionStorage.setItem('userEmail', data.email);
-      await authApi.verifyEmail(data.email);
+      if (!selectedDomain) {
+        setEmailError('이메일 도메인을 선택해주세요.');
+        setIsLoading(false);
+        return;
+      }
+      const email = `${data.emailId}@${selectedDomain}`;
+      sessionStorage.setItem('userEmail', email);
+      sessionStorage.setItem('userEmailDomain', selectedDomain);
+      await authApi.verifyEmail(email);
       setIsVerificationSent(true);
       toast.success('인증 메일이 발송되었습니다!');
     } catch (error: any) {
-      toast.error(error.response?.data?.message || '이메일 발송에 실패했습니다.');
+      const errorMessage = error.response?.data?.message || '이메일 발송에 실패했습니다.';
+      if (errorMessage.includes('이미 등록된 이메일')) {
+        setEmailError('이미 등록된 이메일입니다.');
+        setTimeout(() => setEmailError(''), 3000); // 3초 후에 에러 메시지 삭제
+        toast.error('이미 등록된 이메일입니다. 로그인해주세요.');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -142,30 +266,65 @@ const EmailVerificationPage = () => {
     }
   };
 
+  const handleLoginClick = () => {
+    navigate('/login');
+  };
+
   return (
     <Container>
-      <Card>
+      <Card style={{ position: 'relative' }}>
+        <BackButton onClick={() => navigate('/register/company')} title="이전 단계로">
+          <FaArrowLeft />
+        </BackButton>
         <Title>이메일 인증</Title>
         
         {!isVerificationSent ? (
           <Form onSubmit={handleSubmit(onSubmit)}>
-            <Input
-              type="email"
-              {...register('email', {
-                required: '이메일을 입력해주세요.',
-                pattern: {
-                  value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: '올바른 이메일 형식을 입력해주세요.',
-                },
-              })}
-              className={errors.email ? 'error' : ''}
-              placeholder="회사 이메일을 입력하세요"
-            />
-            {errors.email && <ErrorMessage>{errors.email.message}</ErrorMessage>}
+            <ResponsiveRow>
+              <Input
+                type="text"
+                {...register('emailId', {
+                  required: '이메일 아이디를 입력해주세요.',
+                  pattern: {
+                    value: /^[A-Z0-9._%+-]+$/i,
+                    message: '올바른 이메일 아이디 형식이어야 합니다.',
+                  },
+                })}
+                className={errors.emailId || emailError ? 'error' : ''}
+                placeholder="이메일 아이디"
+                style={{ flex: 2 }}
+              />
+              <Select
+                value={selectedDomain}
+                onChange={e => setSelectedDomain(e.target.value)}
+                style={{ flex: 2 }}
+              >
+                {companyDomains.map(domain => (
+                  <option key={domain} value={domain}>@{domain}</option>
+                ))}
+              </Select>
+            </ResponsiveRow>
+            {errors.emailId && <ErrorMessage>{errors.emailId.message}</ErrorMessage>}
+            {emailError && <ErrorMessage>{emailError}</ErrorMessage>}
             
             <Button type="submit" disabled={isLoading}>
               {isLoading ? '발송 중...' : '인증 메일 발송'}
             </Button>
+            
+            {emailError && (
+              <Button 
+                type="button"
+                onClick={handleLoginClick}
+                style={{ 
+                  background: 'transparent', 
+                  color: '#667eea', 
+                  border: '2px solid #667eea',
+                  marginTop: '0.5rem'
+                }}
+              >
+                로그인하기
+              </Button>
+            )}
           </Form>
         ) : (
           <div>
@@ -183,24 +342,19 @@ const EmailVerificationPage = () => {
                 maxLength={6}
               />
               
-              <Button 
+              <VerificationButton 
                 onClick={handleVerificationSubmit}
                 disabled={isVerifying || !verificationCode}
               >
                 {isVerifying ? '인증 중...' : '인증 확인'}
-              </Button>
+              </VerificationButton>
               
-              <Button 
+              <SecondaryButton
+                type="button"
                 onClick={() => setIsVerificationSent(false)}
-                style={{ 
-                  background: 'transparent', 
-                  color: '#667eea', 
-                  border: '2px solid #667eea',
-                  marginTop: '0.5rem'
-                }}
               >
                 이메일 다시 입력
-              </Button>
+              </SecondaryButton>
             </VerificationSection>
           </div>
         )}

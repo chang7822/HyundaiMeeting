@@ -111,10 +111,10 @@ const LandingPage = () => {
 
   return (
     <LandingContainer>
-      <Logo>현대자동차 만남 플랫폼</Logo>
+      <Logo>현대자동차 사내 만남 플랫폼</Logo>
       <Subtitle>
-        진심어린 만남을 위한 플랫폼입니다.<br />
-        사진 없이 마음으로 소통하는 특별한 경험을 시작해보세요.
+        현대자동차(울산) 사내 만남을 위한 플랫폼입니다.<br />
+        사진교환, 얼평은 이제 그만! 진심으로 만나요.
       </Subtitle>
       
       <ButtonContainer>
@@ -129,17 +129,17 @@ const LandingPage = () => {
       <Features>
         <FeatureCard>
           <h3>🔒 안전한 만남</h3>
-          <p>사진 공개 없이 진심어린 소통으로 안전하고 의미 있는 만남을 경험하세요.</p>
+          <p>100% 사내 메일을 통해 인증 받은 현대차 임직원만을 위한 확실한 만남을 경험하세요.</p>
         </FeatureCard>
         
         <FeatureCard>
-          <h3>🎯 정확한 매칭</h3>
-          <p>AI 알고리즘을 통해 서로의 취향과 선호도를 분석하여 최적의 매칭을 제공합니다.</p>
+          <h3>🎯 취향 저격</h3>
+          <p>서로의 취향과 선호도를 반영하여 최적의 매칭을 제공합니다.</p>
         </FeatureCard>
         
         <FeatureCard>
           <h3>💝 특별한 경험</h3>
-          <p>현대차 임직원만을 위한 특별한 만남 플랫폼으로 동료들과의 새로운 인연을 만들어보세요.</p>
+          <p>사진 공개 없이 진심어린 소통으로 검증된 동료들과의 새로운 인연을 만들어보세요.</p>
         </FeatureCard>
       </Features>
     </LandingContainer>

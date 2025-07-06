@@ -17,11 +17,21 @@ const RegisterCard = styled.div`
   padding: 2rem;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   width: 100%;
-  max-width: 500px;
+  max-width: 95vw;
   text-align: center;
+  margin: 0 auto;
   
   @media (max-width: 480px) {
     padding: 1.5rem;
+  }
+  @media (min-width: 600px) {
+    max-width: 600px;
+  }
+  @media (min-width: 900px) {
+    max-width: 800px;
+  }
+  @media (min-width: 1200px) {
+    max-width: 1000px;
   }
 `;
 
@@ -48,7 +58,7 @@ const StartButton = styled.button`
   cursor: pointer;
   transition: transform 0.2s ease;
   margin-bottom: 1rem;
-  
+  margin-right: 2rem;
   &:hover {
     transform: translateY(-2px);
   }
@@ -133,7 +143,7 @@ const RegisterPage = () => {
             <li>비밀번호 설정</li>
             <li>기본 정보 입력</li>
             <li>프로필 설정</li>
-            <li>주소 및 선호도 설정</li>
+            <li>선호 스타일 설정</li>
             <li>자기소개 작성</li>
           </ul>
         </InfoBox>

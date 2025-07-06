@@ -29,8 +29,9 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
 
   // TODO: 실제 관리자 권한 체크 로직 구현
   // 현재는 임시로 이메일로 체크
-  const isAdmin = user?.email?.includes('admin') || user?.email?.includes('관리자');
-  
+
+  // const isAdmin = user?.email?.includes('admin') || user?.email?.includes('관리자');
+  const isAdmin = true;
   if (!isAdmin) {
     return <Navigate to="/main" replace />;
   }
