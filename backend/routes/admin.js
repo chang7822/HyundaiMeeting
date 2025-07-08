@@ -328,4 +328,91 @@ router.post('/profile-options/bulk-save', async (req, res) => {
   }
 });
 
+// [매칭 신청 현황 조회]
+router.get('/matching-applications', async (req, res) => {
+  try {
+    const { periodId } = req.query;
+    let query = supabase
+      .from('matching_applications')
+      .select(`
+        *,
+        user:users!inner(id,email),
+        profile:user_profiles!user_id(*)
+      `)
+      .order('applied_at', { ascending: false });
+    if (periodId && periodId !== 'all') {
+      query = query.eq('period_id', periodId);
+    }
+    const { data, error } = await query;
+    if (error) {
+      console.error('[matching_applications] Supabase 쿼리 에러:', error);
+      throw error;
+    }
+    if (!data) return res.json([]); // 데이터 없으면 빈 배열 반환
+
+    const userMap = {};
+    data.forEach(row => {
+      if (row.user && row.user.id) userMap[row.user.id] = row.user;
+    });
+
+    for (const row of data) {
+      if (row.partner_user_id && userMap[row.partner_user_id]) {
+        row.partner = userMap[row.partner_user_id];
+      } else if (row.partner_user_id) {
+        try {
+          const { data: partnerUser, error: partnerError } = await supabase
+            .from('users')
+            .select('id,email')
+            .eq('id', row.partner_user_id)
+            .single();
+          if (partnerError || !partnerUser) {
+            row.partner = null;
+          } else {
+            row.partner = partnerUser;
+          }
+        } catch (e) {
+          row.partner = null;
+        }
+      }
+    }
+    res.json(data);
+  } catch (error) {
+    console.error('matching_applications 현황 조회 오류:', error);
+    res.status(500).json({ message: '매칭 신청 현황 조회 실패', error: error?.message || error });
+  }
+});
+
+// [매칭 결과(커플) 리스트 조회]
+router.get('/matching-history', async (req, res) => {
+  try {
+    const { periodId, nickname } = req.query;
+    // 1. matching_history에서 회차별로 조회
+    let query = supabase
+      .from('matching_history')
+      .select(`
+        *,
+        male:user_profiles!male_user_id(*, user:users!user_id(id, email)),
+        female:user_profiles!female_user_id(*, user:users!user_id(id, email))
+      `)
+      .order('period_id', { ascending: false });
+    if (periodId && periodId !== 'all') {
+      query = query.eq('period_id', periodId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    let result = data || [];
+    // 2. 닉네임 필터링(남/여 중 하나라도 해당 닉네임 포함)
+    if (nickname && nickname.trim() !== '') {
+      result = result.filter(row =>
+        (row.male && row.male.nickname && row.male.nickname.includes(nickname)) ||
+        (row.female && row.female.nickname && row.female.nickname.includes(nickname))
+      );
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('matching_history 조회 오류:', error);
+    res.status(500).json({ message: '매칭 결과 조회 실패', error: error?.message || error });
+  }
+});
+
 module.exports = router; 

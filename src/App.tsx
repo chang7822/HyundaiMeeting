@@ -24,6 +24,8 @@ import ProfilePage from './pages/ProfilePage.tsx';
 import PreferencePage from './pages/PreferencePage.tsx';
 import MatchingLogAdminPage from './pages/admin/MatchingLogAdminPage.tsx';
 import CategoryManagerPage from './pages/admin/CategoryManagerPage.tsx';
+import { MatchingApplicationsPage } from './pages/admin/MatchingApplicationsPage.tsx';
+import MatchingResultPage from './pages/admin/MatchingResultPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
 import ChatPage from './pages/ChatPage.tsx';
 
@@ -138,6 +140,22 @@ function App() {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <CategoryManagerPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/matching-applications" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <MatchingApplicationsPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/matching-result" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <MatchingResultPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />

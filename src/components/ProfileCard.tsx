@@ -67,13 +67,13 @@ const tagStyle: React.CSSProperties = {
   marginBottom: 2,
 };
 
-const ProfileIcon: React.FC<{gender: string}> = ({ gender }) => {
-  if (gender === '남성') {
-    return <FaUserCircle size={44} color="#7C3AED" style={{flexShrink:0}} />;
-  } else if (gender === '여성') {
-    return <FaRegSmile size={44} color="#F472B6" style={{flexShrink:0}} />;
+const ProfileIcon: React.FC<{gender: string; size?: number}> = ({ gender, size = 44 }) => {
+  if (gender === 'male' || gender === '남성') {
+    return <FaUserCircle size={size} color="#7C3AED" style={{flexShrink:0}} />;
+  } else if (gender === 'female' || gender === '여성') {
+    return <FaUserCircle size={size} color="#F472B6" style={{flexShrink:0}} />;
   } else {
-    return <FaUserCircle size={44} color="#bbb" style={{flexShrink:0}} />;
+    return <FaUserCircle size={size} color="#bbb" style={{flexShrink:0}} />;
   }
 };
 
@@ -147,4 +147,5 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   );
 };
 
-export default ProfileCard; 
+export default ProfileCard;
+export { ProfileIcon }; 

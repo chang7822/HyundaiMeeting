@@ -82,8 +82,8 @@ const BodyTypeContainer = styled.div`
 `;
 
 const BodyTypeGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
 `;

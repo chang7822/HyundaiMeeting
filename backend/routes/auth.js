@@ -69,11 +69,11 @@ async function sendVerificationEmail(email, code) {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: '현대만남 이메일 인증',
+    subject: '울산 사내 솔로공모 이메일 인증',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">현대자동차 사내 만남 이메일 인증</h2>
-        <p>안녕하세요! 현대자동차 사내 만남 서비스에 가입해주셔서 감사합니다.</p>
+        <h2 style="color: #333;">[울산 사내 솔로공모] 이메일 인증</h2>
+        <p>안녕하세요! 현대자동차 사내 만남 서비스인 [울산 사내 솔로공모]에 가입해주셔서 감사합니다.</p>
         <p>아래 인증번호를 입력하여 이메일 인증을 완료해주세요:</p>
         <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
           <h1 style="color: #667eea; font-size: 32px; margin: 0;">${code}</h1>

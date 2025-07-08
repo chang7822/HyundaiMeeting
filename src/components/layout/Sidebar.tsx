@@ -83,6 +83,9 @@ const Logo = styled.div`
   font-size: 1.5rem;
   font-weight: bold;
   margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: color 0.15s;
+  &:hover { color: #ffe082; }
 `;
 
 const UserInfo = styled.div`
@@ -191,15 +194,15 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/main', icon: <FaHome />, text: '홈' },
     { path: '/profile', icon: <FaUser />, text: '프로필' },
     { path: '/preference', icon: <FaStar />, text: '선호 스타일' },
-    { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
-    // 채팅 메뉴 항상 보이게, 조건에 따라 비활성화
     {
       path: partnerUserId ? `/chat/${partnerUserId}` : '#',
       icon: <FaComments />,
-      text: '상대방과 채팅하기',
+      text: '상대방과 약속 잡기',
       disabled: !canChat,
     },
-    // '카테고리 관리' 메뉴 항상 노출
+    { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
+    { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
+    { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
     {
       path: '/admin/category-manager',
       icon: <span role="img" aria-label="tree">🌳</span>,
@@ -233,7 +236,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           </SidebarCloseButton>
         )}
         <SidebarHeader>
-          <Logo>현대차 만남</Logo>
+          <Logo onClick={() => navigate('/main')}>울산 사내 솔로공모</Logo>
           <UserInfo>{user?.email}</UserInfo>
         </SidebarHeader>
         <NavMenu>

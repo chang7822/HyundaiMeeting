@@ -19,18 +19,8 @@ const Section = styled.div`
   border-radius: 16px;
   margin: 16px auto;
   padding: 24px 16px;
-  width: 100%;
-  max-width: 95vw;
+  max-width: 480px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  @media (min-width: 600px) {
-    max-width: 600px;
-  }
-  @media (min-width: 900px) {
-    max-width: 800px;
-  }
-  @media (min-width: 1200px) {
-    max-width: 1000px;
-  }
 `;
 const Title = styled.h2`
   font-size: 1.2rem;
@@ -173,6 +163,26 @@ const ResidenceButton = styled(OptionButton)`
   margin-bottom: 20px;
 `;
 
+const BodyTypeGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+`;
+const BodyTypeButton = styled.button<{ selected: boolean }>`
+  background: ${props => props.selected ? '#764ba2' : '#f7f7fa'};
+  color: ${props => props.selected ? '#fff' : '#333'};
+  border: 1.5px solid #764ba2;
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  &:hover {
+    background: ${props => props.selected ? '#764ba2' : '#e8e8e8'};
+  }
+`;
+
 function MultiSelectPopup({title, options, selected, onChange, max, onClose}:{title:string, options:string[], selected:string[], onChange:(v:string[])=>void, max:number, onClose:()=>void}) {
   const toggle = (opt:string) => {
     if(selected.includes(opt)) onChange(selected.filter(o=>o!==opt));
@@ -194,23 +204,7 @@ function MultiSelectPopup({title, options, selected, onChange, max, onClose}:{ti
     </PopupBg>
   );
 }
-function SingleSelectPopup({title, options, selected, onChange, onClose}:{title:string, options:string[], selected:string, onChange:(v:string)=>void, onClose:()=>void}) {
-  return (
-    <PopupBg>
-      <Popup>
-        <PopupTitle>{title}</PopupTitle>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'8px', maxHeight:'300px', overflowY:'auto', padding:'8px', marginBottom:'16px'}}>
-          {options.map(opt=>
-            <PopupOption key={opt} selected={selected===opt} onClick={()=>onChange(opt)}>{opt}</PopupOption>
-          )}
-        </div>
-        <PopupFooter>
-          <Button onClick={onClose}>확인</Button>
-        </PopupFooter>
-      </Popup>
-    </PopupBg>
-  );
-}
+
 
 const ProfileSetupPage = () => {
   const navigate = useNavigate();
@@ -464,18 +458,17 @@ const ProfileSetupPage = () => {
         </Select>
         
         <Label>체형</Label>
-        <Row style={{flexWrap:'wrap'}}>
+        <BodyTypeGrid>
           {getOptions(filteredCategories.find(c => c.name === '체형')?.id || 0).map(opt => (
-            <OptionButton
+            <BodyTypeButton
               key={opt.id}
               selected={bodyType === opt.option_text}
-              style={{minWidth:'80px', padding:'8px 16px', textAlign:'center'}}
               onClick={() => setBodyType(opt.option_text)}
             >
               {opt.option_text}
-            </OptionButton>
+            </BodyTypeButton>
           ))}
-        </Row>
+        </BodyTypeGrid>
         
         <Label>직군</Label>
         <Row style={{flexWrap:'wrap'}}>

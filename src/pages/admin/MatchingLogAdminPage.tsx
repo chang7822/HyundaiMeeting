@@ -42,9 +42,10 @@ const Container = styled.div<{ sidebarOpen: boolean }>`
   border-radius: 16px;
   box-shadow: 0 2px 16px rgba(80,60,180,0.08);
   padding: 32px 24px;
-  padding-left: ${props => (window.innerWidth > 768 && props.sidebarOpen) ? '300px' : '0'};
+  max-width: 1200px;
+  margin-left: ${props => (window.innerWidth > 768 && props.sidebarOpen) ? '280px' : '0'};
   @media (max-width: 768px) {
-    padding-left: 0;
+    margin-left: 0;
   }
 `;
 const Title = styled.h2`
@@ -120,10 +121,6 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
     fetchMatchingLogs().then(setLogs);
   }, []);
 
-  useEffect(() => {
-    setSidebarOpen(false);
-  }, [setSidebarOpen]);
-
   const handleEdit = (log: any) => {
     setEditing(log.id);
     setForm({ ...log, executed: !!log.executed });
@@ -175,9 +172,9 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
             </tr>
           </thead>
           <tbody>
-            {logs.map(log => (
+            {logs.map((log, idx) => (
               <tr key={log.id}>
-                <td>{log.id}</td>
+                <td>{idx + 1}</td>
                 <td>{formatKST(log.application_start)}</td>
                 <td>{formatKST(log.application_end)}</td>
                 <td>{formatKST(log.matching_run)}</td>

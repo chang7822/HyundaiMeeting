@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaHeart, FaComments, FaUser, FaCalendarAlt, FaRegStar, FaRegClock, FaUserCircle, FaChevronRight } from 'react-icons/fa';
 import { matchingApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
-import ProfileCard from '../components/ProfileCard.tsx';
+import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
@@ -338,7 +338,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const pollStart = window.setTimeout(() => {
         let count = 0;
         const poll = window.setInterval(() => {
-          fetchMatchingStatus();
+    fetchMatchingStatus();
           count++;
           if (count >= 5) window.clearInterval(poll);
         }, 1000);
@@ -541,8 +541,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     },
     {
       icon: <FaComments />,
-      title: '상대방과 채팅하기',
-      description: '매칭 성공 시 채팅방이 활성화됩니다.',
+      title: '상대방과 약속잡기',
+      description: '매칭 성공 시 약속잡기 버튼이 활성화됩니다.',
       action: () => {
         if (canChat) navigate(`/chat/${partnerUserId}`);
       },
@@ -600,7 +600,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </NicknameSpan>
           님!
         </WelcomeTitle>
-        <WelcomeSubtitle>현대자동차 사내 미팅 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
+        <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
         <ButtonRow>
         <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
           {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
@@ -900,8 +900,18 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                       onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(80,60,180,0.08)')}
                     >
                       <FaChevronRight size={18} color="#7C3AED" style={{ marginRight: 2 }} />
-                      <FaUserCircle size={24} color="#7C3AED" />
-                      <span style={{ fontWeight: 700, color: '#4F46E5', fontSize: '1.01rem', whiteSpace: 'nowrap' }}>
+                      <ProfileIcon gender={partnerProfile?.gender || ''} size={28} />
+                      <span style={{
+                        fontWeight: 700,
+                        color:
+                          partnerProfile?.gender === 'male' || partnerProfile?.gender === '남성'
+                            ? '#7C3AED'
+                            : partnerProfile?.gender === 'female' || partnerProfile?.gender === '여성'
+                            ? '#F472B6'
+                            : '#bbb',
+                        fontSize: '1.01rem',
+                        whiteSpace: 'nowrap',
+                      }}>
                         {(() => {
                           if (!partnerProfile?.nickname) {
                             console.warn('[MainPage] partnerProfile 닉네임 없음! partnerProfile:', partnerProfile, '\npartnerUserId:', partnerUserId, '\nmatchingStatus:', matchingStatus);
@@ -923,7 +933,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             <ActionDescription>{action.description}</ActionDescription>
             )}
             {/* 채팅하기 카드만 커스텀 안내문구/버튼 */}
-            {action.title === '상대방과 채팅하기' ? (
+            {action.title === '상대방과 약속잡기' ? (
               <>
                 <button
                   style={{
@@ -943,7 +953,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     e.stopPropagation();
                     if (canChat) navigate(`/chat/${partnerUserId}`);
                   }}
-                >상대방과 채팅하기</button>
+                >채팅 바로가기</button>
                 {!canChat && (
                   <div style={{ color: '#aaa', fontSize: '0.95rem', marginTop: 6 }}>
                     매칭 성공 시 활성화됩니다

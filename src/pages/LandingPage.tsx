@@ -111,7 +111,7 @@ const LandingPage = () => {
 
   return (
     <LandingContainer>
-      <Logo>현대자동차 사내 만남 플랫폼</Logo>
+      <Logo>울산 사내 솔로 공모</Logo>
       <Subtitle>
         현대자동차(울산) 사내 만남을 위한 플랫폼입니다.<br />
         사진교환, 얼평은 이제 그만! 진심으로 만나요.

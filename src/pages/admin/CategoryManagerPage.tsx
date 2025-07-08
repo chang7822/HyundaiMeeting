@@ -313,7 +313,7 @@ const CategoryManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen 
           <CategoryList>
             {categories.map(cat => (
               <CategoryItem key={cat.id} selected={cat.id === selectedCatId} onClick={() => setSelectedCatId(cat.id)}>
-                <span>{cat.name} <span style={{fontWeight:400,fontSize:'0.97em',color:'#888'}}>({cat.gender})</span></span>
+                    <span>{cat.name} <span style={{fontWeight:400,fontSize:'0.97em',color:'#888'}}>({cat.gender})</span></span>
                 {/* 수정/삭제 버튼 제거 */}
               </CategoryItem>
             ))}

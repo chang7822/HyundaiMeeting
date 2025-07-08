@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { matchingApi, chatApi } from '../services/api.ts';
+import { matchingApi, chatApi, userApi } from '../services/api.ts';
 import ChatHeader from '../components/Chat/ChatHeader.tsx';
 import ChatWindow from '../components/Chat/ChatWindow.tsx';
 import ChatInput from '../components/Chat/ChatInput.tsx';
@@ -9,6 +9,8 @@ import { toast } from 'react-toastify';
 import { ChatMessage } from '../types/index.ts';
 import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
+import ProfileCard from '../components/ProfileCard.tsx';
+import Modal from 'react-modal';
 
 const DEV_MODE = true; // 개발 중 true, 실서비스 시 false
 
@@ -45,6 +47,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
   const [canEnter, setCanEnter] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const [periodId, setPeriodId] = useState<string | null>(null);
+  const [showProfileModal, setShowProfileModal] = React.useState(false);
+  const [partnerProfile, setPartnerProfile] = useState<any>(null);
 
   // 1. period_id 확보 및 권한 체크
   useEffect(() => {
@@ -146,26 +150,115 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
     }
   }, [messages]);
 
+  // partnerUserId가 바뀔 때마다 상대방 프로필 fetch
+  useEffect(() => {
+    if (!partnerUserId) return;
+    userApi.getUserProfile(partnerUserId)
+      .then(setPartnerProfile)
+      .catch(() => setPartnerProfile(null));
+  }, [partnerUserId]);
+
   if (loading) return null;
   if (!canEnter) return null;
 
-  // 더미 프로필(실제 연동 시 partnerProfile 사용)
-  const dummyPartner = {
-    nickname: '상대방',
-    avatar: '',
-    job: '연구원',
-    mbti: 'ENFP',
+  const handleBack = () => {
+    navigate('/main');
+  };
+  const handleShowProfile = () => {
+    setShowProfileModal(true);
+  };
+  const handleReport = () => {
+    alert('신고가 접수되었습니다. (추후 실제 신고 처리 예정)');
   };
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
-      <ChatHeader partner={dummyPartner} />
+      <ChatHeader
+        partner={{
+          nickname: partnerProfile?.nickname || '상대방',
+          birthYear: partnerProfile?.birth_year,
+          gender: partnerProfile?.gender,
+          job: partnerProfile?.job_type,
+          mbti: partnerProfile?.mbti,
+        }}
+        onBack={handleBack}
+        onReport={handleReport}
+        onShowProfile={handleShowProfile}
+      />
       <div style={{ flex: 1, width: '100%' }}>
         <ChatWindow messages={messages} chatWindowRef={chatWindowRef} userId={user?.id || ''} />
       </div>
       <div style={{ width: '100%' }}>
         <ChatInput value={input} onChange={setInput} onSend={handleSend} />
       </div>
+      <Modal
+        isOpen={showProfileModal}
+        onRequestClose={() => setShowProfileModal(false)}
+        style={{
+          content: {
+            maxWidth: 380,
+            minWidth: 220,
+            width: 'fit-content',
+            maxHeight: '80vh',
+            margin: 'auto',
+            borderRadius: 16,
+            padding: 0,
+            overflowY: 'visible',
+            overflowX: 'visible',
+            boxShadow: '0 4px 24px rgba(80,60,180,0.13)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }
+        }}
+        contentLabel="상대방 프로필"
+      >
+        <button
+          onClick={() => setShowProfileModal(false)}
+          style={{
+            position: 'absolute',
+            top: 12,
+            right: 12,
+            background: '#ede7f6',
+            color: '#764ba2',
+            border: 'none',
+            borderRadius: '50%',
+            width: 36,
+            height: 36,
+            fontWeight: 700,
+            fontSize: '1.2rem',
+            cursor: 'pointer',
+            zIndex: 10,
+            boxShadow: '0 2px 8px rgba(80,60,180,0.08)'
+          }}
+          title="닫기"
+        >
+          ×
+        </button>
+        {partnerProfile ? (
+          <ProfileCard
+            nickname={partnerProfile.nickname}
+            birthYear={partnerProfile.birth_year}
+            gender={
+              partnerProfile.gender === 'male'
+                ? '남성'
+                : partnerProfile.gender === 'female'
+                ? '여성'
+                : partnerProfile.gender || ''
+            }
+            job={partnerProfile.job_type}
+            mbti={partnerProfile.mbti}
+            maritalStatus={partnerProfile.marital_status}
+            appeal={partnerProfile.appeal}
+            interests={partnerProfile.interests}
+            appearance={partnerProfile.appearance}
+            personality={partnerProfile.personality}
+          />
+        ) : (
+          <div style={{padding:32}}>프로필 정보를 불러오는 중입니다...</div>
+        )}
+      </Modal>
     </MainContainer>
   );
 };

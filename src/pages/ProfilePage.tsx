@@ -96,6 +96,7 @@ const Button = styled.button`
 `;
 const Row = styled.div`
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 20px;
 `;
@@ -104,10 +105,10 @@ const OptionButton = styled.button<{selected?: boolean}>`
   color: ${({selected}) => selected ? '#fff' : '#333'};
   border: 1.5px solid #764ba2;
   border-radius: 8px;
-  padding: 8px 16px;
-  margin: 4px 4px 0 0;
+  padding: 12px 16px;
   cursor: pointer;
   font-size: 1rem;
+  white-space: nowrap;
 `;
 const DangerButton = styled(Button)`
   background: #fff;
