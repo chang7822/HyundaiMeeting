@@ -8,15 +8,13 @@ const authenticate = require('../middleware/authenticate');
 
 // 환경 변수 직접 설정 (config.env 로딩 문제 해결)
 if (!process.env.EMAIL_USER) {
-  process.env.EMAIL_USER = 'changjae1109@gmail.com';
-  process.env.EMAIL_PASS = 'rfcqefynptvwrxka';
-  console.log('auth.js에서 환경 변수를 직접 설정했습니다.');
+  console.warn('[경고] EMAIL_USER 환경변수가 설정되어 있지 않습니다. 이메일 인증이 동작하지 않을 수 있습니다.');
 }
-
-// JWT_SECRET 설정
+if (!process.env.EMAIL_PASS) {
+  console.warn('[경고] EMAIL_PASS 환경변수가 설정되어 있지 않습니다. 이메일 인증이 동작하지 않을 수 있습니다.');
+}
 if (!process.env.JWT_SECRET) {
-  process.env.JWT_SECRET = 'hyundai-meeting-secret-key-2024';
-  console.log('JWT_SECRET 환경 변수를 설정했습니다.');
+  console.warn('[경고] JWT_SECRET 환경변수가 설정되어 있지 않습니다. 인증/보안에 취약할 수 있습니다.');
 }
 
 // 환경 변수 확인

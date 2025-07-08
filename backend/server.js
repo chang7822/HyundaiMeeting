@@ -1,7 +1,13 @@
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+const envPath = path.join(__dirname, 'config.env');
+console.log('envPath:', envPath, 'exists:', fs.existsSync(envPath));
+dotenv.config({ path: envPath });
+console.log('dotenv.config() 직후 EMAIL_USER:', process.env.EMAIL_USER);
+
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const path = require('path');
 const authRoutes = require('./routes/auth');
 const companyRoutes = require('./routes/companies');
 const userRoutes = require('./routes/users');
@@ -13,12 +19,15 @@ const { supabase } = require('./database');
 // 환경 변수 로드 (절대 경로 사용)
 dotenv.config({ path: path.join(__dirname, 'config.env') });
 
-// 환경 변수가 로드되지 않으면 직접 설정
+// 환경 변수 미설정 시 경고만 출력
 if (!process.env.EMAIL_USER) {
-  process.env.EMAIL_USER = 'changjae1109@gmail.com';
-  process.env.EMAIL_PASS = 'rfcqefynptvwrxka';
-  process.env.DB_PASSWORD = 'Pgmrrha12!@';
-  console.log('환경 변수를 직접 설정했습니다.');
+  console.warn('[경고] EMAIL_USER 환경변수가 설정되어 있지 않습니다. 이메일 인증이 동작하지 않을 수 있습니다.');
+}
+if (!process.env.EMAIL_PASS) {
+  console.warn('[경고] EMAIL_PASS 환경변수가 설정되어 있지 않습니다. 이메일 인증이 동작하지 않을 수 있습니다.');
+}
+if (!process.env.DB_PASSWORD) {
+  console.warn('[경고] DB_PASSWORD 환경변수가 설정되어 있지 않습니다. 직접 DB접속이 필요한 경우 오류가 발생할 수 있습니다.');
 }
 
 const app = express();
