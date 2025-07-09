@@ -69,7 +69,7 @@ const NoPreferenceButton = styled.button<{ selected: boolean }>`
   cursor: pointer;
   font-size: 1rem;
   width: 100%;
-  margin-bottom: 16px;
+  
 `;
 
 const HeightRangeContainer = styled.div`

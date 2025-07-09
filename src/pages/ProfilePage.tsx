@@ -98,7 +98,7 @@ const Row = styled.div`
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 `;
 const OptionButton = styled.button<{selected?: boolean}>`
   background: ${({selected}) => selected ? '#764ba2' : '#fff'};
@@ -314,7 +314,11 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         residence,
         job_type,
         marital_status,
-        appeal
+        appeal,
+        religion,
+        smoking,
+        drinking,
+        body_type,
       } = profile;
       const updateData = {
         nickname,
@@ -323,10 +327,14 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         interests,
         appearance,
         personality,
-        residence,
+        residence: profile.residence,
         job_type,
         marital_status,
-        appeal
+        appeal,
+        religion: profile.religion,
+        smoking: profile.smoking,
+        drinking: profile.drinking,
+        body_type: profile.body_type,
       };
       console.log('[디버깅] 저장 요청 updateData:', updateData);
       const res = await userApi.updateMe(updateData);
@@ -374,7 +382,14 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   };
 
+  // 카테고리 id 찾기
+  const religionCat = categories.find(c => c.name === '종교');
+  const smokingCat = categories.find(c => c.name === '흡연');
+  const drinkingCat = categories.find(c => c.name === '음주');
   // 옵션 목록 추출
+  const religionOptions = religionCat ? options.filter(o => o.category_id === religionCat.id) : [];
+  const smokingOptions = smokingCat ? options.filter(o => o.category_id === smokingCat.id) : [];
+  const drinkingOptions = drinkingCat ? options.filter(o => o.category_id === drinkingCat.id) : [];
   const interestOptions = getOptions('관심사').map(opt=>opt.option_text);
   const appearanceOptions = (() => {
     const cat = categories.find(c => c.name === '외모' && (c.gender === 'common' || c.gender === profile.gender));
@@ -406,6 +421,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               : profile.nickname && !nicknameError
               ? '#2ecc40'
               : '#e1e5e9',
+            marginBottom:24
           }}
         />
         {nicknameError && (
@@ -421,6 +437,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             trackStyle={[{ backgroundColor: '#764ba2', height: 10 }]}
             handleStyle={[{ width: 28, height: 28, backgroundColor: '#764ba2', border: '3px solid #fff', marginTop: -8, opacity: 1, boxShadow: '0 2px 4px #764ba2' }]}
             railStyle={{ backgroundColor: '#e0e0e0', height: 10 }}
+            style={{marginBottom:24}}
           />
           <div style={{display:'flex',justifyContent:'space-between',marginTop:'2px',fontSize:'0.95rem',color:'#666',fontWeight:500}}>
             <span>150</span>
@@ -430,7 +447,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             <span>190</span>
             <span>200</span>
           </div>
-          <div style={{textAlign:'center',fontSize:'1.1rem',fontWeight:600,color:'#764ba2',margin:'10px 0 0 0'}}>
+          <div style={{textAlign:'center',fontSize:'1.1rem',fontWeight:600,color:'#764ba2',margin:'10px 0 24px 0'}}>
             {profile.height ? `${profile.height} cm` : '키를 입력해주세요'}
           </div>
         </div>
@@ -455,6 +472,36 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         <SelectButton type="button" onClick={()=>setAddressPopup(true)}>
           {profile.residence||'주소를 선택해주세요'}
         </SelectButton>
+        <Label>종교</Label>
+        <Row>
+          {religionOptions.map(opt => (
+            <OptionButton
+              key={opt.id}
+              selected={profile.religion === opt.option_text}
+              onClick={() => setProfile({ ...profile, religion: opt.option_text })}
+            >{opt.option_text}</OptionButton>
+          ))}
+        </Row>
+        <Label>흡연</Label>
+        <Row>
+          {smokingOptions.map(opt => (
+            <OptionButton
+              key={opt.id}
+              selected={profile.smoking === opt.option_text}
+              onClick={() => setProfile({ ...profile, smoking: opt.option_text })}
+            >{opt.option_text}</OptionButton>
+          ))}
+        </Row>
+        <Label>음주</Label>
+        <Row>
+          {drinkingOptions.map(opt => (
+            <OptionButton
+              key={opt.id}
+              selected={profile.drinking === opt.option_text}
+              onClick={() => setProfile({ ...profile, drinking: opt.option_text })}
+            >{opt.option_text}</OptionButton>
+          ))}
+        </Row>
         <Label>직군</Label>
         <Row>
           {getOptions('직군').map((opt) => (

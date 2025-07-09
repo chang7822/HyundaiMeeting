@@ -29,7 +29,7 @@ const Title = styled.h2`
 const Row = styled.div`
   display: flex;
   gap: 8px;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 `;
 const Label = styled.label`
   font-size: 1rem;
@@ -168,6 +168,7 @@ const BodyTypeGrid = styled.div`
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+  margin-bottom: 24px;
 `;
 const BodyTypeButton = styled.button<{ selected: boolean }>`
   background: ${props => props.selected ? '#764ba2' : '#f7f7fa'};
