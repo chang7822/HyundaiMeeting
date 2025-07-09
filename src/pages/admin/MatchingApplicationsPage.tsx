@@ -4,6 +4,7 @@ import Modal from 'react-modal';
 import { FaSort, FaCheck, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
+import { apiUrl } from '../../services/api.ts';
 
 const Container = styled.div<{ sidebarOpen: boolean }>`
   margin: 40px auto;
@@ -142,11 +143,11 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
 
   // 회차 목록 불러오기
   useEffect(() => {
-    fetch('/api/admin/matching-log').then(r=>r.json()).then(setLogs);
+    fetch(apiUrl('/admin/matching-log')).then(r=>r.json()).then(setLogs);
   }, []);
   // 신청 현황 불러오기
   useEffect(() => {
-    fetch(`/api/admin/matching-applications?periodId=${periodId}`)
+    fetch(apiUrl(`/admin/matching-applications?periodId=${periodId}`))
       .then(r=>r.json())
       .then(data => {
         setApplications(Array.isArray(data) ? data : []);

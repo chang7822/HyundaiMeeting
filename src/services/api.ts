@@ -2,7 +2,15 @@ import axios from 'axios';
 import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ApiResponse, ProfileCategory, ProfileOption } from '../types/index.ts';
 import { toast } from 'react-toastify';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+// API Base URL을 반드시 환경변수로만 사용하도록 강제
+const API_BASE_URL = (process.env.REACT_APP_API_URL || '').replace(/\/$/, ''); // 끝 슬래시 제거
+
+// fetch/axios 등에서 항상 API_BASE_URL을 prefix로 사용하도록 유틸 함수 제공
+export function apiUrl(path: string) {
+  // path 앞에 슬래시가 없으면 추가
+  if (!path.startsWith('/')) path = '/' + path;
+  return API_BASE_URL + path;
+}
 
 // Create axios instance with default config
 const api = axios.create({
@@ -210,7 +218,7 @@ export const matchingApi = {
 // Chat API
 export const chatApi = {
   getMessages: async (periodId: string, partnerUserId: string, userId: string) => {
-    const res = await fetch(`/api/chat/${periodId}/${partnerUserId}/messages?userId=${userId}`);
+    const res = await fetch(apiUrl(`/chat/${periodId}/${partnerUserId}/messages?userId=${userId}`));
     if (!res.ok) throw new Error('메시지 조회 실패');
     return await res.json();
   },

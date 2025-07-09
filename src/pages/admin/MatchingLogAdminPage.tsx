@@ -3,15 +3,16 @@ import styled from 'styled-components';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Modal from 'react-modal';
+import { apiUrl } from '../../services/api.ts';
 
 // 예시 API (실제 API 연동 필요)
 const fetchMatchingLogs = async () => {
-  const res = await fetch('/api/admin/matching-log');
+  const res = await fetch(apiUrl('/admin/matching-log'));
   if (!res.ok) return [];
   return await res.json();
 };
 const createMatchingLog = async (log: any) => {
-  const res = await fetch('/api/admin/matching-log', {
+  const res = await fetch(apiUrl('/admin/matching-log'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(log),
@@ -20,7 +21,7 @@ const createMatchingLog = async (log: any) => {
   return await res.json();
 };
 const updateMatchingLog = async (id: number, log: any) => {
-  const res = await fetch(`/api/admin/matching-log/${id}`, {
+  const res = await fetch(apiUrl(`/admin/matching-log/${id}`), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(log),
@@ -29,7 +30,7 @@ const updateMatchingLog = async (id: number, log: any) => {
   return await res.json();
 };
 const deleteMatchingLog = async (id: number) => {
-  const res = await fetch(`/api/admin/matching-log/${id}`, {
+  const res = await fetch(apiUrl(`/admin/matching-log/${id}`), {
     method: 'DELETE',
   });
   if (!res.ok) throw new Error('삭제 실패');

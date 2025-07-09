@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import Modal from 'react-modal';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
+import { apiUrl } from '../../services/api.ts';
 
 const Container = styled.div<{ sidebarOpen: boolean }>`
   margin: 40px auto;
@@ -85,14 +86,14 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
 
   // 회차 목록 불러오기
   useEffect(() => {
-    fetch('/api/admin/matching-log').then(r=>r.json()).then(setLogs);
+    fetch(apiUrl('/admin/matching-log')).then(r=>r.json()).then(setLogs);
   }, []);
   // 매칭 결과 불러오기
   useEffect(() => {
     const params = new URLSearchParams();
     if (periodId && periodId !== 'all') params.append('periodId', periodId);
     if (nickname) params.append('nickname', nickname);
-    fetch(`/api/admin/matching-history?${params.toString()}`)
+    fetch(apiUrl(`/admin/matching-history?${params.toString()}`))
       .then(r=>r.json())
       .then(data => {
         setResults(Array.isArray(data) ? data : []);
