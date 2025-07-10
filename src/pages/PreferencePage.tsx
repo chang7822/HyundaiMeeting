@@ -182,12 +182,18 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   useEffect(() => {
     setLoading(true);
+    // 내 성별을 sessionStorage에 저장(없으면)
+    userApi.getMe().then(profile => {
+      if (profile.gender && !sessionStorage.getItem('userGender')) {
+        sessionStorage.setItem('userGender', profile.gender);
+      }
+    }).catch(()=>{});
     getProfileCategories().then(data => { setCategories(data); setCategoriesLoaded(true); });
     getProfileOptions().then(data => { setOptions(data); setOptionsLoaded(true); });
   }, []);
 
-  const oppositeGender = userGender === 'male' ? 'female' : 'male';
-  const bodyTypeCategory = categories.find(cat => cat.name === '체형' && cat.gender === oppositeGender);
+  const oppositeGender = userGender === 'male' ? 'female' : userGender === 'female' ? 'male' : null;
+  const bodyTypeCategory = categories.find(cat => cat.name === '체형' && (cat.gender === oppositeGender || cat.gender === 'common'));
   const bodyTypeOptions = bodyTypeCategory ? options.filter(opt => opt.category_id === bodyTypeCategory.id).map(opt => opt.option_text) : [];
   const jobTypeCategory = categories.find(cat => cat.name === '직군');
   const jobTypeOptions = jobTypeCategory ? options.filter(opt => opt.category_id === jobTypeCategory.id).map(opt => opt.option_text) : [];
@@ -483,17 +489,21 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             {preferBodyTypeNoPreference ? '모든 체형 선택됨' : '모든 체형 (상관없음)'}
           </NoPreferenceButton>
           {!preferBodyTypeNoPreference && (
-            <BodyTypeGrid>
-              {bodyTypeOptions.map(bodyType => (
-                <BodyTypeButton
-                  key={bodyType}
-                  selected={preferredBodyTypes.includes(bodyType)}
-                  onClick={() => handleBodyTypeToggle(bodyType)}
-                >
-                  {bodyType}
-                </BodyTypeButton>
-              ))}
-            </BodyTypeGrid>
+            bodyTypeOptions.length > 0 ? (
+              <BodyTypeGrid>
+                {bodyTypeOptions.map(bodyType => (
+                  <BodyTypeButton
+                    key={bodyType}
+                    selected={preferredBodyTypes.includes(bodyType)}
+                    onClick={() => handleBodyTypeToggle(bodyType)}
+                  >
+                    {bodyType}
+                  </BodyTypeButton>
+                ))}
+              </BodyTypeGrid>
+            ) : (
+              <div style={{color:'#e74c3c',marginTop:8}}>체형 옵션이 없습니다. 관리자에게 문의하세요.</div>
+            )
           )}
         </BodyTypeContainer>
         {/* 선호 직군 */}
