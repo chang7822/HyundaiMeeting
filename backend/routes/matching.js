@@ -164,14 +164,14 @@ router.get('/status', async (req, res) => {
     }
     const periodId = periodData.id;
     console.log('[DEBUG][matching/status] 조회 periodId:', periodId);
-    // 2. 해당 회차 + user_id로 matching_applications 조회 (applied=true, cancelled=false 조건 추가)
+    // 2. 해당 회차 + user_id로 matching_applications에서 가장 최근 row 1개만 조회 (신청/취소 포함)
     const { data, error } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
       .eq('period_id', periodId)
-      .eq('applied', true)
-      .eq('cancelled', false)
+      .order('applied_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
     console.log('[DEBUG][matching/status] 쿼리 조건:', { userId, periodId });
     if (error && error.code !== 'PGRST116') {

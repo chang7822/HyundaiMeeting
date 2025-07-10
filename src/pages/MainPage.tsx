@@ -511,7 +511,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const remain = 10 * 60 * 1000 - diff;
       const min = Math.floor(remain / 60000);
       const sec = Math.floor((remain % 60000) / 1000);
-      reapplyMessage = `신청까지\n남은 시간: ${min}분 ${sec}초`;
+      reapplyMessage = `신청가능까지\n남은 시간: ${min}분 ${sec}초`;
     }
   }
 
