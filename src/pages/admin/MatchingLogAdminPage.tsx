@@ -4,6 +4,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Modal from 'react-modal';
 import { apiUrl } from '../../services/api.ts';
+import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
 // 예시 API (실제 API 연동 필요)
 const fetchMatchingLogs = async () => {
@@ -117,9 +118,11 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
     executed: false,
   });
   const [modalOpen, setModalOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchMatchingLogs().then(setLogs);
+    setLoading(true);
+    fetchMatchingLogs().then(setLogs).finally(()=>setLoading(false));
   }, []);
 
   const handleEdit = (log: any) => {
@@ -154,6 +157,8 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
   const handleChange = (field: string, value: any) => {
     setForm({ ...form, [field]: value });
   };
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <Container sidebarOpen={isSidebarOpen}>

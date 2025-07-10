@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import Modal from 'react-modal';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { apiUrl } from '../../services/api.ts';
+import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
 const Container = styled.div<{ sidebarOpen: boolean }>`
   margin: 40px auto;
@@ -83,6 +84,7 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
   const [nickname, setNickname] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalUser, setModalUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
   // 회차 목록 불러오기
   useEffect(() => {
@@ -90,6 +92,7 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
   }, []);
   // 매칭 결과 불러오기
   useEffect(() => {
+    setLoading(true);
     const params = new URLSearchParams();
     if (periodId && periodId !== 'all') params.append('periodId', periodId);
     if (nickname) params.append('nickname', nickname);
@@ -100,7 +103,8 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
       })
       .catch(()=>{
         setResults([]);
-      });
+      })
+      .finally(()=>setLoading(false));
   }, [periodId, nickname]);
 
   // 회차 인덱스 → 연속 번호로 변환 함수
@@ -124,6 +128,8 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
     setModalOpen(false);
     setModalUser(null);
   };
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <Container sidebarOpen={sidebarOpen}>

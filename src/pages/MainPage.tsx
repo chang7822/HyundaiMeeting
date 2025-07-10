@@ -7,6 +7,7 @@ import { matchingApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
+import LoadingSpinner from '../components/LoadingSpinner.tsx';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -346,6 +347,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return () => window.clearTimeout(pollStart);
     }
   }, [period, user?.id]);
+
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    setLoading(true);
+    Promise.all([
+      fetchMatchingStatus(),
+      partnerUserId ? fetchPartnerProfile(partnerUserId) : Promise.resolve()
+    ]).finally(() => setLoading(false));
+  }, [/* 의존성: 필요한 값들 */]);
+
+  if (loading) return <LoadingSpinner />;
 
   if (isLoading || !isAuthenticated) return null;
 

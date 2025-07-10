@@ -8,6 +8,7 @@ import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaTimes } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext.tsx';
+import LoadingSpinner from '../components/LoadingSpinner.tsx';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -177,8 +178,10 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [options, setOptions] = useState<ProfileOption[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
+  const [loading, setLoading] = React.useState(true);
 
   useEffect(() => {
+    setLoading(true);
     getProfileCategories().then(data => { setCategories(data); setCategoriesLoaded(true); });
     getProfileOptions().then(data => { setOptions(data); setOptionsLoaded(true); });
   }, []);
@@ -234,7 +237,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         try { setPreferredMaritalStatuses(JSON.parse(profile.preferred_marital_statuses)); } catch { setPreferredMaritalStatuses([]); }
       }
       setPreferMaritalNoPreference(Array.isArray(profile.preferred_marital_statuses) && profile.preferred_marital_statuses.length === 0);
-    });
+    }).finally(() => setLoading(false));
     // 2. sessionStorage 값이 있으면 덮어쓰기
     const saved = sessionStorage.getItem('userPreferences');
     if (saved) {
@@ -366,6 +369,8 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return next;
     });
   };
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>

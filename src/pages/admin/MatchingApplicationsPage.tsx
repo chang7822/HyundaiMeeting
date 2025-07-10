@@ -5,6 +5,7 @@ import { FaSort, FaCheck, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { apiUrl } from '../../services/api.ts';
+import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
 const Container = styled.div<{ sidebarOpen: boolean }>`
   margin: 40px auto;
@@ -140,6 +141,7 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
   const [modalUser, setModalUser] = useState<any>(null);
   const [matchableMap, setMatchableMap] = useState<{[userId:string]: any[]}>({});
   const [matchableModal, setMatchableModal] = useState<{open:boolean, list:any[]}>({open:false, list:[]});
+  const [loading, setLoading] = useState(true);
 
   // 회차 목록 불러오기
   useEffect(() => {
@@ -147,6 +149,7 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
   }, []);
   // 신청 현황 불러오기
   useEffect(() => {
+    setLoading(true);
     fetch(apiUrl(`/admin/matching-applications?periodId=${periodId}`))
       .then(r=>r.json())
       .then(data => {
@@ -155,7 +158,8 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
       .catch(()=>{
         toast.error('신청 현황 조회 실패');
         setApplications([]);
-      });
+      })
+      .finally(()=>setLoading(false));
   }, [periodId]);
 
   // 소팅
@@ -200,6 +204,8 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     const idx = logs.findIndex(log => String(log.id) === String(period_id));
     return idx >= 0 ? idx + 1 : period_id;
   };
+
+  if (loading) return <LoadingSpinner />;
 
   return (
     <Container sidebarOpen={sidebarOpen}>

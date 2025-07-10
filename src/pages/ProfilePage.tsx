@@ -8,6 +8,7 @@ import { ProfileCategory, ProfileOption, User, UserProfile } from '../types';
 import Slider from 'rc-slider';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaEye, FaEyeSlash, FaCheckCircle, FaTimesCircle, FaTimes } from 'react-icons/fa';
+import LoadingSpinner from '../components/LoadingSpinner.tsx';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -233,28 +234,32 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const isPwMatch = !!pw2 && pw === pw2;
   const isPwNotMatch = !!pw2 && pw !== pw2;
   const [nicknameError, setNicknameError] = useState<string | null>(null);
+  const [loading, setLoading] = React.useState(true);
 
   useEffect(() => {
+    setLoading(true);
     console.log('[ProfilePage] useEffect 진입, isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
     if (isLoading || !isAuthenticated) return;
     console.log('[ProfilePage] 인증 복원 완료, 내 정보 API 호출');
     (async () => {
       try {
-        const userProfile = await userApi.getMe();
+        const [userProfile, categoriesData, optionsData] = await Promise.all([
+          userApi.getMe(),
+          getProfileCategories(),
+          getProfileOptions(),
+        ]);
         setProfile(userProfile);
+        setCategories(categoriesData);
+        setOptions(optionsData);
         console.log('[ProfilePage] getMe 데이터:', userProfile);
+        console.log('[ProfilePage] getProfileCategories 데이터:', categoriesData);
+        console.log('[ProfilePage] getProfileOptions 데이터:', optionsData);
       } catch (err) {
-        console.error('[ProfilePage] getMe 에러:', err);
+        console.error('[ProfilePage] 데이터 로딩 에러:', err);
+      } finally {
+        setLoading(false); // 모든 데이터 로딩 후 로딩 해제
       }
     })();
-    getProfileCategories().then(data => {
-      setCategories(data);
-      console.log('[ProfilePage] getProfileCategories 데이터:', data);
-    });
-    getProfileOptions().then(data => {
-      setOptions(data);
-      console.log('[ProfilePage] getProfileOptions 데이터:', data);
-    });
   }, [isLoading, isAuthenticated]);
 
   const getOptions = (catName:string) => {
@@ -402,6 +407,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return options.filter(o => o.category_id === cat.id).map(o => o.option_text);
   })();
 
+  if (loading) return <LoadingSpinner />;
   if (isLoading || !isAuthenticated) return null;
 
   return (
