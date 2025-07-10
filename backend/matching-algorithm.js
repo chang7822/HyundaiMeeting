@@ -23,11 +23,11 @@ function getAge(birthYear) {
 
 // 매칭 조건 체크 함수
 function isMutualMatch(a, b) {
-  // 나이: preferred_age_min/max는 상대값이므로, birth_year에 각각 더해서 절대값 범위로 변환
-  const a_min_birth = a.birth_year + a.preferred_age_min;
-  const a_max_birth = a.birth_year + a.preferred_age_max;
-  const b_min_birth = b.birth_year + b.preferred_age_min;
-  const b_max_birth = b.birth_year + b.preferred_age_max;
+  // 나이: preferred_age_min/max는 상대값이므로, 음수(연하)는 출생연도에서 빼고, 양수(연상)는 더해야 함
+  const a_min_birth = a.birth_year - Math.abs(a.preferred_age_min ?? 0);
+  const a_max_birth = a.birth_year + Math.abs(a.preferred_age_max ?? 0);
+  const b_min_birth = b.birth_year - Math.abs(b.preferred_age_min ?? 0);
+  const b_max_birth = b.birth_year + Math.abs(b.preferred_age_max ?? 0);
   if (b.birth_year < a_min_birth || b.birth_year > a_max_birth) return false;
   if (a.birth_year < b_min_birth || a.birth_year > b_max_birth) return false;
   // 키
