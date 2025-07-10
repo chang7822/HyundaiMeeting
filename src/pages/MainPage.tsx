@@ -363,6 +363,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     ]).finally(() => setLoading(false));
   }, [/* 의존성: 필요한 값들 */]);
 
+  // 모달이 열릴 때 body 스크롤 막기
+  useEffect(() => {
+    const isAnyModalOpen = showProfileModal || showPartnerModal || showMatchingConfirmModal || showCancelConfirmModal;
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showCancelConfirmModal]);
+
   if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
 
   if (isLoading || !isAuthenticated) return null;
