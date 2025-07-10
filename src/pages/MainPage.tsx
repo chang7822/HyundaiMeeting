@@ -288,16 +288,25 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 매칭 상태 조회
   const fetchMatchingStatus = async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      console.warn('[디버깅] fetchMatchingStatus: user.id 없음, 중단');
+      return;
+    }
     setStatusLoading(true);
     try {
+      console.log('[디버깅] fetchMatchingStatus: matchingApi.getMatchingStatus 호출, user.id:', user.id);
       const res = await matchingApi.getMatchingStatus(user.id);
-      console.log('[MainPage][fetchMatchingStatus] API 응답:', res);
-      setMatchingStatus(res.status);
-      console.log('[MainPage][fetchMatchingStatus] setMatchingStatus:', res.status);
+      console.log('[디버깅] fetchMatchingStatus: API 응답 전체:', res);
+      if (res && typeof res === 'object' && 'status' in res) {
+        setMatchingStatus(res.status);
+        console.log('[디버깅] fetchMatchingStatus: setMatchingStatus 호출, 값:', res.status);
+      } else {
+        setMatchingStatus(null);
+        console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음, res:', res);
+      }
     } catch (e) {
       setMatchingStatus(null);
-      console.error('[MainPage][fetchMatchingStatus] 에러:', e);
+      console.error('[디버깅] fetchMatchingStatus: 에러 발생', e);
     } finally {
       setStatusLoading(false);
     }

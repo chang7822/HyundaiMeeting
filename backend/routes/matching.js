@@ -142,7 +142,9 @@ router.get('/my-matches', (req, res) => {
 router.get('/status', async (req, res) => {
   try {
     const { userId } = req.query;
+    console.log('[DEBUG][matching/status] 요청 userId:', userId);
     if (!userId) {
+      console.log('[DEBUG][matching/status] userId 없음');
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
     }
     // 1. 최신 matching_log(=period) id 조회
@@ -152,25 +154,38 @@ router.get('/status', async (req, res) => {
       .order('id', { ascending: false })
       .limit(1)
       .single();
-    if (periodError) throw periodError;
+    if (periodError) {
+      console.log('[DEBUG][matching/status] periodError:', periodError);
+      throw periodError;
+    }
     if (!periodData || !periodData.id) {
+      console.log('[DEBUG][matching/status] periodData 없음:', periodData);
       return res.json({ status: null });
     }
     const periodId = periodData.id;
-    // 2. 해당 회차 + user_id로 matching_applications 조회
+    console.log('[DEBUG][matching/status] 조회 periodId:', periodId);
+    // 2. 해당 회차 + user_id로 matching_applications 조회 (applied=true, cancelled=false 조건 추가)
     const { data, error } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
       .eq('period_id', periodId)
+      .eq('applied', true)
+      .eq('cancelled', false)
       .maybeSingle();
-    if (error && error.code !== 'PGRST116') throw error;
+    console.log('[DEBUG][matching/status] 쿼리 조건:', { userId, periodId });
+    if (error && error.code !== 'PGRST116') {
+      console.log('[DEBUG][matching/status] 쿼리 error:', error);
+      throw error;
+    }
     if (!data) {
+      console.log('[DEBUG][matching/status] 쿼리 결과 없음(data=null)');
       return res.json({ status: null });
     }
+    console.log('[DEBUG][matching/status] 쿼리 결과 data:', data);
     res.json({ status: data });
   } catch (error) {
-    console.error('매칭 상태 조회 오류:', error);
+    console.error('[DEBUG][matching/status] 매칭 상태 조회 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });

@@ -23,11 +23,11 @@ function getAge(birthYear) {
 
 // 매칭 조건 체크 함수
 function isMutualMatch(a, b) {
-  // 나이: 최소/최대 출생연도 = 내 출생연도 + preferred_age_min/max (음수/양수 모두 더함)
-  const a_min_birth = a.birth_year + (a.preferred_age_min ?? 0);
-  const a_max_birth = a.birth_year + (a.preferred_age_max ?? 0);
-  const b_min_birth = b.birth_year + (b.preferred_age_min ?? 0);
-  const b_max_birth = b.birth_year + (b.preferred_age_max ?? 0);
+  // 나이: 최소/최대 출생연도 = 내 출생연도 - preferred_age_max/min (min: 연상, max: 연하)
+  const a_min_birth = a.birth_year - (a.preferred_age_max ?? 0); // 연상(나이 많은 쪽)
+  const a_max_birth = a.birth_year - (a.preferred_age_min ?? 0); // 연하(나이 어린 쪽)
+  const b_min_birth = b.birth_year - (b.preferred_age_max ?? 0);
+  const b_max_birth = b.birth_year - (b.preferred_age_min ?? 0);
   if (b.birth_year < a_min_birth || b.birth_year > a_max_birth) return false;
   if (a.birth_year < b_min_birth || a.birth_year > b_max_birth) return false;
   // 키

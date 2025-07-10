@@ -103,11 +103,11 @@ function formatKST(dateStr: string | null) {
 }
 
 function isMutualMatch(a: any, b: any) {
-  // 나이: 최소/최대 출생연도 = 내 출생연도 + preferred_age_min/max (음수/양수 모두 더함)
-  const a_min_birth = a.birth_year + (a.preferred_age_min ?? 0);
-  const a_max_birth = a.birth_year + (a.preferred_age_max ?? 0);
-  const b_min_birth = b.birth_year + (b.preferred_age_min ?? 0);
-  const b_max_birth = b.birth_year + (b.preferred_age_max ?? 0);
+  // 나이: 최소/최대 출생연도 = 내 출생연도 - preferred_age_max/min (min: 연상, max: 연하)
+  const a_min_birth = a.birth_year - (a.preferred_age_max ?? 0); // 연상(나이 많은 쪽)
+  const a_max_birth = a.birth_year - (a.preferred_age_min ?? 0); // 연하(나이 어린 쪽)
+  const b_min_birth = b.birth_year - (b.preferred_age_max ?? 0);
+  const b_max_birth = b.birth_year - (b.preferred_age_min ?? 0);
   if (b.birth_year < a_min_birth || b.birth_year > a_max_birth) return false;
   if (a.birth_year < b_min_birth || a.birth_year > b_max_birth) return false;
   // 키
@@ -189,11 +189,19 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
 
   // 신청자 데이터 변경 시 매칭 가능 인원 계산
   useEffect(() => {
-    // 같은 회차 신청자만(취소 제외)
-    const validApps = applications.filter(a => !a.cancelled && a.profile && a.profile.birth_year && a.profile.height);
+    // 1. user_id 기준으로 가장 최근 신청만 남기기 (중복 제거)
+    const latestAppsMap = new Map();
+    for (const app of applications) {
+      if (!latestAppsMap.has(app.user_id) || new Date(app.applied_at) > new Date(latestAppsMap.get(app.user_id).applied_at)) {
+        latestAppsMap.set(app.user_id, app);
+      }
+    }
+    // 2. 같은 회차 신청자만(취소 제외)
+    const validApps = Array.from(latestAppsMap.values()).filter(a => !a.cancelled && a.profile && a.profile.birth_year && a.profile.height);
     const map: {[userId:string]: any[]} = {};
     for (const a of validApps) {
-      const others = validApps.filter(b => b.user_id !== a.user_id);
+      // others도 반드시 취소자 제외 및 중복 제거
+      const others = validApps.filter(b => b.user_id !== a.user_id && !b.cancelled);
       map[a.user_id] = others.filter(b => isMutualMatch(a.profile, b.profile));
     }
     setMatchableMap(map);
@@ -235,9 +243,9 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
           </thead>
           <tbody>
             {sortedApps.map(app => (
-              <tr key={app.id}>
+              <tr key={app.id} style={app.cancelled ? { color: '#aaa' } : {}}>
                 <td>
-                  <NicknameBtn onClick={()=>openModal(app)}>{app.profile?.nickname || '-'}</NicknameBtn>
+                  <NicknameBtn onClick={()=>openModal(app)} style={app.cancelled ? { color: '#aaa', textDecoration: 'line-through' } : {}}>{app.profile?.nickname || '-'}</NicknameBtn>
                 </td>
                 <td>{app.user?.email || '-'}</td>
                 <td>{formatKST(app.applied_at)}</td>
@@ -246,9 +254,11 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                 <td>{app.partner ? (app.partner.email || app.partner.id) : '-'}</td>
                 <td>{getPeriodDisplayNumber(app.period_id)}</td>
                 <td>
-                  <Button style={{padding:'4px 10px',fontSize:'1em'}} onClick={()=>setMatchableModal({open:true, list:matchableMap[app.user_id]||[]})}>
-                    {matchableMap[app.user_id]?.length ?? 0}명
-                  </Button>
+                  {!app.cancelled && (
+                    <Button style={{padding:'4px 10px',fontSize:'1em'}} onClick={()=>setMatchableModal({open:true, list:matchableMap[app.user_id]||[]})}>
+                      {matchableMap[app.user_id]?.length ?? 0}명
+                    </Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -267,9 +277,13 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
         <h3 style={{marginBottom:12,fontSize:'1.1rem',color:'#4F46E5'}}>매칭 가능 인원</h3>
         {matchableModal.list.length === 0 ? <div style={{color:'#888'}}>매칭 가능한 인원이 없습니다.</div> : (
           <ul style={{padding:0,margin:0,listStyle:'none',maxHeight:320,overflowY:'auto'}}>
-            {matchableModal.list.map((b:any)=>(
+            {matchableModal.list.filter(b => {
+              // 혹시라도 매칭 가능 인원 리스트에 취소자가 포함되어 있으면 제외
+              const app = applications.find(a => a.user_id === b.user_id && !a.cancelled);
+              return app;
+            }).map((b:any)=> (
               <li key={b.user_id} style={{marginBottom:6}}>
-                <NicknameBtn onClick={()=>{openModal(applications.find(a=>a.user_id===b.user_id)); setMatchableModal({open:false,list:[]});}}>
+                <NicknameBtn onClick={()=>{openModal(applications.find(a=>a.user_id===b.user_id && !a.cancelled)); setMatchableModal({open:false,list:[]});}}>
                   {b.profile?.nickname || b.nickname || b.user_id}
                 </NicknameBtn>
               </li>
