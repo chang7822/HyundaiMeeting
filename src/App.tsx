@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -40,7 +40,23 @@ import { AuthProvider } from './contexts/AuthContext.tsx';
 const queryClient = new QueryClient();
 
 function App() {
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const location = useLocation();
+
+  // 모바일 진입 시 사이드바 자동 닫기
+  useEffect(() => {
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  }, []);
+
+  // 페이지 이동 시에도 모바일이면 닫기
+  useEffect(() => {
+    if (window.innerWidth <= 768) {
+      setSidebarOpen(false);
+    }
+  }, [location]);
+
   const handleSidebarToggle = () => setSidebarOpen(open => !open);
 
   // F5(새로고침) 시 디버깅 로그를 화면에 출력 (복사 가능)

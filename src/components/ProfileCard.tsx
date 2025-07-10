@@ -44,12 +44,16 @@ const valueStyle: React.CSSProperties = {
   wordBreak: 'break-all',
   flex: 1,
   textAlign: 'right',
+  maxWidth: '95%',
+  overflowWrap: 'break-word',
 };
 const sectionStyle: React.CSSProperties = {
   marginBottom: 10,
   display: 'flex',
   alignItems: 'center',
   gap: 8,
+  maxWidth: '95%',
+  flexWrap: 'wrap',
 };
 const divider = <div style={{borderTop:'1px solid #eee',margin:'12px 0'}} />;
 const boxStyle: React.CSSProperties = {
@@ -62,6 +66,9 @@ const boxStyle: React.CSSProperties = {
   flexWrap: 'wrap',
   gap: 8,
   minHeight: 36,
+  maxWidth: '95%',
+  overflowWrap: 'break-word',
+  wordBreak: 'break-all',
 };
 const tagStyle: React.CSSProperties = {
   background: '#ede7f6',
@@ -116,6 +123,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
       fontSize: '1rem',
       position: 'relative',
       margin: '0 auto',
+      boxSizing: 'border-box',
     }}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>
         <ProfileIcon gender={gender} />
@@ -179,7 +187,17 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
       {divider}
       <div style={{marginBottom:0}}>
         <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>자기소개</div>
-        <div style={{...boxStyle,background:'#f8f6fd',minHeight:48,whiteSpace:'pre-line',color:'#444',fontSize:'0.98rem'}}>{appeal || '아직 자기소개가 없습니다.'}</div>
+        <div style={{
+          ...boxStyle,
+          background:'#f8f6fd',
+          minHeight:48,
+          whiteSpace:'pre-line',
+          color:'#444',
+          fontSize:'0.98rem',
+          maxWidth: '95%',
+          overflowWrap: 'break-word',
+          wordBreak: 'break-all',
+        }}>{appeal || '아직 자기소개가 없습니다.'}</div>
       </div>
     </div>
   );
