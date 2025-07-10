@@ -12,6 +12,12 @@ interface ProfileCardProps {
   interests?: string;
   appearance?: string;
   personality?: string;
+  height?: number;
+  body_type?: string;
+  residence?: string;
+  drinking?: string;
+  smoking?: string;
+  religion?: string;
 }
 
 const parseArray = (value?: string) => {
@@ -88,6 +94,12 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   interests,
   appearance,
   personality,
+  height,
+  body_type,
+  residence,
+  drinking,
+  smoking,
+  religion,
 }) => {
   return (
     <div style={{
@@ -95,6 +107,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
       borderRadius: '18px',
       padding: '28px 24px 20px 24px',
       maxWidth: '350px',
+      width: '90vw',
+      minWidth: '220px',
       maxHeight: '80vh',
       overflowY: 'auto',
       boxShadow: '0 4px 24px rgba(80,60,180,0.10)',
@@ -110,7 +124,31 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
           <div style={{fontSize:'0.98rem',color:'#666'}}>{birthYear}년생 · {gender} · {job}</div>
         </div>
       </div>
-      {divider}
+      <div style={sectionStyle}>
+        <span style={labelStyle}>키</span>
+        <span style={valueStyle}>{height ? `${height}cm` : '-'}</span>
+      </div>
+      <div style={sectionStyle}>
+        <span style={labelStyle}>체형</span>
+        <span style={valueStyle}>{body_type || '-'}</span>
+      </div>
+      <div style={sectionStyle}>
+        <span style={labelStyle}>거주지</span>
+        <span style={valueStyle}>{residence || '-'}</span>
+      </div>
+      <div style={sectionStyle}>
+        <span style={labelStyle}>음주</span>
+        <span style={valueStyle}>{drinking || '-'}</span>
+      </div>
+      <div style={sectionStyle}>
+        <span style={labelStyle}>흡연</span>
+        <span style={valueStyle}>{smoking || '-'}</span>
+      </div>
+      <div style={sectionStyle}>
+        <span style={labelStyle}>종교</span>
+        <span style={valueStyle}>{religion || '-'}</span>
+      </div>
+
       <div style={sectionStyle}>
         <span style={labelStyle}>MBTI</span>
         <span style={valueStyle}>{mbti || '-'}</span>

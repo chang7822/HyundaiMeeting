@@ -11,6 +11,7 @@ import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
 import ProfileCard from '../components/ProfileCard.tsx';
 import Modal from 'react-modal';
+import LoadingSpinner from '../components/LoadingSpinner.tsx';
 
 const DEV_MODE = true; // 개발 중 true, 실서비스 시 false
 
@@ -158,7 +159,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
       .catch(() => setPartnerProfile(null));
   }, [partnerUserId]);
 
-  if (loading) return null;
+  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   if (!canEnter) return null;
 
   const handleBack = () => {
@@ -240,13 +241,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
           <ProfileCard
             nickname={partnerProfile.nickname}
             birthYear={partnerProfile.birth_year}
-            gender={
-              partnerProfile.gender === 'male'
-                ? '남성'
-                : partnerProfile.gender === 'female'
-                ? '여성'
-                : partnerProfile.gender || ''
-            }
+            gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : partnerProfile.gender || ''}
             job={partnerProfile.job_type}
             mbti={partnerProfile.mbti}
             maritalStatus={partnerProfile.marital_status}
@@ -254,6 +249,12 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
             interests={partnerProfile.interests}
             appearance={partnerProfile.appearance}
             personality={partnerProfile.personality}
+            height={partnerProfile.height}
+            body_type={partnerProfile.body_type}
+            residence={partnerProfile.residence}
+            drinking={partnerProfile.drinking}
+            smoking={partnerProfile.smoking}
+            religion={partnerProfile.religion}
           />
         ) : (
           <div style={{padding:32}}>프로필 정보를 불러오는 중입니다...</div>

@@ -129,7 +129,7 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
     setModalUser(null);
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
 
   return (
     <Container sidebarOpen={sidebarOpen}>

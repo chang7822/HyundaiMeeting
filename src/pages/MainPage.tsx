@@ -357,7 +357,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     ]).finally(() => setLoading(false));
   }, [/* 의존성: 필요한 값들 */]);
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
 
   if (isLoading || !isAuthenticated) return null;
 
@@ -642,6 +642,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               interests={profile?.interests}
               appearance={profile?.appearance}
               personality={profile?.personality}
+              height={profile?.height}
+              body_type={profile?.body_type}
+              residence={profile?.residence}
+              drinking={profile?.drinking}
+              smoking={profile?.smoking}
+              religion={profile?.religion}
             />
             <div style={{ textAlign: 'right', marginTop: 16 }}>
               <button onClick={() => setShowProfileModal(false)} style={{ padding: '6px 18px', borderRadius: 6, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>닫기</button>
@@ -664,6 +670,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               interests={partnerProfile.interests}
               appearance={partnerProfile.appearance}
               personality={partnerProfile.personality}
+              height={partnerProfile.height}
+              body_type={partnerProfile.body_type}
+              residence={partnerProfile.residence}
+              drinking={partnerProfile.drinking}
+              smoking={partnerProfile.smoking}
+              religion={partnerProfile.religion}
             />
             <div style={{ textAlign: 'right', marginTop: 16 }}>
               <button onClick={() => setShowPartnerModal(false)} style={{ padding: '6px 18px', borderRadius: 6, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>닫기</button>

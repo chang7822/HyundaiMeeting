@@ -158,7 +158,7 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
     setForm({ ...form, [field]: value });
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner sidebarOpen={isSidebarOpen} />;
 
   return (
     <Container sidebarOpen={isSidebarOpen}>

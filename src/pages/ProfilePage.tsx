@@ -407,7 +407,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return options.filter(o => o.category_id === cat.id).map(o => o.option_text);
   })();
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   if (isLoading || !isAuthenticated) return null;
 
   return (

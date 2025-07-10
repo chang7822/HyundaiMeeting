@@ -205,7 +205,7 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     return idx >= 0 ? idx + 1 : period_id;
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
 
   return (
     <Container sidebarOpen={sidebarOpen}>

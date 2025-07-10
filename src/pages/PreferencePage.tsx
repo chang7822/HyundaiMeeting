@@ -370,7 +370,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     });
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
