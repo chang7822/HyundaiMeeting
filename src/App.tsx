@@ -129,10 +129,8 @@ function App() {
               } />
               <Route path="/chat/:partnerUserId" element={
                 <ProtectedRoute>
-                  <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
-                    <ChatPage sidebarOpen={sidebarOpen} />
-                  </div>
+                  {/* 사이드바 없이 ChatPage만 렌더 */}
+                  <ChatPage />
                 </ProtectedRoute>
               } />
               {/* Admin Routes */}

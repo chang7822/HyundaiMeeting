@@ -196,8 +196,12 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
         latestAppsMap.set(app.user_id, app);
       }
     }
+    // [수정] periodId가 'all'이 아니면 해당 회차만, 'all'이면 전체
+    const filteredApps = periodId === 'all'
+      ? Array.from(latestAppsMap.values())
+      : Array.from(latestAppsMap.values()).filter(a => String(a.period_id) === String(periodId));
     // 2. 같은 회차 신청자만(취소 제외)
-    const validApps = Array.from(latestAppsMap.values()).filter(a => !a.cancelled && a.profile && a.profile.birth_year && a.profile.height);
+    const validApps = filteredApps.filter(a => !a.cancelled && a.profile && a.profile.birth_year && a.profile.height);
     const map: {[userId:string]: any[]} = {};
     for (const a of validApps) {
       // others도 반드시 취소자 제외 및 중복 제거
@@ -205,7 +209,7 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
       map[a.user_id] = others.filter(b => isMutualMatch(a.profile, b.profile));
     }
     setMatchableMap(map);
-  }, [applications]);
+  }, [applications, periodId]);
 
   // 회차 인덱스 → 연속 번호로 변환 함수
   const getPeriodDisplayNumber = (period_id: number|string) => {

@@ -33,11 +33,7 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   }
 `;
 
-interface ChatPageProps {
-  sidebarOpen: boolean;
-}
-
-const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
+const ChatPage: React.FC = () => {
   const { partnerUserId } = useParams();
   const { user, profile } = useAuth();
   const navigate = useNavigate();
@@ -159,7 +155,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
       .catch(() => setPartnerProfile(null));
   }, [partnerUserId]);
 
-  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
+  if (loading) return <LoadingSpinner sidebarOpen={false} />;
   if (!canEnter) return null;
 
   const handleBack = () => {
@@ -173,7 +169,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
   };
 
   return (
-    <MainContainer $sidebarOpen={sidebarOpen}>
+    <MainContainer $sidebarOpen={false}>
+      {/* 헤더가 항상 최상단 */}
       <ChatHeader
         partner={{
           nickname: partnerProfile?.nickname || '상대방',
@@ -192,6 +189,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ sidebarOpen }) => {
       <div style={{ width: '100%' }}>
         <ChatInput value={input} onChange={setInput} onSend={handleSend} />
       </div>
+      {/* 프로필 모달 등 기존 모달 코드 동일 */}
       <Modal
         isOpen={showProfileModal}
         onRequestClose={() => setShowProfileModal(false)}
