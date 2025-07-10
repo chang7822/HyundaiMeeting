@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -85,7 +85,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router>
+        {/* Router 제거됨, 바로 App 내용 시작 */}
           <div className="App">
             <Routes>
               {/* Public Routes */}
@@ -102,7 +102,6 @@ function App() {
               <Route path="/register/nickname" element={<NicknameSetupPage />} />
               <Route path="/register/preference" element={<PreferenceSetupPage />} />
               <Route path="/register/appeal" element={<AppealPage />} />
-              
               {/* Protected Routes */}
               <Route path="/main" element={
                 <ProtectedRoute>
@@ -136,7 +135,6 @@ function App() {
                   </div>
                 </ProtectedRoute>
               } />
-              
               {/* Admin Routes */}
               <Route path="/admin" element={
                 <AdminRoute>
@@ -176,7 +174,6 @@ function App() {
                 </AdminRoute>
               } />
             </Routes>
-            
             <ToastContainer
               position="top-right"
               autoClose={5000}
@@ -189,7 +186,6 @@ function App() {
               pauseOnHover
             />
           </div>
-        </Router>
       </AuthProvider>
     </QueryClientProvider>
   );

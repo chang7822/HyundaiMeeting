@@ -52,7 +52,7 @@ const sectionStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   gap: 8,
-  maxWidth: '95%',
+  maxWidth: '100%',
   flexWrap: 'wrap',
 };
 const divider = <div style={{borderTop:'1px solid #eee',margin:'12px 0'}} />;
@@ -66,7 +66,7 @@ const boxStyle: React.CSSProperties = {
   flexWrap: 'wrap',
   gap: 8,
   minHeight: 36,
-  maxWidth: '95%',
+  maxWidth: '100%',
   overflowWrap: 'break-word',
   wordBreak: 'break-all',
 };
@@ -113,8 +113,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
       border: 'none',
       borderRadius: '18px',
       padding: '28px 24px 20px 24px',
-      maxWidth: '350px',
-      width: '90vw',
+      width: '95%',
+      maxWidth: '100%',
       minWidth: '220px',
       maxHeight: '80vh',
       overflowY: 'auto',
@@ -124,6 +124,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
       position: 'relative',
       margin: '0 auto',
       boxSizing: 'border-box',
+      // 반응형 폭 확장 (불필요, 모달이 이미 폭을 제한하므로)
     }}>
       <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>
         <ProfileIcon gender={gender} />

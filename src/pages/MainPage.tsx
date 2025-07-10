@@ -182,6 +182,12 @@ const ModalContent = styled.div`
   box-shadow: 0 4px 32px rgba(0,0,0,0.15);
   min-width: 320px;
   max-width: 90vw;
+  @media (min-width: 768px) {
+    max-width: 520px;
+  }
+  @media (min-width: 1200px) {
+    max-width: 600px;
+  }
 `;
 
 const PreferenceSummary: React.FC<{ profile: any }> = ({ profile }) => {
