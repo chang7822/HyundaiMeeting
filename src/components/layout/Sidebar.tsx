@@ -28,6 +28,7 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   transition: transform 0.3s ease;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
   transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
+  overflow-y: auto; /* 모바일에서 스크롤 가능하도록 추가 */
   
   @media (max-width: 768px) {
     width: 100%;
@@ -123,11 +124,20 @@ const NavText = styled.span`
 `;
 
 const LogoutSection = styled.div`
-  position: absolute;
+  position: fixed; /* absolute -> fixed로 변경 */
+  left: 0;
   bottom: 0;
-  width: 100%;
+  width: 280px;
+  max-width: 100vw;
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+  z-index: 1200;
+  @media (max-width: 768px) {
+    width: 100vw;
+    left: 0;
+    padding: 1rem 1.5rem;
+  }
 `;
 
 const LogoutButton = styled.button`
