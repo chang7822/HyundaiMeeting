@@ -48,12 +48,26 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
       {messages.map((msg, idx) => {
         const msgDate = new Date(msg.timestamp);
         const prevMsg = messages[idx - 1];
+        const nextMsg = messages[idx + 1];
         const prevDate = prevMsg ? new Date(prevMsg.timestamp) : null;
+        const nextDate = nextMsg ? new Date(nextMsg.timestamp) : null;
         const isNewDay =
           !prevDate ||
           msgDate.getFullYear() !== prevDate.getFullYear() ||
           msgDate.getMonth() !== prevDate.getMonth() ||
           msgDate.getDate() !== prevDate.getDate();
+        // 같은 사람, 같은 분(분 단위)인지
+        const isSameGroupAsNext =
+          nextMsg &&
+          nextMsg.senderId === msg.senderId &&
+          nextDate &&
+          msgDate.getFullYear() === nextDate.getFullYear() &&
+          msgDate.getMonth() === nextDate.getMonth() &&
+          msgDate.getDate() === nextDate.getDate() &&
+          msgDate.getHours() === nextDate.getHours() &&
+          msgDate.getMinutes() === nextDate.getMinutes();
+        // 그룹의 마지막 메시지에만 시간 표시
+        const showTime = !isSameGroupAsNext;
         return (
           <React.Fragment key={msg.id}>
             {isNewDay && <DateDivider date={msgDate} />}
@@ -72,14 +86,16 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
                 marginRight: msg.senderId === userId ? 24 : 0,
                 wordBreak: 'break-all',
               }}>{msg.content}</div>
-              <div style={{ fontSize: 'clamp(0.8rem, 2vw, 0.95rem)', color: '#aaa', margin: msg.senderId === userId ? '0 0 0 16px' : '0 16px 0 0', alignSelf: 'flex-end', minWidth: 38, textAlign: 'center' }}>
-                <span style={{ display: 'inline-block', marginTop: 8 }}>
-                  {(() => {
-                    const date = typeof msg.timestamp === 'string' ? new Date(msg.timestamp) : msg.timestamp;
-                    return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
-                  })()}
-                </span>
-              </div>
+              {showTime && (
+                <div style={{ fontSize: 'clamp(0.8rem, 2vw, 0.95rem)', color: '#aaa', margin: msg.senderId === userId ? '0 16px 0 0' : '0 0 0 16px', alignSelf: 'flex-end', minWidth: 38, textAlign: 'center' }}>
+                  <span style={{ display: 'inline-block', marginTop: 8 }}>
+                    {(() => {
+                      const date = typeof msg.timestamp === 'string' ? new Date(msg.timestamp) : msg.timestamp;
+                      return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    })()}
+                  </span>
+                </div>
+              )}
             </div>
           </React.Fragment>
         );
