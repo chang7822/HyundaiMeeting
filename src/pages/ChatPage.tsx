@@ -276,7 +276,7 @@ const ChatPage: React.FC = () => {
       </ChatWindowWrapper>
       {/* 입력창 고정 */}
       <ChatInputWrapper>
-        <ChatInput value={input} onChange={setInput} onSend={joinDone ? handleSend : () => {}} inputRef={inputRef} />
+        <ChatInput value={input} onChange={setInput} onSend={joinDone ? handleSend : () => {}} ref={inputRef} />
       </ChatInputWrapper>
       {/* 프로필 모달 등 기존 모달 코드 동일 */}
       <Modal

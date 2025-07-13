@@ -4,10 +4,9 @@ interface ChatInputProps {
   value: string;
   onChange: (v: string) => void;
   onSend: () => void;
-  inputRef?: React.RefObject<HTMLInputElement>;
 }
 
-const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({ value, onChange, onSend, inputRef }, ref) => {
+const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({ value, onChange, onSend }, ref) => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       onSend();
@@ -22,7 +21,7 @@ const ChatInput = forwardRef<HTMLInputElement, ChatInputProps>(({ value, onChang
         onKeyDown={handleKeyDown}
         placeholder="메시지를 입력하세요..."
         style={{ flex: 1, border: 'none', outline: 'none', fontSize: '1rem', padding: '10px 12px', borderRadius: 16, background: '#f3f3fa', marginRight: 8 }}
-        ref={inputRef || ref}
+        ref={ref}
       />
       <button
         type="button"
