@@ -127,7 +127,10 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!user?.id || !partnerUserId || !periodId) return;
     setJoinDone(false); // 초기화
-    const socket = io(SOCKET_URL);
+    const socket = io(SOCKET_URL, {
+      transports: ['websocket'],
+      upgrade: false,
+    });
     socketRef.current = socket;
     const sorted = [user.id, partnerUserId].sort();
     const roomId = `${periodId}_${sorted[0]}_${sorted[1]}`;
