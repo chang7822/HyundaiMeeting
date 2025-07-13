@@ -66,6 +66,8 @@ const ChatPage: React.FC = () => {
   const [messages, setMessages] = useState<{ id: string | number; senderId: string; content: string; timestamp: string | Date; }[]>([]);
   const [input, setInput] = useState('');
   const chatWindowRef = useRef<HTMLDivElement | null>(null);
+  // 추가: 입력창 ref
+  const inputRef = useRef<HTMLInputElement>(null!);
   const [loading, setLoading] = useState(true);
   const [canEnter, setCanEnter] = useState(false);
   const socketRef = useRef<Socket | null>(null);
@@ -218,6 +220,8 @@ const ChatPage: React.FC = () => {
       console.log('[ChatPage][SOCKET] chat message emit:', newMessage);
       socket.emit('chat message', newMessage);
       setInput('');
+      // 메시지 전송 후 입력창에 포커스
+      if (inputRef.current) inputRef.current.focus();
     }
   };
 
@@ -272,7 +276,7 @@ const ChatPage: React.FC = () => {
       </ChatWindowWrapper>
       {/* 입력창 고정 */}
       <ChatInputWrapper>
-        <ChatInput value={input} onChange={setInput} onSend={joinDone ? handleSend : () => {}} />
+        <ChatInput value={input} onChange={setInput} onSend={joinDone ? handleSend : () => {}} inputRef={inputRef} />
       </ChatInputWrapper>
       {/* 프로필 모달 등 기존 모달 코드 동일 */}
       <Modal
