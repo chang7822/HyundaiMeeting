@@ -56,18 +56,18 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
           msgDate.getFullYear() !== prevDate.getFullYear() ||
           msgDate.getMonth() !== prevDate.getMonth() ||
           msgDate.getDate() !== prevDate.getDate();
-        // 같은 사람, 같은 분(분 단위)인지
-        const isSameGroupAsNext =
-          nextMsg &&
-          nextMsg.senderId === msg.senderId &&
-          nextDate &&
-          msgDate.getFullYear() === nextDate.getFullYear() &&
-          msgDate.getMonth() === nextDate.getMonth() &&
-          msgDate.getDate() === nextDate.getDate() &&
-          msgDate.getHours() === nextDate.getHours() &&
-          msgDate.getMinutes() === nextDate.getMinutes();
-        // 그룹의 마지막 메시지에만 시간 표시
-        const showTime = !isSameGroupAsNext;
+        // 같은 사람, 같은 분(분 단위)인지 (이전 메시지 기준)
+        const isSameGroupAsPrev =
+          prevMsg &&
+          prevMsg.senderId === msg.senderId &&
+          prevDate &&
+          msgDate.getFullYear() === prevDate.getFullYear() &&
+          msgDate.getMonth() === prevDate.getMonth() &&
+          msgDate.getDate() === prevDate.getDate() &&
+          msgDate.getHours() === prevDate.getHours() &&
+          msgDate.getMinutes() === prevDate.getMinutes();
+        // 그룹의 첫 메시지에만 시간 표시
+        const showTime = !isSameGroupAsPrev;
         return (
           <React.Fragment key={msg.id}>
             {isNewDay && <DateDivider date={msgDate} />}

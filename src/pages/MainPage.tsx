@@ -180,13 +180,19 @@ const ModalContent = styled.div`
   border-radius: 12px;
   padding: 32px 24px;
   box-shadow: 0 4px 32px rgba(0,0,0,0.15);
-  min-width: 320px;
+  width: 90vw;
+  height: 90vh;
+  min-width: 220px;
+  min-height: 220px;
   max-width: 90vw;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   @media (min-width: 768px) {
-    max-width: 520px;
-  }
-  @media (min-width: 1200px) {
-    max-width: 600px;
+    max-width: 520px; /* PC 환경에서는 최대 320px로 제한 */
+    max-height: 90vh;
   }
 `;
 
