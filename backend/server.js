@@ -60,18 +60,20 @@ const io = new Server(httpServer, {
 const chatMessages = require('./routes/chat').messages || [];
 
 io.on('connection', (socket) => {
-  console.log('클라이언트 연결됨:', socket.id);
-
+  console.log('[SOCKET][server] 새 연결:', socket.id);
   socket.on('join', (roomId) => {
-    socket.join(roomId); // period_id_정렬된userId1_userId2
+    socket.join(roomId);
+    console.log('[SOCKET][server] join:', roomId, 'socket:', socket.id);
+    // join 완료 알림
+    socket.emit('joined', roomId);
   });
-
   socket.on('chat message', async (data) => {
-    // data: { period_id, sender_id, receiver_id, sender_nickname, receiver_nickname, content, timestamp }
+    console.log('[SOCKET][server] chat message 수신:', data);
     if (!data.period_id || !data.sender_id || !data.receiver_id || !data.content) return;
     // 방 이름: period_id_정렬된userId1_userId2
     const sortedIds = [data.sender_id, data.receiver_id].sort();
     const roomId = `${data.period_id}_${sortedIds[0]}_${sortedIds[1]}`;
+    console.log('[SOCKET][server] roomId 생성:', roomId);
     const newMessage = {
       period_id: data.period_id,
       sender_id: data.sender_id,
@@ -82,20 +84,21 @@ io.on('connection', (socket) => {
       timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : new Date().toISOString()
     };
     try {
-      const { data: dbData, error } = await supabase.from('chat_messages').insert([newMessage]);
+      const { data: dbData, error } = await supabase.from('chat_messages').insert([newMessage]).select().single();
       if (error) {
-        console.error('[채팅 DB 저장 오류]', error);
+        console.error('[SOCKET][server] [채팅 DB 저장 오류]', error);
       } else {
-        console.log(`[채팅 DB 저장 성공] period_id=${newMessage.period_id}, sender_id=${newMessage.sender_id}, receiver_id=${newMessage.receiver_id}, content=${newMessage.content}`);
+        console.log('[SOCKET][server] [채팅 DB 저장 성공] period_id=', newMessage.period_id, ', sender_id=', newMessage.sender_id, ', receiver_id=', newMessage.receiver_id, ', content=', newMessage.content);
+        // DB에 저장된 row(id 포함)를 emit
+        io.to(roomId).emit('chat message', { ...dbData });
+        console.log('[SOCKET][server] chat message 브로드캐스트:', roomId, dbData);
       }
     } catch (e) {
-      console.error('[채팅 DB 저장 예외]', e);
+      console.error('[SOCKET][server] [채팅 DB 저장 예외]', e);
     }
-    io.to(roomId).emit('chat message', { ...newMessage });
   });
-
   socket.on('disconnect', () => {
-    console.log('클라이언트 연결 해제:', socket.id);
+    console.log('[SOCKET][server] disconnect:', socket.id);
   });
 });
 

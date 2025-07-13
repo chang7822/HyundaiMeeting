@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 
 interface Message {
   id: string | number;
@@ -14,6 +14,11 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId }) => {
+  useLayoutEffect(() => {
+    if (chatWindowRef.current) {
+      chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+    }
+  }, [messages]);
   // 날짜 구분선 컴포넌트
   const DateDivider: React.FC<{ date: Date }> = ({ date }) => {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
@@ -39,7 +44,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
   };
 
   return (
-    <div ref={chatWindowRef} style={{ overflowY: 'auto', height: '100%', padding: '16px 0' }}>
+    <div ref={chatWindowRef} style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '18px 0 12px 0', background: '#f7f7fa', display: 'flex', flexDirection: 'column' }}>
       {messages.map((msg, idx) => {
         const msgDate = new Date(msg.timestamp);
         const prevMsg = messages[idx - 1];
