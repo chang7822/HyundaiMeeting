@@ -7,35 +7,12 @@ interface AdminRouteProps {
 }
 
 const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading, user } = useAuth();
-
-  if (isLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        fontSize: '1.2rem'
-      }}>
-        로딩 중...
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  // TODO: 실제 관리자 권한 체크 로직 구현
-  // 현재는 임시로 이메일로 체크
-
-  // const isAdmin = user?.email?.includes('admin') || user?.email?.includes('관리자');
-  const isAdmin = true;
-  if (!isAdmin) {
+  const { user, isLoading } = useAuth();
+  if (isLoading) return null;
+  if (!user || !user.is_admin) {
+    // 관리자가 아니면 /main으로 리다이렉트
     return <Navigate to="/main" replace />;
   }
-
   return <>{children}</>;
 };
 

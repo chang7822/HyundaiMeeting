@@ -210,14 +210,13 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       text: '상대방과 약속 잡기',
       disabled: !canChat,
     },
-    { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
-    { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
-    { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
-    {
-      path: '/admin/category-manager',
-      icon: <span role="img" aria-label="tree">🌳</span>,
-      text: '카테고리 관리',
-    },
+    // 관리자 메뉴는 user?.is_admin이 true일 때만 노출
+    ...(user?.is_admin ? [
+      { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
+      { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
+      { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
+      { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
+    ] : [])
   ];
 
   const handleNavClick = (path: string) => {
