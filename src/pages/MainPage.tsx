@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaHeart, FaComments, FaUser, FaCalendarAlt, FaRegStar, FaRegClock, FaUserCircle, FaChevronRight } from 'react-icons/fa';
+import { FaHeart, FaComments, FaUser, FaCalendarAlt, FaRegStar, FaRegClock, FaUserCircle, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
 import { matchingApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
@@ -178,7 +178,7 @@ const ModalOverlay = styled.div`
 const ModalContent = styled.div`
   background: #fff;
   border-radius: 12px;
-  padding: 32px 24px;
+  padding: 64px 24px 48px 24px; /* 위쪽 padding을 더 넉넉하게 */
   box-shadow: 0 4px 32px rgba(0,0,0,0.15);
   width: 90vw;
   height: 90vh;
@@ -191,7 +191,7 @@ const ModalContent = styled.div`
   align-items: center;
   justify-content: center;
   @media (min-width: 768px) {
-    max-width: 520px; /* PC 환경에서는 최대 320px로 제한 */
+    max-width: 520px;
     max-height: 90vh;
   }
 `;
@@ -717,134 +717,214 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       )}
       {showMatchingConfirmModal && (
         <ModalOverlay onClick={() => setShowMatchingConfirmModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: 420, maxHeight: '80vh', overflowY: 'auto' }}>
-            {/* 안내문구 분리 */}
-            <div style={{
+          <ModalContent
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: '90vw',
+              maxWidth: 420,
+              minWidth: 220,
+              height: '90vh',
+              minHeight: 220,
+              maxHeight: '90vh',
+              padding: '36px 36px 0 36px', // 좌우 패딩 24px로 늘림
+              overflow: 'hidden',
+              position: 'relative',
+              boxSizing: 'border-box',
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
-              marginBottom: 18,
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+            }}
+          >
+            {/* 경고문구+안내+프로필 요약을 한 스크롤 영역에 묶음 (flex:1, minHeight:0, overflowY:auto) */}
+            <div style={{
+              width: '100%',
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto', // 한 번에 스크롤
+              overflowX: 'hidden',
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+              padding: '0 4px', // 내부 스크롤 컨테이너도 좌우 약간 여유
+              gap: 0,
             }}>
+              {/* 경고문구+아이콘 */}
               <div style={{
+                width: '100%',
+                maxWidth: '100%',
                 display: 'flex',
-                alignItems: 'center',
-                background: 'rgba(255, 235, 238, 0.95)',
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start',
+                background: 'rgba(255, 235, 238, 0.97)',
                 color: '#e74c3c',
-                borderRadius: 10,
-                padding: '10px 14px',
+                borderRadius: 12,
+                padding: '14px 18px', // 경고문구도 좌우 18px로
                 fontWeight: 700,
-                fontSize: '1.07rem',
-                marginBottom: 0,
-                gap: 8,
+                fontSize: '1rem',
+                margin: '0 0 18px 0', // 좌우 마진은 0, 패딩으로만 여백
+                gap: 14,
+                zIndex: 2,
+                boxShadow: '0 2px 8px rgba(231,76,60,0.07)',
+                wordBreak: 'break-all',
+                textAlign: 'left',
+                whiteSpace: 'normal',
+                overflow: 'visible',
               }}>
-                <span style={{fontSize:'1.25em',display:'flex',alignItems:'center'}}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{marginRight:4}} xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="10" fill="#e74c3c"/><path d="M10 5v5.5" stroke="#fff" strokeWidth="1.7" strokeLinecap="round"/><circle cx="10" cy="14.2" r="1.1" fill="#fff"/></svg>
-                </span>
-                매칭 신청 시점의 프로필/선호 스타일이 매칭에 사용됩니다.
+                <FaExclamationTriangle style={{ marginRight: 10, fontSize: '2em', flexShrink: 0, marginTop: 2 }} />
+                <span style={{ lineHeight: 1.5, wordBreak: 'break-all', textAlign: 'left', whiteSpace: 'normal' }}>매칭 신청 시점의 프로필/선호 스타일이 매칭에 사용됩니다.</span>
               </div>
+              {/* 안내문구(서브) */}
               <div style={{
+                width: '100%',
+                maxWidth: '100%',
                 background: 'none',
                 color: '#888',
                 borderRadius: 8,
-                padding: '6px 10px 0 32px',
+                padding: '0 8px 0 28px', // 안내문구도 좌우 8px, 왼쪽 28px(아이콘)
                 fontWeight: 500,
                 fontSize: '0.97rem',
                 lineHeight: 1.5,
-                marginTop: 0,
+                margin: '0 0 24px 0',
+                zIndex: 1,
+                boxSizing: 'border-box',
+                overflow: 'visible', // 내부 스크롤 없음
+                wordBreak: 'break-all',
+                whiteSpace: 'normal',
               }}>
                 신청 후에는 프로필/선호 스타일을 변경해도 이번 매칭에는 반영되지 않습니다.
               </div>
-            </div>
-            {/* 프로필/선호 스타일 요약 */}
-            <div style={{
-              border: 'none',
-              borderRadius: '14px',
-              padding: '18px 0 10px 0',
-              maxWidth: '420px',
-              background: 'none',
-              fontSize: '1rem',
-              margin: '0 auto',
-            }}>
-              <div style={{marginBottom:14}}>
-                <div style={{fontWeight:700,fontSize:'1.18rem',color:'#4F46E5',marginBottom:2}}>{profile?.nickname || displayName}</div>
-                <div style={{fontSize:'0.98rem',color:'#666'}}>{profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'} · {profile?.job_type || '-'}</div>
-              </div>
-              <div style={{display:'flex',gap:16,marginBottom:10}}>
-                <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem'}}>MBTI</span>
-                <span style={{color:'#222',fontSize:'1rem'}}>{profile?.mbti || '-'}</span>
-                <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem'}}>결혼상태</span>
-                <span style={{color:'#222',fontSize:'1rem'}}>{profile?.marital_status || '-'}</span>
-              </div>
-              <div style={{marginBottom:10}}>
-                <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>자기소개</div>
-                <div style={{background:'#f8f6fd',borderRadius:8,minHeight:36,whiteSpace:'pre-line',color:'#444',fontSize:'0.98rem',padding:'10px 12px'}}>{profile?.appeal || '아직 자기소개가 없습니다.'}</div>
-              </div>
-              {/* 관심사/외모/성격 요약 */}
-              <div style={{marginBottom:10,marginTop:10}}>
-                <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                  <div>
-                    <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>제 관심사는요</div>
-                    <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
-                      const arr = profile?.interests ? (Array.isArray(profile.interests) ? profile.interests : (()=>{try{return JSON.parse(profile.interests);}catch{return[];}})()) : [];
-                      return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
-                    })()}</div>
+              {/* 프로필/선호 스타일 요약 */}
+              <div style={{
+                border: 'none',
+                borderRadius: '14px',
+                padding: '18px 0 10px 0',
+                maxWidth: '100%',
+                background: 'none',
+                fontSize: '1rem',
+                margin: '0 auto',
+                width: '100%',
+                boxSizing: 'border-box',
+                overflow: 'visible', // 내부 스크롤 없음
+              }}>
+                <div style={{marginBottom:14}}>
+                  <div style={{fontWeight:700,fontSize:'1.18rem',color:'#4F46E5',marginBottom:2}}>{profile?.nickname || displayName}</div>
+                  <div style={{fontSize:'0.98rem',color:'#666'}}>{profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'} · {profile?.job_type || '-'}</div>
+                </div>
+                <div style={{
+                  display:'flex',
+                  flexWrap:'wrap',
+                  gap: 6,
+                  marginBottom:10,
+                  width:'100%',
+                  maxWidth:'100%',
+                  overflowX:'hidden',
+                }}>
+                  {/* 각 항목을 flex:1 1 90px, minWidth:0, flexShrink:1, margin 최소화로 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>MBTI</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.mbti || '-'}</span>
                   </div>
-                  <div>
-                    <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>이런 얘기 많이 들어요</div>
-                    <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
-                      const arr = profile?.appearance ? (Array.isArray(profile.appearance) ? profile.appearance : (()=>{try{return JSON.parse(profile.appearance);}catch{return[];}})()) : [];
-                      return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
-                    })()}</div>
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>결혼상태</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.marital_status || '-'}</span>
                   </div>
-                  <div>
-                    <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>저는 이런 사람이에요</div>
-                    <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
-                      const arr = profile?.personality ? (Array.isArray(profile.personality) ? profile.personality : (()=>{try{return JSON.parse(profile.personality);}catch{return[];}})()) : [];
-                      return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
-                    })()}</div>
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>키</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.height ? `${profile.height}cm` : '-'}</span>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>체형</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.body_type || '-'}</span>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>흡연</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.smoking || '-'}</span>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>음주</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.drinking || '-'}</span>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>종교</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.religion || '-'}</span>
+                  </div>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>자기소개</div>
+                  <div style={{background:'#f8f6fd',borderRadius:8,minHeight:36,whiteSpace:'pre-line',color:'#444',fontSize:'0.98rem',padding:'10px 12px'}}>{profile?.appeal || '아직 자기소개가 없습니다.'}</div>
+                </div>
+                {/* 관심사/외모/성격 요약 */}
+                <div style={{marginBottom:10,marginTop:10}}>
+                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                    <div>
+                      <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>제 관심사는요</div>
+                      <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
+                        const arr = profile?.interests ? (Array.isArray(profile.interests) ? profile.interests : (()=>{try{return JSON.parse(profile.interests);}catch{return[];}})()) : [];
+                        return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
+                      })()}</div>
+                    </div>
+                    <div>
+                      <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>이런 얘기 많이 들어요</div>
+                      <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
+                        const arr = profile?.appearance ? (Array.isArray(profile.appearance) ? profile.appearance : (()=>{try{return JSON.parse(profile.appearance);}catch{return[];}})()) : [];
+                        return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
+                      })()}</div>
+                    </div>
+                    <div>
+                      <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>저는 이런 사람이에요</div>
+                      <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
+                        const arr = profile?.personality ? (Array.isArray(profile.personality) ? profile.personality : (()=>{try{return JSON.parse(profile.personality);}catch{return[];}})()) : [];
+                        return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
+                      })()}</div>
+                    </div>
+                  </div>
+                </div>
+                {/* 선호 스타일 요약 */}
+                <div style={{marginTop:18,marginBottom:6}}>
+                  <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>선호 스타일</div>
+                  <div style={{fontSize:'0.98rem',color:'#333',lineHeight:'1.7'}}>
+                    <b>나이:</b> {(() => {
+                      if (typeof profile?.preferred_age_min === 'number' && typeof profile?.preferred_age_max === 'number') {
+                        if (profile.preferred_age_min === -99 && profile.preferred_age_max === 99) {
+                          return '상관없음';
+                        }
+                        const min = profile.preferred_age_min < 0 ? `${Math.abs(profile.preferred_age_min)}살 연하` : profile.preferred_age_min === 0 ? '동갑' : `${profile.preferred_age_min}살 연상`;
+                        const max = profile.preferred_age_max < 0 ? `${Math.abs(profile.preferred_age_max)}살 연하` : profile.preferred_age_max === 0 ? '동갑' : `${profile.preferred_age_max}살 연상`;
+                        return `${min} ~ ${max}`;
+                      }
+                      return '-';
+                    })()}<br/>
+                    <b>키:</b> {(() => {
+                      if (typeof profile?.preferred_height_min === 'number' && typeof profile?.preferred_height_max === 'number') {
+                        if (profile.preferred_height_min === 150 && profile.preferred_height_max === 199) {
+                          return '상관없음';
+                        }
+                        return `${profile.preferred_height_min}cm ~ ${profile.preferred_height_max}cm`;
+                      }
+                      return '-';
+                    })()}<br/>
+                    <b>체형:</b> {(() => {
+                      const arr = profile?.preferred_body_types ? (Array.isArray(profile.preferred_body_types) ? profile.preferred_body_types : (()=>{try{return JSON.parse(profile.preferred_body_types);}catch{return[];}})()) : [];
+                      return arr.length > 0 ? arr.join(', ') : '-';
+                    })()}<br/>
+                    <b>직군:</b> {(() => {
+                      const arr = profile?.preferred_job_types ? (Array.isArray(profile.preferred_job_types) ? profile.preferred_job_types : (()=>{try{return JSON.parse(profile.preferred_job_types);}catch{return[];}})()) : [];
+                      return arr.length > 0 ? arr.join(', ') : '-';
+                    })()}<br/>
+                    <b>결혼상태:</b> {(() => {
+                      const arr = profile?.preferred_marital_statuses ? (Array.isArray(profile.preferred_marital_statuses) ? profile.preferred_marital_statuses : (()=>{try{return JSON.parse(profile.preferred_marital_statuses);}catch{return[];}})()) : [];
+                      return arr.length > 0 ? arr.join(', ') : '-';
+                    })()}
                   </div>
                 </div>
               </div>
-              {/* 선호 스타일 요약 */}
-              <div style={{marginTop:18,marginBottom:6}}>
-                <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>선호 스타일</div>
-                <div style={{fontSize:'0.98rem',color:'#333',lineHeight:'1.7'}}>
-                  <b>나이:</b> {(() => {
-                    if (typeof profile?.preferred_age_min === 'number' && typeof profile?.preferred_age_max === 'number') {
-                      if (profile.preferred_age_min === -99 && profile.preferred_age_max === 99) {
-                        return '상관없음';
-                      }
-                      const min = profile.preferred_age_min < 0 ? `${Math.abs(profile.preferred_age_min)}살 연하` : profile.preferred_age_min === 0 ? '동갑' : `${profile.preferred_age_min}살 연상`;
-                      const max = profile.preferred_age_max < 0 ? `${Math.abs(profile.preferred_age_max)}살 연하` : profile.preferred_age_max === 0 ? '동갑' : `${profile.preferred_age_max}살 연상`;
-                      return `${min} ~ ${max}`;
-                    }
-                    return '-';
-                  })()}<br/>
-                  <b>키:</b> {(() => {
-                    if (typeof profile?.preferred_height_min === 'number' && typeof profile?.preferred_height_max === 'number') {
-                      if (profile.preferred_height_min === 150 && profile.preferred_height_max === 199) {
-                        return '상관없음';
-                      }
-                      return `${profile.preferred_height_min}cm ~ ${profile.preferred_height_max}cm`;
-                    }
-                    return '-';
-                  })()}<br/>
-                  <b>체형:</b> {(() => {
-                    const arr = profile?.preferred_body_types ? (Array.isArray(profile.preferred_body_types) ? profile.preferred_body_types : (()=>{try{return JSON.parse(profile.preferred_body_types);}catch{return[];}})()) : [];
-                    return arr.length > 0 ? arr.join(', ') : '-';
-                  })()}<br/>
-                  <b>직군:</b> {(() => {
-                    const arr = profile?.preferred_job_types ? (Array.isArray(profile.preferred_job_types) ? profile.preferred_job_types : (()=>{try{return JSON.parse(profile.preferred_job_types);}catch{return[];}})()) : [];
-                    return arr.length > 0 ? arr.join(', ') : '-';
-                  })()}<br/>
-                  <b>결혼상태:</b> {(() => {
-                    const arr = profile?.preferred_marital_statuses ? (Array.isArray(profile.preferred_marital_statuses) ? profile.preferred_marital_statuses : (()=>{try{return JSON.parse(profile.preferred_marital_statuses);}catch{return[];}})()) : [];
-                    return arr.length > 0 ? arr.join(', ') : '-';
-                  })()}
-                </div>
-              </div>
             </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center' }}>
+            {/* 버튼 영역은 flex column 하단에 고정, flex-shrink:0 */}
+            <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center', flexShrink: 0, paddingBottom: 24 }}>
               <button onClick={handleMatchingConfirm} style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#7C3AED', color: '#fff', fontWeight: 700, fontSize: '1.08rem', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }} disabled={actionLoading}>
                 {actionLoading ? '신청 중...' : '이 정보로 신청'}
               </button>
