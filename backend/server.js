@@ -15,7 +15,7 @@ const matchingRoutes = require('./routes/matching');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
 const { supabase } = require('./database');
-const { encrypt } = require('./utils/encryption');
+const { encrypt, decrypt } = require('./utils/encryption');
 
 // 환경 변수 로드 (절대 경로 사용)
 dotenv.config({ path: path.join(__dirname, 'config.env') });
@@ -98,8 +98,14 @@ io.on('connection', (socket) => {
       } else {
         console.log('[SOCKET][server] [채팅 DB 저장 성공] period_id=', newMessage.period_id, ', sender_id=', newMessage.sender_id, ', receiver_id=', newMessage.receiver_id, ', content=', newMessage.content);
         // DB에 저장된 row(id 포함)를 emit
-        io.to(roomId).emit('chat message', { ...dbData });
-        console.log('[SOCKET][server] chat message 브로드캐스트:', roomId, dbData);
+        let plainContent = '';
+        try {
+          plainContent = decrypt(dbData.content);
+        } catch (e) {
+          plainContent = '[복호화 실패]';
+        }
+        io.to(roomId).emit('chat message', { ...dbData, content: plainContent });
+        console.log('[SOCKET][server] chat message 브로드캐스트:', roomId, { ...dbData, content: plainContent });
       }
     } catch (e) {
       console.error('[SOCKET][server] [채팅 DB 저장 예외]', e);
