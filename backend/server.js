@@ -15,6 +15,7 @@ const matchingRoutes = require('./routes/matching');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
 const { supabase } = require('./database');
+const { encrypt } = require('./utils/encryption');
 
 // 환경 변수 로드 (절대 경로 사용)
 dotenv.config({ path: path.join(__dirname, 'config.env') });
@@ -74,13 +75,20 @@ io.on('connection', (socket) => {
     const sortedIds = [data.sender_id, data.receiver_id].sort();
     const roomId = `${data.period_id}_${sortedIds[0]}_${sortedIds[1]}`;
     console.log('[SOCKET][server] roomId 생성:', roomId);
+    let encryptedContent;
+    try {
+      encryptedContent = encrypt(data.content);
+    } catch (e) {
+      console.error('[SOCKET][server] 암호화 실패:', e);
+      return;
+    }
     const newMessage = {
       period_id: data.period_id,
       sender_id: data.sender_id,
       receiver_id: data.receiver_id,
       sender_nickname: data.sender_nickname,
       receiver_nickname: data.receiver_nickname,
-      content: data.content,
+      content: encryptedContent,
       timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : new Date().toISOString()
     };
     try {
