@@ -128,7 +128,7 @@ const LogoutSection = styled.div`
   left: 0;
   bottom: 0;
   width: 280px;
-  max-width: 100vw;
+  max-width: 100%;
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
@@ -169,6 +169,9 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   const [partnerUserId, setPartnerUserId] = useState<string | null>(null);
   const [canChat, setCanChat] = useState(false);
   const [period, setPeriod] = useState<any>(null);
+
+  // 로딩 상태: user가 null이면 true, 아니면 false
+  const isUserLoading = user === null;
 
   useEffect(() => {
     if (user?.id) {
@@ -246,27 +249,39 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         )}
         <SidebarHeader>
           <Logo onClick={() => navigate('/main')}>울산 사내 솔로공모</Logo>
-          <UserInfo>{user?.email}</UserInfo>
+          {/* user가 null이면 로딩 중 메시지, 아니면 이메일 */}
+          {isUserLoading ? (
+            <div style={{ color: '#fff', fontWeight: 600, fontSize: '1.08rem', marginTop: 12, textAlign: 'center' }}>
+              로딩 중...
+            </div>
+          ) : (
+            <UserInfo>{user?.email}</UserInfo>
+          )}
         </SidebarHeader>
-        <NavMenu>
-          {navItems.map((item) => (
-            <NavItem
-              key={item.path}
-              active={location.pathname === item.path}
-              onClick={() => !item.disabled && handleNavClick(item.path)}
-              style={item.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
-            >
-              {item.icon}
-              <NavText>{item.text}</NavText>
-            </NavItem>
-          ))}
-        </NavMenu>
-        <LogoutSection>
-          <LogoutButton onClick={handleLogout}>
-            <FaSignOutAlt />
-            로그아웃
-          </LogoutButton>
-        </LogoutSection>
+        {/* user가 null이면 메뉴/로그아웃 숨김, 아니면 기존대로 */}
+        {!isUserLoading && (
+          <>
+            <NavMenu>
+              {navItems.map((item) => (
+                <NavItem
+                  key={item.path}
+                  active={location.pathname === item.path}
+                  onClick={() => !item.disabled && handleNavClick(item.path)}
+                  style={item.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
+                >
+                  {item.icon}
+                  <NavText>{item.text}</NavText>
+                </NavItem>
+              ))}
+            </NavMenu>
+            <LogoutSection>
+              <LogoutButton onClick={handleLogout}>
+                <FaSignOutAlt />
+                로그아웃
+              </LogoutButton>
+            </LogoutSection>
+          </>
+        )}
       </SidebarContainer>
     </>
   );

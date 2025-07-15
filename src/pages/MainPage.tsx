@@ -936,12 +936,33 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       {/* 신청 취소 커스텀 모달 */}
       {showCancelConfirmModal && (
         <ModalOverlay onClick={() => setShowCancelConfirmModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: 420, maxHeight: '80vh', overflowY: 'auto' }}>
+          <ModalContent
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 380,
+              minWidth: 220,
+              maxWidth: '95vw',
+              height: 'auto',
+              minHeight: 0,
+              maxHeight: '80vh',
+              padding: '32px 20px 24px 20px',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              position: 'relative',
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+            }}
+          >
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               gap: 6,
               marginBottom: 18,
+              width: '100%',
+              alignItems: 'stretch',
             }}>
               <div style={{
                 display: 'flex',
