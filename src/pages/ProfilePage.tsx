@@ -508,15 +508,20 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         </div>
         <Label>체형 (최대 3개)</Label>
         <BodyTypeGrid>
-          {getOptions('체형').map(opt => (
-            <BodyTypeButton
-              key={opt.option_text}
-              selected={bodyTypes.includes(opt.option_text)}
-              onClick={() => handleBodyTypeToggle(opt.option_text)}
-            >
-              {opt.option_text}
-            </BodyTypeButton>
-          ))}
+          {(() => {
+            // '체형' 카테고리 중 gender가 profile.gender와 일치하는 것만 사용
+            const bodyTypeCat = categories.find(c => c.name === '체형' && c.gender === profile.gender);
+            if (!bodyTypeCat) return null;
+            return options.filter(o => o.category_id === bodyTypeCat.id).map(opt => (
+              <BodyTypeButton
+                key={opt.option_text}
+                selected={bodyTypes.includes(opt.option_text)}
+                onClick={() => handleBodyTypeToggle(opt.option_text)}
+              >
+                {opt.option_text}
+              </BodyTypeButton>
+            ));
+          })()}
         </BodyTypeGrid>
         <Label>거주지</Label>
         <SelectButton type="button" onClick={()=>setAddressPopup(true)}>
