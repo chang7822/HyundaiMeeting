@@ -58,8 +58,28 @@ router.put('/me', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const updateData = { ...req.body, updated_at: getKSTISOString() };
-    if (updateData.body_type && Array.isArray(updateData.body_type)) {
-      updateData.body_type = JSON.stringify(updateData.body_type);
+    // undefined 값 제거
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) delete updateData[key];
+    });
+    // body_type 처리: 배열이면 stringify, string이면 그대로, 그 외(null 등)면 null
+    if (updateData.body_type !== undefined) {
+      if (Array.isArray(updateData.body_type)) {
+        if (updateData.body_type.length === 0) {
+          return res.status(400).json({ message: '체형은 최소 1개 이상 선택해야 합니다.' });
+        }
+        updateData.body_type = JSON.stringify(updateData.body_type);
+      } else if (typeof updateData.body_type === 'string') {
+        try {
+          const arr = JSON.parse(updateData.body_type);
+          if (Array.isArray(arr) && arr.length === 0) {
+            return res.status(400).json({ message: '체형은 최소 1개 이상 선택해야 합니다.' });
+          }
+        } catch {}
+        // 이미 string이면 그대로 둠
+      } else {
+        return res.status(400).json({ message: '체형은 최소 1개 이상 선택해야 합니다.' });
+      }
     }
     const { data, error } = await supabase
       .from('user_profiles')
@@ -68,7 +88,8 @@ router.put('/me', authenticate, async (req, res) => {
       .select()
       .single();
     if (error) {
-      return res.status(500).json({ message: '프로필 업데이트에 실패했습니다.' });
+      // 에러 상세 반환
+      return res.status(500).json({ message: '프로필 업데이트에 실패했습니다.', supabaseError: error.message, details: error.details, hint: error.hint });
     }
     res.json({ success: true, profile: data });
   } catch (error) {

@@ -304,8 +304,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const res = await matchingApi.getMatchingStatus(user.id);
       console.log('[디버깅] fetchMatchingStatus: API 응답 전체:', res);
       if (res && typeof res === 'object' && 'status' in res) {
-        setMatchingStatus(res.status);
-        console.log('[디버깅] fetchMatchingStatus: setMatchingStatus 호출, 값:', res.status);
+        // 필드명 통일: is_applied, is_matched, is_cancelled 추가 세팅
+        setMatchingStatus({
+          ...res.status,
+          is_applied: res.status.is_applied ?? res.status.applied,
+          is_matched: res.status.is_matched ?? res.status.matched,
+          is_cancelled: res.status.is_cancelled ?? res.status.cancelled,
+        });
+        console.log('[디버깅] fetchMatchingStatus: setMatchingStatus 호출, 값:', {
+          ...res.status,
+          is_applied: res.status.is_applied ?? res.status.applied,
+          is_matched: res.status.is_matched ?? res.status.matched,
+          is_cancelled: res.status.is_cancelled ?? res.status.cancelled,
+        });
       } else {
         setMatchingStatus(null);
         console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음, res:', res);
@@ -408,9 +419,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // [리팩터링] users의 is_applied, is_matched 기반 분기 함수
   const getUserMatchingState = () => {
     // matchingStatus가 null이면 미신청(신규가입/신청X)
-    const isApplied = matchingStatus?.is_applied === true;
-    const isMatched = matchingStatus?.is_matched;
-    const isCancelled = matchingStatus?.cancelled === true;
+    const isApplied = matchingStatus?.is_applied === true || matchingStatus?.applied === true;
+    const isMatched = typeof matchingStatus?.is_matched !== 'undefined' ? matchingStatus?.is_matched : matchingStatus?.matched;
+    const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
     return { isApplied, isMatched, isCancelled };
   };
 
@@ -583,7 +594,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       } else if (isMatched === true) {
         buttonDisabled = true;
         buttonLabel = '매칭 성공';
-        showCancel = true;
+        showCancel = false; // 매칭 성공 후에도 취소버튼 숨김
       } else if (isMatched === false) {
         buttonDisabled = true;
         buttonLabel = '매칭 실패';
@@ -862,45 +873,49 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   maxWidth:'100%',
                   overflowX:'hidden',
                 }}>
-                  {/* 각 항목을 flex:1 1 90px, minWidth:0, flexShrink:1, margin 최소화로 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                  {/* MBTI */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>MBTI</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.mbti || '-'}</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.mbti || '-'}</span>
                   </div>
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                  {/* 결혼상태 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>결혼상태</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.marital_status || '-'}</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.marital_status || '-'}</span>
                   </div>
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                  {/* 키 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>키</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.height ? `${profile.height}cm` : '-'}</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.height ? `${profile.height}cm` : '-'}</span>
                   </div>
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>체형</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{(() => {
-                      const val = profile?.body_type;
-                      if (!val) return '-';
-                      if (Array.isArray(val)) return val.join(', ');
-                      try {
-                        const arr = JSON.parse(val);
-                        if (Array.isArray(arr)) return arr.join(', ');
-                        return String(val);
-                      } catch {
-                        return String(val);
-                      }
-                    })()}</span>
-                  </div>
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                  {/* 흡연 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>흡연</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.smoking || '-'}</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.smoking || '-'}</span>
                   </div>
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                  {/* 음주 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>음주</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.drinking || '-'}</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.drinking || '-'}</span>
                   </div>
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
+                  {/* 종교 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>종교</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.religion || '-'}</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.religion || '-'}</span>
+                  </div>
+                  {/* 체형 - 마지막, row 배치, ,로 join해서 한 줄로 모두 표시 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 100%',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>체형</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(() => {
+                      const val = profile?.body_type;
+                      let arr: any[] = [];
+                      if (!val) arr = [];
+                      else if (Array.isArray(val)) arr = val;
+                      else {
+                        try { arr = JSON.parse(val); if (!Array.isArray(arr)) arr = [String(val)]; } catch { arr = [String(val)]; }
+                      }
+                      return arr.length > 0 ? arr.join(', ') : '-';
+                    })()}</span>
                   </div>
                 </div>
                 <div style={{marginBottom:10}}>

@@ -343,6 +343,8 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!profile.residence) missingFields.push('거주지');
     if (!profile.job_type) missingFields.push('직군');
     if (!profile.marital_status) missingFields.push('결혼상태');
+    // [추가] 체형 최소 1개 선택 필수
+    if (!bodyTypes || bodyTypes.length === 0) missingFields.push('체형');
     const interestsArr = Array.isArray(profile.interests) ? profile.interests : (profile.interests ? JSON.parse(profile.interests) : []);
     if (!interestsArr || interestsArr.length === 0) missingFields.push('관심사');
     const appearanceArr = Array.isArray(profile.appearance) ? profile.appearance : (profile.appearance ? JSON.parse(profile.appearance) : []);
@@ -351,6 +353,10 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!personalityArr || personalityArr.length === 0) missingFields.push('성격');
     if (!profile.appeal || profile.appeal.trim().length === 0) missingFields.push('자기소개');
     if (missingFields.length > 0) {
+      if (missingFields.includes('체형')) {
+        toast.error('체형은 최소 1개 이상 선택해야 합니다.');
+        return;
+      }
       toast.error(`다음 항목을 입력해주세요: ${missingFields.join(', ')}`);
       return;
     }
