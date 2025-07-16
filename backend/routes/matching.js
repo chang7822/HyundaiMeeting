@@ -107,6 +107,12 @@ router.post('/request', async (req, res) => {
 
     if (error) throw error;
 
+    // [추가] users 테이블의 is_applied, is_matched 업데이트
+    await supabase
+      .from('users')
+      .update({ is_applied: true, is_matched: null })
+      .eq('id', userId);
+
     res.json({
       success: true,
       message: '매칭 신청이 완료되었습니다.',
@@ -219,6 +225,13 @@ router.post('/cancel', async (req, res) => {
       .select()
       .single();
     if (updateError) throw updateError;
+
+    // [추가] users 테이블의 is_applied false로 업데이트
+    await supabase
+      .from('users')
+      .update({ is_applied: false })
+      .eq('id', application.user_id);
+
     res.json({ success: true, message: '매칭 신청이 취소되었습니다.', application: updated });
   } catch (error) {
     console.error('매칭 신청 취소 오류:', error);

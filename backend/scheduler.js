@@ -9,7 +9,7 @@ cron.schedule('* * * * *', async () => {
   try {
     const { data, error } = await supabase
       .from('matching_log')
-      .select('id, matching_run, executed')
+      .select('id, matching_run, executed, finish')
       .order('id', { ascending: false })
       .limit(1)
       .single();
@@ -35,6 +35,25 @@ cron.schedule('* * * * *', async () => {
           }
         }
       });
+    }
+    // [추가] 회차 종료(마감) 시 users 테이블 초기화
+    if (data.finish) {
+      const finishTime = new Date(data.finish);
+      // 회차 종료 시각이 지났고, 다음 회차가 아직 생성되지 않은 경우
+      if (now > finishTime) {
+        // matching_log에 finish가 더 큰 row가 있는지 확인(다음 회차)
+        const { data: nextLog, error: nextLogError } = await supabase
+          .from('matching_log')
+          .select('id')
+          .gt('id', data.id)
+          .limit(1)
+          .maybeSingle();
+        if (!nextLog) {
+          // 다음 회차가 없으면 전체 users 초기화
+          console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
+          await supabase.from('users').update({ is_applied: false, is_matched: null });
+        }
+      }
     }
   } catch (e) {
     console.error('[스케줄러] 오류:', e);

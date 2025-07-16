@@ -219,7 +219,8 @@ const ProfileSetupPage = () => {
   const [selected, setSelected] = useState<{[catId:number]: number[]}>({});
   // 기본 정보
   const [height, setHeight] = useState('');
-  const [bodyType, setBodyType] = useState('');
+  // [1] 체형 선택 상태를 배열로 변경
+  const [bodyTypes, setBodyTypes] = useState<string[]>([]);
   const [residence, setResidence] = useState('');
   const [jobType, setJobType] = useState('');
   const [maritalStatus, setMaritalStatus] = useState('');
@@ -233,6 +234,21 @@ const ProfileSetupPage = () => {
   // 팝업 상태
   const [popup, setPopup] = useState<{type: string} | null>(null);
   const [addressPopup, setAddressPopup] = useState(false);
+  // [3] 체형 MultiSelect 팝업
+  // [삭제] bodyTypePopup 관련 상태/컴포넌트 제거
+  // [추가] handleBodyTypeToggle 함수
+  const handleBodyTypeToggle = (bodyType: string) => {
+    setBodyTypes(prev => {
+      if (prev.includes(bodyType)) {
+        return prev.filter(type => type !== bodyType);
+      } else if (prev.length < 3) {
+        return [...prev, bodyType];
+      } else {
+        toast('최대 3개까지만 선택할 수 있습니다.');
+        return prev;
+      }
+    });
+  };
 
   useEffect(() => {
     // 성별이 없으면 이전 페이지로 돌아가기
@@ -254,7 +270,8 @@ const ProfileSetupPage = () => {
         const parsed = JSON.parse(savedProfileData);
         if (parsed.height) setHeight(parsed.height.toString());
         if (parsed.mbti) setMbti(parsed.mbti);
-        if (parsed.bodyType) setBodyType(parsed.bodyType);
+        // [2] 복원 시 배열로 복원
+        if (parsed.bodyTypes) setBodyTypes(parsed.bodyTypes);
         if (parsed.jobType) setJobType(parsed.jobType);
         if (parsed.residence) setResidence(parsed.residence);
         if (parsed.maritalStatus) setMaritalStatus(parsed.maritalStatus);
@@ -274,7 +291,8 @@ const ProfileSetupPage = () => {
     const profileData = {
       height,
       mbti,
-      bodyType,
+      // [4] 저장 시 bodyType을 배열로 저장
+      bodyTypes,
       jobType,
       residence,
       maritalStatus,
@@ -339,7 +357,7 @@ const ProfileSetupPage = () => {
       missingFields.push('MBTI');
     }
     
-    if (!bodyType) {
+    if (bodyTypes.length === 0) {
       missingFields.push('체형');
     }
     
@@ -398,7 +416,8 @@ const ProfileSetupPage = () => {
     const profileData = {
       height: height ? parseInt(height) : undefined,
       mbti,
-      bodyType,
+      // [4] 저장 시 bodyType을 배열로 저장
+      bodyTypes,
       jobType,
       residence,
       maritalStatus,
@@ -462,9 +481,9 @@ const ProfileSetupPage = () => {
         <BodyTypeGrid>
           {getOptions(filteredCategories.find(c => c.name === '체형')?.id || 0).map(opt => (
             <BodyTypeButton
-              key={opt.id}
-              selected={bodyType === opt.option_text}
-              onClick={() => setBodyType(opt.option_text)}
+              key={opt.option_text}
+              selected={bodyTypes.includes(opt.option_text)}
+              onClick={() => handleBodyTypeToggle(opt.option_text)}
             >
               {opt.option_text}
             </BodyTypeButton>

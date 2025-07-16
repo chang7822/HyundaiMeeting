@@ -336,7 +336,9 @@ router.post('/register', async (req, res) => {
         email,
         password: hashedPassword,
         is_verified: true, // 이메일 인증 완료 가정
-        is_active: true
+        is_active: true,
+        is_applied: false, // 매칭 미신청(기본값)
+        is_matched: null   // 매칭 결과 없음(기본값)
       }])
       .select('id, email, is_verified, is_active, is_admin')
       .single();
@@ -387,9 +389,9 @@ router.post('/register', async (req, res) => {
         profileDataToInsert.mbti = profileData.mbti;
         console.log('MBTI 설정:', profileData.mbti);
       }
-      if (profileData.bodyType) {
-        profileDataToInsert.body_type = profileData.bodyType;
-        console.log('체형 설정:', profileData.bodyType);
+      if (profileData.bodyTypes && Array.isArray(profileData.bodyTypes)) {
+        profileDataToInsert.body_type = JSON.stringify(profileData.bodyTypes);
+        console.log('체형(복수) 설정:', profileData.bodyTypes);
       }
       if (profileData.maritalStatus) {
         profileDataToInsert.marital_status = profileData.maritalStatus;

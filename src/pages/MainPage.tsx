@@ -405,12 +405,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return `${yyyy}-${mm}-${dd} ${hh}시 ${min}분`;
   };
 
-  // 매칭 현황 안내문구 상태/기간 분리 및 색상 반환 (성공/실패/종료 색상 개선)
+  // [리팩터링] users의 is_applied, is_matched 기반 분기 함수
+  const getUserMatchingState = () => {
+    // matchingStatus가 null이면 미신청(신규가입/신청X)
+    const isApplied = matchingStatus?.is_applied === true;
+    const isMatched = matchingStatus?.is_matched;
+    const isCancelled = matchingStatus?.cancelled === true;
+    return { isApplied, isMatched, isCancelled };
+  };
+
+  // [리팩터링] 매칭 현황 안내문구 상태/기간 분리 및 색상 반환 (is_applied, is_matched 기준)
   const getMatchingStatusDisplay = () => {
-    // [수정] period가 null이거나, finish가 지났으면 마감 처리
     if (!period || (period.finish && new Date(period.finish) < now)) {
       return {
-        status: '이번 회차 매칭이 마감되었습니다.',
+        status: '이번 회차가 종료되었습니다.',
         period: '',
         color: '#888',
       };
@@ -420,34 +428,34 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const finish = period.finish ? new Date(period.finish) : null;
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
     const nowTime = now.getTime();
-    // [1] 매칭 공지일 도래 후: 결과 대기중 분기 최상단
-    if (announce && nowTime >= announce.getTime()) {
-      if (matchingStatus == null || typeof matchingStatus.matched === 'undefined') {
+    const { isApplied, isMatched, isCancelled } = getUserMatchingState();
+    // 신청 전
+    if (nowTime < start.getTime()) {
+      return {
+        status: '신청 기간이 아닙니다.',
+        period: `신청기간 : ${formatKST(period.application_start)}\n~ ${formatKST(period.application_end)}`,
+        color: '#888',
+      };
+    }
+    // 신청 기간
+    if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
+      if (!isApplied || isCancelled) {
         return {
-          status: '결과 대기중',
-          period: '매칭 결과를 불러오는 중입니다...',
-          color: '#888',
+          status: '매칭 미신청',
+          period: `신청기간 : ${formatKST(period.application_start)}\n~ ${formatKST(period.application_end)}`,
+          color: '#1976d2',
         };
-      }
-      if (matchingStatus.matched === true) {
+      } else {
         return {
-          status: '매칭 성공',
-          period: '상대방 프로필을 확인해보세요.',
-          color: '#27ae60',
-        };
-      }
-      if (matchingStatus.matched === false) {
-        return {
-          status: '매칭 실패',
-          period: '아쉽지만 다음기회를 기약할게요.',
-          color: '#e74c3c',
+          status: '신청 완료',
+          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatKST(period.matching_announce) : '-'}`,
+          color: '#7C3AED',
         };
       }
     }
-    // [2] 신청 마감 후 ~ 매칭 공지 전 (신청 마감은 지났고, 공지 전)
+    // 신청 마감 후 ~ 매칭 공지 전
     if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
-      // 이미 신청한 사람: 신청 완료, 미신청: 신청 마감
-      if (matchingStatus && matchingStatus.applied && !matchingStatus.cancelled) {
+      if (isApplied && !isCancelled) {
         return {
           status: '신청 완료',
           period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatKST(period.matching_announce) : '-'}`,
@@ -461,28 +469,43 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         };
       }
     }
-    // [3] 회차 종료 이후(다음 회차 전) 또는 신청기간이 아님
-    if ((finish && nowTime >= finish.getTime()) || nowTime < start.getTime()) {
+    // 매칭 공지 이후(결과 발표)
+    if (announce && nowTime >= announce.getTime()) {
+      if (!isApplied || isCancelled) {
+        return {
+          status: '매칭 미신청',
+          period: '',
+          color: '#888',
+        };
+      }
+      if (typeof isMatched === 'undefined' || isMatched === null) {
+        return {
+          status: '결과 대기중',
+          period: '매칭 결과를 불러오는 중입니다...',
+          color: '#888',
+        };
+      }
+      if (isMatched === true) {
+        return {
+          status: '매칭 성공',
+          period: '상대방 프로필을 확인해보세요.',
+          color: '#27ae60',
+        };
+      }
+      if (isMatched === false) {
+        return {
+          status: '매칭 실패',
+          period: '아쉽지만 다음기회를 기약할게요.',
+          color: '#e74c3c',
+        };
+      }
+    }
+    // 회차 종료(마감)
+    if ((finish && nowTime >= finish.getTime())) {
       return {
-        status: '신청 기간이 아닙니다.',
-        period: `신청기간 : ${formatKST(period.application_start)}\n~ ${formatKST(period.application_end)}`,
+        status: '이번 회차가 종료되었습니다.',
+        period: '',
         color: '#888',
-      };
-    }
-    // [4] 신청 기간 중, 미신청 또는 신청 취소
-    if (!matchingStatus || !matchingStatus.applied || matchingStatus.cancelled) {
-      return {
-        status: '매칭 미신청',
-        period: `신청기간 : ${formatKST(period.application_start)}\n~ ${formatKST(period.application_end)}`,
-        color: '#1976d2',
-      };
-    }
-    // [5] 신청을 한 상태(신청 완료, 매칭 공지 전)
-    if (!announce || nowTime < announce.getTime()) {
-      return {
-        status: '신청 완료',
-        period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatKST(period.matching_announce) : '-'}`,
-        color: '#7C3AED',
       };
     }
     return { status: '', period: '', color: '#888' };
@@ -496,7 +519,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return now >= start && now <= end;
   };
 
-  // 버튼 상태/표기 결정
+  // [리팩터링] 버튼 상태/표기 결정 (is_applied, is_matched 기준)
   let buttonDisabled = true;
   let buttonLabel = '매칭 신청하기';
   let periodLabel = '';
@@ -505,7 +528,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const { status: statusText, period: periodText } = getMatchingStatusDisplay();
   periodLabel = periodText;
 
-  // 10분 재신청 제한 로직
+  // 10분 재신청 제한 로직 (기존 유지)
   let canReapply = true;
   let reapplyMessage = '';
   if (matchingStatus && matchingStatus.cancelled && matchingStatus.cancelled_at) {
@@ -521,33 +544,49 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }
 
-  // 버튼/문구 분기 보완 (신청기간 && 신청 내역 없음이면 반드시 활성화)
+  // [리팩터링] 버튼/문구 분기 (is_applied, is_matched 기준)
   if (period) {
     const start = new Date(period.application_start);
     const end = new Date(period.application_end);
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
+    const finish = period.finish ? new Date(period.finish) : null;
     const nowTime = now.getTime();
-    // 신청 마감 후 ~ 공지 전: 무조건 비활성화
-    if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
+    const { isApplied, isMatched, isCancelled } = getUserMatchingState();
+    // 신청 전/회차 종료
+    if (nowTime < start.getTime() || (finish && nowTime >= finish.getTime())) {
       buttonDisabled = true;
-      buttonLabel = matchingStatus && matchingStatus.applied && !matchingStatus.cancelled ? '신청 완료' : '매칭 신청 불가';
+      buttonLabel = '매칭 신청 불가';
       showCancel = false;
-    } else if (now >= start && now <= end) {
-      if (!matchingStatus) {
-      buttonDisabled = false;
-        buttonLabel = '매칭 신청하기';
-        showCancel = false;
-      } else if (matchingStatus.matched === true) {
-        buttonDisabled = true;
-        buttonLabel = '신청 완료';
-        showCancel = true;
-      } else if (matchingStatus.applied && !matchingStatus.cancelled) {
-        buttonDisabled = true;
-        buttonLabel = '신청 완료';
-        showCancel = true;
-      } else if (matchingStatus.cancelled && matchingStatus.cancelled_at) {
+    } else if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
+      if (!isApplied || isCancelled) {
         buttonDisabled = !canReapply;
         buttonLabel = '매칭 신청하기';
+        showCancel = false;
+      } else {
+        buttonDisabled = true;
+        buttonLabel = '신청 완료';
+        showCancel = true;
+      }
+    } else if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
+      buttonDisabled = true;
+      buttonLabel = isApplied && !isCancelled ? '신청 완료' : '매칭 신청 불가';
+      showCancel = false;
+    } else if (announce && nowTime >= announce.getTime()) {
+      if (!isApplied || isCancelled) {
+        buttonDisabled = true;
+        buttonLabel = '매칭 신청 불가';
+        showCancel = false;
+      } else if (typeof isMatched === 'undefined' || isMatched === null) {
+        buttonDisabled = true;
+        buttonLabel = '결과 대기중';
+        showCancel = false;
+      } else if (isMatched === true) {
+        buttonDisabled = true;
+        buttonLabel = '매칭 성공';
+        showCancel = true;
+      } else if (isMatched === false) {
+        buttonDisabled = true;
+        buttonLabel = '매칭 실패';
         showCancel = false;
       }
     } else {
@@ -838,7 +877,18 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   </div>
                   <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>체형</span>
-                    <span style={{color:'#222',fontSize:'1rem'}}>{profile?.body_type || '-'}</span>
+                    <span style={{color:'#222',fontSize:'1rem'}}>{(() => {
+                      const val = profile?.body_type;
+                      if (!val) return '-';
+                      if (Array.isArray(val)) return val.join(', ');
+                      try {
+                        const arr = JSON.parse(val);
+                        if (Array.isArray(arr)) return arr.join(', ');
+                        return String(val);
+                      } catch {
+                        return String(val);
+                      }
+                    })()}</span>
                   </div>
                   <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 90px',minWidth:0,flexShrink:1,marginRight:0,marginBottom:6,wordBreak:'break-all',whiteSpace:'normal'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>흡연</span>

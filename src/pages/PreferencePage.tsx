@@ -490,17 +490,17 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </NoPreferenceButton>
           {!preferBodyTypeNoPreference && (
             bodyTypeOptions.length > 0 ? (
-              <BodyTypeGrid>
-                {bodyTypeOptions.map(bodyType => (
-                  <BodyTypeButton
-                    key={bodyType}
-                    selected={preferredBodyTypes.includes(bodyType)}
-                    onClick={() => handleBodyTypeToggle(bodyType)}
-                  >
-                    {bodyType}
-                  </BodyTypeButton>
-                ))}
-              </BodyTypeGrid>
+            <BodyTypeGrid>
+              {bodyTypeOptions.map(bodyType => (
+                <BodyTypeButton
+                  key={bodyType}
+                  selected={preferredBodyTypes.includes(bodyType)}
+                  onClick={() => handleBodyTypeToggle(bodyType)}
+                >
+                  {bodyType}
+                </BodyTypeButton>
+              ))}
+            </BodyTypeGrid>
             ) : (
               <div style={{color:'#e74c3c',marginTop:8}}>체형 옵션이 없습니다. 관리자에게 문의하세요.</div>
             )

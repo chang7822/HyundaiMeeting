@@ -34,12 +34,12 @@ function isMutualMatch(a, b) {
   if (b.height < a.preferred_height_min || b.height > a.preferred_height_max) return false;
   if (a.height < b.preferred_height_min || a.height > b.preferred_height_max) return false;
   // 체형
-  if (a.preferred_body_types && a.preferred_body_types.length > 0) {
-    if (!a.preferred_body_types.includes(b.body_type)) return false;
-  }
-  if (b.preferred_body_types && b.preferred_body_types.length > 0) {
-    if (!b.preferred_body_types.includes(a.body_type)) return false;
-  }
+  const aBody = a.preferred_body_types ? (Array.isArray(a.preferred_body_types) ? a.preferred_body_types : (typeof a.preferred_body_types === 'string' ? JSON.parse(a.preferred_body_types) : [])) : [];
+  const bBody = b.body_type ? (Array.isArray(b.body_type) ? b.body_type : (typeof b.body_type === 'string' ? JSON.parse(b.body_type) : [])) : [];
+  if (aBody.length > 0 && bBody.length > 0 && !aBody.some(type => bBody.includes(type))) return false;
+  const bPrefBody = b.preferred_body_types ? (Array.isArray(b.preferred_body_types) ? b.preferred_body_types : (typeof b.preferred_body_types === 'string' ? JSON.parse(b.preferred_body_types) : [])) : [];
+  const aRealBody = a.body_type ? (Array.isArray(a.body_type) ? a.body_type : (typeof a.body_type === 'string' ? JSON.parse(a.body_type) : [])) : [];
+  if (bPrefBody.length > 0 && aRealBody.length > 0 && !bPrefBody.some(type => aRealBody.includes(type))) return false;
   // 직군
   if (a.preferred_job_types && a.preferred_job_types.length > 0) {
     if (!a.preferred_job_types.includes(b.job_type)) return false;
@@ -181,6 +181,9 @@ async function main() {
       if (updateB) {
         console.error(`matching_applications 갱신 실패: ${userB}`, updateB);
       }
+      // [추가] users 테이블 is_matched true로 업데이트 (성공)
+      await supabase.from('users').update({ is_matched: true }).eq('id', userA);
+      await supabase.from('users').update({ is_matched: true }).eq('id', userB);
     }
   }
 
@@ -198,6 +201,8 @@ async function main() {
       if (updateFail) {
         console.error(`matching_applications(실패) 갱신 실패: ${userId}`, updateFail);
       }
+      // [추가] users 테이블 is_matched false로 업데이트 (실패)
+      await supabase.from('users').update({ is_matched: false }).eq('id', userId);
     }
   }
 

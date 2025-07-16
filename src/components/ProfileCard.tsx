@@ -139,7 +139,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
       </div>
       <div style={sectionStyle}>
         <span style={labelStyle}>체형</span>
-        <span style={valueStyle}>{body_type || '-'}</span>
+        <span style={valueStyle}>{Array.isArray(body_type) ? body_type.join(', ') : (body_type ? (Array.isArray(JSON.parse(body_type)) ? JSON.parse(body_type).join(', ') : body_type) : '-')}</span>
       </div>
       <div style={sectionStyle}>
         <span style={labelStyle}>거주지</span>

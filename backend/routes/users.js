@@ -58,6 +58,9 @@ router.put('/me', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const updateData = { ...req.body, updated_at: getKSTISOString() };
+    if (updateData.body_type && Array.isArray(updateData.body_type)) {
+      updateData.body_type = JSON.stringify(updateData.body_type);
+    }
     const { data, error } = await supabase
       .from('user_profiles')
       .update(updateData)
@@ -151,6 +154,9 @@ router.put('/:userId', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
     const updateData = { ...req.body, updated_at: getKSTISOString() };
+    if (updateData.body_type && Array.isArray(updateData.body_type)) {
+      updateData.body_type = JSON.stringify(updateData.body_type);
+    }
     // user_profiles 테이블에서 업데이트
     const { data, error } = await supabase
       .from('user_profiles')

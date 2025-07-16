@@ -211,6 +211,28 @@ const MultiSelectModal = ({ isOpen, onClose, options, selected, onSelect, title 
 
 const NICKNAME_REGEX = /^[\uac00-\ud7a3a-zA-Z0-9]+$/;
 
+// [추가] BodyTypeGrid, BodyTypeButton styled-components 정의 (PreferenceSetupPage와 동일)
+const BodyTypeGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  margin-bottom: 24px;
+`;
+const BodyTypeButton = styled.button<{ selected: boolean }>`
+  background: ${props => props.selected ? '#764ba2' : '#f7f7fa'};
+  color: ${props => props.selected ? '#fff' : '#333'};
+  border: 1.5px solid #764ba2;
+  border-radius: 8px;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  &:hover {
+    background: ${props => props.selected ? '#764ba2' : '#e8e8e8'};
+  }
+`;
+
 const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
   const { isLoading, isAuthenticated } = useAuth();
@@ -235,6 +257,32 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const isPwNotMatch = !!pw2 && pw !== pw2;
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
+  // [1] 체형 선택 상태를 배열로 변경
+  const [bodyTypes, setBodyTypes] = useState<string[]>(Array.isArray(profile.body_type) ? profile.body_type : (profile.body_type ? JSON.parse(profile.body_type) : []));
+  // [2] 체형 MultiSelect 팝업
+  // [삭제] bodyTypePopup 관련 상태/컴포넌트 제거
+  // [추가] handleBodyTypeToggle 함수
+  const handleBodyTypeToggle = (bodyType: string) => {
+    setBodyTypes(prev => {
+      if (prev.includes(bodyType)) {
+        return prev.filter(type => type !== bodyType);
+      } else if (prev.length < 3) {
+        return [...prev, bodyType];
+      } else {
+        toast('최대 3개까지만 선택할 수 있습니다.');
+        return prev;
+      }
+    });
+  };
+
+  // [추가] profile.body_type이 바뀔 때마다 bodyTypes 동기화
+  useEffect(() => {
+    setBodyTypes(
+      Array.isArray(profile.body_type)
+        ? profile.body_type
+        : (profile.body_type ? JSON.parse(profile.body_type) : [])
+    );
+  }, [profile.body_type]);
 
   useEffect(() => {
     setLoading(true);
@@ -325,6 +373,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         drinking,
         body_type,
       } = profile;
+      // [3] 저장 시 body_type을 배열(JSON string)로 저장
       const updateData = {
         nickname,
         height,
@@ -339,7 +388,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         religion: profile.religion,
         smoking: profile.smoking,
         drinking: profile.drinking,
-        body_type: profile.body_type,
+        body_type: JSON.stringify(bodyTypes),
       };
       console.log('[디버깅] 저장 요청 updateData:', updateData);
       const res = await userApi.updateMe(updateData);
@@ -457,23 +506,18 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             {profile.height ? `${profile.height} cm` : '키를 입력해주세요'}
           </div>
         </div>
-        <Label>체형</Label>
-        <Row>
-          {(() => {
-            // 성별에 따라 체형 옵션 분기
-            const bodyTypeCat = categories.find(c => c.name === '체형' && c.gender === profile.gender);
-            if (!bodyTypeCat) return null;
-            return options.filter(o => o.category_id === bodyTypeCat.id).map(opt => (
-              <OptionButton
-                key={opt.id}
-                selected={profile.body_type === opt.option_text}
-                onClick={() => setProfile({ ...profile, body_type: opt.option_text })}
-              >
-                {opt.option_text}
-              </OptionButton>
-            ));
-          })()}
-        </Row>
+        <Label>체형 (최대 3개)</Label>
+        <BodyTypeGrid>
+          {getOptions('체형').map(opt => (
+            <BodyTypeButton
+              key={opt.option_text}
+              selected={bodyTypes.includes(opt.option_text)}
+              onClick={() => handleBodyTypeToggle(opt.option_text)}
+            >
+              {opt.option_text}
+            </BodyTypeButton>
+          ))}
+        </BodyTypeGrid>
         <Label>거주지</Label>
         <SelectButton type="button" onClick={()=>setAddressPopup(true)}>
           {profile.residence||'주소를 선택해주세요'}
