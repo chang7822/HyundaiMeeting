@@ -170,8 +170,8 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   const [canChat, setCanChat] = useState(false);
   const [period, setPeriod] = useState<any>(null);
 
-  // 로딩 상태: user가 null이면 true, 아니면 false
-  const isUserLoading = user === null;
+  // 로딩 상태: user가 null이거나 is_admin이 undefined면 true, 아니면 false
+  const isUserLoading = user === null || typeof user?.is_admin === 'undefined';
 
   useEffect(() => {
     if (user?.id) {
@@ -249,7 +249,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         )}
         <SidebarHeader>
           <Logo onClick={() => navigate('/main')}>울산 사내 솔로공모</Logo>
-          {/* user가 null이면 로딩 중 메시지, 아니면 이메일 */}
+          {/* user가 null이거나 is_admin이 undefined면 로딩 중 메시지, 아니면 이메일 */}
           {isUserLoading ? (
             <div style={{ color: '#fff', fontWeight: 600, fontSize: '1.08rem', marginTop: 12, textAlign: 'center' }}>
               로딩 중...
@@ -258,7 +258,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
             <UserInfo>{user?.email}</UserInfo>
           )}
         </SidebarHeader>
-        {/* user가 null이면 메뉴/로그아웃 숨김, 아니면 기존대로 */}
+        {/* user가 null이거나 is_admin이 undefined면 메뉴/로그아웃 숨김, 아니면 기존대로 */}
         {!isUserLoading && (
           <>
             <NavMenu>
