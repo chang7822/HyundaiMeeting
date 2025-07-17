@@ -220,9 +220,11 @@ const PreferenceSummary: React.FC<{ profile: any }> = ({ profile }) => {
   );
 };
 
+const cancelTime = 1;
+
 const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
-  const { user, profile, isLoading, isAuthenticated } = useAuth();
+  const { user, profile, isLoading, isAuthenticated, fetchUser } = useAuth();
 
   // 매칭 기간 상태
   const [period, setPeriod] = useState<any>(null);
@@ -237,6 +239,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
+  const [partnerProfileError, setPartnerProfileError] = useState(false); // [추가] 에러 상태
 
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
@@ -267,6 +270,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } else {
       // 매칭 성공이 아니면 상대 프로필 초기화
       setPartnerProfile(null);
+      setPartnerProfileError(false); // 상태 초기화
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchingStatus, partnerUserId]);
@@ -303,7 +307,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       console.log('[디버깅] fetchMatchingStatus: matchingApi.getMatchingStatus 호출, user.id:', user.id);
       const res = await matchingApi.getMatchingStatus(user.id);
       console.log('[디버깅] fetchMatchingStatus: API 응답 전체:', res);
-      if (res && typeof res === 'object' && 'status' in res) {
+      if (res && typeof res === 'object' && 'status' in res && res.status) {
         // 필드명 통일: is_applied, is_matched, is_cancelled 추가 세팅
         setMatchingStatus({
           ...res.status,
@@ -319,7 +323,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         });
       } else {
         setMatchingStatus(null);
-        console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음, res:', res);
+        console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음 또는 null, res:', res);
       }
     } catch (e) {
       setMatchingStatus(null);
@@ -341,9 +345,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const res = await userApi.getUserProfile(partnerUserId);
       console.log('[MainPage][fetchPartnerProfile] API 성공, 결과:', res);
       setPartnerProfile(res);
+      setPartnerProfileError(false); // 성공 시 에러 상태 해제
     } catch (e) {
       console.error('[MainPage][fetchPartnerProfile] API 실패:', e);
-      toast.error('상대방 프로필 정보를 불러오지 못했습니다.');
+      if (!partnerProfileError) {
+        toast.error('매칭 상대방이 탈퇴했거나 정보를 찾을 수 없습니다.');
+        setPartnerProfileError(true); // 한 번만 토스트
+      }
       setPartnerProfile(null);
     }
   };
@@ -372,13 +380,14 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         let count = 0;
         const poll = window.setInterval(() => {
     fetchMatchingStatus();
+    if(fetchUser) fetchUser();
           count++;
           if (count >= 5) window.clearInterval(poll);
         }, 1000);
       }, Math.max(0, diff - 2000));
       return () => window.clearTimeout(pollStart);
     }
-  }, [period, user?.id]);
+  }, [period, user?.id, fetchUser]);
 
   const [loading, setLoading] = React.useState(true);
   React.useEffect(() => {
@@ -416,11 +425,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return `${yyyy}-${mm}-${dd} ${hh}시 ${min}분`;
   };
 
-  // [리팩터링] users의 is_applied, is_matched 기반 분기 함수
+  // [리팩터링] users의 is_applied, is_matched 기반 분기 함수 (is_cancelled만 matchingStatus에서)
   const getUserMatchingState = () => {
-    // matchingStatus가 null이면 미신청(신규가입/신청X)
-    const isApplied = matchingStatus?.is_applied === true || matchingStatus?.applied === true;
-    const isMatched = typeof matchingStatus?.is_matched !== 'undefined' ? matchingStatus?.is_matched : matchingStatus?.matched;
+    // users 테이블 정보만 사용 (is_applied, is_matched)
+    const isApplied = user?.is_applied === true;
+    const isMatched = typeof user?.is_matched !== 'undefined' ? user?.is_matched : null;
+    // is_cancelled만 matchingStatus에서
     const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
     return { isApplied, isMatched, isCancelled };
   };
@@ -546,9 +556,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const cancelledAt = new Date(matchingStatus.cancelled_at);
     const nowTime = now.getTime();
     const diff = nowTime - cancelledAt.getTime();
-    if (diff < 10 * 60 * 1000) {
+    if (diff < cancelTime * 60 * 1000) {
       canReapply = false;
-      const remain = 10 * 60 * 1000 - diff;
+      const remain = cancelTime * 60 * 1000 - diff;
       const min = Math.floor(remain / 60000);
       const sec = Math.floor((remain % 60000) / 1000);
       reapplyMessage = `신청가능까지\n남은 시간: ${min}분 ${sec}초`;
@@ -657,6 +667,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await matchingApi.requestMatching(user.id);
       toast.success('매칭 신청이 완료되었습니다!');
       await fetchMatchingStatus();
+      if (fetchUser) await fetchUser(); // user 정보 즉시 갱신
       setShowMatchingConfirmModal(false);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '매칭 신청에 실패했습니다.');
@@ -673,6 +684,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await matchingApi.cancelMatching(user.id);
       toast.success('매칭 신청이 취소되었습니다.');
       await fetchMatchingStatus();
+      if (fetchUser) await fetchUser(); // user 정보 즉시 갱신
       setShowCancelConfirmModal(false);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '신청 취소에 실패했습니다.');
@@ -1056,7 +1068,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 lineHeight: 1.5,
                 marginTop: 0,
               }}>
-                신청 취소 후 <b style={{color:'#e74c3c'}}>10분 동안 재신청이 불가</b>합니다.<br/>
+                신청 취소 후 <b style={{color:'#e74c3c'}}>{cancelTime}분 동안 재신청이 불가</b>합니다.<br/>
                 정말로 취소하시려면 아래 버튼을 눌러주세요.
               </div>
             </div>
@@ -1107,13 +1119,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         gap: 7,
                         boxShadow: '0 2px 8px rgba(80,60,180,0.08)',
                         minWidth: 90,
-                        cursor: 'pointer',
+                        cursor: partnerProfileError ? 'not-allowed' : 'pointer',
                         border: '1.5px solid #e0e7ff',
                         transition: 'box-shadow 0.15s',
                         marginTop: 14,
                         justifyContent: 'center',
+                        pointerEvents: partnerProfileError ? 'none' : 'auto', // 클릭 막기
+                        opacity: partnerProfileError ? 0.6 : 1,
                       }}
                       onClick={async (e) => {
+                        if (partnerProfileError) return; // 방어: 클릭 막기
                         e.stopPropagation();
                         await fetchPartnerProfile(partnerUserId!);
                         setShowPartnerModal(true);
@@ -1135,6 +1150,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         whiteSpace: 'nowrap',
                       }}>
                         {(() => {
+                          if (partnerProfileError) {
+                            return '프로필 없음';
+                          }
                           if (!partnerProfile?.nickname) {
                             console.warn('[MainPage] partnerProfile 닉네임 없음! partnerProfile:', partnerProfile, '\npartnerUserId:', partnerUserId, '\nmatchingStatus:', matchingStatus);
                             if (!partnerProfile) {

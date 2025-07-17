@@ -86,7 +86,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log('[AuthContext] 로그아웃, localStorage token:', localStorage.getItem('token'));
   };
 
-  const value: AuthContextType & { setProfile: typeof setProfile } = {
+  // user 정보 새로고침 함수 추가
+  const fetchUser = async () => {
+    setIsLoading(true);
+    try {
+      const userData = await authApi.getCurrentUser();
+      setUser(userData);
+      if (!userData.id) {
+        console.error('[AuthContext] fetchUser: userData.id 없음!:', userData);
+      }
+      const profileData = await userApi.getUserProfile(userData.id);
+      setProfile(profileData);
+      console.log('[AuthContext] fetchUser: user/profile 갱신 성공', userData, profileData);
+    } catch (err) {
+      console.error('[AuthContext] fetchUser: 인증 복원 실패:', err);
+      localStorage.removeItem('token');
+      setUser(null);
+      setProfile(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const value: AuthContextType & { setProfile: typeof setProfile; fetchUser: typeof fetchUser } = {
     user,
     profile,
     login,
@@ -94,6 +116,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isAuthenticated: !!user,
     isLoading,
     setProfile,
+    fetchUser,
   };
 
   return (

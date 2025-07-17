@@ -8,6 +8,8 @@ export interface User {
   is_admin: boolean;
   created_at: string;
   updated_at: string;
+  is_applied: boolean; // 매칭 신청 여부
+  is_matched: boolean | null; // 매칭 결과(성공/실패/null)
 }
 
 // UserProfile(모든 프로필 정보를 한 행에)
@@ -181,4 +183,5 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   setProfile: (profile: UserProfile) => void;
+  fetchUser: () => Promise<void>; // 추가
 } 

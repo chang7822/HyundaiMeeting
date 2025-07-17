@@ -5,6 +5,8 @@ const { supabase } = require('../database');
 // 임시 매칭 데이터
 const matches = [];
 
+const cancelTime = 1;
+
 // 매칭 기간(신청/마감/알고리즘/발표) 정보 조회
 router.get('/period', async (req, res) => {
   try {
@@ -43,8 +45,8 @@ router.post('/request', async (req, res) => {
     if (lastApp && lastApp.cancelled && lastApp.cancelled_at) {
       const cancelledAt = new Date(lastApp.cancelled_at);
       const now = new Date();
-      if (now.getTime() - cancelledAt.getTime() < 10 * 60 * 1000) {
-        return res.status(400).json({ message: '신청 취소 후 10분 동안 재신청이 불가합니다.' });
+      if (now.getTime() - cancelledAt.getTime() < cancelTime * 60 * 1000) {
+        return res.status(400).json({ message: `신청 취소 후 ${cancelTime}분 동안 재신청이 불가합니다.` });
       }
     }
 
