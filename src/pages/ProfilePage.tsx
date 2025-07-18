@@ -235,7 +235,7 @@ const BodyTypeButton = styled.button<{ selected: boolean }>`
 
 const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, fetchUser, user } = useAuth();
   const [categories, setCategories] = useState<ProfileCategory[]>([]);
   const [options, setOptions] = useState<ProfileOption[]>([]);
   const [profile, setProfile] = useState<Partial<UserProfile & User>>({});
@@ -428,7 +428,19 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   const handleDelete = async () => {
     if (!delPw) return toast.error('비밀번호를 입력하세요.');
+    
     try {
+      // 매칭 상태 확인을 위해 fetchUser 실행
+      await fetchUser();
+      
+      // 매칭 중인지 확인
+      if (user?.is_matched === true) {
+        toast.error('현재 매칭이 진행중입니다. 회차가 종료된 후에 탈퇴가 가능합니다.');
+        setDelPw('');
+        setDelPopup(false);
+        return;
+      }
+      
       // 실제로는 별도 deleteMe API 필요
       await authApi.login({ email: profile.email!, password: delPw });
       await userApi.deleteMe();
