@@ -205,21 +205,32 @@ router.post('/cancel', async (req, res) => {
     if (!userId) {
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
     }
-    // 가장 최근 신청 row(applied=true, cancelled=false) 찾기
+    
+    // 1. 최신 회차 id 조회
+    const { data: periodData, error: periodError } = await supabase
+      .from('matching_log')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+      .single();
+    if (periodError) throw periodError;
+    const periodId = periodData.id;
+    
+    // 2. 해당 회차의 신청 row(applied=true, cancelled=false) 찾기
     const { data: application, error: findError } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
+      .eq('period_id', periodId)
       .eq('applied', true)
       .eq('cancelled', false)
-      .order('applied_at', { ascending: false })
-      .limit(1)
       .single();
     if (findError && findError.code !== 'PGRST116') throw findError;
     if (!application) {
-      return res.status(404).json({ message: '신청 내역이 없습니다.' });
+      return res.status(404).json({ message: '현재 회차의 신청 내역이 없습니다.' });
     }
-    // 해당 row의 cancelled=true, cancelled_at=now로 update
+    
+    // 3. 해당 row의 cancelled=true, cancelled_at=now로 update
     const { data: updated, error: updateError } = await supabase
       .from('matching_applications')
       .update({ cancelled: true, cancelled_at: new Date().toISOString() })
@@ -228,7 +239,7 @@ router.post('/cancel', async (req, res) => {
       .single();
     if (updateError) throw updateError;
 
-    // [추가] users 테이블의 is_applied false로 업데이트
+    // 4. users 테이블의 is_applied false로 업데이트
     await supabase
       .from('users')
       .update({ is_applied: false })

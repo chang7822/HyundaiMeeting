@@ -6,12 +6,13 @@ const { supabase } = require('./database');
 let lastExecutedId = null; // 중복 실행 방지용
 let lastResetExecuted = null; // 회차 종료 초기화 중복 실행 방지용
 let lastEmailSentId = null; // 이메일 발송 중복 방지용
+let lastPeriodStartReset = null; // 회차 시작 초기화 중복 실행 방지용
 
 cron.schedule('* * * * *', async () => {
   try {
     const { data, error } = await supabase
       .from('matching_log')
-      .select('id, matching_run, matching_announce, executed, finish')
+      .select('id, matching_run, matching_announce, executed, finish, application_start')
       .order('id', { ascending: false })
       .limit(1)
       .single();
@@ -42,6 +43,19 @@ cron.schedule('* * * * *', async () => {
         }
       });
     }
+    
+    // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 시점)
+    if (data.application_start) {
+      const startTime = new Date(data.application_start);
+      const resetExecutionTime = new Date(startTime.getTime() + 30 * 1000); // 30초 후 실행
+      
+      if (now >= resetExecutionTime && lastPeriodStartReset !== data.id) {
+        console.log(`[스케줄러] 회차 ${data.id} 신청 기간 시작, users 테이블 is_applied, is_matched 초기화`);
+        await supabase.from('users').update({ is_applied: false, is_matched: null });
+        lastPeriodStartReset = data.id; // 초기화 완료 표시
+      }
+    }
+    
     // [추가] 회차 종료(마감) 시 users 테이블 초기화
     if (data.finish) {
       const finishTime = new Date(data.finish);

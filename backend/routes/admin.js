@@ -510,4 +510,29 @@ router.post('/send-matching-result-emails', async (req, res) => {
   }
 });
 
+// [수동] users 테이블 매칭 상태 초기화 (관리자용)
+router.post('/reset-users-matching-status', async (req, res) => {
+  try {
+    console.log('[관리자] users 테이블 매칭 상태 수동 초기화 시작');
+    
+    const { data, error } = await supabase
+      .from('users')
+      .update({ is_applied: false, is_matched: null });
+    
+    if (error) {
+      console.error('[관리자] users 테이블 초기화 오류:', error);
+      return res.status(500).json({ message: '초기화에 실패했습니다.', error: error.message });
+    }
+    
+    console.log('[관리자] users 테이블 매칭 상태 수동 초기화 완료');
+    res.json({ 
+      success: true, 
+      message: '모든 사용자의 매칭 상태가 초기화되었습니다.' 
+    });
+  } catch (error) {
+    console.error('[관리자] users 테이블 초기화 오류:', error);
+    res.status(500).json({ message: '초기화에 실패했습니다.', error: error.message });
+  }
+});
+
 module.exports = router; 
