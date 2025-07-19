@@ -5,12 +5,13 @@ const { supabase } = require('./database');
 
 let lastExecutedId = null; // 중복 실행 방지용
 let lastResetExecuted = null; // 회차 종료 초기화 중복 실행 방지용
+let lastEmailSentId = null; // 이메일 발송 중복 방지용
 
 cron.schedule('* * * * *', async () => {
   try {
     const { data, error } = await supabase
       .from('matching_log')
-      .select('id, matching_run, executed, finish')
+      .select('id, matching_run, matching_announce, executed, finish')
       .order('id', { ascending: false })
       .limit(1)
       .single();
@@ -18,9 +19,11 @@ cron.schedule('* * * * *', async () => {
 
     const now = new Date();
     const runTime = new Date(data.matching_run);
-    // executed가 false이고, 1분 이내(±30초)이고, 아직 실행하지 않은 경우에만 실행
-    if (!data.executed && Math.abs(now - runTime) < 60 * 1000 && lastExecutedId !== data.id) {
-      console.log(`[스케줄러] 매칭 회차 ${data.id} 실행: ${runTime.toISOString()}`);
+    // executed가 false이고, matching_run 시각이 지났고, 아직 실행하지 않은 경우에만 실행
+    // 30초 여유를 두어 정확한 시각에 실행되도록 함
+    const executionTime = new Date(runTime.getTime() + 30 * 1000); // 30초 후 실행
+    if (!data.executed && now >= executionTime && lastExecutedId !== data.id) {
+      console.log(`[스케줄러] 매칭 회차 ${data.id} 실행 (예정: ${runTime.toISOString()}, 실제: ${now.toISOString()})`);
       exec('node matching-algorithm.js', async (err, stdout, stderr) => {
         if (err) {
           console.error('매칭 알고리즘 실행 오류:', err);
@@ -56,6 +59,26 @@ cron.schedule('* * * * *', async () => {
           console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
           await supabase.from('users').update({ is_applied: false, is_matched: null });
           lastResetExecuted = data.id; // 초기화 완료 표시
+        }
+      }
+    }
+
+    // [추가] 매칭 결과 이메일 발송 (matching_announce 시각)
+    if (data.matching_announce) {
+      const announceTime = new Date(data.matching_announce);
+      const emailExecutionTime = new Date(announceTime.getTime() + 30 * 1000); // 30초 후 실행
+      
+      if (now >= emailExecutionTime && lastEmailSentId !== data.id) {
+        console.log(`[스케줄러] 매칭 결과 이메일 발송 시작 (예정: ${announceTime.toISOString()}, 실제: ${now.toISOString()})`);
+        
+        // 매칭 결과 이메일 발송 함수 실행
+        const { sendMatchingResultEmails } = require('./matching-algorithm');
+        try {
+          await sendMatchingResultEmails();
+          console.log('[스케줄러] 매칭 결과 이메일 발송 완료');
+          lastEmailSentId = data.id; // 이메일 발송 완료 표시
+        } catch (err) {
+          console.error('[스케줄러] 매칭 결과 이메일 발송 오류:', err);
         }
       }
     }
