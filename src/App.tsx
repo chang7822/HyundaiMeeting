@@ -22,10 +22,14 @@ import MainPage from './pages/MainPage.tsx';
 import AdminPage from './pages/admin/AdminPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
 import PreferencePage from './pages/PreferencePage.tsx';
+import NoticePage from './pages/NoticePage.tsx';
+import FaqPage from './pages/FaqPage.tsx';
 import MatchingLogAdminPage from './pages/admin/MatchingLogAdminPage.tsx';
 import CategoryManagerPage from './pages/admin/CategoryManagerPage.tsx';
 import { MatchingApplicationsPage } from './pages/admin/MatchingApplicationsPage.tsx';
 import MatchingResultPage from './pages/admin/MatchingResultPage.tsx';
+import NoticeManagerPage from './pages/admin/NoticeManagerPage.tsx';
+import FaqManagerPage from './pages/admin/FaqManagerPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
 import ChatPage from './pages/ChatPage.tsx';
 
@@ -127,6 +131,38 @@ function App() {
                   </div>
                 </ProtectedRoute>
               } />
+              <Route path="/notice" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <NoticePage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/notice/:id" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <NoticePage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/faq" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <FaqPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/faq/:id" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <FaqPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
               <Route path="/chat/:partnerUserId" element={
                 <ProtectedRoute>
                   {/* 사이드바 없이 ChatPage만 렌더 */}
@@ -168,6 +204,22 @@ function App() {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <MatchingResultPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/notice-manager" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <NoticeManagerPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/faq-manager" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <FaqManagerPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />

@@ -331,4 +331,62 @@ export const saveAdminProfileOptions = async (options: any[]) => {
   return res.data;
 };
 
+// Notice API
+export const noticeApi = {
+  getNotices: async (): Promise<any[]> => {
+    const response = await api.get('/notice');
+    return response.data;
+  },
+
+  getNotice: async (id: number): Promise<any> => {
+    const response = await api.get(`/notice/${id}`);
+    return response.data;
+  },
+
+  // 관리자용 API
+  createNotice: async (data: { title: string; content: string; author?: string; is_important?: boolean }): Promise<any> => {
+    const response = await api.post('/notice', data);
+    return response.data;
+  },
+
+  updateNotice: async (id: number, data: { title: string; content: string; author?: string; is_important?: boolean }): Promise<any> => {
+    const response = await api.put(`/notice/${id}`, data);
+    return response.data;
+  },
+
+  deleteNotice: async (id: number): Promise<any> => {
+    const response = await api.delete(`/notice/${id}`);
+    return response.data;
+  },
+};
+
+// FAQ API
+export const faqApi = {
+  getFaqs: async (): Promise<any[]> => {
+    const response = await api.get('/faq');
+    return response.data;
+  },
+
+  getFaq: async (id: number): Promise<any> => {
+    const response = await api.get(`/faq/${id}`);
+    return response.data;
+  },
+
+  // 관리자용 API
+  createFaq: async (data: { question: string; answer: string; display_order?: number; is_active?: boolean }): Promise<any> => {
+    const response = await api.post('/faq', data);
+    return response.data;
+  },
+
+  updateFaq: async (id: number, data: { question: string; answer: string; display_order?: number; is_active?: boolean }): Promise<any> => {
+    const response = await api.put(`/faq/${id}`, data);
+    return response.data;
+  },
+
+  deleteFaq: async (id: number): Promise<any> => {
+    const response = await api.delete(`/faq/${id}`);
+    return response.data;
+  },
+};
+
 export default api; 

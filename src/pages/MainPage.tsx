@@ -9,6 +9,38 @@ import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
 
+// 액션 타입 정의
+type ActionItem = {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  action: () => void;
+  disabled: boolean;
+};
+
+type BaseQuickAction = {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+  action: () => void;
+  disabled: boolean;
+  custom?: boolean;
+};
+
+type ProfilePreferenceAction = {
+  type: 'profile-preference';
+  profileAction: ActionItem;
+  preferenceAction: ActionItem;
+};
+
+type NoticeFaqAction = {
+  type: 'notice-faq';
+  noticeAction: ActionItem;
+  faqAction: ActionItem;
+};
+
+type QuickAction = BaseQuickAction | ProfilePreferenceAction | NoticeFaqAction;
+
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
   margin-left: ${props => (props.$sidebarOpen ? '280px' : '0')};
@@ -19,135 +51,398 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   
   @media (max-width: 768px) {
     margin-left: 0;
-    padding: 1rem;
+    padding: 1.5rem;
     padding-top: 80px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 1rem;
+    padding-top: 70px;
   }
 `;
 
 const WelcomeSection = styled.div`
   background: white;
-  border-radius: 15px;
-  padding: 2rem;
+  border-radius: 20px;
+  padding: 2.5rem;
   margin-bottom: 2rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  
+  @media (max-width: 768px) {
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+    border-radius: 16px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border-radius: 12px;
+  }
 `;
 
 const WelcomeTitle = styled.h1`
   color: #333;
-  margin-bottom: 0.5rem;
-  font-size: 2rem;
+  margin-bottom: 0.8rem;
+  font-size: 2.2rem;
+  font-weight: 700;
+  line-height: 1.2;
   
   @media (max-width: 768px) {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
+    margin-bottom: 0.6rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
   }
 `;
 
 const WelcomeSubtitle = styled.p`
   color: #666;
-  font-size: 1.1rem;
-  margin-bottom: 2rem;
+  font-size: 1.15rem;
+  margin-bottom: 2.5rem;
+  line-height: 1.5;
+  
+  @media (max-width: 768px) {
+    font-size: 1.1rem;
+    margin-bottom: 2rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+  }
 `;
 
 const QuickActions = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
   margin-bottom: 2rem;
+  
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+`;
+
+const ProfilePreferenceCard = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+  }
+  
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
 `;
 
 const ActionCard = styled.div`
   background: white;
-  border-radius: 15px;
+  border-radius: 18px;
   padding: 1.5rem;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.3s ease;
   position: relative;
+  overflow: hidden;
+  
   &:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    transform: translateY(-6px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    border-color: rgba(102, 126, 234, 0.2);
+  }
+  
+  &:active {
+    transform: translateY(-2px);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 1.3rem;
+    border-radius: 16px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 1.2rem;
+    border-radius: 14px;
   }
 `;
 
 const ActionIcon = styled.div`
   font-size: 2rem;
   color: #667eea;
-  margin-bottom: 1rem;
+  margin-right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  
+  ${ActionCard}:hover & {
+    transform: scale(1.1);
+  }
+  
+  @media (max-width: 768px) {
+    font-size: 1.8rem;
+    margin-right: 0.8rem;
+  }
 `;
 
 const ActionTitle = styled.h3`
   color: #333;
   margin-bottom: 0.5rem;
   font-size: 1.2rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  line-height: 1.3;
+  
+  @media (max-width: 768px) {
+    font-size: 1.1rem;
+    margin-bottom: 0.4rem;
+  }
+`;
+
+const ActionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 1rem;
+  
+  @media (max-width: 768px) {
+    margin-bottom: 0.8rem;
+  }
 `;
 
 const ActionDescription = styled.p`
   color: #666;
-  font-size: 0.9rem;
+  font-size: 1.05rem;
   line-height: 1.5;
+  margin: 0;
+  
+  @media (max-width: 768px) {
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+`;
+
+const HalfWidthCard = styled(ActionCard)`
+  min-width: 0;
+  padding: 1.2rem;
+  
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 0.9rem;
+  }
+`;
+
+const HalfWidthIcon = styled(ActionIcon)`
+  font-size: 1.8rem;
+  margin-right: 0.8rem;
+  
+  @media (max-width: 768px) {
+    font-size: 1.6rem;
+    margin-right: 0.7rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1.5rem;
+    margin-right: 0.6rem;
+  }
+`;
+
+const HalfWidthTitle = styled(ActionTitle)`
+  font-size: 1.1rem;
+  margin-bottom: 0.4rem;
+  
+  @media (max-width: 768px) {
+    font-size: 1rem;
+    margin-bottom: 0.3rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 0.95rem;
+  }
+`;
+
+const HalfWidthHeader = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.8rem;
+  
+  @media (max-width: 768px) {
+    margin-bottom: 0.7rem;
+  }
+  
+  @media (max-width: 480px) {
+    margin-bottom: 0.6rem;
+  }
+`;
+
+const HalfWidthDescription = styled(ActionDescription)`
+  font-size: 0.95rem;
+  line-height: 1.4;
+  
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+  }
 `;
 
 const StatsSection = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  
+  @media (max-width: 768px) {
+    gap: 1.5rem;
+  }
+  
+  @media (max-width: 480px) {
+    gap: 1rem;
+  }
 `;
 
 const StatCard = styled.div`
   background: white;
-  border-radius: 15px;
-  padding: 1.5rem;
+  border-radius: 18px;
+  padding: 2rem;
   text-align: center;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 1.5rem;
+    border-radius: 16px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 1.2rem;
+    border-radius: 14px;
+  }
 `;
 
 const StatNumber = styled.div`
-  font-size: 2rem;
-  font-weight: bold;
+  font-size: 2.5rem;
+  font-weight: 700;
   color: #667eea;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.8rem;
+  line-height: 1;
+  
+  @media (max-width: 768px) {
+    font-size: 2.2rem;
+    margin-bottom: 0.6rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
 `;
 
 const StatLabel = styled.div`
   color: #666;
-  font-size: 0.9rem;
+  font-size: 1rem;
+  font-weight: 500;
+  
+  @media (max-width: 768px) {
+    font-size: 0.95rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 0.9rem;
+  }
 `;
 
 const MatchingButton = styled.button`
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 15px 30px;
-  border-radius: 25px;
-  font-size: 1.1rem;
+  padding: 16px 32px;
+  border-radius: 28px;
+  font-size: 1.15rem;
   font-weight: 600;
   cursor: pointer;
-  transition: transform 0.2s ease;
+  transition: all 0.3s ease;
   margin-top: 1rem;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   
   &:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  }
+  
+  &:active {
+    transform: translateY(-1px);
   }
   
   &:disabled {
     opacity: 0.6;
     cursor: not-allowed;
     transform: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 14px 28px;
+    font-size: 1.1rem;
+    border-radius: 25px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 12px 24px;
+    font-size: 1rem;
+    border-radius: 22px;
   }
 `;
 
 const ButtonRow = styled.div`
   display: flex;
-  gap: 16px;
+  gap: 20px;
   justify-content: flex-start;
   align-items: center;
-  margin-top: 1.5rem;
+  margin-top: 2rem;
   flex-wrap: wrap;
+
+  @media (max-width: 768px) {
+    gap: 16px;
+    margin-top: 1.5rem;
+  }
 
   @media (max-width: 600px) {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 12px;
+    margin-top: 1.5rem;
     > * {
       width: 100%;
       text-align: left !important;
@@ -157,11 +452,19 @@ const ButtonRow = styled.div`
 
 const NicknameSpan = styled.span`
   color: #4F46E5;
-  font-weight: bold;
+  font-weight: 700;
   cursor: pointer;
   text-decoration: underline;
+  transition: all 0.2s ease;
+  
   &:hover {
     color: #7C3AED;
+    text-decoration: none;
+    transform: scale(1.05);
+  }
+  
+  &:active {
+    transform: scale(0.98);
   }
 `;
 
@@ -621,21 +924,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const { status } = getMatchingStatusDisplay();
   const canChat = status === '매칭 성공' && partnerUserId;
 
-  const quickActions = [
-    {
-      icon: <FaUser />,
-      title: '프로필 관리',
-      description: '내 프로필 정보를 수정하고 관리하세요.',
-      action: () => navigate('/profile'),
-      disabled: false,
-    },
-    {
-      icon: <FaRegStar />,
-      title: '내가 선호하는 스타일',
-      description: '내가 선호하는 스타일을 조회/수정할 수 있습니다.',
-      action: () => navigate('/preference'),
-      disabled: false,
-    },
+  const quickActions: QuickAction[] = [
     {
       icon: <FaRegClock />,
       title: '매칭 현황',
@@ -652,6 +941,44 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       },
       disabled: !canChat,
       custom: true,
+    },
+    {
+      type: 'notice-faq',
+      noticeAction: {
+        icon: <FaExclamationTriangle />,
+        title: '공지사항',
+        description: '매칭 관련 공지사항을 확인하세요.',
+        action: () => {
+          navigate('/notice');
+        },
+        disabled: false,
+      },
+      faqAction: {
+        icon: <FaRegStar />,
+        title: 'FAQ',
+        description: '자주 묻는 질문과 답변을 확인하세요.',
+        action: () => {
+          navigate('/faq');
+        },
+        disabled: false,
+      }
+    },
+    {
+      type: 'profile-preference',
+      profileAction: {
+        icon: <FaUser />,
+        title: '프로필 관리',
+        description: '내 프로필 정보를 수정하고 관리하세요.',
+        action: () => navigate('/profile'),
+        disabled: false,
+      },
+      preferenceAction: {
+        icon: <FaRegStar />,
+        title: '내가 선호하는 스타일',
+        description: '내가 선호하는 스타일을 조회/수정할 수 있습니다.',
+        action: () => navigate('/preference'),
+        disabled: false,
+      }
     },
   ];
 
@@ -1084,125 +1411,204 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       </WelcomeSection>
       
       <QuickActions>
-        {quickActions.map((action, index) => (
-          <ActionCard
-            key={index}
-            onClick={!action.disabled ? action.action : undefined}
-            style={action.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
-          >
-            <ActionIcon>{action.icon}</ActionIcon>
-            <ActionTitle>{action.title}</ActionTitle>
-            {action.title === '매칭 현황' ? (() => {
-              const { status, period, color } = getMatchingStatusDisplay();
-              return (
-                <div style={{
-                  marginTop: 18,
-                  background: 'linear-gradient(135deg, #f7f7fa 0%, #e9e6f7 100%)',
-                  borderRadius: 10,
-                  padding: '18px 14px',
-                  minHeight: 56,
-                  boxShadow: '0 2px 8px rgba(80,60,180,0.06)',
-                  textAlign: 'center',
-                  letterSpacing: '-0.01em'
-                }}>
-                  <div style={{ fontWeight: 700, fontSize: '1.13rem', color, marginBottom: period ? 8 : 0 }}>{status}</div>
-                  {period && <div style={{ fontSize: '0.93rem', color: '#555', fontWeight: 500, whiteSpace: 'pre-line' }}>{period}</div>}
-                  {/* 매칭 성공 시 상대방 프로필 박스 */}
-                  {status === '매칭 성공' && partnerUserId && (
-                    <div
-                      style={{
-                        background: 'linear-gradient(135deg, #f7f7fa 0%, #e9e6f7 100%)',
-                        borderRadius: 10,
-                        padding: '7px 14px 7px 10px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 7,
-                        boxShadow: '0 2px 8px rgba(80,60,180,0.08)',
-                        minWidth: 90,
-                        cursor: partnerProfileError ? 'not-allowed' : 'pointer',
-                        border: '1.5px solid #e0e7ff',
-                        transition: 'box-shadow 0.15s',
-                        marginTop: 14,
-                        justifyContent: 'center',
-                        pointerEvents: partnerProfileError ? 'none' : 'auto', // 클릭 막기
-                        opacity: partnerProfileError ? 0.6 : 1,
-                      }}
-                      onClick={async (e) => {
-                        if (partnerProfileError) return; // 방어: 클릭 막기
-                        e.stopPropagation();
-                        await fetchPartnerProfile(partnerUserId!);
-                        setShowPartnerModal(true);
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(124,63,237,0.13)')}
-                      onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 2px 8px rgba(80,60,180,0.08)')}
-                    >
-                      <FaChevronRight size={18} color="#7C3AED" style={{ marginRight: 2 }} />
-                      <ProfileIcon gender={partnerProfile?.gender || ''} size={28} />
-                      <span style={{
-                        fontWeight: 700,
-                        color:
-                          partnerProfile?.gender === 'male' || partnerProfile?.gender === '남성'
-                            ? '#7C3AED'
-                            : partnerProfile?.gender === 'female' || partnerProfile?.gender === '여성'
-                            ? '#F472B6'
-                            : '#bbb',
-                        fontSize: '1.01rem',
-                        whiteSpace: 'nowrap',
-                      }}>
-                        {(() => {
-                          if (partnerProfileError) {
-                            return '프로필 없음';
-                          }
-                          if (!partnerProfile?.nickname) {
-                            console.warn('[MainPage] partnerProfile 닉네임 없음! partnerProfile:', partnerProfile, '\npartnerUserId:', partnerUserId, '\nmatchingStatus:', matchingStatus);
-                            if (!partnerProfile) {
-                              console.warn('[MainPage] partnerProfile이 null입니다. fetchPartnerProfile이 정상 호출됐는지, API 응답이 어땠는지 위 로그를 확인하세요.');
-                            } else if (partnerProfile && typeof partnerProfile === 'object') {
-                              console.warn('[MainPage] partnerProfile 객체:', JSON.stringify(partnerProfile, null, 2));
+        {quickActions.map((action, index) => {
+          // profile-preference 타입 처리
+          if ('type' in action && action.type === 'profile-preference') {
+            const profileAction = action as ProfilePreferenceAction;
+            return (
+              <ProfilePreferenceCard key={index}>
+                <HalfWidthCard
+                  onClick={!profileAction.profileAction.disabled ? profileAction.profileAction.action : undefined}
+                  style={profileAction.profileAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
+                >
+                  <HalfWidthHeader>
+                    <HalfWidthIcon>{profileAction.profileAction.icon}</HalfWidthIcon>
+                    <HalfWidthTitle>{profileAction.profileAction.title}</HalfWidthTitle>
+                  </HalfWidthHeader>
+                  <HalfWidthDescription>{profileAction.profileAction.description}</HalfWidthDescription>
+                </HalfWidthCard>
+                <HalfWidthCard
+                  onClick={!profileAction.preferenceAction.disabled ? profileAction.preferenceAction.action : undefined}
+                  style={profileAction.preferenceAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
+                >
+                  <HalfWidthHeader>
+                    <HalfWidthIcon>{profileAction.preferenceAction.icon}</HalfWidthIcon>
+                    <HalfWidthTitle>{profileAction.preferenceAction.title}</HalfWidthTitle>
+                  </HalfWidthHeader>
+                  <HalfWidthDescription>{profileAction.preferenceAction.description}</HalfWidthDescription>
+                </HalfWidthCard>
+              </ProfilePreferenceCard>
+            );
+          }
+          
+          // notice-faq 타입 처리
+          if ('type' in action && action.type === 'notice-faq') {
+            const noticeFaqAction = action as NoticeFaqAction;
+            return (
+              <ProfilePreferenceCard key={index}>
+                <HalfWidthCard
+                  onClick={!noticeFaqAction.noticeAction.disabled ? noticeFaqAction.noticeAction.action : undefined}
+                  style={noticeFaqAction.noticeAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
+                >
+                  <HalfWidthHeader>
+                    <HalfWidthIcon>{noticeFaqAction.noticeAction.icon}</HalfWidthIcon>
+                    <HalfWidthTitle>{noticeFaqAction.noticeAction.title}</HalfWidthTitle>
+                  </HalfWidthHeader>
+                  <HalfWidthDescription>{noticeFaqAction.noticeAction.description}</HalfWidthDescription>
+                </HalfWidthCard>
+                <HalfWidthCard
+                  onClick={!noticeFaqAction.faqAction.disabled ? noticeFaqAction.faqAction.action : undefined}
+                  style={noticeFaqAction.faqAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
+                >
+                  <HalfWidthHeader>
+                    <HalfWidthIcon>{noticeFaqAction.faqAction.icon}</HalfWidthIcon>
+                    <HalfWidthTitle>{noticeFaqAction.faqAction.title}</HalfWidthTitle>
+                  </HalfWidthHeader>
+                  <HalfWidthDescription>{noticeFaqAction.faqAction.description}</HalfWidthDescription>
+                </HalfWidthCard>
+              </ProfilePreferenceCard>
+            );
+          }
+          
+          // 기존 카드 처리
+          const baseAction = action as BaseQuickAction;
+          return (
+            <ActionCard
+              key={index}
+              onClick={!baseAction.disabled ? baseAction.action : undefined}
+              style={baseAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
+            >
+              <ActionHeader>
+                <ActionIcon>{baseAction.icon}</ActionIcon>
+                <ActionTitle>{baseAction.title}</ActionTitle>
+              </ActionHeader>
+              {baseAction.title === '매칭 현황' ? (() => {
+                const { status, period, color } = getMatchingStatusDisplay();
+                return (
+                  <div style={{
+                    marginTop: 20,
+                    background: 'linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%)',
+                    borderRadius: 16,
+                    padding: '22px 18px',
+                    minHeight: 60,
+                    boxShadow: '0 4px 12px rgba(102,126,234,0.08)',
+                    textAlign: 'center',
+                    letterSpacing: '-0.01em',
+                    border: '1px solid rgba(102,126,234,0.1)'
+                  }}>
+                    <div style={{ fontWeight: 700, fontSize: '1.2rem', color, marginBottom: period ? 10 : 0, lineHeight: 1.3 }}>{status}</div>
+                    {period && <div style={{ fontSize: '0.95rem', color: '#555', fontWeight: 500, whiteSpace: 'pre-line', lineHeight: 1.4 }}>{period}</div>}
+                    {/* 매칭 성공 시 상대방 프로필 박스 */}
+                    {status === '매칭 성공' && partnerUserId && (
+                      <div
+                        style={{
+                          background: 'linear-gradient(135deg, #f0f4ff 0%, #e6f0ff 100%)',
+                          borderRadius: 12,
+                          padding: '8px 16px 8px 12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          boxShadow: '0 3px 10px rgba(102,126,234,0.12)',
+                          minWidth: 100,
+                          cursor: partnerProfileError ? 'not-allowed' : 'pointer',
+                          border: '1.5px solid #dbeafe',
+                          transition: 'all 0.2s ease',
+                          marginTop: 16,
+                          justifyContent: 'center',
+                          pointerEvents: partnerProfileError ? 'none' : 'auto', // 클릭 막기
+                          opacity: partnerProfileError ? 0.6 : 1,
+                        }}
+                        onClick={async (e) => {
+                          if (partnerProfileError) return; // 방어: 클릭 막기
+                          e.stopPropagation();
+                          await fetchPartnerProfile(partnerUserId!);
+                          setShowPartnerModal(true);
+                        }}
+                        onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 5px 18px rgba(102,126,234,0.18)', e.currentTarget.style.transform = 'translateY(-2px)')}
+                        onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 3px 10px rgba(102,126,234,0.12)', e.currentTarget.style.transform = 'translateY(0)')}
+                      >
+                        <FaChevronRight size={18} color="#7C3AED" style={{ marginRight: 2 }} />
+                        <ProfileIcon gender={partnerProfile?.gender || ''} size={28} />
+                        <span style={{
+                          fontWeight: 700,
+                          color:
+                            partnerProfile?.gender === 'male' || partnerProfile?.gender === '남성'
+                              ? '#7C3AED'
+                              : partnerProfile?.gender === 'female' || partnerProfile?.gender === '여성'
+                              ? '#F472B6'
+                              : '#bbb',
+                          fontSize: '1.01rem',
+                          whiteSpace: 'nowrap',
+                        }}>
+                          {(() => {
+                            if (partnerProfileError) {
+                              return '프로필 없음';
                             }
-                            return '상대방';
-                          }
-                          return partnerProfile.nickname;
-                        })()}
-                      </span>
+                            if (!partnerProfile?.nickname) {
+                              console.warn('[MainPage] partnerProfile 닉네임 없음! partnerProfile:', partnerProfile, '\npartnerUserId:', partnerUserId, '\nmatchingStatus:', matchingStatus);
+                              if (!partnerProfile) {
+                                console.warn('[MainPage] partnerProfile이 null입니다. fetchPartnerProfile이 정상 호출됐는지, API 응답이 어땠는지 위 로그를 확인하세요.');
+                              } else if (partnerProfile && typeof partnerProfile === 'object') {
+                                console.warn('[MainPage] partnerProfile 객체:', JSON.stringify(partnerProfile, null, 2));
+                              }
+                              return '상대방';
+                            }
+                            return partnerProfile.nickname;
+                          })()}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })() : (
+              <ActionDescription>{baseAction.description}</ActionDescription>
+              )}
+              {/* 채팅하기 카드만 커스텀 안내문구/버튼 */}
+              {baseAction.title === '상대방과 약속잡기' ? (
+                <>
+                  <button
+                    style={{
+                      marginTop: 12,
+                      background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 20,
+                      padding: '8px 20px',
+                      fontWeight: 600,
+                      fontSize: '1.05rem',
+                      cursor: canChat ? 'pointer' : 'not-allowed',
+                      opacity: canChat ? 1 : 0.5,
+                      transition: 'all 0.2s ease',
+                      boxShadow: canChat ? '0 3px 10px rgba(124,58,237,0.3)' : '0 2px 6px rgba(0,0,0,0.1)',
+                    }}
+                    disabled={!canChat}
+                    onClick={e => {
+                      e.stopPropagation();
+                      if (canChat) navigate(`/chat/${partnerUserId}`);
+                    }}
+                    onMouseEnter={e => {
+                      if (canChat) {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 5px 15px rgba(124,58,237,0.4)';
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (canChat) {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = '0 3px 10px rgba(124,58,237,0.3)';
+                      }
+                    }}
+                  >채팅 바로가기</button>
+                  {!canChat && (
+                    <div style={{ color: '#aaa', fontSize: '0.95rem', marginTop: 6 }}>
+                      매칭 성공 시 활성화됩니다
                     </div>
                   )}
-                </div>
-              );
-            })() : (
-            <ActionDescription>{action.description}</ActionDescription>
-            )}
-            {/* 채팅하기 카드만 커스텀 안내문구/버튼 */}
-            {action.title === '상대방과 약속잡기' ? (
-              <>
-                <button
-                  style={{
-                    marginTop: 10,
-                    background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    borderRadius: 16,
-                    padding: '7px 18px',
-                    fontWeight: 600,
-                    fontSize: '1rem',
-                    cursor: canChat ? 'pointer' : 'not-allowed',
-                    opacity: canChat ? 1 : 0.5,
-                  }}
-                  disabled={!canChat}
-                  onClick={e => {
-                    e.stopPropagation();
-                    if (canChat) navigate(`/chat/${partnerUserId}`);
-                  }}
-                >채팅 바로가기</button>
-                {!canChat && (
-                  <div style={{ color: '#aaa', fontSize: '0.95rem', marginTop: 6 }}>
-                    매칭 성공 시 활성화됩니다
-                  </div>
-                )}
-              </>
-            ) : null}
-          </ActionCard>
-        ))}
+                </>
+              ) : null}
+            </ActionCard>
+          );
+        })}
       </QuickActions>
 
     </MainContainer>

@@ -14,6 +14,8 @@ const userRoutes = require('./routes/users');
 const matchingRoutes = require('./routes/matching');
 const chatRoutes = require('./routes/chat');
 const adminRoutes = require('./routes/admin');
+const noticeRoutes = require('./routes/notice');
+const faqRoutes = require('./routes/faq');
 const { supabase } = require('./database');
 const { encrypt, decrypt } = require('./utils/encryption');
 
@@ -45,6 +47,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/matching', matchingRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notice', noticeRoutes);
+app.use('/api/faq', faqRoutes);
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, '../public')));

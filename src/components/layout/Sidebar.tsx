@@ -11,7 +11,9 @@ import {
   FaSignOutAlt,
   FaBars,
   FaChevronLeft,
-  FaStar
+  FaStar,
+  FaBullhorn,
+  FaQuestionCircle
 } from 'react-icons/fa';
 import { NavLink } from 'react-router-dom';
 import { matchingApi } from '../../services/api.ts';
@@ -28,7 +30,8 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   transition: transform 0.3s ease;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
   transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
-  overflow-y: auto; /* 모바일에서 스크롤 가능하도록 추가 */
+  display: flex;
+  flex-direction: column;
   
   @media (max-width: 768px) {
     width: 100%;
@@ -78,6 +81,7 @@ const SidebarCloseButton = styled.button`
 const SidebarHeader = styled.div`
   padding: 2rem 1.5rem 1rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 `;
 
 const Logo = styled.div`
@@ -96,6 +100,47 @@ const UserInfo = styled.div`
 
 const NavMenu = styled.nav`
   padding: 1rem 0;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  
+  /* 스크롤바 스타일링 */
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+  }
+`;
+
+const MenuSection = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const MenuDivider = styled.div`
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  margin: 1rem 1.5rem;
+`;
+
+const MenuTitle = styled.div`
+  padding: 0.75rem 1.5rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 `;
 
 const NavItem = styled.div.withConfig({
@@ -124,20 +169,10 @@ const NavText = styled.span`
 `;
 
 const LogoutSection = styled.div`
-  position: fixed; /* absolute -> fixed로 변경 */
-  left: 0;
-  bottom: 0;
-  width: 280px;
-  max-width: 100%;
   padding: 1rem 1.5rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
-  z-index: 1200;
-  @media (max-width: 768px) {
-    width: 100vw;
-    left: 0;
-    padding: 1rem 1.5rem;
-  }
+  flex-shrink: 0;
 `;
 
 const LogoutButton = styled.button`
@@ -203,24 +238,28 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     }
   }, [user?.id]);
 
-  const navItems = [
+  const userMenuItems = [
     { path: '/main', icon: <FaHome />, text: '홈' },
     { path: '/profile', icon: <FaUser />, text: '프로필' },
     { path: '/preference', icon: <FaStar />, text: '선호 스타일' },
+    { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
+    { path: '/faq', icon: <FaQuestionCircle />, text: 'FAQ' },
     {
       path: partnerUserId ? `/chat/${partnerUserId}` : '#',
       icon: <FaComments />,
       text: '상대방과 약속 잡기',
       disabled: !canChat,
     },
-    // 관리자 메뉴는 user?.is_admin이 true일 때만 노출
-    ...(user?.is_admin ? [
-      { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
-      { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
-      { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
-      { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
-    ] : [])
   ];
+
+  const adminMenuItems = user?.is_admin ? [
+    { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
+    { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
+    { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
+    { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
+    { path: '/admin/notice-manager', icon: <span role="img" aria-label="notice">📢</span>, text: '공지사항 관리' },
+    { path: '/admin/faq-manager', icon: <span role="img" aria-label="faq">❓</span>, text: 'FAQ 관리' },
+  ] : [];
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -262,17 +301,38 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         {!isUserLoading && (
           <>
             <NavMenu>
-              {navItems.map((item) => (
-                <NavItem
-                  key={item.path}
-                  active={location.pathname === item.path}
-                  onClick={() => !item.disabled && handleNavClick(item.path)}
-                  style={item.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
-                >
-                  {item.icon}
-                  <NavText>{item.text}</NavText>
-                </NavItem>
-              ))}
+              <MenuSection>
+                {userMenuItems.map((item) => (
+                  <NavItem
+                    key={item.path}
+                    active={location.pathname === item.path}
+                    onClick={() => !item.disabled && handleNavClick(item.path)}
+                    style={item.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
+                  >
+                    {item.icon}
+                    <NavText>{item.text}</NavText>
+                  </NavItem>
+                ))}
+              </MenuSection>
+              
+              {adminMenuItems.length > 0 && (
+                <>
+                  <MenuDivider />
+                  <MenuTitle>관리자 메뉴</MenuTitle>
+                  <MenuSection>
+                    {adminMenuItems.map((item) => (
+                      <NavItem
+                        key={item.path}
+                        active={location.pathname === item.path}
+                        onClick={() => handleNavClick(item.path)}
+                      >
+                        {item.icon}
+                        <NavText>{item.text}</NavText>
+                      </NavItem>
+                    ))}
+                  </MenuSection>
+                </>
+              )}
             </NavMenu>
             <LogoutSection>
               <LogoutButton onClick={handleLogout}>
