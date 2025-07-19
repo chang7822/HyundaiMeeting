@@ -113,11 +113,13 @@ function isMutualMatch(a: any, b: any) {
   // 키
   if (b.height < (a.preferred_height_min ?? 0) || b.height > (a.preferred_height_max ?? 999)) return false;
   if (a.height < (b.preferred_height_min ?? 0) || a.height > (b.preferred_height_max ?? 999)) return false;
-  // 체형
-  const aBody = Array.isArray(a.preferred_body_types) ? a.preferred_body_types : (a.preferred_body_types ? JSON.parse(a.preferred_body_types) : []);
-  const bBody = Array.isArray(b.preferred_body_types) ? b.preferred_body_types : (b.preferred_body_types ? JSON.parse(b.preferred_body_types) : []);
-  if (aBody.length > 0 && !aBody.includes(b.body_type)) return false;
-  if (bBody.length > 0 && !bBody.includes(a.body_type)) return false;
+  // 체형 - 매칭 알고리즘과 동일한 로직
+  const aBody = a.preferred_body_types ? (Array.isArray(a.preferred_body_types) ? a.preferred_body_types : (typeof a.preferred_body_types === 'string' ? JSON.parse(a.preferred_body_types) : [])) : [];
+  const bBody = b.body_type ? (Array.isArray(b.body_type) ? b.body_type : (typeof b.body_type === 'string' ? JSON.parse(b.body_type) : [])) : [];
+  if (aBody.length > 0 && bBody.length > 0 && !aBody.some((type: string) => bBody.includes(type))) return false;
+  const bPrefBody = b.preferred_body_types ? (Array.isArray(b.preferred_body_types) ? b.preferred_body_types : (typeof b.preferred_body_types === 'string' ? JSON.parse(b.preferred_body_types) : [])) : [];
+  const aRealBody = a.body_type ? (Array.isArray(a.body_type) ? a.body_type : (typeof a.body_type === 'string' ? JSON.parse(a.body_type) : [])) : [];
+  if (bPrefBody.length > 0 && aRealBody.length > 0 && !bPrefBody.some((type: string) => aRealBody.includes(type))) return false;
   // 직군
   const aJob = Array.isArray(a.preferred_job_types) ? a.preferred_job_types : (a.preferred_job_types ? JSON.parse(a.preferred_job_types) : []);
   const bJob = Array.isArray(b.preferred_job_types) ? b.preferred_job_types : (b.preferred_job_types ? JSON.parse(b.preferred_job_types) : []);
