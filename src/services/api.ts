@@ -389,4 +389,10 @@ export const faqApi = {
   },
 };
 
+// 매칭 결과 발표 이메일 발송 API
+export const sendMatchingResultEmails = async (periodId: number): Promise<any> => {
+  const response = await api.post('/admin/send-matching-result-emails', { periodId });
+  return response.data;
+};
+
 export default api; 

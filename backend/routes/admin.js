@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
+const nodemailer = require('nodemailer');
 
 // 임시 데이터 (다른 라우트와 공유)
 const users = [];
@@ -382,6 +383,144 @@ router.get('/matching-applications', async (req, res) => {
   }
 });
 
+// 이메일 설정
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
+  }
+});
+
+// 매칭 결과 이메일 발송 함수
+async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null) {
+  const now = new Date();
+  const koreanTime = new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Seoul'
+  }).format(now);
+
+  let subject, htmlContent;
+  
+  if (isMatched && partnerInfo) {
+    // 매칭 성공
+    subject = '[울산 사내 솔로공모] 매칭 결과 발표 - 성공';
+    htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; margin-bottom: 30px;">
+          <h1 style="margin: 0; font-size: 28px;">🎉 매칭 성공!</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">울산 사내 솔로공모 매칭 결과가 발표되었습니다</p>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+          <h2 style="color: #2d3748; margin-top: 0;">축하합니다! 매칭이 성공했습니다.</h2>
+          <p style="color: #4a5568; line-height: 1.6; margin-bottom: 20px;">
+            매칭 알고리즘을 통해 상대방과 매칭이 성공적으로 이루어졌습니다. 
+            이제 서비스 내에서 상대방과의 채팅을 통해 만남을 준비하실 수 있습니다.
+          </p>
+          
+          <div style="background: white; padding: 20px; border-radius: 10px; border-left: 4px solid #667eea;">
+            <h3 style="color: #667eea; margin-top: 0;">💬 채팅방 개설 안내</h3>
+            <p style="color: #4a5568; margin-bottom: 15px;">
+              상대방과의 채팅방이 자동으로 개설되었습니다. 
+              서비스에 로그인하여 채팅을 통해 만남을 준비해주세요.
+            </p>
+            <div style="background: #e6fffa; padding: 15px; border-radius: 8px; border: 1px solid #81e6d9;">
+              <p style="margin: 0; color: #2c7a7b; font-weight: 600;">
+                📱 <strong>다음 단계:</strong> 서비스 로그인 → 채팅 메뉴 → 상대방과 대화 시작
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div style="background: #fff5f5; padding: 20px; border-radius: 10px; border: 1px solid #fed7d7; margin-bottom: 25px;">
+          <h3 style="color: #c53030; margin-top: 0;">⚠️ 개인정보 보호 안내</h3>
+          <p style="color: #4a5568; line-height: 1.6; margin-bottom: 10px;">
+            <strong>대면 만남 이전에는 다음 사항을 주의해주세요:</strong>
+          </p>
+          <ul style="color: #4a5568; line-height: 1.6; margin: 0; padding-left: 20px;">
+            <li>소속 조직(부서, 팀) 정보를 공개하지 마세요</li>
+            <li>실명을 직접적으로 공개하지 마세요</li>
+            <li>개인 연락처(전화번호, 카카오톡 ID 등)를 공개하지 마세요</li>
+            <li>회사 내 위치나 근무 시간 등 상세 정보를 공개하지 마세요</li>
+          </ul>
+          <p style="color: #4a5568; line-height: 1.6; margin: 10px 0 0 0; font-size: 14px;">
+            안전하고 신뢰할 수 있는 만남을 위해 서비스 내 채팅 기능을 활용해주세요.
+          </p>
+        </div>
+        
+        <div style="background: #f7fafc; padding: 20px; border-radius: 10px; text-align: center;">
+          <p style="color: #718096; margin: 0; font-size: 14px;">
+            <strong>발표 시각:</strong> ${koreanTime} (한국 시간)
+          </p>
+          <p style="color: #718096; margin: 10px 0 0 0; font-size: 14px;">
+            문의사항이 있으시면 관리자에게 연락해주세요.
+          </p>
+        </div>
+      </div>
+    `;
+  } else {
+    // 매칭 실패
+    subject = '[울산 사내 솔로공모] 매칭 결과 발표';
+    htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; margin-bottom: 30px;">
+          <h1 style="margin: 0; font-size: 28px;">📋 매칭 결과 발표</h1>
+          <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">울산 사내 솔로공모 매칭 결과가 발표되었습니다</p>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
+          <h2 style="color: #2d3748; margin-top: 0;">매칭 결과 안내</h2>
+          <p style="color: #4a5568; line-height: 1.6; margin-bottom: 20px;">
+            안타깝게도 이번 회차에서는 적절한 매칭 상대를 찾지 못했습니다. 
+            이는 여러 요인(선호도, 신청 인원, 매칭 조건 등)에 의해 발생할 수 있습니다.
+          </p>
+          
+          <div style="background: #e6fffa; padding: 20px; border-radius: 10px; border-left: 4px solid #667eea;">
+            <h3 style="color: #667eea; margin-top: 0;">💡 다음 기회를 위해</h3>
+            <ul style="color: #4a5568; line-height: 1.6; margin: 0; padding-left: 20px;">
+              <li>다음 회차 매칭에 다시 신청해보세요</li>
+              <li>프로필 정보를 더 상세히 작성해보세요</li>
+              <li>선호도 설정을 조정해보세요</li>
+              <li>매칭 신청 기간을 놓치지 마세요</li>
+            </ul>
+          </div>
+        </div>
+        
+        <div style="background: #f7fafc; padding: 20px; border-radius: 10px; text-align: center;">
+          <p style="color: #718096; margin: 0; font-size: 14px;">
+            <strong>발표 시각:</strong> ${koreanTime} (한국 시간)
+          </p>
+          <p style="color: #718096; margin: 10px 0 0 0; font-size: 14px;">
+            다음 회차 매칭을 기대해주세요. 문의사항이 있으시면 관리자에게 연락해주세요.
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: userEmail,
+    subject: subject,
+    html: htmlContent
+  };
+
+  try {
+    console.log(`📧 매칭 결과 이메일 발송 시도: ${userEmail} (매칭 ${isMatched ? '성공' : '실패'})`);
+    const result = await transporter.sendMail(mailOptions);
+    console.log(`✅ 매칭 결과 이메일 발송 성공: ${userEmail}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ 매칭 결과 이메일 발송 실패: ${userEmail}`, error);
+    return false;
+  }
+}
+
 // [매칭 결과(커플) 리스트 조회]
 router.get('/matching-history', async (req, res) => {
   try {
@@ -412,6 +551,98 @@ router.get('/matching-history', async (req, res) => {
   } catch (error) {
     console.error('matching_history 조회 오류:', error);
     res.status(500).json({ message: '매칭 결과 조회 실패', error: error?.message || error });
+  }
+});
+
+// [매칭 결과 발표 이메일 발송]
+router.post('/send-matching-result-emails', async (req, res) => {
+  try {
+    const { periodId } = req.body;
+    
+    if (!periodId) {
+      return res.status(400).json({ message: 'periodId가 필요합니다.' });
+    }
+
+    console.log(`📧 매칭 결과 이메일 발송 시작 - 회차: ${periodId}`);
+
+    // 해당 회차의 매칭 신청자들 조회
+    const { data: applications, error: appError } = await supabase
+      .from('matching_applications')
+      .select(`
+        user_id,
+        matched,
+        partner_user_id,
+        user:users!inner(email)
+      `)
+      .eq('period_id', periodId)
+      .eq('applied', true)
+      .eq('cancelled', false);
+
+    if (appError) {
+      console.error('매칭 신청자 조회 오류:', appError);
+      return res.status(500).json({ message: '매칭 신청자 조회에 실패했습니다.' });
+    }
+
+    if (!applications || applications.length === 0) {
+      return res.status(404).json({ message: '해당 회차의 매칭 신청자가 없습니다.' });
+    }
+
+    let emailSuccessCount = 0;
+    let emailFailCount = 0;
+    const emailResults = [];
+
+    // 각 신청자에게 이메일 발송
+    for (const app of applications) {
+      try {
+        const isMatched = app.matched === true;
+        const partnerInfo = isMatched && app.partner_user_id ? { partnerId: app.partner_user_id } : null;
+        
+        const emailSent = await sendMatchingResultEmail(app.user.email, isMatched, partnerInfo);
+        
+        if (emailSent) {
+          emailSuccessCount++;
+          emailResults.push({
+            userId: app.user_id,
+            email: app.user.email,
+            matched: isMatched,
+            status: 'success'
+          });
+        } else {
+          emailFailCount++;
+          emailResults.push({
+            userId: app.user_id,
+            email: app.user.email,
+            matched: isMatched,
+            status: 'failed'
+          });
+        }
+      } catch (error) {
+        console.error(`이메일 발송 오류 - 사용자: ${app.user_id}`, error);
+        emailFailCount++;
+        emailResults.push({
+          userId: app.user_id,
+          email: app.user.email,
+          matched: app.matched === true,
+          status: 'error',
+          error: error.message
+        });
+      }
+    }
+
+    console.log(`📧 매칭 결과 이메일 발송 완료 - 성공: ${emailSuccessCount}건, 실패: ${emailFailCount}건`);
+
+    res.json({
+      success: true,
+      message: `매칭 결과 이메일 발송 완료 (성공: ${emailSuccessCount}건, 실패: ${emailFailCount}건)`,
+      totalSent: applications.length,
+      successCount: emailSuccessCount,
+      failCount: emailFailCount,
+      results: emailResults
+    });
+
+  } catch (error) {
+    console.error('매칭 결과 이메일 발송 오류:', error);
+    res.status(500).json({ message: '매칭 결과 이메일 발송에 실패했습니다.', error: error.message });
   }
 });
 

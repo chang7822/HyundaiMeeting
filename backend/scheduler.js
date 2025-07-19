@@ -4,6 +4,7 @@ const { exec } = require('child_process');
 const { supabase } = require('./database');
 
 let lastExecutedId = null; // 중복 실행 방지용
+let lastResetExecuted = null; // 회차 종료 초기화 중복 실행 방지용
 
 cron.schedule('* * * * *', async () => {
   try {
@@ -17,8 +18,8 @@ cron.schedule('* * * * *', async () => {
 
     const now = new Date();
     const runTime = new Date(data.matching_run);
-    // executed가 false이고, 1분 이내(±30초)면 실행
-    if (!data.executed && Math.abs(now - runTime) < 60 * 1000) {
+    // executed가 false이고, 1분 이내(±30초)이고, 아직 실행하지 않은 경우에만 실행
+    if (!data.executed && Math.abs(now - runTime) < 60 * 1000 && lastExecutedId !== data.id) {
       console.log(`[스케줄러] 매칭 회차 ${data.id} 실행: ${runTime.toISOString()}`);
       exec('node matching-algorithm.js', async (err, stdout, stderr) => {
         if (err) {
@@ -32,6 +33,8 @@ cron.schedule('* * * * *', async () => {
             .eq('id', data.id);
           if (updateError) {
             console.error(`[스케줄러] executed 업데이트 오류:`, updateError);
+          } else {
+            lastExecutedId = data.id; // 실행 완료 표시
           }
         }
       });
@@ -48,10 +51,11 @@ cron.schedule('* * * * *', async () => {
           .gt('id', data.id)
           .limit(1)
           .maybeSingle();
-        if (!nextLog) {
-          // 다음 회차가 없으면 전체 users 초기화
+        if (!nextLog && lastResetExecuted !== data.id) {
+          // 다음 회차가 없고, 아직 초기화하지 않은 경우에만 실행
           console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
           await supabase.from('users').update({ is_applied: false, is_matched: null });
+          lastResetExecuted = data.id; // 초기화 완료 표시
         }
       }
     }
