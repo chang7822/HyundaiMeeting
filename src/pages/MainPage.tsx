@@ -681,7 +681,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const announceTime = announce.getTime();
     const diff = announceTime - nowTime;
     // announce 2초 전 ~ 3초 후까지 polling
-    if (diff > 0 && diff < 5000) {
+    if (Math.abs(diff) < 5000) {
       // 2초 전부터 5초간 1초 간격 polling
       const pollStart = window.setTimeout(() => {
         let count = 0;
@@ -689,7 +689,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           fetchMatchingStatus();
           if(fetchUser) fetchUser();
           count++;
-          if (count >= 5) window.clearInterval(poll);
+          // 5회 실행 또는 announce 시점을 3초 지났으면 종료
+          if (count >= 5 || Date.now() - announceTime > 3000) {
+            window.clearInterval(poll);
+          }
         }, 1000);
       }, Math.max(0, diff - 2000));
       return () => window.clearTimeout(pollStart);
