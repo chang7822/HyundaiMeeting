@@ -3,15 +3,13 @@ const cron = require('node-cron');
 const { exec } = require('child_process');
 const { supabase } = require('./database');
 
-let lastExecutedId = null; // 중복 실행 방지용
-let lastEmailSentId = null; // 이메일 발송 중복 방지용
 let lastPeriodStartReset = null; // 회차 시작 초기화 중복 실행 방지용
 
 cron.schedule('* * * * *', async () => {
   try {
     const { data, error } = await supabase
       .from('matching_log')
-      .select('id, matching_run, matching_announce, executed, finish, application_start')
+      .select('id, matching_run, matching_announce, executed, email_sent, finish, application_start')
       .order('id', { ascending: false })
       .limit(1)
       .single();
@@ -22,7 +20,7 @@ cron.schedule('* * * * *', async () => {
     // executed가 false이고, matching_run 시각이 지났고, 아직 실행하지 않은 경우에만 실행
     // 30초 여유를 두어 정확한 시각에 실행되도록 함
     const executionTime = new Date(runTime.getTime() + 30 * 1000); // 30초 후 실행
-    if (!data.executed && now >= executionTime && lastExecutedId !== data.id) {
+    if (!data.executed && now >= executionTime) {
       console.log(`[스케줄러] 매칭 회차 ${data.id} 실행 (예정: ${runTime.toISOString()}, 실제: ${now.toISOString()})`);
       exec('node matching-algorithm.js', async (err, stdout, stderr) => {
         if (err) {
@@ -37,7 +35,7 @@ cron.schedule('* * * * *', async () => {
           if (updateError) {
             console.error(`[스케줄러] executed 업데이트 오류:`, updateError);
           } else {
-            lastExecutedId = data.id; // 실행 완료 표시
+            console.log(`[스케줄러] 매칭 회차 ${data.id} 실행 완료 표시`);
           }
         }
       });
@@ -88,7 +86,7 @@ cron.schedule('* * * * *', async () => {
       const announceTime = new Date(data.matching_announce);
       const emailExecutionTime = new Date(announceTime.getTime() + 30 * 1000); // 30초 후 실행
       
-      if (now >= emailExecutionTime && lastEmailSentId !== data.id) {
+      if (!data.email_sent && now >= emailExecutionTime) {
         console.log(`[스케줄러] 매칭 결과 이메일 발송 시작 (예정: ${announceTime.toISOString()}, 실제: ${now.toISOString()})`);
         
         // 매칭 결과 이메일 발송 함수 실행
@@ -96,7 +94,17 @@ cron.schedule('* * * * *', async () => {
         try {
           await sendMatchingResultEmails();
           console.log('[스케줄러] 매칭 결과 이메일 발송 완료');
-          lastEmailSentId = data.id; // 이메일 발송 완료 표시
+          
+          // 이메일 발송 완료 후 email_sent true로 업데이트
+          const { error: updateError } = await supabase
+            .from('matching_log')
+            .update({ email_sent: true })
+            .eq('id', data.id);
+          if (updateError) {
+            console.error(`[스케줄러] email_sent 업데이트 오류:`, updateError);
+          } else {
+            console.log(`[스케줄러] 매칭 회차 ${data.id} 이메일 발송 완료 표시`);
+          }
         } catch (err) {
           console.error('[스케줄러] 매칭 결과 이메일 발송 오류:', err);
         }

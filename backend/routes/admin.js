@@ -155,10 +155,15 @@ router.post('/matching-log', async (req, res) => {
   try {
     const insertData = req.body;
     
-    // 1. 새로운 회차 생성
+    // 1. 새로운 회차 생성 (email_sent 초기값 설정)
+    const insertDataWithDefaults = {
+      ...insertData,
+      email_sent: false
+    };
+    
     const { data, error } = await supabase
       .from('matching_log')
-      .insert([insertData])
+      .insert([insertDataWithDefaults])
       .select()
       .single();
     if (error) throw error;
