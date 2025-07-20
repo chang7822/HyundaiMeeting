@@ -68,26 +68,15 @@ cron.schedule('* * * * *', async () => {
           .limit(1)
           .maybeSingle();
         if (!nextLog) {
-          // 다음 회차가 없고, 아직 초기화하지 않은 경우에만 실행
-          // users 테이블에서 is_applied=true 또는 is_matched가 null이 아닌 사용자가 있는지 확인
-          const { data: usersToReset, error: checkError } = await supabase
+          // 다음 회차가 없으면 무조건 초기화 실행
+          console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
+          const { error: resetError } = await supabase
             .from('users')
-            .select('id')
-            .or('is_applied.eq.true,is_matched.is.not.null')
-            .limit(1);
-          
-          if (!checkError && usersToReset && usersToReset.length > 0) {
-            console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
-            const { error: resetError } = await supabase
-              .from('users')
-              .update({ is_applied: false, is_matched: null });
-            if (resetError) {
-              console.error('[스케줄러] users 테이블 초기화 오류:', resetError);
-            } else {
-              console.log('[스케줄러] users 테이블 초기화 완료');
-            }
+            .update({ is_applied: false, is_matched: null });
+          if (resetError) {
+            console.error('[스케줄러] users 테이블 초기화 오류:', resetError);
           } else {
-            console.log('[스케줄러] 초기화할 사용자가 없거나 이미 초기화됨');
+            console.log('[스케줄러] users 테이블 초기화 완료');
           }
         }
       }
