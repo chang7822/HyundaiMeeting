@@ -173,6 +173,7 @@ router.post('/matching-log', async (req, res) => {
         is_applied: false, 
         is_matched: null 
       })
+      .is('id', 'not.null')
       .select('id, email, is_applied, is_matched');
     
     if (resetError) {
@@ -244,7 +245,8 @@ router.delete('/matching-log/:id', async (req, res) => {
     console.log(`[관리자] users 테이블 매칭 상태 초기화 시작`);
     const { error: resetError } = await supabase
       .from('users')
-      .update({ is_applied: false, is_matched: null });
+      .update({ is_applied: false, is_matched: null })
+      .is('id', 'not.null');
     if (resetError) {
       console.error(`[관리자] users 테이블 초기화 오류:`, resetError);
       // 초기화 실패해도 삭제는 성공으로 처리
@@ -559,7 +561,8 @@ router.post('/reset-users-matching-status', async (req, res) => {
     
     const { data, error } = await supabase
       .from('users')
-      .update({ is_applied: false, is_matched: null });
+      .update({ is_applied: false, is_matched: null })
+      .is('id', 'not.null');
     
     if (error) {
       console.error('[관리자] users 테이블 초기화 오류:', error);

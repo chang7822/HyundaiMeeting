@@ -50,7 +50,7 @@ cron.schedule('* * * * *', async () => {
       
       if (now >= resetExecutionTime && lastPeriodStartReset !== data.id) {
         console.log(`[스케줄러] 회차 ${data.id} 신청 기간 시작, users 테이블 is_applied, is_matched 초기화`);
-        await supabase.from('users').update({ is_applied: false, is_matched: null });
+        await supabase.from('users').update({ is_applied: false, is_matched: null }).is('id', 'not.null');
         lastPeriodStartReset = data.id; // 초기화 완료 표시
       }
     }
@@ -72,7 +72,8 @@ cron.schedule('* * * * *', async () => {
           console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
           const { error: resetError } = await supabase
             .from('users')
-            .update({ is_applied: false, is_matched: null });
+            .update({ is_applied: false, is_matched: null })
+            .is('id', 'not.null'); // 모든 행을 업데이트하기 위한 WHERE 절
           if (resetError) {
             console.error('[스케줄러] users 테이블 초기화 오류:', resetError);
           } else {
