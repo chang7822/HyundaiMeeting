@@ -638,8 +638,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [추가] MainPage 진입 시 matchingStatus 자동 fetch
   useEffect(() => {
-    if (user?.id) fetchMatchingStatus();
-  }, [user?.id]);
+    if (user?.id) {
+      fetchMatchingStatus();
+      // [추가] 사용자 정보도 함께 업데이트 (is_applied, is_matched 상태 동기화)
+      if (fetchUser) fetchUser();
+    }
+  }, [user?.id, fetchUser]);
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
@@ -682,13 +686,33 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const pollStart = window.setTimeout(() => {
         let count = 0;
         const poll = window.setInterval(() => {
-    fetchMatchingStatus();
-    if(fetchUser) fetchUser();
+          fetchMatchingStatus();
+          if(fetchUser) fetchUser();
           count++;
           if (count >= 5) window.clearInterval(poll);
         }, 1000);
       }, Math.max(0, diff - 2000));
       return () => window.clearTimeout(pollStart);
+    }
+  }, [period, user?.id, fetchUser]);
+
+  // [추가] 회차 시작 시 사용자 정보 자동 업데이트 (30초마다)
+  useEffect(() => {
+    if (!period || !user?.id || !fetchUser) return;
+    
+    const start = new Date(period.application_start);
+    const now = new Date();
+    const startTime = start.getTime();
+    const nowTime = now.getTime();
+    
+    // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트
+    if (startTime - nowTime < 30000 && startTime - nowTime > -300000) {
+      const interval = setInterval(() => {
+        console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트');
+        fetchUser();
+      }, 30000); // 30초마다
+      
+      return () => clearInterval(interval);
     }
   }, [period, user?.id, fetchUser]);
 
