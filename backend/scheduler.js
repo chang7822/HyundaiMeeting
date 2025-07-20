@@ -4,7 +4,6 @@ const { exec } = require('child_process');
 const { supabase } = require('./database');
 
 let lastExecutedId = null; // 중복 실행 방지용
-let lastResetExecuted = null; // 회차 종료 초기화 중복 실행 방지용
 let lastEmailSentId = null; // 이메일 발송 중복 방지용
 let lastPeriodStartReset = null; // 회차 시작 초기화 중복 실행 방지용
 
@@ -68,11 +67,28 @@ cron.schedule('* * * * *', async () => {
           .gt('id', data.id)
           .limit(1)
           .maybeSingle();
-        if (!nextLog && lastResetExecuted !== data.id) {
+        if (!nextLog) {
           // 다음 회차가 없고, 아직 초기화하지 않은 경우에만 실행
-          console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
-          await supabase.from('users').update({ is_applied: false, is_matched: null });
-          lastResetExecuted = data.id; // 초기화 완료 표시
+          // users 테이블에서 is_applied=true 또는 is_matched가 null이 아닌 사용자가 있는지 확인
+          const { data: usersToReset, error: checkError } = await supabase
+            .from('users')
+            .select('id')
+            .or('is_applied.eq.true,is_matched.is.not.null')
+            .limit(1);
+          
+          if (!checkError && usersToReset && usersToReset.length > 0) {
+            console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
+            const { error: resetError } = await supabase
+              .from('users')
+              .update({ is_applied: false, is_matched: null });
+            if (resetError) {
+              console.error('[스케줄러] users 테이블 초기화 오류:', resetError);
+            } else {
+              console.log('[스케줄러] users 테이블 초기화 완료');
+            }
+          } else {
+            console.log('[스케줄러] 초기화할 사용자가 없거나 이미 초기화됨');
+          }
         }
       }
     }

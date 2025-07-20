@@ -154,13 +154,39 @@ router.get('/matching-log', async (req, res) => {
 router.post('/matching-log', async (req, res) => {
   try {
     const insertData = req.body;
+    
+    // 1. 새로운 회차 생성
     const { data, error } = await supabase
       .from('matching_log')
       .insert([insertData])
       .select()
       .single();
     if (error) throw error;
-    res.json(data);
+    
+    // 2. [추가] users 테이블 매칭 상태 초기화
+    console.log(`[관리자] 새로운 회차 ${data.id} 생성, users 테이블 매칭 상태 초기화`);
+    
+    // 더 강력한 초기화: 모든 사용자의 매칭 상태를 완전히 리셋
+    const { data: resetResult, error: resetError } = await supabase
+      .from('users')
+      .update({ 
+        is_applied: false, 
+        is_matched: null 
+      })
+      .select('id, email, is_applied, is_matched');
+    
+    if (resetError) {
+      console.error(`[관리자] users 테이블 초기화 오류:`, resetError);
+      // 초기화 실패해도 회차 생성은 성공으로 처리
+    } else {
+      console.log(`[관리자] users 테이블 매칭 상태 초기화 완료 - ${resetResult?.length || 0}명의 사용자 상태 리셋`);
+      console.log(`[관리자] 초기화된 사용자 샘플:`, resetResult?.slice(0, 3));
+    }
+    
+    res.json({
+      ...data,
+      message: '새로운 회차가 생성되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
+    });
   } catch (error) {
     console.error('matching_log 생성 오류:', error);
     res.status(500).json({ message: 'matching_log 생성 실패' });
