@@ -214,7 +214,23 @@ router.delete('/matching-log/:id', async (req, res) => {
       .maybeSingle();
     if (logError) throw logError;
 
-    res.json({ success: true, deleted: data });
+    // 4. [추가] users 테이블 매칭 상태 초기화
+    console.log(`[관리자] users 테이블 매칭 상태 초기화 시작`);
+    const { error: resetError } = await supabase
+      .from('users')
+      .update({ is_applied: false, is_matched: null });
+    if (resetError) {
+      console.error(`[관리자] users 테이블 초기화 오류:`, resetError);
+      // 초기화 실패해도 삭제는 성공으로 처리
+    } else {
+      console.log(`[관리자] users 테이블 매칭 상태 초기화 완료`);
+    }
+
+    res.json({ 
+      success: true, 
+      deleted: data,
+      message: '회차 및 관련 데이터가 삭제되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
+    });
   } catch (error) {
     console.error('matching_log 및 연관 데이터 삭제 오류:', error);
     res.status(500).json({ message: 'matching_log 및 연관 데이터 삭제 실패' });
