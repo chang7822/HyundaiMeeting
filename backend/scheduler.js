@@ -19,7 +19,7 @@ cron.schedule('* * * * *', async () => {
     console.log(`[스케줄러][DEBUG] now: ${now.toISOString()}`);
     console.log('[스케줄러][DEBUG] matching_log row:', data);
     const runTime = new Date(data.matching_run);
-    const executionTime = new Date(runTime.getTime() + 30 * 1000);
+    const executionTime = new Date(runTime.getTime()); // 정시에 실행
     console.log(`[스케줄러][DEBUG] runTime: ${runTime.toISOString()}, executionTime: ${executionTime.toISOString()}, executed: ${data.executed}`);
     // executed가 false이고, matching_run 시각이 지났고, 아직 실행하지 않은 경우에만 실행
     // 30초 여유를 두어 정확한 시각에 실행되도록 함
@@ -47,7 +47,7 @@ cron.schedule('* * * * *', async () => {
     // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 시점)
     if (data.application_start) {
       const startTime = new Date(data.application_start);
-      const resetExecutionTime = new Date(startTime.getTime() + 30 * 1000); // 30초 후 실행
+      const resetExecutionTime = new Date(startTime.getTime() - 5 * 1000); // 5초 전 실행
       
       if (now >= resetExecutionTime && lastPeriodStartReset !== data.id) {
         console.log(`[스케줄러] 회차 ${data.id} 신청 기간 시작, users 테이블 is_applied, is_matched 초기화`);
