@@ -717,6 +717,28 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [period, user?.id, fetchUser]);
 
+  // [추가] 매칭 결과 발표 시각 이후 5초간 1초마다 polling (최대 5회)
+  useEffect(() => {
+    if (!period || !user?.id) return;
+    const announce = period.matching_announce ? new Date(period.matching_announce) : null;
+    if (!announce) return;
+
+    const nowTime = Date.now();
+    const announceTime = announce.getTime();
+    const diff = nowTime - announceTime;
+
+    // 발표 직후 5초 동안만 polling
+    if (diff >= 0 && diff < 5000) {
+      let count = 0;
+      const poll = setInterval(() => {
+        fetchMatchingStatus();
+        count++;
+        if (count >= 5) clearInterval(poll);
+      }, 1000);
+      return () => clearInterval(poll);
+    }
+  }, [period, user?.id]);
+
   const [loading, setLoading] = React.useState(true);
   React.useEffect(() => {
     setLoading(true);
