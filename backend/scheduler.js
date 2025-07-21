@@ -5,7 +5,7 @@ const { supabase } = require('./database');
 
 let lastPeriodStartReset = null; // 회차 시작 초기화 중복 실행 방지용
 
-cron.schedule('*/10 * * * * *', async () => { // 10초마다 체크
+cron.schedule('* * * * *', async () => {
   try {
     const { data, error } = await supabase
       .from('matching_log')
@@ -16,10 +16,14 @@ cron.schedule('*/10 * * * * *', async () => { // 10초마다 체크
     if (error || !data) return;
 
     const now = new Date();
+    console.log(`[스케줄러][DEBUG] now: ${now.toISOString()}`);
+    console.log('[스케줄러][DEBUG] matching_log row:', data);
     const runTime = new Date(data.matching_run);
+    const executionTime = new Date(runTime.getTime() + 30 * 1000);
+    console.log(`[스케줄러][DEBUG] runTime: ${runTime.toISOString()}, executionTime: ${executionTime.toISOString()}, executed: ${data.executed}`);
     // executed가 false이고, matching_run 시각이 지났고, 아직 실행하지 않은 경우에만 실행
-    // 정확한 시각에 실행되도록 함 (지연시간 제거)
-    if (!data.executed && now >= runTime) {
+    // 30초 여유를 두어 정확한 시각에 실행되도록 함
+    if (!data.executed && now >= executionTime) {
       console.log(`[스케줄러] 매칭 회차 ${data.id} 실행 (예정: ${runTime.toISOString()}, 실제: ${now.toISOString()})`);
       exec('node matching-algorithm.js', async (err, stdout, stderr) => {
         if (err) {
@@ -43,8 +47,9 @@ cron.schedule('*/10 * * * * *', async () => { // 10초마다 체크
     // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 시점)
     if (data.application_start) {
       const startTime = new Date(data.application_start);
+      const resetExecutionTime = new Date(startTime.getTime() + 30 * 1000); // 30초 후 실행
       
-      if (now >= startTime && lastPeriodStartReset !== data.id) {
+      if (now >= resetExecutionTime && lastPeriodStartReset !== data.id) {
         console.log(`[스케줄러] 회차 ${data.id} 신청 기간 시작, users 테이블 is_applied, is_matched 초기화`);
         await supabase.from('users').update({ is_applied: false, is_matched: null }).not('id', 'is', null);
         lastPeriodStartReset = data.id; // 초기화 완료 표시
@@ -82,8 +87,9 @@ cron.schedule('*/10 * * * * *', async () => { // 10초마다 체크
     // [추가] 매칭 결과 이메일 발송 (matching_announce 시각)
     if (data.matching_announce) {
       const announceTime = new Date(data.matching_announce);
+      const emailExecutionTime = new Date(announceTime.getTime() + 30 * 1000); // 30초 후 실행
       
-      if (!data.email_sent && now >= announceTime) {
+      if (!data.email_sent && now >= emailExecutionTime) {
         console.log(`[스케줄러] 매칭 결과 이메일 발송 시작 (예정: ${announceTime.toISOString()}, 실제: ${now.toISOString()})`);
         
         // 매칭 결과 이메일 발송 함수 실행

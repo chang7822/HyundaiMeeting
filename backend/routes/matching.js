@@ -146,11 +146,15 @@ router.get('/my-matches', (req, res) => {
   }
 });
 
+let debugCallCount = 0;
 // 매칭 신청 상태 조회
 router.get('/status', async (req, res) => {
   try {
+    debugCallCount++;
     const { userId } = req.query;
-    console.log('[DEBUG][matching/status] 요청 userId:', userId);
+    const now = new Date();
+    console.log(`[DEBUG][matching/status] 호출 #${debugCallCount} at ${now.toISOString()} userId:`, userId);
+    console.log('[DEBUG][matching/status] 호출 스택:', new Error().stack.split('\n').slice(1,4).join(' | '));
     if (!userId) {
       console.log('[DEBUG][matching/status] userId 없음');
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
@@ -158,7 +162,7 @@ router.get('/status', async (req, res) => {
     // 1. 최신 matching_log(=period) id 조회
     const { data: periodData, error: periodError } = await supabase
       .from('matching_log')
-      .select('id')
+      .select('id, matching_run, matching_announce, executed, email_sent, finish, application_start')
       .order('id', { ascending: false })
       .limit(1)
       .single();
@@ -171,7 +175,7 @@ router.get('/status', async (req, res) => {
       return res.json({ status: null });
     }
     const periodId = periodData.id;
-    console.log('[DEBUG][matching/status] 조회 periodId:', periodId);
+    console.log(`[DEBUG][matching/status] 조회 periodId: ${periodId}, now: ${now.toISOString()}, periodData:`, periodData);
     // 2. 해당 회차 + user_id로 matching_applications에서 가장 최근 row 1개만 조회 (신청/취소 포함)
     const { data, error } = await supabase
       .from('matching_applications')

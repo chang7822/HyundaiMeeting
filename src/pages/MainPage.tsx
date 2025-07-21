@@ -681,7 +681,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const announceTime = announce.getTime();
     const diff = announceTime - nowTime;
     // announce 2초 전 ~ 3초 후까지 polling
-    if (Math.abs(diff) < 5000) {
+    if (diff > 0 && diff < 5000) {
       // 2초 전부터 5초간 1초 간격 polling
       const pollStart = window.setTimeout(() => {
         let count = 0;
@@ -689,10 +689,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           fetchMatchingStatus();
           if(fetchUser) fetchUser();
           count++;
-          // 5회 실행 또는 announce 시점을 3초 지났으면 종료
-          if (count >= 5 || Date.now() - announceTime > 3000) {
-            window.clearInterval(poll);
-          }
+          if (count >= 5) window.clearInterval(poll);
         }, 1000);
       }, Math.max(0, diff - 2000));
       return () => window.clearTimeout(pollStart);
@@ -708,31 +705,14 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const startTime = start.getTime();
     const nowTime = now.getTime();
     
-    // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트 (신청 기간 중에만)
-    const timeDiff = startTime - nowTime;
-    if (timeDiff < 30000 && timeDiff > -300000) {
-      // 추가 조건: 현재가 신청 기간 중인지 확인
-      const end = new Date(period.application_end);
-      const endTime = end.getTime();
+    // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트
+    if (startTime - nowTime < 30000 && startTime - nowTime > -300000) {
+      const interval = setInterval(() => {
+        console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트');
+        fetchUser();
+      }, 30000); // 30초마다
       
-      if (nowTime <= endTime) { // 신청 기간 중에만 실행
-        let count = 0;
-        const interval = setInterval(() => {
-          console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트');
-          fetchUser();
-          count++;
-          
-          // 10회 실행 또는 신청 기간이 끝났으면 종료
-          const currentTime = Date.now();
-          const endTime = new Date(period.application_end).getTime();
-          if (count >= 10 || currentTime > endTime) {
-            console.log('[MainPage] 회차 시작 polling 종료');
-            clearInterval(interval);
-          }
-        }, 30000); // 30초마다
-        
-        return () => clearInterval(interval);
-      }
+      return () => clearInterval(interval);
     }
   }, [period, user?.id, fetchUser]);
 
