@@ -526,6 +526,7 @@ const PreferenceSummary: React.FC<{ profile: any }> = ({ profile }) => {
 const cancelTime = 1;
 
 const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
+  console.log('MainPage 렌더링'); // 디버깅용
   const navigate = useNavigate();
   const { user, profile, isLoading, isAuthenticated, fetchUser } = useAuth();
 
@@ -601,6 +602,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 매칭 상태 조회
   const fetchMatchingStatus = async () => {
+    console.log('[MainPage][fetchMatchingStatus] 호출');
     if (!user?.id) {
       console.warn('[디버깅] fetchMatchingStatus: user.id 없음, 중단');
       return;
@@ -636,14 +638,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   };
 
-  // [추가] MainPage 진입 시 matchingStatus 자동 fetch
+  // [수정] MainPage 진입 시 matchingStatus만 자동 fetch (fetchUser 호출 제거)
   useEffect(() => {
+    console.log('[MainPage][useEffect:user.id] 실행', user?.id);
     if (user?.id) {
       fetchMatchingStatus();
-      // [추가] 사용자 정보도 함께 업데이트 (is_applied, is_matched 상태 동기화)
-      if (fetchUser) fetchUser();
     }
-  }, [user?.id, fetchUser]);
+  }, [user?.id]);
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
@@ -723,7 +724,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       fetchMatchingStatus(),
       partnerUserId ? fetchPartnerProfile(partnerUserId) : Promise.resolve()
     ]).finally(() => setLoading(false));
-  }, [/* 의존성: 필요한 값들 */]);
+  }, []); // <-- 의존성 배열을 빈 배열로 고정
 
   // 모달이 열릴 때 body 스크롤 막기
   useEffect(() => {
