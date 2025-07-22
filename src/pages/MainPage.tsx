@@ -530,6 +530,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
   const { user, profile, isLoading, isAuthenticated, fetchUser } = useAuth();
 
+  // [추가] 유저 정보/프로필/로딩 준비 전에는 스피너만 노출
+  if (isLoading || !user || !profile) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
+
   // 매칭 기간 상태
   const [period, setPeriod] = useState<any>(null);
   const [loadingPeriod, setLoadingPeriod] = useState(true);

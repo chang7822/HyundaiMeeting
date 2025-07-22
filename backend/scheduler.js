@@ -16,11 +16,8 @@ cron.schedule('* * * * *', async () => {
     if (error || !data) return;
 
     const now = new Date();
-    console.log(`[스케줄러][DEBUG] now: ${now.toISOString()}`);
-    console.log('[스케줄러][DEBUG] matching_log row:', data);
     const runTime = new Date(data.matching_run);
     const executionTime = new Date(runTime.getTime()); // 정시에 실행
-    console.log(`[스케줄러][DEBUG] runTime: ${runTime.toISOString()}, executionTime: ${executionTime.toISOString()}, executed: ${data.executed}`);
     // executed가 false이고, matching_run 시각이 지났고, 아직 실행하지 않은 경우에만 실행
     // 30초 여유를 두어 정확한 시각에 실행되도록 함
     if (!data.executed && now >= executionTime) {

@@ -276,26 +276,6 @@ async function main() {
     }
   }
 
-  // 9. 매칭 결과 이메일 발송은 matching_announce 시각에 별도로 처리
-  console.log('\n📧 매칭 결과 이메일 발송은 matching_announce 시각에 별도 스케줄러에서 처리됩니다.');
-
-  // 10. 결과를 마크다운 파일로 저장 (한 커플당 2행)
-  let md = '| 남자 프로필키 | 여자 선호키 | 남자 직군 | 여자 선호직군 | 남자 체형 | 여자 선호체형 | 여자 프로필키 | 남자 선호키 | 여자 직군 | 남자 선호직군 | 여자 체형 | 남자 선호체형 |\n';
-  md += '|---|---|---|---|---|---|---|---|---|---|---|---|\n';
-  matches.forEach(([a, b], idx) => {
-    const male = males.find(m => m.user_id === a);
-    const female = females.find(f => f.user_id === b);
-    if (male && female) {
-      // 1행: 남자 기준
-      md += `| ${male.height} | ${female.preferred_height_min}~${female.preferred_height_max} | ${male.job_type} | ${female.preferred_job_types} | ${male.body_type} | ${female.preferred_body_types} |`;
-      md += ' |'; // 여자 기준 칸 비움
-      md += '\n';
-      // 2행: 여자 기준
-      md += `| | | | | | | ${female.height} | ${male.preferred_height_min}~${male.preferred_height_max} | ${female.job_type} | ${male.preferred_job_types} | ${female.body_type} | ${male.preferred_body_types} |\n`;
-    }
-  });
-  fs.writeFileSync('matching_result.md', md, 'utf8');
-  console.log(`matching_result.md 파일로 저장 완료 (총 ${matches.length}쌍, DB 저장 성공: ${success})`);
 }
 
 // 함수 export (스케줄러에서 사용)
