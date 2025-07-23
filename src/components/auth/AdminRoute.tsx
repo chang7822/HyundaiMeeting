@@ -9,8 +9,8 @@ interface AdminRouteProps {
 const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
   const { user, isLoading } = useAuth();
   if (isLoading) return null;
-  if (!user || !user.is_admin) {
-    // 관리자가 아니면 /main으로 리다이렉트
+  if (!user || !user.isAdmin) {
+    // 관리자 아니면 /main으로 리다이렉트
     return <Navigate to="/main" replace />;
   }
   return <>{children}</>;
