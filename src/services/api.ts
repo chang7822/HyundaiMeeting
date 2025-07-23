@@ -54,8 +54,9 @@ api.interceptors.response.use(
 
 // Auth API
 export const authApi = {
-  login: async (credentials: LoginCredentials): Promise<{ user: User; token: string }> => {
-    const response = await api.post('/auth/login', credentials);
+  login: async (credentials: LoginCredentials) => {
+    const response = await axios.post(apiUrl('/auth/login'), credentials);
+    console.log('[api] /auth/login 응답:', response.data);
     return response.data;
   },
 
@@ -99,8 +100,13 @@ export const authApi = {
     return response.data;
   },
 
-  getCurrentUser: async (): Promise<User> => {
-    const response = await api.get('/auth/me');
+  getCurrentUser: async () => {
+    const response = await axios.get(apiUrl('/auth/me'), {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+    });
+    console.log('[api] /auth/me 응답:', response.data);
     return response.data;
   },
 

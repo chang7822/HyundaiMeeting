@@ -5,7 +5,7 @@ export interface User {
   password?: string;
   is_verified: boolean;
   is_active: boolean;
-  is_admin: boolean;
+  isAdmin: boolean;
   created_at: string;
   updated_at: string;
   is_applied: boolean; // 매칭 신청 여부

@@ -208,6 +208,20 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   // 로딩 상태: user가 null이면 true, 아니면 false
   const isUserLoading = user === null;
 
+  console.log('[Sidebar] 렌더링', {
+    user,
+    isUserLoading,
+    isAdmin: user?.isAdmin,
+    adminMenuItems: user?.isAdmin,
+    canChat,
+    partnerUserId,
+    matchingStatus,
+    period
+  });
+  if (user) {
+    console.log('[Sidebar] user 전체:', user);
+  }
+
   useEffect(() => {
     if (user?.id) {
       matchingApi.getMatchingStatus(user.id).then(res => {
@@ -252,7 +266,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     },
   ];
 
-  const adminMenuItems = user?.is_admin ? [
+  const adminMenuItems = user?.isAdmin ? [
     { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
     { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
     { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
@@ -260,6 +274,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/notice-manager', icon: <span role="img" aria-label="notice">📢</span>, text: '공지사항 관리' },
     { path: '/admin/faq-manager', icon: <span role="img" aria-label="faq">❓</span>, text: 'FAQ 관리' },
   ] : [];
+  console.log('[Sidebar] adminMenuItems 배열:', adminMenuItems);
 
   const handleNavClick = (path: string) => {
     navigate(path);

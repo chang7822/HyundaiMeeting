@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
@@ -526,42 +526,24 @@ const PreferenceSummary: React.FC<{ profile: any }> = ({ profile }) => {
 const cancelTime = 1;
 
 const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
-  console.log('MainPage 렌더링'); // 디버깅용
   const navigate = useNavigate();
   const { user, profile, isLoading, isAuthenticated, fetchUser } = useAuth();
-
-  // [추가] 유저 정보/프로필/로딩 준비 전에는 스피너만 노출
-  if (isLoading || !user || !profile) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
-
-  // 매칭 기간 상태
   const [period, setPeriod] = useState<any>(null);
   const [loadingPeriod, setLoadingPeriod] = useState(true);
   const [now, setNow] = useState<Date>(new Date());
-
-  // 매칭 상태 조회
   const [matchingStatus, setMatchingStatus] = useState<any>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
-  const [partnerProfileError, setPartnerProfileError] = useState(false); // [추가] 에러 상태
-
+  const [partnerProfileError, setPartnerProfileError] = useState(false);
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
-
-  // 매칭 성공 시 상대방 user_id 추출
-  let partnerUserId: string | null = null;
-  if (matchingStatus && matchingStatus.matched === true) {
-    // 백엔드에서 상대방 user_id를 내려주는 경우
-    if (matchingStatus.partner_user_id) {
-      partnerUserId = matchingStatus.partner_user_id;
-    } else if (user && matchingStatus.period_id) {
-      // 없으면 matching_history에서 직접 조회 (동기화 필요시 useEffect에서 fetch)
-      // 이 부분은 간단히 버튼 클릭 시 fetchPartnerProfile(partnerUserId)로 처리
-    }
-  }
+  const partnerUserId = useMemo(() => {
+    const id = (matchingStatus && matchingStatus.matched === true) ? (matchingStatus.partner_user_id || null) : null;
+    return id;
+  }, [matchingStatus]);
 
   // [추가] 매칭 성공 상태라면 partnerProfile을 자동으로 fetch
   useEffect(() => {
@@ -570,24 +552,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       matchingStatus.matched === true &&
       partnerUserId
     ) {
-      // 이미 같은 상대라면 중복 호출 방지
       if (!partnerProfile || partnerProfile.user_id !== partnerUserId) {
         fetchPartnerProfile(partnerUserId);
       }
     } else {
-      // 매칭 성공이 아니면 상대 프로필 초기화
       setPartnerProfile(null);
       setPartnerProfileError(false); // 상태 초기화
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchingStatus, partnerUserId]);
 
   useEffect(() => {
-    if (isLoading || !isAuthenticated) return;
     matchingApi.getMatchingPeriod().then(data => {
       setPeriod(data);
       setLoadingPeriod(false);
-      // 매칭 기간, 현재 시각, 비교 결과 모두 보기 좋게 한 번만 출력
       const nowDate = new Date();
       const start = new Date(data.application_start);
       const end = new Date(data.application_end);
@@ -599,31 +576,23 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       setLoadingPeriod(false);
       console.error('[MainPage] 매칭 기간 API 에러:', err);
     });
-    const timer = window.setInterval(() => setNow(new Date()), 1000); // 1초마다 갱신
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 1000); // 1초마다 갱신
     return () => window.clearInterval(timer);
-  }, [isLoading, isAuthenticated]);
+  }, []);
 
   // 매칭 상태 조회
   const fetchMatchingStatus = async () => {
-    console.log('[MainPage][fetchMatchingStatus] 호출');
     if (!user?.id) {
-      console.warn('[디버깅] fetchMatchingStatus: user.id 없음, 중단');
       return;
     }
     setStatusLoading(true);
     try {
-      console.log('[디버깅] fetchMatchingStatus: matchingApi.getMatchingStatus 호출, user.id:', user.id);
       const res = await matchingApi.getMatchingStatus(user.id);
       console.log('[디버깅] fetchMatchingStatus: API 응답 전체:', res);
       if (res && typeof res === 'object' && 'status' in res && res.status) {
-        // 필드명 통일: is_applied, is_matched, is_cancelled 추가 세팅
         setMatchingStatus({
-          ...res.status,
-          is_applied: res.status.is_applied ?? res.status.applied,
-          is_matched: res.status.is_matched ?? res.status.matched,
-          is_cancelled: res.status.is_cancelled ?? res.status.cancelled,
-        });
-        console.log('[디버깅] fetchMatchingStatus: setMatchingStatus 호출, 값:', {
           ...res.status,
           is_applied: res.status.is_applied ?? res.status.applied,
           is_matched: res.status.is_matched ?? res.status.matched,
@@ -643,7 +612,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [수정] MainPage 진입 시 matchingStatus만 자동 fetch (fetchUser 호출 제거)
   useEffect(() => {
-    console.log('[MainPage][useEffect:user.id] 실행', user?.id);
     if (user?.id) {
       fetchMatchingStatus();
     }
@@ -651,10 +619,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
-    console.log('[MainPage][fetchPartnerProfile] 호출, partnerUserId:', partnerUserId);
     try {
       const res = await userApi.getUserProfile(partnerUserId);
-      console.log('[MainPage][fetchPartnerProfile] API 성공, 결과:', res);
       setPartnerProfile(res);
       setPartnerProfileError(false); // 성공 시 에러 상태 해제
     } catch (e) {
@@ -691,45 +657,38 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         let count = 0;
         const poll = window.setInterval(() => {
           fetchMatchingStatus();
-          if(fetchUser) fetchUser();
           count++;
           if (count >= 5) window.clearInterval(poll);
         }, 1000);
       }, Math.max(0, diff - 2000));
       return () => window.clearTimeout(pollStart);
     }
-  }, [period, user?.id, fetchUser]);
+  }, [period, user?.id]);
 
   // [추가] 회차 시작 시 사용자 정보 자동 업데이트 (30초마다)
   useEffect(() => {
-    if (!period || !user?.id || !fetchUser) return;
-    
+    if (!period || !user?.id) return;
     const start = new Date(period.application_start);
     const now = new Date();
     const startTime = start.getTime();
     const nowTime = now.getTime();
-    
     // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트
     if (startTime - nowTime < 30000 && startTime - nowTime > -300000) {
       const interval = setInterval(() => {
         console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트');
-        fetchUser();
       }, 30000); // 30초마다
-      
       return () => clearInterval(interval);
     }
-  }, [period, user?.id, fetchUser]);
+  }, [period, user?.id]);
 
   // [추가] 매칭 결과 발표 시각 이후 5초간 1초마다 polling (최대 5회)
   useEffect(() => {
     if (!period || !user?.id) return;
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
     if (!announce) return;
-
     const nowTime = Date.now();
     const announceTime = announce.getTime();
     const diff = nowTime - announceTime;
-
     // 발표 직후 5초 동안만 polling
     if (diff >= 0 && diff < 5000) {
       let count = 0;
@@ -742,15 +701,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [period, user?.id]);
 
-  const [loading, setLoading] = React.useState(true);
-  React.useEffect(() => {
-    setLoading(true);
-    Promise.all([
-      fetchMatchingStatus(),
-      partnerUserId ? fetchPartnerProfile(partnerUserId) : Promise.resolve()
-    ]).finally(() => setLoading(false));
-  }, []); // <-- 의존성 배열을 빈 배열로 고정
-
   // 모달이 열릴 때 body 스크롤 막기
   useEffect(() => {
     const isAnyModalOpen = showProfileModal || showPartnerModal || showMatchingConfirmModal || showCancelConfirmModal;
@@ -762,9 +712,22 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return () => { document.body.style.overflow = ''; };
   }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showCancelConfirmModal]);
 
-  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
+  // 모든 useState, useEffect 선언 이후
+  // useEffect는 항상 최상단에서 호출
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/login');
+    }
+  }, [isAuthenticated, navigate]);
 
-  if (isLoading || !isAuthenticated) return null;
+  // 렌더링 조건 강화: isLoading이 true이거나 user/profile이 null이면 무조건 스피너
+  if (isLoading || !user || !profile) {
+    return <LoadingSpinner sidebarOpen={sidebarOpen} />;
+  }
+  if (!isAuthenticated) return null;
+  if (!user.isAdmin) {
+    return <div style={{padding:'2rem',color:'#e74c3c',fontWeight:700,fontSize:'1.2rem'}}>관리자만 접근할 수 있습니다.</div>;
+  }
 
   // 날짜/시간 포맷 함수 (KST 기준)
   const formatKST = (dateStr: string | null) => {
@@ -1044,7 +1007,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await matchingApi.requestMatching(user.id);
       toast.success('매칭 신청이 완료되었습니다!');
       await fetchMatchingStatus();
-      if (fetchUser) await fetchUser(); // user 정보 즉시 갱신
       setShowMatchingConfirmModal(false);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '매칭 신청에 실패했습니다.');
@@ -1061,7 +1023,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await matchingApi.cancelMatching(user.id);
       toast.success('매칭 신청이 취소되었습니다.');
       await fetchMatchingStatus();
-      if (fetchUser) await fetchUser(); // user 정보 즉시 갱신
       setShowCancelConfirmModal(false);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '신청 취소에 실패했습니다.');
@@ -1595,7 +1556,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                               return '프로필 없음';
                             }
                             if (!partnerProfile?.nickname) {
-                              console.warn('[MainPage] partnerProfile 닉네임 없음! partnerProfile:', partnerProfile, '\npartnerUserId:', partnerUserId, '\nmatchingStatus:', matchingStatus);
                               if (!partnerProfile) {
                                 console.warn('[MainPage] partnerProfile이 null입니다. fetchPartnerProfile이 정상 호출됐는지, API 응답이 어땠는지 위 로그를 확인하세요.');
                               } else if (partnerProfile && typeof partnerProfile === 'object') {
