@@ -23,20 +23,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     setIsLoading(true); // 인증 복원 시작 시 무조건 true
     const token = localStorage.getItem('token');
-    console.log('[AuthContext] useEffect 진입, token:', token);
+    // console.log('[AuthContext] useEffect 진입, token:', token);
     if (token) {
       (async () => {
         try {
           const userData = await authApi.getCurrentUser();
           // userData가 snake_case(is_admin)로 올 수 있으니 camelCase로 변환
           const userWithCamel = { ...userData, isAdmin: userData.isAdmin ?? userData.is_admin ?? false };
-          console.log('[AuthContext] getCurrentUser 성공:', userWithCamel);
+          // console.log('[AuthContext] getCurrentUser 성공:', userWithCamel);
           if (!userWithCamel.id) {
             console.error('[AuthContext] userData.id 없음!:', userWithCamel);
           }
           const profileData = await userApi.getUserProfile(userWithCamel.id);
-          console.log('[AuthContext] getUserProfile 성공:', profileData);
-          console.log('[AuthContext] setAuthState 직전 (useEffect)', { user: userWithCamel, profile: profileData });
+          // console.log('[AuthContext] getUserProfile 성공:', profileData);
+          // console.log('[AuthContext] setAuthState 직전 (useEffect)', { user: userWithCamel, profile: profileData });
           setAuthState({ user: userWithCamel, profile: profileData });
         } catch (err) {
           console.error('[AuthContext] 인증 복원 실패:', err);
@@ -44,13 +44,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setAuthState({ user: null, profile: null });
         } finally {
           setIsLoading(false);
-          console.log('[AuthContext] 인증 복원 완료, isLoading:', false);
+          // console.log('[AuthContext] 인증 복원 완료, isLoading:', false);
         }
       })();
     } else {
       setAuthState({ user: null, profile: null });
       setIsLoading(false);
-      console.log('[AuthContext] 토큰 없음, 인증 복원 종료');
+      // console.log('[AuthContext] 토큰 없음, 인증 복원 종료');
     }
   }, []);
 
@@ -59,16 +59,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const response = await authApi.login(credentials);
       localStorage.setItem('token', response.token);
-      console.log('[AuthContext] 로그인 성공, 토큰 저장:', response.token);
-      console.log('[AuthContext] localStorage token:', localStorage.getItem('token'));
+      // console.log('[AuthContext] 로그인 성공, 토큰 저장:', response.token);
+      // console.log('[AuthContext] localStorage token:', localStorage.getItem('token'));
       if (!response.user.id) {
         console.error('[AuthContext] 로그인 후 user.id 없음!:', response.user);
       }
       // user 객체의 관리자 권한 필드를 camelCase로 변환
       const userWithCamel = { ...response.user, isAdmin: response.user.isAdmin ?? response.user.is_admin ?? false };
       const profileData = await userApi.getUserProfile(userWithCamel.id);
-      console.log('[AuthContext] getUserProfile 성공:', profileData);
-      console.log('[AuthContext] setAuthState 직전 (login)', { user: userWithCamel, profile: profileData });
+      // console.log('[AuthContext] getUserProfile 성공:', profileData);
+      // console.log('[AuthContext] setAuthState 직전 (login)', { user: userWithCamel, profile: profileData });
       setAuthState({ user: userWithCamel, profile: profileData });
     } catch (error) {
       console.error('[AuthContext] 로그인 실패:', error);
@@ -76,7 +76,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       throw error;
     } finally {
       setIsLoading(false);
-      console.log('[AuthContext] login: isLoading false');
+      // console.log('[AuthContext] login: isLoading false');
     }
   };
 
@@ -84,7 +84,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('token');
     sessionStorage.clear();
     setAuthState({ user: null, profile: null });
-    console.log('[AuthContext] 로그아웃, localStorage token:', localStorage.getItem('token'));
+    // console.log('[AuthContext] 로그아웃, localStorage token:', localStorage.getItem('token'));
   };
 
   // user 정보 새로고침 함수 추가
@@ -97,8 +97,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('[AuthContext] fetchUser: userData.id 없음!:', userWithCamel);
       }
       const profileData = await userApi.getUserProfile(userWithCamel.id);
-      console.log('[AuthContext] fetchUser: user/profile 갱신 성공', userWithCamel, profileData);
-      console.log('[AuthContext] setAuthState 직전 (fetchUser)', { user: userWithCamel, profile: profileData });
+      // console.log('[AuthContext] fetchUser: user/profile 갱신 성공', userWithCamel, profileData);
+      // console.log('[AuthContext] setAuthState 직전 (fetchUser)', { user: userWithCamel, profile: profileData });
       setAuthState({ user: userWithCamel, profile: profileData });
     } catch (err) {
       console.error('[AuthContext] fetchUser: 인증 복원 실패:', err);
@@ -106,7 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setAuthState({ user: null, profile: null });
     } finally {
       setIsLoading(false);
-      console.log('[AuthContext] fetchUser: isLoading false');
+      // console.log('[AuthContext] fetchUser: isLoading false');
     }
   };
 
@@ -114,7 +114,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const setProfileOnly = (profile: UserProfile) => setAuthState((prev) => ({ ...prev, profile }));
 
   const { user, profile } = authState;
-  console.log('[AuthContext] value 리턴 직전', { user, profile, isLoading });
+  // console.log('[AuthContext] value 리턴 직전', { user, profile, isLoading });
   const value: AuthContextType & { setProfile: (profile: UserProfile) => void; fetchUser: typeof fetchUser } = {
     user,
     profile,
@@ -125,7 +125,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setProfile: setProfileOnly,
     fetchUser,
   };
-  console.log('[AuthContext] value 리턴', { user, profile, isLoading, isAuthenticated: !!user });
+  // console.log('[AuthContext] value 리턴', { user, profile, isLoading, isAuthenticated: !!user });
 
   return (
     <AuthContext.Provider value={value}>

@@ -135,17 +135,20 @@ const NicknameSetupPage = () => {
   }, [setValue]);
 
   const onSubmit = (data: { nickname: string }) => {
-    // 디버깅: 닉네임 저장 확인
-    console.log('=== 닉네임 저장 디버깅 ===');
-    console.log('저장할 닉네임:', data.nickname);
-    
-    // 닉네임을 세션에 저장하고 자기소개 페이지로 이동
-    sessionStorage.setItem('userNickname', data.nickname);
-    
-    // 저장 확인
-    const savedNickname = sessionStorage.getItem('userNickname');
-    console.log('저장된 닉네임:', savedNickname);
-    console.log('=== 닉네임 저장 완료 ===');
+    try {
+      // console.log('=== 닉네임 저장 디버깅 ===');
+      // console.log('저장할 닉네임:', data.nickname);
+      
+      // 세션에 저장
+      sessionStorage.setItem('userNickname', data.nickname);
+      
+      // 저장 확인
+      const savedNickname = sessionStorage.getItem('userNickname');
+      // console.log('저장된 닉네임:', savedNickname);
+      // console.log('=== 닉네임 저장 완료 ===');
+    } catch (error) {
+      console.error('Error saving nickname:', error);
+    }
     
     navigate('/register/appeal');
   };

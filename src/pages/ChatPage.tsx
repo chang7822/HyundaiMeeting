@@ -90,7 +90,7 @@ const ChatPage: React.FC = () => {
       setPeriodId(period.id);
       setCanEnter(true);
       setLoading(false);
-      console.log('[ChatPage][DEBUG] periodId:', period.id, 'user:', user.id, 'partner:', partnerUserId);
+      // console.log('[ChatPage][DEBUG] periodId:', period.id, 'user:', user.id, 'partner:', partnerUserId);
     }).catch(() => {
       toast.error('매칭 회차 정보 조회에 실패했습니다.');
       setLoading(false);
@@ -136,21 +136,21 @@ const ChatPage: React.FC = () => {
     socketRef.current = socket;
     const sorted = [user.id, partnerUserId].sort();
     const roomId = `${periodId}_${sorted[0]}_${sorted[1]}`;
-    console.log('[ChatPage][SOCKET] 연결 시도:', SOCKET_URL);
+    // console.log('[ChatPage][SOCKET] 연결 시도:', SOCKET_URL);
     socket.on('connect', () => {
-      console.log('[ChatPage][SOCKET] connect 성공:', socket.id);
+      // console.log('[ChatPage][SOCKET] connect 성공:', socket.id);
       socket.emit('join', roomId);
-      console.log('[ChatPage][SOCKET] join emit:', roomId);
+      // console.log('[ChatPage][SOCKET] join emit:', roomId);
     });
     socket.on('joined', (joinedRoomId) => {
       if (joinedRoomId === roomId) {
         setJoinDone(true);
-        console.log('[ChatPage][SOCKET] join 완료:', joinedRoomId);
+        // console.log('[ChatPage][SOCKET] join 완료:', joinedRoomId);
       }
     });
     // 메시지 수신 시 optimistic UI 임시 메시지 대체
     const handleSocketMessage = (data: any) => {
-      console.log('[ChatPage][SOCKET] chat message 수신:', data);
+      // console.log('[ChatPage][SOCKET] chat message 수신:', data);
       // senderId를 항상 string으로 통일
       const senderId = String(data.senderId ?? data.sender_id ?? '');
       setMessages(prev => {
@@ -175,14 +175,14 @@ const ChatPage: React.FC = () => {
     socket.on('chat message', handleSocketMessage);
     socket.on('disconnect', () => {
       setJoinDone(false);
-      console.log('[ChatPage][SOCKET] disconnect:', socket.id);
+      // console.log('[ChatPage][SOCKET] disconnect:', socket.id);
     });
     return () => {
       socket.off('chat message', handleSocketMessage);
       socket.off('joined');
       socket.disconnect();
       setJoinDone(false);
-      console.log('[ChatPage][SOCKET] disconnect 호출');
+      // console.log('[ChatPage][SOCKET] disconnect 호출');
     };
   }, [user?.id, partnerUserId, periodId]);
 
@@ -217,7 +217,7 @@ const ChatPage: React.FC = () => {
         senderId: String(user.id),
       } as any;
       setMessages(prev => [...prev, newMessage]);
-      console.log('[ChatPage][SOCKET] chat message emit:', newMessage);
+      // console.log('[ChatPage][SOCKET] chat message emit:', newMessage);
       socket.emit('chat message', newMessage);
       setInput('');
       // 메시지 전송 후 입력창에 포커스

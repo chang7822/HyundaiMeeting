@@ -208,19 +208,19 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   // 로딩 상태: user가 null이면 true, 아니면 false
   const isUserLoading = user === null;
 
-  console.log('[Sidebar] 렌더링', {
-    user,
-    isUserLoading,
-    isAdmin: user?.isAdmin,
-    adminMenuItems: user?.isAdmin,
-    canChat,
-    partnerUserId,
-    matchingStatus,
-    period
-  });
-  if (user) {
-    console.log('[Sidebar] user 전체:', user);
-  }
+  // console.log('[Sidebar] 렌더링', {
+  //   user,
+  //   isUserLoading,
+  //   isAdmin: user?.isAdmin,
+  //   adminMenuItems: user?.isAdmin,
+  //   canChat,
+  //   partnerUserId,
+  //   matchingStatus,
+  //   period
+  // });
+  // if (user) {
+  //   console.log('[Sidebar] user 전체:', user);
+  // }
 
   useEffect(() => {
     if (user?.id) {
@@ -274,9 +274,15 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/notice-manager', icon: <span role="img" aria-label="notice">📢</span>, text: '공지사항 관리' },
     { path: '/admin/faq-manager', icon: <span role="img" aria-label="faq">❓</span>, text: 'FAQ 관리' },
   ] : [];
-  console.log('[Sidebar] adminMenuItems 배열:', adminMenuItems);
+  // console.log('[Sidebar] adminMenuItems 배열:', adminMenuItems);
 
   const handleNavClick = (path: string) => {
+    // 현재 메인페이지에 있고, 클릭한 경로도 메인페이지인 경우 새로고침
+    if (location.pathname === '/main' && path === '/main') {
+      window.location.reload();
+      return;
+    }
+    
     navigate(path);
     if (window.innerWidth <= 768) onToggle();
   };
@@ -302,7 +308,14 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           </SidebarCloseButton>
         )}
         <SidebarHeader>
-          <Logo onClick={() => navigate('/main')}>울산 사내 솔로공모</Logo>
+          <Logo onClick={() => {
+            // 현재 메인페이지에 있는 경우 새로고침
+            if (location.pathname === '/main') {
+              window.location.reload();
+            } else {
+              navigate('/main');
+            }
+          }}>울산 사내 솔로공모</Logo>
           {/* user가 null이면 로딩 중 메시지, 아니면 이메일 */}
           {isUserLoading ? (
             <div style={{ color: '#fff', fontWeight: 600, fontSize: '1.08rem', marginTop: 12, textAlign: 'center' }}>

@@ -159,28 +159,28 @@ const AppealPage = () => {
       const preferencesStr = sessionStorage.getItem('userPreferences');
       
       // 디버깅: 모든 sessionStorage 값 출력
-      console.log('=== 회원가입 디버깅 ===');
-      console.log('email:', email);
-      console.log('password:', password ? '***' : 'null');
-      console.log('company:', company);
-      console.log('birthYear:', birthYear);
-      console.log('gender:', gender);
-      console.log('height:', height);
-      console.log('residence:', residence);
-      console.log('maritalStatus:', maritalStatus);
-      console.log('nickname:', nickname);
-      console.log('profileDataStr:', profileDataStr);
-      console.log('preferencesStr:', preferencesStr);
-      console.log('=== 디버깅 끝 ===');
+      // console.log('=== 회원가입 디버깅 ===');
+      // console.log('email:', email);
+      // console.log('password:', password ? '***' : 'null');
+      // console.log('company:', company);
+      // console.log('birthYear:', birthYear);
+      // console.log('gender:', gender);
+      // console.log('height:', height);
+      // console.log('residence:', residence);
+      // console.log('maritalStatus:', maritalStatus);
+      // console.log('nickname:', nickname);
+      // console.log('profileDataStr:', profileDataStr);
+      // console.log('preferencesStr:', preferencesStr);
+      // console.log('=== 디버깅 끝 ===');
       
       // 필수 데이터 검증
       if (!email || !password || !birthYear || !gender || !nickname) {
-        console.log('=== 필수 데이터 누락 ===');
-        console.log('email 누락:', !email);
-        console.log('password 누락:', !password);
-        console.log('birthYear 누락:', !birthYear);
-        console.log('gender 누락:', !gender);
-        console.log('nickname 누락:', !nickname);
+        // console.log('=== 필수 데이터 누락 ===');
+        // console.log('email 누락:', !email);
+        // console.log('password 누락:', !password);
+        // console.log('birthYear 누락:', !birthYear);
+        // console.log('gender 누락:', !gender);
+        // console.log('nickname 누락:', !nickname);
         toast.error('필수 정보가 누락되었습니다. 처음부터 다시 시작해주세요.');
         navigate('/register');
         return;

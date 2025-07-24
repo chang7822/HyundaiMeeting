@@ -260,9 +260,10 @@ const CategoryManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen 
         delete cat._new; delete cat.__typename;
         return cat;
       });
-    console.log('[저장 직전 options]', preparedOptions);
-    console.log('[저장 직전 categories]', preparedCategories);
     try {
+      // console.log('[저장 직전 options]', preparedOptions);
+      // console.log('[저장 직전 categories]', preparedCategories);
+      
       await saveAdminProfileCategories(preparedCategories);
       await saveAdminProfileOptions(preparedOptions);
       toast.success('DB에 정상적으로 반영되었습니다!');

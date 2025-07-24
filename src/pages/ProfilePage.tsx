@@ -286,9 +286,9 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   useEffect(() => {
     setLoading(true);
-    console.log('[ProfilePage] useEffect 진입, isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
+    // console.log('[ProfilePage] useEffect 진입, isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
     if (isLoading || !isAuthenticated) return;
-    console.log('[ProfilePage] 인증 복원 완료, 내 정보 API 호출');
+    // console.log('[ProfilePage] 인증 복원 완료, 내 정보 API 호출');
     (async () => {
       try {
         const [userProfile, categoriesData, optionsData] = await Promise.all([
@@ -299,9 +299,9 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         setProfile(userProfile);
         setCategories(categoriesData);
         setOptions(optionsData);
-        console.log('[ProfilePage] getMe 데이터:', userProfile);
-        console.log('[ProfilePage] getProfileCategories 데이터:', categoriesData);
-        console.log('[ProfilePage] getProfileOptions 데이터:', optionsData);
+        // console.log('[ProfilePage] getMe 데이터:', userProfile);
+        // console.log('[ProfilePage] getProfileCategories 데이터:', categoriesData);
+        // console.log('[ProfilePage] getProfileOptions 데이터:', optionsData);
       } catch (err) {
         console.error('[ProfilePage] 데이터 로딩 에러:', err);
       } finally {
@@ -396,9 +396,9 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         drinking: profile.drinking,
         body_type: JSON.stringify(bodyTypes),
       };
-      console.log('[디버깅] 저장 요청 updateData:', updateData);
+      // console.log('[디버깅] 저장 요청 updateData:', updateData);
       const res = await userApi.updateMe(updateData);
-      console.log('[디버깅] 서버 응답:', res);
+      // console.log('[디버깅] 서버 응답:', res);
       toast.success('프로필이 저장되었습니다.');
       setTimeout(() => navigate('/main'), 700);
     } catch (err) {
@@ -447,7 +447,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       toast.success('회원 탈퇴가 완료되었습니다.');
       localStorage.clear();
       sessionStorage.clear();
-      console.log('[ProfilePage] 회원탈퇴, localStorage token:', localStorage.getItem('token'));
+      // console.log('[ProfilePage] 회원탈퇴, localStorage token:', localStorage.getItem('token'));
       navigate('/');
     } catch {
       toast.error('비밀번호가 올바르지 않거나 탈퇴 실패');

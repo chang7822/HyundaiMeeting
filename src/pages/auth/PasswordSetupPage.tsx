@@ -119,8 +119,8 @@ const PasswordSetupPage = () => {
     }
     
     // 디버깅: 비밀번호 저장 확인
-    console.log('=== 비밀번호 저장 디버깅 ===');
-    console.log('저장할 비밀번호 길이:', data.password.length);
+    // console.log('=== 비밀번호 저장 디버깅 ===');
+    // console.log('저장할 비밀번호 길이:', data.password.length);
     
     // 비밀번호를 세션에 저장하고 다음 단계로 이동
     sessionStorage.setItem('userPassword', data.password);
@@ -128,8 +128,8 @@ const PasswordSetupPage = () => {
     
     // 저장 확인
     const savedPassword = sessionStorage.getItem('userPassword');
-    console.log('저장된 비밀번호 길이:', savedPassword ? savedPassword.length : 0);
-    console.log('=== 비밀번호 저장 완료 ===');
+    // console.log('저장된 비밀번호 길이:', savedPassword ? savedPassword.length : 0);
+    // console.log('=== 비밀번호 저장 완료 ===');
     
     navigate('/register/required-info');
   };

@@ -255,9 +255,9 @@ const PreferenceSetupPage = () => {
 
   // 나이 슬라이더 이벤트 핸들러
   const handleAgeMouseDown = (e: React.MouseEvent, thumb: 'min' | 'max') => {
+    // console.log('Age mouse down:', thumb); // 디버깅용
     e.preventDefault();
     e.stopPropagation();
-    console.log('Age mouse down:', thumb); // 디버깅용
     setIsAgeDragging(thumb);
     
     const handleMouseMove = (e: MouseEvent) => {
@@ -288,7 +288,7 @@ const PreferenceSetupPage = () => {
   const handleHeightMouseDown = (e: React.MouseEvent, thumb: 'min' | 'max') => {
     e.preventDefault();
     e.stopPropagation();
-    console.log('Height mouse down:', thumb); // 디버깅용
+    // console.log('Height mouse down:', thumb); // 디버깅용
     setIsHeightDragging(thumb);
     
     const handleMouseMove = (e: MouseEvent) => {
@@ -322,7 +322,7 @@ const PreferenceSetupPage = () => {
       return;
     }
     
-    console.log('Age slider clicked'); // 디버깅용
+    // console.log('Age slider clicked'); // 디버깅용
     if (!ageSliderRef.current) return;
     
     const rect = ageSliderRef.current.getBoundingClientRect();
@@ -346,7 +346,7 @@ const PreferenceSetupPage = () => {
       return;
     }
     
-    console.log('Height slider clicked'); // 디버깅용
+    // console.log('Height slider clicked'); // 디버깅용
     if (!heightSliderRef.current) return;
     
     const rect = heightSliderRef.current.getBoundingClientRect();

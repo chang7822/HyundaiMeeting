@@ -569,9 +569,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const start = new Date(data.application_start);
       const end = new Date(data.application_end);
       const announce = data.matching_announce ? new Date(data.matching_announce) : null;
-      console.log('[MainPage][DEBUG] period:', data);
-      console.log('[MainPage][DEBUG] now:', nowDate.toISOString());
-      console.log('[MainPage][DEBUG] announce:', announce ? announce.toISOString() : null);
+      // console.log('[MainPage][DEBUG] period:', data);
+      // console.log('[MainPage][DEBUG] now:', nowDate.toISOString());
+      // console.log('[MainPage][DEBUG] announce:', announce ? announce.toISOString() : null);
     }).catch((err) => {
       setLoadingPeriod(false);
       console.error('[MainPage] 매칭 기간 API 에러:', err);
@@ -589,20 +589,28 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
     setStatusLoading(true);
     try {
+      // console.log('[MainPage][fetchMatchingStatus] 매칭 상태 조회 시작, user_id:', user.id);
       const res = await matchingApi.getMatchingStatus(user.id);
-      console.log('[디버깅] fetchMatchingStatus: API 응답 전체:', res);
+      // console.log('[MainPage][fetchMatchingStatus] API 응답 전체:', res);
       if (res && typeof res === 'object' && 'status' in res && res.status) {
-        setMatchingStatus({
+        const newStatus = {
           ...res.status,
           is_applied: res.status.is_applied ?? res.status.applied,
           is_matched: res.status.is_matched ?? res.status.matched,
           is_cancelled: res.status.is_cancelled ?? res.status.cancelled,
-        });
+        };
+        // console.log('[MainPage][fetchMatchingStatus] 상태 업데이트:', {
+        //   이전상태: matchingStatus,
+        //   새상태: newStatus
+        // });
+        setMatchingStatus(newStatus);
       } else {
+        // console.log('[MainPage][fetchMatchingStatus] 응답에 status 필드 없음, 상태 초기화');
         setMatchingStatus(null);
         console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음 또는 null, res:', res);
       }
     } catch (e) {
+      console.error('[MainPage][fetchMatchingStatus] 에러 발생:', e);
       setMatchingStatus(null);
       console.error('[디버깅] fetchMatchingStatus: 에러 발생', e);
     } finally {
@@ -637,9 +645,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   useEffect(() => {
     if (!period) return;
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-    console.log('[MainPage][DEBUG] period:', period);
-    console.log('[MainPage][DEBUG] announce:', announce ? announce.toISOString() : null);
-    console.log('[MainPage][DEBUG] matchingStatus:', matchingStatus);
+    // console.log('[MainPage][DEBUG] period:', period);
+    // console.log('[MainPage][DEBUG] announce:', announce ? announce.toISOString() : null);
+    // console.log('[MainPage][DEBUG] matchingStatus:', matchingStatus);
   }, [period, matchingStatus]);
 
   // [추가] 매칭 공지 시점 직전 polling으로 상태 강제 fetch
@@ -674,8 +682,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const nowTime = now.getTime();
     // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트
     if (startTime - nowTime < 30000 && startTime - nowTime > -300000) {
+      // console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트 시작');
       const interval = setInterval(() => {
-        console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트');
+        // console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트 실행');
+        // users 테이블 우선 업데이트
+        fetchUser();
+        // 그 다음 매칭 상태 업데이트
+        fetchMatchingStatus();
       }, 30000); // 30초마다
       return () => clearInterval(interval);
     }
@@ -743,11 +756,30 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [리팩터링] users의 is_applied, is_matched 기반 분기 함수 (is_cancelled만 matchingStatus에서)
   const getUserMatchingState = () => {
-    // users 테이블 정보만 사용 (is_applied, is_matched)
+    // users 테이블 정보를 우선 사용 (is_applied, is_matched)
     const isApplied = user?.is_applied === true;
     const isMatched = typeof user?.is_matched !== 'undefined' ? user?.is_matched : null;
     // is_cancelled만 matchingStatus에서
     const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
+    
+    // console.log('[MainPage][getUserMatchingState] 상태 분석:', {
+    //   user_id: user?.id,
+    //   user_is_applied: user?.is_applied,
+    //   user_is_matched: user?.is_matched,
+    //   matchingStatus,
+    //   isApplied,
+    //   isMatched,
+    //   isCancelled,
+    //   period: period ? {
+    //     id: period.id,
+    //     application_start: period.application_start,
+    //     application_end: period.application_end,
+    //     matching_announce: period.matching_announce,
+    //     finish: period.finish
+    //   } : null,
+    //   now: now.toISOString()
+    // });
+    
     return { isApplied, isMatched, isCancelled };
   };
 
@@ -889,48 +921,85 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const finish = period.finish ? new Date(period.finish) : null;
     const nowTime = now.getTime();
     const { isApplied, isMatched, isCancelled } = getUserMatchingState();
+    
+    // console.log('[MainPage][버튼상태] 시간 분석:', {
+    //   now: now.toISOString(),
+    //   start: start.toISOString(),
+    //   end: end.toISOString(),
+    //   announce: announce?.toISOString(),
+    //   finish: finish?.toISOString(),
+    //   nowTime,
+    //   startTime: start.getTime(),
+    //   endTime: end.getTime(),
+    //   announceTime: announce?.getTime(),
+    //   finishTime: finish?.getTime()
+    // });
+    
+    // console.log('[MainPage][버튼상태] 상태 분석:', {
+    //   isApplied,
+    //   isMatched,
+    //   isCancelled,
+    //   canReapply,
+    //   period_id: period.id
+    // });
+    
     // 신청 전/회차 종료
     if (nowTime < start.getTime() || (finish && nowTime >= finish.getTime())) {
       buttonDisabled = true;
       buttonLabel = '매칭 신청 불가';
       showCancel = false;
+      // console.log('[MainPage][버튼상태] 신청 전/회차 종료 상태');
     } else if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
       if (!isApplied || isCancelled) {
         buttonDisabled = !canReapply;
         buttonLabel = '매칭 신청하기';
         showCancel = false;
+        // console.log('[MainPage][버튼상태] 신청 기간 - 미신청 상태');
       } else {
         buttonDisabled = true;
         buttonLabel = '신청 완료';
         showCancel = true;
+        // console.log('[MainPage][버튼상태] 신청 기간 - 신청 완료 상태');
       }
     } else if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
       buttonDisabled = true;
       buttonLabel = isApplied && !isCancelled ? '신청 완료' : '매칭 신청 불가';
       showCancel = false;
+      // console.log('[MainPage][버튼상태] 신청 마감 후 - 발표 전 상태');
     } else if (announce && nowTime >= announce.getTime()) {
       if (!isApplied || isCancelled) {
         buttonDisabled = true;
         buttonLabel = '매칭 신청 불가';
         showCancel = false;
+        // console.log('[MainPage][버튼상태] 발표 후 - 미신청 상태');
       } else if (typeof isMatched === 'undefined' || isMatched === null) {
         buttonDisabled = true;
         buttonLabel = '결과 대기중';
         showCancel = false;
+        // console.log('[MainPage][버튼상태] 발표 후 - 결과 대기중 상태');
       } else if (isMatched === true) {
         buttonDisabled = true;
         buttonLabel = '매칭 성공';
         showCancel = false; // 매칭 성공 후에도 취소버튼 숨김
+        // console.log('[MainPage][버튼상태] 발표 후 - 매칭 성공 상태');
       } else if (isMatched === false) {
         buttonDisabled = true;
         buttonLabel = '매칭 실패';
         showCancel = false;
+        // console.log('[MainPage][버튼상태] 발표 후 - 매칭 실패 상태');
       }
     } else {
       buttonDisabled = true;
       buttonLabel = '매칭 신청 불가';
       showCancel = false;
+      // console.log('[MainPage][버튼상태] 기타 상태');
     }
+    
+    // console.log('[MainPage][버튼상태] 최종 결정:', {
+    //   buttonDisabled,
+    //   buttonLabel,
+    //   showCancel
+    // });
   }
 
   // 매칭 성공 && 회차 마감 전일 때만 채팅 가능
@@ -1006,10 +1075,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     try {
       await matchingApi.requestMatching(user.id);
       toast.success('매칭 신청이 완료되었습니다!');
+      
+      // 백엔드 업데이트 완료를 위한 짧은 지연
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 순차적으로 상태 업데이트
       await fetchMatchingStatus();
+      await fetchUser();
+      
       setShowMatchingConfirmModal(false);
-      // 매칭 신청 완료 후 페이지 새로고침
-      window.location.reload();
+      // console.log('[MainPage][handleMatchingConfirm] 매칭 신청 완료, 상태 업데이트 완료');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '매칭 신청에 실패했습니다.');
     } finally {
@@ -1024,8 +1099,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     try {
       await matchingApi.cancelMatching(user.id);
       toast.success('매칭 신청이 취소되었습니다.');
+      
+      // 백엔드 업데이트 완료를 위한 짧은 지연
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // 순차적으로 상태 업데이트
       await fetchMatchingStatus();
+      await fetchUser();
+      
       setShowCancelConfirmModal(false);
+      // console.log('[MainPage][handleCancel] 매칭 취소 완료, 상태 업데이트 완료');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '신청 취소에 실패했습니다.');
     } finally {

@@ -148,21 +148,26 @@ const RequiredInfoPage = () => {
       return;
     }
 
-    // 디버깅: 필수 정보 저장 확인
-    console.log('=== 필수 정보 저장 디버깅 ===');
-    console.log('저장할 birthYear:', data.birthYear);
-    console.log('저장할 gender:', data.gender);
-
-    // 데이터를 세션에 저장하고 다음 단계로 이동
-    sessionStorage.setItem('userBirthYear', data.birthYear.toString());
-    sessionStorage.setItem('userGender', data.gender);
-    
-    // 저장 확인
-    const savedBirthYear = sessionStorage.getItem('userBirthYear');
-    const savedGender = sessionStorage.getItem('userGender');
-    console.log('저장된 birthYear:', savedBirthYear);
-    console.log('저장된 gender:', savedGender);
-    console.log('=== 필수 정보 저장 완료 ===');
+    try {
+      // console.log('=== 필수 정보 저장 디버깅 ===');
+      // console.log('저장할 birthYear:', data.birthYear);
+      // console.log('저장할 gender:', data.gender);
+      
+      // 세션에 저장
+      sessionStorage.setItem('userBirthYear', data.birthYear.toString());
+      sessionStorage.setItem('userGender', data.gender);
+      
+      // 저장 확인
+      const savedBirthYear = sessionStorage.getItem('userBirthYear');
+      const savedGender = sessionStorage.getItem('userGender');
+      // console.log('저장된 birthYear:', savedBirthYear);
+      // console.log('저장된 gender:', savedGender);
+      // console.log('=== 필수 정보 저장 완료 ===');
+    } catch (error) {
+      console.error('Error saving required info:', error);
+      toast.error('필수 정보 저장에 실패했습니다.');
+      return;
+    }
     
     toast.success('정보가 저장되었습니다.');
     navigate('/register/profile');

@@ -23,12 +23,12 @@ const api = axios.create({
 // Add token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  console.log('[axios] 요청 URL:', config.url, '토큰:', token);
+  // console.log('[axios] 요청 URL:', config.url, '토큰:', token);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-    console.log('[axios] Authorization 헤더에 토큰 추가:', token);
+    // console.log('[axios] Authorization 헤더에 토큰 추가:', token);
   } else {
-    console.log('[axios] 토큰 없음, Authorization 헤더 미포함');
+    // console.log('[axios] 토큰 없음, Authorization 헤더 미포함');
   }
   return config;
 });
@@ -42,7 +42,7 @@ api.interceptors.response.use(
       if (!isLoginRequest) {
         toast.error('로그인 인증이 만료되었습니다. 다시 로그인해 주세요.');
         localStorage.removeItem('token');
-        console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
+        // console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
         // 이동 없이 에러도 반환하지 않음(페이지 멈춤)
         return;
       }
@@ -56,7 +56,7 @@ api.interceptors.response.use(
 export const authApi = {
   login: async (credentials: LoginCredentials) => {
     const response = await axios.post(apiUrl('/auth/login'), credentials);
-    console.log('[api] /auth/login 응답:', response.data);
+    // console.log('[api] /auth/login 응답:', response.data);
     return response.data;
   },
 
@@ -105,8 +105,11 @@ export const authApi = {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
       },
+      params: {
+        _t: Date.now() // 캐시 방지를 위한 timestamp
+      }
     });
-    console.log('[api] /auth/me 응답:', response.data);
+    // console.log('[api] /auth/me 응답:', response.data);
     return response.data;
   },
 
