@@ -714,6 +714,24 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [period, user?.id]);
 
+  // [수정] 매칭 공지 시각 이후 is_applied가 true이고 is_matched가 null일 때만 polling
+  useEffect(() => {
+    if (!period || !user?.id) return;
+    const announce = period.matching_announce ? new Date(period.matching_announce) : null;
+    if (!announce) return;
+    const nowTime = Date.now();
+    const announceTime = announce.getTime();
+    // 발표 이후 + is_applied가 true + is_matched가 null일 때만 polling
+    if (nowTime >= announceTime && user.is_applied === true && (typeof user.is_matched === 'undefined' || user.is_matched === null)) {
+      const interval = setInterval(async () => {
+        await fetchUser();
+      }, 1000);
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [period, user?.id, user?.is_applied, user?.is_matched]);
+
   // 모달이 열릴 때 body 스크롤 막기
   useEffect(() => {
     const isAnyModalOpen = showProfileModal || showPartnerModal || showMatchingConfirmModal || showCancelConfirmModal;

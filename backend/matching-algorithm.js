@@ -152,6 +152,11 @@ async function main() {
   const userIds = applicants.map(a => a.user_id);
   if (userIds.length < 2) {
     console.log('매칭할 신청자가 2명 미만입니다.');
+    // [추가] 모든 신청자에 대해 is_matched false 처리
+    for (const userId of userIds) {
+      await supabase.from('users').update({ is_matched: false }).eq('id', userId);
+      await supabase.from('matching_applications').update({ matched: false }).eq('user_id', userId).eq('period_id', periodId);
+    }
     return;
   }
 
