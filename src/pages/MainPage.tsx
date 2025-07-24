@@ -1008,6 +1008,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       toast.success('매칭 신청이 완료되었습니다!');
       await fetchMatchingStatus();
       setShowMatchingConfirmModal(false);
+      // 매칭 신청 완료 후 페이지 새로고침
+      window.location.reload();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '매칭 신청에 실패했습니다.');
     } finally {
