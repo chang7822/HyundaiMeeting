@@ -136,19 +136,7 @@ const FaqQuestion = styled.h3`
   gap: 0.75rem;
 `;
 
-const FaqMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  color: #718096;
-  font-size: 0.875rem;
-  
-  @media (max-width: 768px) {
-    gap: 0.75rem;
-    flex-wrap: nowrap;
-    overflow: hidden;
-  }
-`;
+
 
 const MetaItem = styled.div`
   display: flex;
@@ -330,10 +318,7 @@ const FaqPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = true }) =>
     }
   };
 
-  const handleFaqClick = (faq: Faq) => {
-    setSelectedFaq(faq);
-    navigate(`/faq/${faq.id}`);
-  };
+
 
 
 

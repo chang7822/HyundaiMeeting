@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ApiResponse, ProfileCategory, ProfileOption } from '../types/index.ts';
+import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ProfileCategory, ProfileOption } from '../types/index.ts';
 import { toast } from 'react-toastify';
 
 // API Base URL을 반드시 환경변수로만 사용하도록 강제

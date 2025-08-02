@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaHeart, FaComments, FaUser, FaCalendarAlt, FaRegStar, FaRegClock, FaUserCircle, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
+import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
 import { matchingApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
@@ -312,76 +312,7 @@ const HalfWidthDescription = styled(ActionDescription)`
   }
 `;
 
-const StatsSection = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 2rem;
-  
-  @media (max-width: 768px) {
-    gap: 1.5rem;
-  }
-  
-  @media (max-width: 480px) {
-    gap: 1rem;
-  }
-`;
 
-const StatCard = styled.div`
-  background: white;
-  border-radius: 18px;
-  padding: 2rem;
-  text-align: center;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  transition: all 0.3s ease;
-  
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
-  }
-  
-  @media (max-width: 768px) {
-    padding: 1.5rem;
-    border-radius: 16px;
-  }
-  
-  @media (max-width: 480px) {
-    padding: 1.2rem;
-    border-radius: 14px;
-  }
-`;
-
-const StatNumber = styled.div`
-  font-size: 2.5rem;
-  font-weight: 700;
-  color: #667eea;
-  margin-bottom: 0.8rem;
-  line-height: 1;
-  
-  @media (max-width: 768px) {
-    font-size: 2.2rem;
-    margin-bottom: 0.6rem;
-  }
-  
-  @media (max-width: 480px) {
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
-  }
-`;
-
-const StatLabel = styled.div`
-  color: #666;
-  font-size: 1rem;
-  font-weight: 500;
-  
-  @media (max-width: 768px) {
-    font-size: 0.95rem;
-  }
-  
-  @media (max-width: 480px) {
-    font-size: 0.9rem;
-  }
-`;
 
 const MatchingButton = styled.button`
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -499,29 +430,7 @@ const ModalContent = styled.div`
   }
 `;
 
-const PreferenceSummary: React.FC<{ profile: any }> = ({ profile }) => {
-  if (!profile) return null;
-  // 선호 스타일 필드 추출
-  const ageMin = profile.preferred_age_min;
-  const ageMax = profile.preferred_age_max;
-  const heightMin = profile.preferred_height_min;
-  const heightMax = profile.preferred_height_max;
-  const bodyTypes = profile.preferred_body_types ? (typeof profile.preferred_body_types === 'string' ? JSON.parse(profile.preferred_body_types) : profile.preferred_body_types) : [];
-  const jobTypes = profile.preferred_job_types ? (typeof profile.preferred_job_types === 'string' ? JSON.parse(profile.preferred_job_types) : profile.preferred_job_types) : [];
-  const maritalStatuses = profile.preferred_marital_statuses ? (typeof profile.preferred_marital_statuses === 'string' ? JSON.parse(profile.preferred_marital_statuses) : profile.preferred_marital_statuses) : [];
-  return (
-    <div style={{ background: '#f8f6fd', borderRadius: 10, padding: '18px 16px', marginTop: 12, marginBottom: 8 }}>
-      <div style={{ fontWeight: 600, color: '#4F46E5', marginBottom: 8 }}>선호 스타일 요약</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: '0.98rem', color: '#333' }}>
-        <div><b>나이:</b> {typeof ageMin === 'number' && typeof ageMax === 'number' ? `${ageMin < 0 ? `${Math.abs(ageMin)}살 연하` : ageMin === 0 ? '동갑' : `${ageMin}살 연상`} ~ ${ageMax < 0 ? `${Math.abs(ageMax)}살 연하` : ageMax === 0 ? '동갑' : `${ageMax}살 연상`}` : '-'}</div>
-        <div><b>키:</b> {typeof heightMin === 'number' && typeof heightMax === 'number' ? `${heightMin}cm ~ ${heightMax}cm` : '-'}</div>
-        <div><b>체형:</b> {bodyTypes && bodyTypes.length > 0 ? bodyTypes.join(', ') : '-'}</div>
-        <div><b>직군:</b> {jobTypes && jobTypes.length > 0 ? jobTypes.join(', ') : '-'}</div>
-        <div><b>결혼상태:</b> {maritalStatuses && maritalStatuses.length > 0 ? maritalStatuses.join(', ') : '-'}</div>
-      </div>
-    </div>
-  );
-};
+
 
 const cancelTime = 1;
 
@@ -565,13 +474,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     matchingApi.getMatchingPeriod().then(data => {
       setPeriod(data);
       setLoadingPeriod(false);
-      const nowDate = new Date();
-      const start = new Date(data.application_start);
-      const end = new Date(data.application_end);
-      const announce = data.matching_announce ? new Date(data.matching_announce) : null;
       // console.log('[MainPage][DEBUG] period:', data);
-      // console.log('[MainPage][DEBUG] now:', nowDate.toISOString());
-      // console.log('[MainPage][DEBUG] announce:', announce ? announce.toISOString() : null);
     }).catch((err) => {
       setLoadingPeriod(false);
       console.error('[MainPage] 매칭 기간 API 에러:', err);
@@ -899,12 +802,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   };
 
   // 신청기간 계산 함수 (위치 보장)
-  const isInApplicationPeriod = () => {
-    if (!period || !period.application_start || !period.application_end) return false;
-    const start = new Date(period.application_start);
-    const end = new Date(period.application_end);
-    return now >= start && now <= end;
-  };
+
 
   // [리팩터링] 버튼 상태/표기 결정 (is_applied, is_matched 기준)
   let buttonDisabled = true;
@@ -912,7 +810,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   let periodLabel = '';
   let showCancel = false;
 
-  const { status: statusText, period: periodText } = getMatchingStatusDisplay();
+  const { period: periodText } = getMatchingStatusDisplay();
   periodLabel = periodText;
 
   // 10분 재신청 제한 로직 (기존 유지)

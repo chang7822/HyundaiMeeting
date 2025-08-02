@@ -17,7 +17,8 @@ router.get('/period', async (req, res) => {
       .limit(1)
       .single();
     if (error || !data) {
-      return res.status(404).json({ message: '매칭 회차 정보가 없습니다.' });
+      // 매칭 회차가 없는 경우 빈 객체 반환 (404 대신)
+      return res.json({});
     }
     res.json(data);
   } catch (err) {
@@ -146,19 +147,16 @@ router.get('/my-matches', (req, res) => {
   }
 });
 
-let debugCallCount = 0;
 // 매칭 신청 상태 조회
 router.get('/status', async (req, res) => {
   try {
-    debugCallCount++;
     const { userId } = req.query;
     const now = new Date();
-    console.log(`[DEBUG][matching/status] 호출 #${debugCallCount} at ${now.toISOString()} userId:`, userId);
-    console.log('[DEBUG][matching/status] 호출 스택:', new Error().stack.split('\n').slice(1,4).join(' | '));
+    
     if (!userId) {
-      console.log('[DEBUG][matching/status] userId 없음');
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
     }
+    
     // 1. 최신 matching_log(=period) id 조회
     const { data: periodData, error: periodError } = await supabase
       .from('matching_log')
@@ -166,16 +164,14 @@ router.get('/status', async (req, res) => {
       .order('id', { ascending: false })
       .limit(1)
       .single();
-    if (periodError) {
-      console.log('[DEBUG][matching/status] periodError:', periodError);
-      throw periodError;
-    }
-    if (!periodData || !periodData.id) {
-      console.log('[DEBUG][matching/status] periodData 없음:', periodData);
+    
+    if (periodError || !periodData || !periodData.id) {
+      // 매칭 회차가 없는 경우 null 반환
       return res.json({ status: null });
     }
+    
     const periodId = periodData.id;
-    console.log(`[DEBUG][matching/status] 조회 periodId: ${periodId}, now: ${now.toISOString()}, periodData:`, periodData);
+    
     // 2. 해당 회차 + user_id로 matching_applications에서 가장 최근 row 1개만 조회 (신청/취소 포함)
     const { data, error } = await supabase
       .from('matching_applications')
@@ -185,19 +181,18 @@ router.get('/status', async (req, res) => {
       .order('applied_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    console.log('[DEBUG][matching/status] 쿼리 조건:', { userId, periodId });
+    
     if (error && error.code !== 'PGRST116') {
-      console.log('[DEBUG][matching/status] 쿼리 error:', error);
       throw error;
     }
+    
     if (!data) {
-      console.log('[DEBUG][matching/status] 쿼리 결과 없음(data=null)');
       return res.json({ status: null });
     }
-    console.log('[DEBUG][matching/status] 쿼리 결과 data:', data);
+    
     res.json({ status: data });
   } catch (error) {
-    console.error('[DEBUG][matching/status] 매칭 상태 조회 오류:', error);
+    console.error('매칭 상태 조회 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
@@ -217,7 +212,11 @@ router.post('/cancel', async (req, res) => {
       .order('id', { ascending: false })
       .limit(1)
       .single();
-    if (periodError) throw periodError;
+    
+    if (periodError || !periodData) {
+      return res.status(400).json({ message: '현재 진행 중인 매칭 회차가 없습니다.' });
+    }
+    
     const periodId = periodData.id;
     
     // 2. 해당 회차의 신청 row(applied=true, cancelled=false) 찾기

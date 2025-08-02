@@ -6,14 +6,14 @@ import ChatHeader from '../components/Chat/ChatHeader.tsx';
 import ChatWindow from '../components/Chat/ChatWindow.tsx';
 import ChatInput from '../components/Chat/ChatInput.tsx';
 import { toast } from 'react-toastify';
-import { ChatMessage } from '../types/index.ts';
+
 import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
 import ProfileCard from '../components/ProfileCard.tsx';
 import Modal from 'react-modal';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
 
-const DEV_MODE = true; // 개발 중 true, 실서비스 시 false
+
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
 

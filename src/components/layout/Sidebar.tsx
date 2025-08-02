@@ -5,7 +5,6 @@ import { useAuth } from '../../contexts/AuthContext.tsx';
 import { toast } from 'react-toastify';
 import { 
   FaHome, 
-  FaHeart, 
   FaComments, 
   FaUser, 
   FaSignOutAlt,
@@ -15,7 +14,6 @@ import {
   FaBullhorn,
   FaQuestionCircle
 } from 'react-icons/fa';
-import { NavLink } from 'react-router-dom';
 import { matchingApi } from '../../services/api.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`

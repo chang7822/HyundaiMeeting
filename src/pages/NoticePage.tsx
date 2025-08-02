@@ -7,13 +7,8 @@ import {
   FaBullhorn, 
   FaCalendar, 
   FaEye, 
-  FaUser, 
   FaStar,
-  FaChevronRight,
-  FaTimes,
-  FaEdit,
-  FaTrash,
-  FaPlus
+  FaTimes
 } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 
@@ -168,20 +163,7 @@ const MetaItem = styled.div`
   white-space: nowrap;
 `;
 
-const NoticeContent = styled.p`
-  color: #4a5568;
-  line-height: 1.6;
-  margin: 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  
-  @media (max-width: 768px) {
-    -webkit-line-clamp: 3;
-    word-break: break-word;
-  }
-`;
+
 
 const DetailContainer = styled.div`
   padding: 2rem;
@@ -254,38 +236,7 @@ const DetailBackButton = styled.button`
   }
 `;
 
-const ActionButtons = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
-`;
 
-const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
-  background: ${props => {
-    switch (props.variant) {
-      case 'primary': return 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-      case 'secondary': return '#e2e8f0';
-      case 'danger': return 'linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%)';
-      default: return '#e2e8f0';
-    }
-  }};
-  color: ${props => props.variant === 'secondary' ? '#4a5568' : 'white'};
-  border: none;
-  border-radius: 12px;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
-  }
-`;
 
 const EmptyState = styled.div`
   text-align: center;

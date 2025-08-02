@@ -158,6 +158,19 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
     setForm({ ...form, [field]: value });
   };
 
+  const handleTestData = () => {
+    const now = new Date();
+    const testData = {
+      application_start: new Date(now.getTime() + 1 * 60 * 1000).toISOString(), // 1분 후
+      application_end: new Date(now.getTime() + 2 * 60 * 1000).toISOString(), // 2분 후
+      matching_run: new Date(now.getTime() + 3 * 60 * 1000).toISOString(), // 3분 후
+      matching_announce: new Date(now.getTime() + 4 * 60 * 1000).toISOString(), // 4분 후
+      finish: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3일 후
+      executed: false
+    };
+    setForm(testData);
+  };
+
   if (loading) return <LoadingSpinner sidebarOpen={isSidebarOpen} />;
 
   return (
@@ -268,6 +281,7 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
         <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
           <Button onClick={handleSave} disabled={!isFormValid}>{editing ? '수정 완료' : '추가'}</Button>
           <Button style={{ background: '#888' }} onClick={() => { setModalOpen(false); setEditing(null); setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); }}>취소</Button>
+          <Button style={{ background: '#27ae60' }} onClick={handleTestData}>테스트</Button>
         </div>
       </Modal>
     </Container>
