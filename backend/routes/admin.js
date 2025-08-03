@@ -237,7 +237,14 @@ router.delete('/matching-log/:id', async (req, res) => {
       .eq('period_id', periodId);
     if (histError) throw histError;
 
-    // 3. matching_log 삭제
+    // 3. reports 삭제 (해당 회차의 신고들)
+    const { error: reportError } = await supabase
+      .from('reports')
+      .delete()
+      .eq('period_id', periodId);
+    if (reportError) throw reportError;
+
+    // 4. matching_log 삭제
     const { data, error: logError } = await supabase
       .from('matching_log')
       .delete()
@@ -262,7 +269,7 @@ router.delete('/matching-log/:id', async (req, res) => {
     res.json({ 
       success: true, 
       deleted: data,
-      message: '회차 및 관련 데이터가 삭제되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
+      message: '회차 및 관련 데이터(매칭 신청, 이력, 신고)가 삭제되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
     });
   } catch (error) {
     console.error('matching_log 및 연관 데이터 삭제 오류:', error);
@@ -582,6 +589,304 @@ router.post('/reset-users-matching-status', async (req, res) => {
   } catch (error) {
     console.error('[관리자] users 테이블 초기화 오류:', error);
     res.status(500).json({ message: '초기화에 실패했습니다.', error: error.message });
+  }
+});
+
+// [신고 관리] 모든 신고 목록 조회
+router.get('/reports', async (req, res) => {
+  try {
+    const { status, page = 1, limit = 20 } = req.query;
+    const offset = (page - 1) * limit;
+
+    let query = supabase
+      .from('reports')
+      .select(`
+        *,
+        reporter:users!reporter_id(id, email),
+        reported_user:users!reported_user_id(id, email),
+        period:matching_log(id, application_start, application_end),
+        resolver:users!resolved_by(email)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    const { data, error, count } = await query
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      console.error('신고 목록 조회 오류:', error);
+      return res.status(500).json({ message: '신고 목록 조회에 실패했습니다.' });
+    }
+
+    // 각 신고에 대해 닉네임 정보 추가
+    const reportsWithNicknames = await Promise.all(
+      data.map(async (report) => {
+        // 신고자 닉네임 조회
+        let reporterNickname = null;
+        if (report.reporter) {
+          const { data: reporterProfile } = await supabase
+            .from('user_profiles')
+            .select('nickname')
+            .eq('user_id', report.reporter.id)
+            .single();
+          reporterNickname = reporterProfile?.nickname;
+        }
+
+        // 신고받은 사용자 닉네임 조회
+        let reportedUserNickname = null;
+        if (report.reported_user) {
+          const { data: reportedUserProfile } = await supabase
+            .from('user_profiles')
+            .select('nickname')
+            .eq('user_id', report.reported_user.id)
+            .single();
+          reportedUserNickname = reportedUserProfile?.nickname;
+        }
+
+        return {
+          ...report,
+          reporter: report.reporter ? {
+            ...report.reporter,
+            nickname: reporterNickname
+          } : null,
+          reported_user: report.reported_user ? {
+            ...report.reported_user,
+            nickname: reportedUserNickname
+          } : null
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: reportsWithNicknames,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total: count || 0
+      }
+    });
+
+  } catch (error) {
+    console.error('신고 목록 조회 오류:', error);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// [신고 관리] 신고 상세 조회
+router.get('/reports/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from('reports')
+      .select(`
+        *,
+        reporter:users!reporter_id(id, email),
+        reported_user:users!reported_user_id(id, email),
+        period:matching_log(id, application_start, application_end, finish),
+        resolver:users!resolved_by(email)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('신고 상세 조회 오류:', error);
+      return res.status(500).json({ message: '신고 상세 조회에 실패했습니다.' });
+    }
+
+    if (!data) {
+      return res.status(404).json({ message: '신고 내역을 찾을 수 없습니다.' });
+    }
+
+    // 닉네임 정보 추가
+    let reporterNickname = null;
+    let reportedUserNickname = null;
+    let reporterGender = null;
+    let reportedUserGender = null;
+
+    if (data.reporter) {
+      const { data: reporterProfile } = await supabase
+        .from('user_profiles')
+        .select('nickname, gender')
+        .eq('user_id', data.reporter.id)
+        .single();
+      reporterNickname = reporterProfile?.nickname;
+      reporterGender = reporterProfile?.gender;
+    }
+
+    if (data.reported_user) {
+      const { data: reportedUserProfile } = await supabase
+        .from('user_profiles')
+        .select('nickname, gender')
+        .eq('user_id', data.reported_user.id)
+        .single();
+      reportedUserNickname = reportedUserProfile?.nickname;
+      reportedUserGender = reportedUserProfile?.gender;
+    }
+
+    const reportWithNicknames = {
+      ...data,
+      reporter: data.reporter ? {
+        ...data.reporter,
+        nickname: reporterNickname,
+        gender: reporterGender
+      } : null,
+      reported_user: data.reported_user ? {
+        ...data.reported_user,
+        nickname: reportedUserNickname,
+        gender: reportedUserGender
+      } : null
+    };
+
+    res.json({
+      success: true,
+      data: reportWithNicknames
+    });
+
+  } catch (error) {
+    console.error('신고 상세 조회 오류:', error);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// [신고 관리] 신고 처리 (벌점 부여)
+router.put('/reports/:id/process', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, penalty_points, penalty_type, admin_notes } = req.body;
+
+    // 신고 상태 업데이트
+    const updateData = {
+      status,
+      penalty_points: penalty_points || 0,
+      penalty_type,
+      admin_notes,
+      resolved_at: new Date().toISOString(),
+      resolved_by: req.user?.userId || null
+    };
+
+    const { data: reportData, error: reportError } = await supabase
+      .from('reports')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (reportError) {
+      console.error('신고 처리 오류:', reportError);
+      return res.status(500).json({ message: '신고 처리에 실패했습니다.' });
+    }
+
+    // 벌점이 있는 경우 사용자에게 벌점 부여
+    if (penalty_points && penalty_points > 0) {
+      const { error: userError } = await supabase
+        .from('users')
+        .update({ 
+          penalty_points: supabase.raw(`penalty_points + ${penalty_points}`)
+        })
+        .eq('id', reportData.reported_user_id);
+
+      if (userError) {
+        console.error('사용자 벌점 부여 오류:', userError);
+        return res.status(500).json({ message: '벌점 부여에 실패했습니다.' });
+      }
+    }
+
+    // 차단 처리가 있는 경우
+    if (penalty_type === 'ban') {
+      const { error: banError } = await supabase
+        .from('users')
+        .update({ 
+          is_banned: true,
+          banned_until: penalty_type === 'temporary_ban' ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null
+        })
+        .eq('id', reportData.reported_user_id);
+
+      if (banError) {
+        console.error('사용자 차단 처리 오류:', banError);
+        return res.status(500).json({ message: '차단 처리에 실패했습니다.' });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: '신고가 성공적으로 처리되었습니다.',
+      data: reportData
+    });
+
+  } catch (error) {
+    console.error('신고 처리 오류:', error);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// [벌점 관리] 사용자별 벌점 조회
+router.get('/users/:userId/penalty', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, penalty_points, is_banned, banned_until')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('사용자 벌점 조회 오류:', error);
+      return res.status(500).json({ message: '사용자 벌점 조회에 실패했습니다.' });
+    }
+
+    if (!data) {
+      return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+    }
+
+    res.json({
+      success: true,
+      data
+    });
+
+  } catch (error) {
+    console.error('사용자 벌점 조회 오류:', error);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// [벌점 관리] 사용자 벌점 수동 조정
+router.put('/users/:userId/penalty', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { penalty_points, is_banned, banned_until, reason } = req.body;
+
+    const updateData = {};
+    if (penalty_points !== undefined) updateData.penalty_points = penalty_points;
+    if (is_banned !== undefined) updateData.is_banned = is_banned;
+    if (banned_until !== undefined) updateData.banned_until = banned_until;
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('사용자 벌점 조정 오류:', error);
+      return res.status(500).json({ message: '벌점 조정에 실패했습니다.' });
+    }
+
+    res.json({
+      success: true,
+      message: '벌점이 성공적으로 조정되었습니다.',
+      data
+    });
+
+  } catch (error) {
+    console.error('사용자 벌점 조정 오류:', error);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
 

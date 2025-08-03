@@ -150,7 +150,24 @@ async function main() {
     return;
   }
   const userIds = applicants.map(a => a.user_id);
-  if (userIds.length < 2) {
+  
+  // 2-1. 벌점/차단 사용자 필터링
+  const { data: userStatuses, error: statusError } = await supabase
+    .from('users')
+    .select('id, penalty_points, is_banned, banned_until')
+    .in('id', userIds);
+  
+  if (statusError) {
+    console.error('사용자 상태 조회 실패:', statusError);
+    return;
+  }
+  
+  // 벌점이 0이고 차단되지 않은 사용자만 필터링
+  const eligibleUserIds = userStatuses
+    .filter(user => user.penalty_points === 0 && !user.is_banned)
+    .map(user => user.id);
+  
+  if (eligibleUserIds.length < 2) {
     console.log('매칭할 신청자가 2명 미만입니다.');
     // [추가] 모든 신청자에 대해 is_matched false 처리
     for (const userId of userIds) {
@@ -159,11 +176,14 @@ async function main() {
     }
     return;
   }
+  
+  // 필터링된 사용자 ID로 교체
+  const filteredUserIds = eligibleUserIds;
 
   // 3. 신청자 프로필/선호도 정보 조회 (batch)
   let profiles = [];
-  for (let i = 0; i < userIds.length; i += 50) {
-    const batchIds = userIds.slice(i, i+50);
+  for (let i = 0; i < filteredUserIds.length; i += 50) {
+    const batchIds = filteredUserIds.slice(i, i+50);
     const { data, error } = await supabase
       .from('matching_applications')
       .select('user_id, profile_snapshot, preference_snapshot')
@@ -224,6 +244,10 @@ async function main() {
   let success = 0;
   const matchedAt = new Date().toISOString();
   for (const [userA, userB] of matches) {
+    // 매칭된 사용자들의 닉네임 조회
+    const maleProfile = profiles.find(p => p.user_id === userA);
+    const femaleProfile = profiles.find(p => p.user_id === userB);
+    
     // matching_history에 기록
     const { error: insertError } = await supabase
       .from('matching_history')
@@ -231,6 +255,8 @@ async function main() {
         period_id: periodId,
         male_user_id: userA,
         female_user_id: userB,
+        male_nickname: maleProfile?.nickname || null,
+        female_nickname: femaleProfile?.nickname || null,
         created_at: getKSTISOString(),
         matched: true,
         matched_at: matchedAt,

@@ -30,6 +30,8 @@ import { MatchingApplicationsPage } from './pages/admin/MatchingApplicationsPage
 import MatchingResultPage from './pages/admin/MatchingResultPage.tsx';
 import NoticeManagerPage from './pages/admin/NoticeManagerPage.tsx';
 import FaqManagerPage from './pages/admin/FaqManagerPage.tsx';
+import ReportManagementPage from './pages/admin/ReportManagementPage.tsx';
+import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
 import ChatPage from './pages/ChatPage.tsx';
 
@@ -163,6 +165,14 @@ function App() {
                   </div>
                 </ProtectedRoute>
               } />
+              <Route path="/matching-history" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <MatchingHistoryPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
               <Route path="/chat/:partnerUserId" element={
                 <ProtectedRoute>
                   {/* 사이드바 없이 ChatPage만 렌더 */}
@@ -220,6 +230,14 @@ function App() {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <FaqManagerPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/report-management" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <ReportManagementPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />

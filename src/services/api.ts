@@ -404,4 +404,89 @@ export const sendMatchingResultEmails = async (periodId: number): Promise<any> =
   return response.data;
 };
 
+// 신고 API
+export const reportApi = {
+  // 신고 등록
+  createReport: async (data: {
+    reported_user_id: string;
+    period_id: number;
+    report_type: string;
+    report_reason: string;
+    report_details?: string;
+  }): Promise<any> => {
+    const response = await api.post('/reports', data);
+    return response.data;
+  },
+
+  // 내가 신고한 목록 조회
+  getMyReports: async (): Promise<any[]> => {
+    const response = await api.get('/reports/my-reports');
+    return response.data;
+  },
+
+  // 신고 상세 조회
+  getReport: async (id: number): Promise<any> => {
+    const response = await api.get(`/reports/${id}`);
+    return response.data;
+  },
+};
+
+// 매칭 이력 API
+export const matchingHistoryApi = {
+  // 내 매칭 이력 조회
+  getMyHistory: async (): Promise<{ success: boolean; data: any[] }> => {
+    const response = await api.get('/matching-history/my-history');
+    return response.data;
+  },
+
+  // 특정 매칭 이력 상세 조회
+  getHistoryDetail: async (id: number): Promise<any> => {
+    const response = await api.get(`/matching-history/${id}`);
+    return response.data;
+  },
+};
+
+// 관리자 신고 관리 API
+export const adminReportApi = {
+  // 모든 신고 목록 조회
+  getAllReports: async (params?: { status?: string; page?: number; limit?: number }): Promise<any> => {
+    const response = await api.get('/admin/reports', { params });
+    return response.data;
+  },
+
+  // 신고 상세 조회
+  getReportDetail: async (id: number): Promise<any> => {
+    const response = await api.get(`/admin/reports/${id}`);
+    return response.data;
+  },
+
+  // 신고 처리 (벌점 부여)
+  processReport: async (id: number, data: {
+    status: string;
+    penalty_points?: number;
+    penalty_type?: string;
+    admin_notes?: string;
+  }): Promise<any> => {
+    const response = await api.put(`/admin/reports/${id}/process`, data);
+    return response.data;
+  },
+
+  // 사용자별 벌점 조회
+  getUserPenalty: async (userId: string): Promise<any> => {
+    const response = await api.get(`/admin/users/${userId}/penalty`);
+    return response.data;
+  },
+
+  // 사용자 벌점 수동 조정
+  updateUserPenalty: async (userId: string, data: {
+    penalty_points?: number;
+    is_banned?: boolean;
+    banned_until?: string;
+    reason?: string;
+  }): Promise<any> => {
+    const response = await api.put(`/admin/users/${userId}/penalty`, data);
+    return response.data;
+  },
+};
+
 export default api; 

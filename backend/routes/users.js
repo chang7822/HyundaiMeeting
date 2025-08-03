@@ -288,9 +288,12 @@ router.delete('/me', authenticate, async (req, res) => {
     // 3. chat_messages 삭제 (sender_id, receiver_id)
     await supabase.from('chat_messages').delete().eq('sender_id', userId);
     await supabase.from('chat_messages').delete().eq('receiver_id', userId);
-    // 4. user_profiles 삭제
+    // 4. reports 삭제 (reporter_user_id, reported_user_id)
+    await supabase.from('reports').delete().eq('reporter_user_id', userId);
+    await supabase.from('reports').delete().eq('reported_user_id', userId);
+    // 5. user_profiles 삭제
     await supabase.from('user_profiles').delete().eq('user_id', userId);
-    // 5. users 삭제
+    // 6. users 삭제
     await supabase.from('users').delete().eq('id', userId);
     res.json({ success: true });
   } catch (err) {

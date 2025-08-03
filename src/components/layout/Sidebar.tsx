@@ -12,7 +12,9 @@ import {
   FaChevronLeft,
   FaStar,
   FaBullhorn,
-  FaQuestionCircle
+  FaQuestionCircle,
+  FaHistory,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import { matchingApi } from '../../services/api.ts';
 
@@ -254,6 +256,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/main', icon: <FaHome />, text: '홈' },
     { path: '/profile', icon: <FaUser />, text: '프로필' },
     { path: '/preference', icon: <FaStar />, text: '선호 스타일' },
+    { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
     { path: '/faq', icon: <FaQuestionCircle />, text: 'FAQ' },
     {
@@ -268,6 +271,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
     { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
     { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
+    { path: '/admin/report-management', icon: <FaExclamationTriangle />, text: '신고 관리' },
     { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
     { path: '/admin/notice-manager', icon: <span role="img" aria-label="notice">📢</span>, text: '공지사항 관리' },
     { path: '/admin/faq-manager', icon: <span role="img" aria-label="faq">❓</span>, text: 'FAQ 관리' },

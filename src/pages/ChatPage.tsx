@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { matchingApi, chatApi, userApi } from '../services/api.ts';
+import { matchingApi, chatApi, userApi, reportApi } from '../services/api.ts';
 import ChatHeader from '../components/Chat/ChatHeader.tsx';
 import ChatWindow from '../components/Chat/ChatWindow.tsx';
 import ChatInput from '../components/Chat/ChatInput.tsx';
@@ -12,6 +12,7 @@ import styled from 'styled-components';
 import ProfileCard from '../components/ProfileCard.tsx';
 import Modal from 'react-modal';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
+import ReportModal from '../components/ReportModal.tsx';
 
 
 
@@ -75,6 +76,7 @@ const ChatPage: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = React.useState(false);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
   const [joinDone, setJoinDone] = useState(false);
+  const [reportModal, setReportModal] = useState(false);
 
   // 1. period_id 확보 및 권한 체크
   useEffect(() => {
@@ -250,7 +252,7 @@ const ChatPage: React.FC = () => {
     setShowProfileModal(true);
   };
   const handleReport = () => {
-    alert('신고가 접수되었습니다. (추후 실제 신고 처리 예정)');
+    setReportModal(true);
   };
 
   return (
@@ -364,6 +366,21 @@ const ChatPage: React.FC = () => {
           <div style={{padding:32}}>프로필 정보를 불러오는 중입니다...</div>
         )}
       </Modal>
+      
+      {/* 신고 모달 */}
+      <ReportModal
+        isOpen={reportModal}
+        onClose={() => setReportModal(false)}
+        reportedUser={{
+          id: partnerUserId || '',
+          nickname: partnerProfile?.nickname || '상대방'
+        }}
+        periodId={periodId ? parseInt(periodId) : 0}
+        onSuccess={() => {
+          setReportModal(false);
+          toast.success('신고가 성공적으로 접수되었습니다.');
+        }}
+      />
     </MainContainer>
   );
 };
