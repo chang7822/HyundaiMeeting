@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const { sendMatchingResultEmail } = require('../utils/emailService');
+const authenticate = require('../middleware/authenticate');
 
 // 임시 데이터 (다른 라우트와 공유)
 const users = [];
 const matches = [];
 
 // 모든 사용자 조회 (계정 정보 + 프로필 정보)
-router.get('/users', async (req, res) => {
+router.get('/users', authenticate, async (req, res) => {
   try {
     // 계정 정보 조회
     const { data: users, error: usersError } = await supabase
@@ -44,7 +45,7 @@ router.get('/users', async (req, res) => {
 });
 
 // 모든 매칭 조회 (임시)
-router.get('/matches', (req, res) => {
+router.get('/matches', authenticate, (req, res) => {
   try {
     // TODO: 매칭 테이블 구현 후 실제 데이터 조회
     res.json([]);
@@ -55,7 +56,7 @@ router.get('/matches', (req, res) => {
 });
 
 // 사용자 상태 업데이트
-router.put('/users/:userId/status', async (req, res) => {
+router.put('/users/:userId/status', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
     const { isActive } = req.body;
@@ -84,7 +85,7 @@ router.put('/users/:userId/status', async (req, res) => {
 });
 
 // 시스템 통계
-router.get('/stats', async (req, res) => {
+router.get('/stats', authenticate, async (req, res) => {
   try {
     // 전체 사용자 수
     const { count: totalUsers, error: totalError } = await supabase
@@ -136,7 +137,7 @@ router.get('/stats', async (req, res) => {
 });
 
 // matching_log 전체 조회
-router.get('/matching-log', async (req, res) => {
+router.get('/matching-log', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('matching_log')
@@ -151,7 +152,7 @@ router.get('/matching-log', async (req, res) => {
 });
 
 // matching_log 생성
-router.post('/matching-log', async (req, res) => {
+router.post('/matching-log', authenticate, async (req, res) => {
   try {
     const insertData = req.body;
     
@@ -200,7 +201,7 @@ router.post('/matching-log', async (req, res) => {
 });
 
 // matching_log 수정
-router.put('/matching-log/:id', async (req, res) => {
+router.put('/matching-log/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -219,7 +220,7 @@ router.put('/matching-log/:id', async (req, res) => {
 });
 
 // matching_log 삭제 (연관 데이터도 함께 삭제)
-router.delete('/matching-log/:id', async (req, res) => {
+router.delete('/matching-log/:id', authenticate, async (req, res) => {
   const { id } = req.params;
   const periodId = Number(id);
   try {
@@ -278,7 +279,7 @@ router.delete('/matching-log/:id', async (req, res) => {
 });
 
 // [카테고리 전체 조회]
-router.get('/profile-categories', async (req, res) => {
+router.get('/profile-categories', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('profile_categories')
@@ -293,7 +294,7 @@ router.get('/profile-categories', async (req, res) => {
 });
 
 // [옵션 전체 조회]
-router.get('/profile-options', async (req, res) => {
+router.get('/profile-options', authenticate, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('profile_options')
@@ -309,7 +310,7 @@ router.get('/profile-options', async (req, res) => {
 });
 
 // [카테고리 일괄 저장]
-router.post('/profile-categories/bulk-save', async (req, res) => {
+router.post('/profile-categories/bulk-save', authenticate, async (req, res) => {
   try {
     const { categories } = req.body;
     if (!Array.isArray(categories)) return res.status(400).json({ message: 'categories 배열 필요' });
@@ -344,7 +345,7 @@ router.post('/profile-categories/bulk-save', async (req, res) => {
 });
 
 // [옵션 일괄 저장]
-router.post('/profile-options/bulk-save', async (req, res) => {
+router.post('/profile-options/bulk-save', authenticate, async (req, res) => {
   try {
     const { options } = req.body;
     if (!Array.isArray(options)) return res.status(400).json({ message: 'options 배열 필요' });
@@ -386,7 +387,7 @@ router.post('/profile-options/bulk-save', async (req, res) => {
 });
 
 // [매칭 신청 현황 조회]
-router.get('/matching-applications', async (req, res) => {
+router.get('/matching-applications', authenticate, async (req, res) => {
   try {
     const { periodId } = req.query;
     let query = supabase
@@ -442,7 +443,7 @@ router.get('/matching-applications', async (req, res) => {
 
 
 // [매칭 결과(커플) 리스트 조회]
-router.get('/matching-history', async (req, res) => {
+router.get('/matching-history', authenticate, async (req, res) => {
   try {
     const { periodId, nickname } = req.query;
     // 1. matching_history에서 회차별로 조회
@@ -475,7 +476,7 @@ router.get('/matching-history', async (req, res) => {
 });
 
 // [매칭 결과 발표 이메일 발송]
-router.post('/send-matching-result-emails', async (req, res) => {
+router.post('/send-matching-result-emails', authenticate, async (req, res) => {
   try {
     const { periodId } = req.body;
     
@@ -567,7 +568,7 @@ router.post('/send-matching-result-emails', async (req, res) => {
 });
 
 // [수동] users 테이블 매칭 상태 초기화 (관리자용)
-router.post('/reset-users-matching-status', async (req, res) => {
+router.post('/reset-users-matching-status', authenticate, async (req, res) => {
   try {
     console.log('[관리자] users 테이블 매칭 상태 수동 초기화 시작');
     
@@ -593,7 +594,7 @@ router.post('/reset-users-matching-status', async (req, res) => {
 });
 
 // [신고 관리] 모든 신고 목록 조회
-router.get('/reports', async (req, res) => {
+router.get('/reports', authenticate, async (req, res) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
     const offset = (page - 1) * limit;
@@ -677,7 +678,7 @@ router.get('/reports', async (req, res) => {
 });
 
 // [신고 관리] 신고 상세 조회
-router.get('/reports/:id', async (req, res) => {
+router.get('/reports/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -754,7 +755,7 @@ router.get('/reports/:id', async (req, res) => {
 });
 
 // [신고 관리] 신고 처리 (벌점 부여)
-router.put('/reports/:id/process', async (req, res) => {
+router.put('/reports/:id/process', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, penalty_points, penalty_type, admin_notes } = req.body;
@@ -766,7 +767,7 @@ router.put('/reports/:id/process', async (req, res) => {
       penalty_type,
       admin_notes,
       resolved_at: new Date().toISOString(),
-      resolved_by: req.user?.userId || null
+      resolved_by: req.user?.userId || req.user?.id || null
     };
 
     const { data: reportData, error: reportError } = await supabase
@@ -825,7 +826,7 @@ router.put('/reports/:id/process', async (req, res) => {
 });
 
 // [벌점 관리] 사용자별 벌점 조회
-router.get('/users/:userId/penalty', async (req, res) => {
+router.get('/users/:userId/penalty', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -856,7 +857,7 @@ router.get('/users/:userId/penalty', async (req, res) => {
 });
 
 // [벌점 관리] 사용자 벌점 수동 조정
-router.put('/users/:userId/penalty', async (req, res) => {
+router.put('/users/:userId/penalty', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
     const { penalty_points, is_banned, banned_until, reason } = req.body;
