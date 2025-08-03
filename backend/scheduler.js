@@ -5,7 +5,11 @@ const { supabase } = require('./database');
 
 let lastPeriodStartReset = null; // 회차 시작 초기화 중복 실행 방지용
 
-cron.schedule('* * * * *', async () => {
+// 환경변수로 실행 주기 설정 (기본값: 10초마다)
+const scheduleInterval = process.env.SCHEDULER_INTERVAL || '*/10 * * * * *';
+console.log(`[스케줄러] 실행 주기: ${scheduleInterval}`);
+
+cron.schedule(scheduleInterval, async () => {
   try {
     const { data, error } = await supabase
       .from('matching_log')
@@ -44,7 +48,7 @@ cron.schedule('* * * * *', async () => {
     // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 시점)
     if (data.application_start) {
       const startTime = new Date(data.application_start);
-      const resetExecutionTime = new Date(startTime.getTime() - 5 * 1000); // 5초 전 실행
+      const resetExecutionTime = new Date(startTime.getTime() - 60 * 1000); // 1분 전 실행
       
       if (now >= resetExecutionTime && lastPeriodStartReset !== data.id) {
         console.log(`[스케줄러] 회차 ${data.id} 신청 기간 시작, users 테이블 is_applied, is_matched 초기화`);

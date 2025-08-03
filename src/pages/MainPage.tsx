@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
@@ -447,8 +447,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
   const [partnerProfileError, setPartnerProfileError] = useState(false);
+  const [partnerProfileLoading, setPartnerProfileLoading] = useState(false);
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
+  const [countdown, setCountdown] = useState<string>('');
   const partnerUserId = useMemo(() => {
     const id = (matchingStatus && matchingStatus.matched === true) ? (matchingStatus.partner_user_id || null) : null;
     return id;
@@ -467,6 +469,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } else {
       setPartnerProfile(null);
       setPartnerProfileError(false); // 상태 초기화
+      setPartnerProfileLoading(false); // 로딩 상태 초기화
     }
   }, [matchingStatus, partnerUserId]);
 
@@ -530,6 +533,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
+    setPartnerProfileLoading(true);
+    setPartnerProfileError(false);
     try {
       const res = await userApi.getUserProfile(partnerUserId);
       setPartnerProfile(res);
@@ -541,6 +546,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         setPartnerProfileError(true); // 한 번만 토스트
       }
       setPartnerProfile(null);
+    } finally {
+      setPartnerProfileLoading(false);
     }
   };
 
@@ -586,14 +593,14 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트
     if (startTime - nowTime < 30000 && startTime - nowTime > -300000) {
       // console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트 시작');
-      const interval = setInterval(() => {
+      const interval = window.setInterval(() => {
         // console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트 실행');
         // users 테이블 우선 업데이트
         fetchUser();
         // 그 다음 매칭 상태 업데이트
         fetchMatchingStatus();
       }, 30000); // 30초마다
-      return () => clearInterval(interval);
+      return () => window.clearInterval(interval);
     }
   }, [period, user?.id]);
 
@@ -608,12 +615,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     // 발표 직후 5초 동안만 polling
     if (diff >= 0 && diff < 5000) {
       let count = 0;
-      const poll = setInterval(() => {
+      const poll = window.setInterval(() => {
         fetchMatchingStatus();
         count++;
-        if (count >= 5) clearInterval(poll);
+        if (count >= 5) window.clearInterval(poll);
       }, 1000);
-      return () => clearInterval(poll);
+      return () => window.clearInterval(poll);
     }
   }, [period, user?.id]);
 
@@ -626,11 +633,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const announceTime = announce.getTime();
     // 발표 이후 + is_applied가 true + is_matched가 null일 때만 polling
     if (nowTime >= announceTime && user.is_applied === true && (typeof user.is_matched === 'undefined' || user.is_matched === null)) {
-      const interval = setInterval(async () => {
+      const interval = window.setInterval(async () => {
         await fetchUser();
       }, 1000);
       return () => {
-        clearInterval(interval);
+        window.clearInterval(interval);
       };
     }
   }, [period, user?.id, user?.is_applied, user?.is_matched]);
@@ -653,6 +660,46 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
+
+  // 카운트다운 계산 함수
+  const calculateCountdown = useCallback(() => {
+    const { status } = getMatchingStatusDisplay();
+    const canChat = status === '매칭 성공' && partnerUserId;
+    
+    if (!period?.finish || !canChat) {
+      setCountdown('');
+      return;
+    }
+
+    const finishTime = new Date(period.finish);
+    const nowTime = new Date();
+    const diff = finishTime.getTime() - nowTime.getTime();
+
+    if (diff <= 0) {
+      setCountdown('마감됨');
+      return;
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+    let countdownText = '';
+    if (days > 0) countdownText += `${days}일 `;
+    if (hours > 0) countdownText += `${hours}시간 `;
+    if (minutes > 0) countdownText += `${minutes}분 `;
+    countdownText += `${seconds}초`;
+
+    setCountdown(countdownText);
+  }, [period?.finish, partnerUserId]);
+
+  // 카운트다운 업데이트
+  useEffect(() => {
+    calculateCountdown();
+    const interval = window.setInterval(calculateCountdown, 1000);
+    return () => window.clearInterval(interval);
+  }, [calculateCountdown]);
 
   // 렌더링 조건 강화: isLoading이 true이거나 user/profile이 null이면 무조건 스피너
   if (isLoading || !user || !profile) {
@@ -813,6 +860,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const { period: periodText } = getMatchingStatusDisplay();
   periodLabel = periodText;
 
+  // 매칭 성공 && 회차 마감 전일 때만 채팅 가능
+  const { status } = getMatchingStatusDisplay();
+  const canChat = status === '매칭 성공' && partnerUserId;
+
   // 10분 재신청 제한 로직 (기존 유지)
   let canReapply = true;
   let reapplyMessage = '';
@@ -918,9 +969,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     // });
   }
 
-  // 매칭 성공 && 회차 마감 전일 때만 채팅 가능
-  const { status } = getMatchingStatusDisplay();
-  const canChat = status === '매칭 성공' && partnerUserId;
+
 
   const quickActions: QuickAction[] = [
     {
@@ -1031,6 +1080,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       setActionLoading(false);
     }
   };
+
+
 
   // 닉네임 또는 이메일로 인사 (닉네임이 있으면 닉네임, 없으면 이메일)
   const displayName = profile?.nickname || user?.email?.split('@')[0] || '사용자';
@@ -1511,7 +1562,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     <div style={{ fontWeight: 700, fontSize: '1.2rem', color, marginBottom: period ? 10 : 0, lineHeight: 1.3 }}>{status}</div>
                     {period && <div style={{ fontSize: '0.95rem', color: '#555', fontWeight: 500, whiteSpace: 'pre-line', lineHeight: 1.4 }}>{period}</div>}
                     {/* 매칭 성공 시 상대방 프로필 박스 */}
-                    {status === '매칭 성공' && partnerUserId && (
+                    {status === '매칭 성공' && partnerUserId && canChat && (
                       <div
                         style={{
                           background: 'linear-gradient(135deg, #f0f4ff 0%, #e6f0ff 100%)',
@@ -1556,12 +1607,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                             if (partnerProfileError) {
                               return '프로필 없음';
                             }
+                            if (partnerProfileLoading) {
+                              return '로딩 중...';
+                            }
                             if (!partnerProfile?.nickname) {
-                              if (!partnerProfile) {
-                                console.warn('[MainPage] partnerProfile이 null입니다. fetchPartnerProfile이 정상 호출됐는지, API 응답이 어땠는지 위 로그를 확인하세요.');
-                              } else if (partnerProfile && typeof partnerProfile === 'object') {
-                                console.warn('[MainPage] partnerProfile 객체:', JSON.stringify(partnerProfile, null, 2));
-                              }
                               return '상대방';
                             }
                             return partnerProfile.nickname;
@@ -1580,6 +1629,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   <button
                     style={{
                       marginTop: 12,
+                      marginBottom: 8,
                       background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
                       color: '#fff',
                       border: 'none',
@@ -1591,6 +1641,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                       opacity: canChat ? 1 : 0.5,
                       transition: 'all 0.2s ease',
                       boxShadow: canChat ? '0 3px 10px rgba(124,58,237,0.3)' : '0 2px 6px rgba(0,0,0,0.1)',
+                      display: 'block',
+                      marginLeft: 'auto',
+                      marginRight: 'auto',
                     }}
                     disabled={!canChat}
                     onClick={e => {
@@ -1613,6 +1666,38 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   {!canChat && (
                     <div style={{ color: '#aaa', fontSize: '0.95rem', marginTop: 6 }}>
                       매칭 성공 시 활성화됩니다
+                    </div>
+                  )}
+                  {canChat && countdown && (
+                    <div style={{ 
+                      marginTop: 12,
+                      padding: '12px 16px',
+                      background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%)',
+                      borderRadius: 12,
+                      border: '1px solid rgba(124, 58, 237, 0.2)',
+                      textAlign: 'center'
+                    }}>
+                      <div style={{ 
+                        color: '#7C3AED', 
+                        fontSize: '0.85rem', 
+                        fontWeight: 600,
+                        marginBottom: 4,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}>
+                        <span style={{ fontSize: '1rem' }}>⏰</span>
+                        채팅방 마감 시간
+                      </div>
+                      <div style={{ 
+                        fontWeight: 700, 
+                        fontSize: '1.1rem',
+                        color: '#7C3AED',
+                        textShadow: '0 1px 2px rgba(124, 58, 237, 0.2)'
+                      }}>
+                        {countdown}
+                      </div>
                     </div>
                   )}
                 </>
