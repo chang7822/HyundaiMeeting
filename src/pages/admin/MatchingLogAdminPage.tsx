@@ -3,49 +3,51 @@ import styled from 'styled-components';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Modal from 'react-modal';
-import { apiUrl } from '../../services/api.ts';
+import { adminMatchingApi } from '../../services/api.ts';
 import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
-// 예시 API (실제 API 연동 필요)
+// API 함수들
 const fetchMatchingLogs = async () => {
-  const res = await fetch(apiUrl('/admin/matching-log'));
-  if (!res.ok) return [];
-  return await res.json();
+  try {
+    return await adminMatchingApi.getMatchingLogs();
+  } catch (error) {
+    console.error('매칭 로그 조회 오류:', error);
+    return [];
+  }
 };
 const createMatchingLog = async (log: any) => {
-  const res = await fetch(apiUrl('/admin/matching-log'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(log),
-  });
-  if (!res.ok) throw new Error('생성 실패');
-  return await res.json();
+  try {
+    return await adminMatchingApi.createMatchingLog(log);
+  } catch (error) {
+    console.error('매칭 로그 생성 오류:', error);
+    throw new Error('생성 실패');
+  }
 };
 const updateMatchingLog = async (id: number, log: any) => {
-  const res = await fetch(apiUrl(`/admin/matching-log/${id}`), {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(log),
-  });
-  if (!res.ok) throw new Error('수정 실패');
-  return await res.json();
+  try {
+    return await adminMatchingApi.updateMatchingLog(id, log);
+  } catch (error) {
+    console.error('매칭 로그 수정 오류:', error);
+    throw new Error('수정 실패');
+  }
 };
 const deleteMatchingLog = async (id: number) => {
-  const res = await fetch(apiUrl(`/admin/matching-log/${id}`), {
-    method: 'DELETE',
-  });
-  if (!res.ok) throw new Error('삭제 실패');
-  return await res.json();
+  try {
+    return await adminMatchingApi.deleteMatchingLog(id);
+  } catch (error) {
+    console.error('매칭 로그 삭제 오류:', error);
+    throw new Error('삭제 실패');
+  }
 };
 
-const Container = styled.div<{ sidebarOpen: boolean }>`
+const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin: 40px auto;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 2px 16px rgba(80,60,180,0.08);
   padding: 32px 24px;
   max-width: 1200px;
-  margin-left: ${props => (window.innerWidth > 768 && props.sidebarOpen) ? '280px' : '0'};
+  margin-left: ${props => (window.innerWidth > 768 && props.$sidebarOpen) ? '280px' : '0'};
   @media (max-width: 768px) {
     margin-left: 0;
   }
@@ -174,7 +176,7 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
   if (loading) return <LoadingSpinner sidebarOpen={isSidebarOpen} />;
 
   return (
-    <Container sidebarOpen={isSidebarOpen}>
+    <Container $sidebarOpen={isSidebarOpen}>
       <Title>매칭 회차 관리</Title>
       <TableWrapper>
         <Table>

@@ -23,12 +23,8 @@ const api = axios.create({
 // Add token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  // console.log('[axios] 요청 URL:', config.url, '토큰:', token);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
-    // console.log('[axios] Authorization 헤더에 토큰 추가:', token);
-  } else {
-    // console.log('[axios] 토큰 없음, Authorization 헤더 미포함');
   }
   return config;
 });
@@ -411,7 +407,6 @@ export const reportApi = {
     reported_user_id: string;
     period_id: number;
     report_type: string;
-    report_reason: string;
     report_details?: string;
   }): Promise<any> => {
     const response = await api.post('/reports', data);
@@ -460,31 +455,74 @@ export const adminReportApi = {
     return response.data;
   },
 
-  // 신고 처리 (벌점 부여)
+  // 신고 처리 (신고 횟수 기반 정지 시스템)
   processReport: async (id: number, data: {
     status: string;
-    penalty_points?: number;
-    penalty_type?: string;
     admin_notes?: string;
+    ban_duration_days?: number;
   }): Promise<any> => {
     const response = await api.put(`/admin/reports/${id}/process`, data);
     return response.data;
   },
 
-  // 사용자별 벌점 조회
-  getUserPenalty: async (userId: string): Promise<any> => {
-    const response = await api.get(`/admin/users/${userId}/penalty`);
+  // 사용자별 신고 정보 조회
+  getUserReportInfo: async (userId: string): Promise<any> => {
+    const response = await api.get(`/admin/users/${userId}/report-info`);
     return response.data;
   },
 
-  // 사용자 벌점 수동 조정
-  updateUserPenalty: async (userId: string, data: {
-    penalty_points?: number;
+  // 사용자 신고 정보 수동 조정
+  updateUserReportInfo: async (userId: string, data: {
+    report_count?: number;
     is_banned?: boolean;
     banned_until?: string;
     reason?: string;
   }): Promise<any> => {
-    const response = await api.put(`/admin/users/${userId}/penalty`, data);
+    const response = await api.put(`/admin/users/${userId}/report-info`, data);
+    return response.data;
+  },
+};
+
+// 관리자 매칭 관리 API
+export const adminMatchingApi = {
+  // 매칭 로그 조회
+  getMatchingLogs: async (): Promise<any[]> => {
+    const response = await api.get('/admin/matching-log');
+    return response.data;
+  },
+
+  // 매칭 로그 생성
+  createMatchingLog: async (log: any): Promise<any> => {
+    const response = await api.post('/admin/matching-log', log);
+    return response.data;
+  },
+
+  // 매칭 로그 수정
+  updateMatchingLog: async (id: number, log: any): Promise<any> => {
+    const response = await api.put(`/admin/matching-log/${id}`, log);
+    return response.data;
+  },
+
+  // 매칭 로그 삭제
+  deleteMatchingLog: async (id: number): Promise<any> => {
+    const response = await api.delete(`/admin/matching-log/${id}`);
+    return response.data;
+  },
+
+  // 매칭 신청 현황 조회
+  getMatchingApplications: async (periodId: string = 'all'): Promise<any[]> => {
+    const response = await api.get(`/admin/matching-applications?periodId=${periodId}`);
+    return response.data;
+  },
+
+  // 매칭 결과 조회
+  getMatchingHistory: async (periodId: string = 'all', nickname?: string): Promise<any[]> => {
+    const params = new URLSearchParams();
+    if (periodId !== 'all') params.append('periodId', periodId);
+    if (nickname) params.append('nickname', nickname);
+    
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    const response = await api.get(`/admin/matching-history${queryString}`);
     return response.data;
   },
 };

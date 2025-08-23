@@ -394,8 +394,8 @@ router.get('/matching-applications', authenticate, async (req, res) => {
       .from('matching_applications')
       .select(`
         *,
-        user:users!inner(id,email),
-        profile:user_profiles!user_id(*)
+        user:users(id,email),
+        profile:user_profiles(*)
       `)
       .order('applied_at', { ascending: false });
     if (periodId && periodId !== 'all') {
@@ -754,17 +754,15 @@ router.get('/reports/:id', authenticate, async (req, res) => {
   }
 });
 
-// [신고 관리] 신고 처리 (벌점 부여)
+// [신고 관리] 신고 처리 (신고 횟수 기반 정지 시스템)
 router.put('/reports/:id/process', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, penalty_points, penalty_type, admin_notes } = req.body;
+    const { status, admin_notes, ban_duration_days } = req.body;
 
     // 신고 상태 업데이트
     const updateData = {
       status,
-      penalty_points: penalty_points || 0,
-      penalty_type,
       admin_notes,
       resolved_at: new Date().toISOString(),
       resolved_by: req.user?.userId || req.user?.id || null
@@ -782,34 +780,34 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
       return res.status(500).json({ message: '신고 처리에 실패했습니다.' });
     }
 
-    // 벌점이 있는 경우 사용자에게 벌점 부여
-    if (penalty_points && penalty_points > 0) {
-      const { error: userError } = await supabase
-        .from('users')
-        .update({ 
-          penalty_points: supabase.raw(`penalty_points + ${penalty_points}`)
-        })
-        .eq('id', reportData.reported_user_id);
-
-      if (userError) {
-        console.error('사용자 벌점 부여 오류:', userError);
-        return res.status(500).json({ message: '벌점 부여에 실패했습니다.' });
-      }
+    // 사용자 정지 상태 업데이트
+    let banUpdateData = {};
+    
+    if (status === 'temporary_ban' || status === 'permanent_ban') {
+      // 정지 처리
+      banUpdateData = {
+        is_banned: true,
+        banned_until: status === 'permanent_ban' ? null : 
+          new Date(Date.now() + (ban_duration_days || 30) * 24 * 60 * 60 * 1000).toISOString()
+      };
+    } else if (status === 'rejected' || status === 'dismissed' || status === 'no_action') {
+      // 정지 해제 (기각, 기각, 조치없음)
+      banUpdateData = {
+        is_banned: false,
+        banned_until: null
+      };
     }
 
-    // 차단 처리가 있는 경우
-    if (penalty_type === 'ban') {
+    // 사용자 상태 업데이트가 필요한 경우
+    if (Object.keys(banUpdateData).length > 0) {
       const { error: banError } = await supabase
         .from('users')
-        .update({ 
-          is_banned: true,
-          banned_until: penalty_type === 'temporary_ban' ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() : null
-        })
+        .update(banUpdateData)
         .eq('id', reportData.reported_user_id);
 
       if (banError) {
-        console.error('사용자 차단 처리 오류:', banError);
-        return res.status(500).json({ message: '차단 처리에 실패했습니다.' });
+        console.error('사용자 정지 상태 업데이트 오류:', banError);
+        return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
       }
     }
 
@@ -825,20 +823,20 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
   }
 });
 
-// [벌점 관리] 사용자별 벌점 조회
-router.get('/users/:userId/penalty', authenticate, async (req, res) => {
+// [신고 관리] 사용자별 신고 정보 조회
+router.get('/users/:userId/report-info', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
 
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, penalty_points, is_banned, banned_until')
+      .select('id, email, report_count, is_banned, banned_until')
       .eq('id', userId)
       .single();
 
     if (error) {
-      console.error('사용자 벌점 조회 오류:', error);
-      return res.status(500).json({ message: '사용자 벌점 조회에 실패했습니다.' });
+      console.error('사용자 신고 정보 조회 오류:', error);
+      return res.status(500).json({ message: '사용자 신고 정보 조회에 실패했습니다.' });
     }
 
     if (!data) {
@@ -851,19 +849,19 @@ router.get('/users/:userId/penalty', authenticate, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('사용자 벌점 조회 오류:', error);
+    console.error('사용자 신고 정보 조회 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
 
-// [벌점 관리] 사용자 벌점 수동 조정
-router.put('/users/:userId/penalty', authenticate, async (req, res) => {
+// [신고 관리] 사용자 신고 정보 수동 조정
+router.put('/users/:userId/report-info', authenticate, async (req, res) => {
   try {
     const { userId } = req.params;
-    const { penalty_points, is_banned, banned_until, reason } = req.body;
+    const { report_count, is_banned, banned_until, reason } = req.body;
 
     const updateData = {};
-    if (penalty_points !== undefined) updateData.penalty_points = penalty_points;
+    if (report_count !== undefined) updateData.report_count = report_count;
     if (is_banned !== undefined) updateData.is_banned = is_banned;
     if (banned_until !== undefined) updateData.banned_until = banned_until;
 
@@ -875,18 +873,18 @@ router.put('/users/:userId/penalty', authenticate, async (req, res) => {
       .single();
 
     if (error) {
-      console.error('사용자 벌점 조정 오류:', error);
-      return res.status(500).json({ message: '벌점 조정에 실패했습니다.' });
+      console.error('사용자 신고 정보 조정 오류:', error);
+      return res.status(500).json({ message: '신고 정보 조정에 실패했습니다.' });
     }
 
     res.json({
       success: true,
-      message: '벌점이 성공적으로 조정되었습니다.',
+      message: '신고 정보가 성공적으로 조정되었습니다.',
       data
     });
 
   } catch (error) {
-    console.error('사용자 벌점 조정 오류:', error);
+    console.error('사용자 신고 정보 조정 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });

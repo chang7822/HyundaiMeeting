@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { toast } from 'react-toastify';
 import { matchingHistoryApi } from '../services/api.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
 import ReportModal from '../components/ReportModal.tsx';
+import ReportDetailModal from '../components/ReportDetailModal.tsx';
 
 interface MatchingHistoryPageProps {
   sidebarOpen: boolean;
@@ -228,6 +230,16 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
     periodId: null
   });
 
+  const [reportDetailModal, setReportDetailModal] = useState<{
+    isOpen: boolean;
+    reportInfo: any;
+    partnerNickname: string;
+  }>({
+    isOpen: false,
+    reportInfo: null,
+    partnerNickname: ''
+  });
+
   useEffect(() => {
     loadMatchingHistory();
   }, []);
@@ -246,6 +258,10 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
   };
 
   const handleReport = (reportedUser: { id: string; nickname: string }, periodId: number) => {
+    if (!periodId || periodId <= 0) {
+      toast.error('매칭 회차 정보가 올바르지 않습니다.');
+      return;
+    }
     setReportModal({
       isOpen: true,
       reportedUser,
@@ -263,6 +279,22 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
       isOpen: false,
       reportedUser: null,
       periodId: null
+    });
+  };
+
+  const handleViewReportDetail = (reportInfo: any, partnerNickname: string) => {
+    setReportDetailModal({
+      isOpen: true,
+      reportInfo,
+      partnerNickname
+    });
+  };
+
+  const handleCloseReportDetailModal = () => {
+    setReportDetailModal({
+      isOpen: false,
+      reportInfo: null,
+      partnerNickname: ''
     });
   };
 
@@ -311,17 +343,26 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
               </InfoItem>
             </HistoryContent>
             
-            {match.matched && match.can_report && (
+            {match.matched && (
               <ActionSection>
-                <ActionButton
-                  variant="danger"
-                  onClick={() => handleReport(
-                    { id: match.partner_user_id, nickname: match.partner_nickname },
-                    match.period_id
-                  )}
-                >
-                  신고하기
-                </ActionButton>
+                {match.can_report ? (
+                  <ActionButton
+                    variant="danger"
+                    onClick={() => handleReport(
+                      { id: match.partner_user_id, nickname: match.partner_nickname },
+                      match.period_id
+                    )}
+                  >
+                    신고하기
+                  </ActionButton>
+                ) : match.report_info ? (
+                  <ActionButton
+                    variant="secondary"
+                    onClick={() => handleViewReportDetail(match.report_info, match.partner_nickname)}
+                  >
+                    신고완료
+                  </ActionButton>
+                ) : null}
               </ActionSection>
             )}
           </HistoryCard>
@@ -334,6 +375,13 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
         reportedUser={reportModal.reportedUser!}
         periodId={reportModal.periodId!}
         onSuccess={handleReportSuccess}
+      />
+
+      <ReportDetailModal
+        isOpen={reportDetailModal.isOpen}
+        onClose={handleCloseReportDetailModal}
+        reportInfo={reportDetailModal.reportInfo}
+        partnerNickname={reportDetailModal.partnerNickname}
       />
     </Container>
   );

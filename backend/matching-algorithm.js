@@ -22,8 +22,44 @@ function getAge(birthYear) {
   return now.getFullYear() - birthYear + 1;
 }
 
+// 과거 매칭 이력 조회 함수
+async function getPreviousMatchHistory(userIds) {
+  try {
+    const { data: matchHistory, error } = await supabase
+      .from('matching_history')
+      .select('male_user_id, female_user_id')
+      .or(`male_user_id.in.(${userIds.join(',')}),female_user_id.in.(${userIds.join(',')})`);
+    
+    if (error) {
+      console.error('과거 매칭 이력 조회 실패:', error);
+      return new Set(); // 오류 시 빈 Set 반환
+    }
+    
+    // 과거 매칭 이력이 있는 사용자 쌍을 Set으로 저장
+    const previousMatches = new Set();
+    if (matchHistory && matchHistory.length > 0) {
+      matchHistory.forEach(match => {
+        previousMatches.add(`${match.male_user_id}-${match.female_user_id}`);
+        previousMatches.add(`${match.female_user_id}-${match.male_user_id}`);
+      });
+      console.log(`과거 매칭 이력 조회 완료: ${matchHistory.length}건의 매칭 이력 발견`);
+    } else {
+      console.log('과거 매칭 이력이 없습니다.');
+    }
+    
+    return previousMatches;
+  } catch (error) {
+    console.error('과거 매칭 이력 조회 중 오류:', error);
+    return new Set(); // 오류 시 빈 Set 반환
+  }
+}
+
 // 매칭 조건 체크 함수
-function isMutualMatch(a, b) {
+function isMutualMatch(a, b, previousMatches = null) {
+  // 과거 매칭 이력 확인 (추가된 부분)
+  if (previousMatches && previousMatches.has(`${a.user_id}-${b.user_id}`)) {
+    return false; // 과거에 매칭된 적이 있으면 제외
+  }
   // 나이: 최소/최대 출생연도 = 내 출생연도 - preferred_age_max/min (min: 연상, max: 연하)
   const a_min_birth = a.birth_year - (a.preferred_age_max ?? 0); // 연상(나이 많은 쪽)
   const a_max_birth = a.birth_year - (a.preferred_age_min ?? 0); // 연하(나이 어린 쪽)
@@ -151,10 +187,10 @@ async function main() {
   }
   const userIds = applicants.map(a => a.user_id);
   
-  // 2-1. 벌점/차단 사용자 필터링
+  // 2-1. 정지 사용자 필터링
   const { data: userStatuses, error: statusError } = await supabase
     .from('users')
-    .select('id, penalty_points, is_banned, banned_until')
+    .select('id, is_banned')
     .in('id', userIds);
   
   if (statusError) {
@@ -162,9 +198,9 @@ async function main() {
     return;
   }
   
-  // 벌점이 0이고 차단되지 않은 사용자만 필터링
+  // 정지되지 않은 사용자만 필터링
   const eligibleUserIds = userStatuses
-    .filter(user => user.penalty_points === 0 && !user.is_banned)
+    .filter(user => !user.is_banned)
     .map(user => user.id);
   
   if (eligibleUserIds.length < 2) {
@@ -179,6 +215,11 @@ async function main() {
   
   // 필터링된 사용자 ID로 교체
   const filteredUserIds = eligibleUserIds;
+
+  // 2-2. 과거 매칭 이력 조회 (추가된 부분)
+  console.log('과거 매칭 이력 조회 시작...');
+  const previousMatches = await getPreviousMatchHistory(filteredUserIds);
+  console.log(`과거 매칭 이력 조회 완료: ${previousMatches.size}개의 매칭 쌍이 필터링 대상`);
 
   // 3. 신청자 프로필/선호도 정보 조회 (batch)
   let profiles = [];
@@ -206,15 +247,34 @@ async function main() {
   // 4. 남/여 분리
   const males = profiles.filter(p => p.gender === 'male');
   const females = profiles.filter(p => p.gender === 'female');
-  // 5. 그래프(edge) 생성: 남-여 쌍 중 양방향 만족하는 경우만
+  // 5. 그래프(edge) 생성: 남-여 쌍 중 양방향 만족하는 경우만 (과거 이력 필터링 포함)
   const edges = Array(males.length).fill(0).map(() => []); // edges[i] = [여자 인덱스...]
+  let totalPairs = 0;
+  let filteredByHistory = 0;
+  let validPairs = 0;
+  
   for (let i = 0; i < males.length; i++) {
     for (let j = 0; j < females.length; j++) {
-      if (isMutualMatch(males[i], females[j])) {
+      totalPairs++;
+      
+      // 과거 매칭 이력 확인
+      if (previousMatches.has(`${males[i].user_id}-${females[j].user_id}`)) {
+        filteredByHistory++;
+        continue; // 과거에 매칭된 적이 있으면 건너뛰기
+      }
+      
+      // 기존 매칭 조건 체크
+      if (isMutualMatch(males[i], females[j], previousMatches)) {
         edges[i].push(j);
+        validPairs++;
       }
     }
   }
+  
+  console.log(`매칭 가능 쌍 분석 완료:`);
+  console.log(`- 전체 가능한 쌍: ${totalPairs}개`);
+  console.log(`- 과거 이력으로 필터링된 쌍: ${filteredByHistory}개`);
+  console.log(`- 최종 유효한 쌍: ${validPairs}개`);
   // 6. 최대 매칭(DFS Hungarian)
   const matchTo = Array(females.length).fill(-1); // 여자 j -> 남자 i
   function dfs(u, visited) {

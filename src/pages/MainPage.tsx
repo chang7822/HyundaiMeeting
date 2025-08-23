@@ -513,7 +513,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       } else {
         // console.log('[MainPage][fetchMatchingStatus] 응답에 status 필드 없음, 상태 초기화');
         setMatchingStatus(null);
-        console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음 또는 null, res:', res);
+        // console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음 또는 null, res:', res);
       }
     } catch (e) {
       console.error('[MainPage][fetchMatchingStatus] 에러 발생:', e);
@@ -710,6 +710,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return <div style={{padding:'2rem',color:'#e74c3c',fontWeight:700,fontSize:'1.2rem'}}>관리자만 접근할 수 있습니다.</div>;
   }
 
+
+
   // 날짜/시간 포맷 함수 (KST 기준)
   const formatKST = (dateStr: string | null) => {
     if (!dateStr) return '-';
@@ -880,93 +882,77 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }
 
-  // [리팩터링] 버튼/문구 분기 (is_applied, is_matched 기준)
+    // [리팩터링] 버튼/문구 분기 (정지 상태 + is_applied, is_matched 기준)
   if (period) {
-    const start = new Date(period.application_start);
-    const end = new Date(period.application_end);
-    const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-    const finish = period.finish ? new Date(period.finish) : null;
-    const nowTime = now.getTime();
-    const { isApplied, isMatched, isCancelled } = getUserMatchingState();
-    
-    // console.log('[MainPage][버튼상태] 시간 분석:', {
-    //   now: now.toISOString(),
-    //   start: start.toISOString(),
-    //   end: end.toISOString(),
-    //   announce: announce?.toISOString(),
-    //   finish: finish?.toISOString(),
-    //   nowTime,
-    //   startTime: start.getTime(),
-    //   endTime: end.getTime(),
-    //   announceTime: announce?.getTime(),
-    //   finishTime: finish?.getTime()
-    // });
-    
-    // console.log('[MainPage][버튼상태] 상태 분석:', {
-    //   isApplied,
-    //   isMatched,
-    //   isCancelled,
-    //   canReapply,
-    //   period_id: period.id
-    // });
-    
-    // 신청 전/회차 종료
-    if (nowTime < start.getTime() || (finish && nowTime >= finish.getTime())) {
-      buttonDisabled = true;
-      buttonLabel = '매칭 신청 불가';
-      showCancel = false;
-      // console.log('[MainPage][버튼상태] 신청 전/회차 종료 상태');
-    } else if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
-      if (!isApplied || isCancelled) {
-        buttonDisabled = !canReapply;
-        buttonLabel = '매칭 신청하기';
-        showCancel = false;
-        // console.log('[MainPage][버튼상태] 신청 기간 - 미신청 상태');
+    // 정지 상태 체크 (최우선)
+    if (user?.is_banned) {
+      if (user.banned_until) {
+        const bannedUntil = new Date(user.banned_until);
+        const now = new Date();
+        if (bannedUntil > now) {
+          buttonDisabled = true;
+          buttonLabel = `정지 상태 (${bannedUntil.toLocaleDateString('ko-KR')}까지)`;
+          showCancel = false;
+        } else {
+          // 정지 기간이 만료된 경우 정상 처리
+        }
       } else {
         buttonDisabled = true;
-        buttonLabel = '신청 완료';
-        showCancel = true;
-        // console.log('[MainPage][버튼상태] 신청 기간 - 신청 완료 상태');
+        buttonLabel = '영구 정지 상태';
+        showCancel = false;
       }
-    } else if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
-      buttonDisabled = true;
-      buttonLabel = isApplied && !isCancelled ? '신청 완료' : '매칭 신청 불가';
-      showCancel = false;
-      // console.log('[MainPage][버튼상태] 신청 마감 후 - 발표 전 상태');
-    } else if (announce && nowTime >= announce.getTime()) {
-      if (!isApplied || isCancelled) {
+    } else {
+      // 정지 상태가 아닌 경우에만 기존 로직 실행
+      const start = new Date(period.application_start);
+      const end = new Date(period.application_end);
+      const announce = period.matching_announce ? new Date(period.matching_announce) : null;
+      const finish = period.finish ? new Date(period.finish) : null;
+      const nowTime = now.getTime();
+      const { isApplied, isMatched, isCancelled } = getUserMatchingState();
+      
+      // 신청 전/회차 종료
+      if (nowTime < start.getTime() || (finish && nowTime >= finish.getTime())) {
         buttonDisabled = true;
         buttonLabel = '매칭 신청 불가';
         showCancel = false;
-        // console.log('[MainPage][버튼상태] 발표 후 - 미신청 상태');
-      } else if (typeof isMatched === 'undefined' || isMatched === null) {
+      } else if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
+        if (!isApplied || isCancelled) {
+          buttonDisabled = !canReapply;
+          buttonLabel = '매칭 신청하기';
+          showCancel = false;
+        } else {
+          buttonDisabled = true;
+          buttonLabel = '신청 완료';
+          showCancel = true;
+        }
+      } else if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
         buttonDisabled = true;
-        buttonLabel = '결과 대기중';
+        buttonLabel = isApplied && !isCancelled ? '신청 완료' : '매칭 신청 불가';
         showCancel = false;
-        // console.log('[MainPage][버튼상태] 발표 후 - 결과 대기중 상태');
-      } else if (isMatched === true) {
+      } else if (announce && nowTime >= announce.getTime()) {
+        if (!isApplied || isCancelled) {
+          buttonDisabled = true;
+          buttonLabel = '매칭 신청 불가';
+          showCancel = false;
+        } else if (typeof isMatched === 'undefined' || isMatched === null) {
+          buttonDisabled = true;
+          buttonLabel = '결과 대기중';
+          showCancel = false;
+        } else if (isMatched === true) {
+          buttonDisabled = true;
+          buttonLabel = '매칭 성공';
+          showCancel = false;
+        } else if (isMatched === false) {
+          buttonDisabled = true;
+          buttonLabel = '매칭 실패';
+          showCancel = false;
+        }
+      } else {
         buttonDisabled = true;
-        buttonLabel = '매칭 성공';
-        showCancel = false; // 매칭 성공 후에도 취소버튼 숨김
-        // console.log('[MainPage][버튼상태] 발표 후 - 매칭 성공 상태');
-      } else if (isMatched === false) {
-        buttonDisabled = true;
-        buttonLabel = '매칭 실패';
+        buttonLabel = '매칭 신청 불가';
         showCancel = false;
-        // console.log('[MainPage][버튼상태] 발표 후 - 매칭 실패 상태');
       }
-    } else {
-      buttonDisabled = true;
-      buttonLabel = '매칭 신청 불가';
-      showCancel = false;
-      // console.log('[MainPage][버튼상태] 기타 상태');
     }
-    
-    // console.log('[MainPage][버튼상태] 최종 결정:', {
-    //   buttonDisabled,
-    //   buttonLabel,
-    //   showCancel
-    // });
   }
 
 
@@ -1085,6 +1071,81 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 닉네임 또는 이메일로 인사 (닉네임이 있으면 닉네임, 없으면 이메일)
   const displayName = profile?.nickname || user?.email?.split('@')[0] || '사용자';
+
+  // 정지 상태 체크 (최우선 필터링)
+  const isBanned = user.is_banned === true;
+  const bannedUntil = user.banned_until ? new Date(user.banned_until) : null;
+  const isPermanentBan = isBanned && !bannedUntil;
+  const isTemporaryBan = isBanned && bannedUntil;
+  const isBanExpired = isTemporaryBan && bannedUntil && bannedUntil < now;
+
+  // 정지 상태일 때 UI 분기
+  if (isBanned && !isBanExpired) {
+    const banMessage = isPermanentBan 
+      ? '영구정지로 인해 매칭 신청이 불가능합니다.'
+      : `매칭 신청이 불가능합니다.\n${formatKST(user.banned_until!)}까지 정지되었습니다.`;
+    
+    return (
+      <MainContainer $sidebarOpen={sidebarOpen}>
+        <WelcomeSection>
+          <WelcomeTitle>
+            환영합니다,{' '}
+            <NicknameSpan onClick={() => setShowProfileModal(true)}>
+              {displayName}
+            </NicknameSpan>
+            님!
+          </WelcomeTitle>
+          <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
+          
+          {/* 정지 상태 안내 */}
+          <div style={{
+            background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
+            border: '2px solid #feb2b2',
+            borderRadius: '16px',
+            padding: '24px',
+            marginTop: '2rem',
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(254, 178, 178, 0.2)'
+          }}>
+            <div style={{
+              fontSize: '1.5rem',
+              fontWeight: '700',
+              color: '#e53e3e',
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '1.8rem' }}>⚠️</span>
+              {isPermanentBan ? '영구정지' : '기간정지'}
+            </div>
+            <div style={{
+              fontSize: '1.1rem',
+              color: '#c53030',
+              fontWeight: '600',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-line'
+            }}>
+              {banMessage}
+            </div>
+            {isTemporaryBan && (
+              <div style={{
+                fontSize: '0.95rem',
+                color: '#744210',
+                marginTop: '12px',
+                fontWeight: '500'
+              }}>
+                정지 기간이 만료되면 자동으로 해제됩니다.
+              </div>
+            )}
+          </div>
+        </WelcomeSection>
+        
+        {/* 정지 상태일 때는 QuickActions 숨김 */}
+      </MainContainer>
+    );
+  }
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
@@ -1662,10 +1723,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         e.currentTarget.style.boxShadow = '0 3px 10px rgba(124,58,237,0.3)';
                       }
                     }}
-                  >채팅 바로가기</button>
+                  >상대방과 연락하기</button>
                   {!canChat && (
                     <div style={{ color: '#aaa', fontSize: '0.95rem', marginTop: 6 }}>
-                      매칭 성공 시 활성화됩니다
+                      
                     </div>
                   )}
                   {canChat && countdown && (

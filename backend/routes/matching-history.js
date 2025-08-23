@@ -48,12 +48,26 @@ router.get('/my-history', authenticate, async (req, res) => {
       });
     }
 
-    // 응답 데이터 가공
-    const processedData = data.map(match => {
+    // 각 매칭에 대한 신고 정보 조회
+    const processedData = await Promise.all(data.map(async (match) => {
       const isMale = match.male_user_id === user_id;
       const partnerUserId = isMale ? match.female_user_id : match.male_user_id;
       const partnerNickname = isMale ? match.female_nickname : match.male_nickname;
       const partnerProfile = isMale ? match.female_profile : match.male_profile;
+      
+      // 해당 매칭에 대한 신고 내역 조회
+      let reportInfo = null;
+      if (match.matched === true) {
+        const { data: reportData } = await supabase
+          .from('reports')
+          .select('id, report_type, report_details, status, created_at')
+          .eq('reporter_id', user_id)
+          .eq('reported_user_id', partnerUserId)
+          .eq('period_id', match.period_id)
+          .single();
+        
+        reportInfo = reportData;
+      }
       
       return {
         id: match.id,
@@ -65,10 +79,12 @@ router.get('/my-history', authenticate, async (req, res) => {
         partner_nickname: partnerNickname || partnerProfile?.nickname,
         partner_gender: partnerProfile?.gender,
         period_info: match.period,
-        // 신고 가능 여부 (매칭 성공한 경우만)
-        can_report: match.matched === true
+        // 신고 가능 여부 (매칭 성공하고 아직 신고하지 않은 경우만)
+        can_report: match.matched === true && !reportInfo,
+        // 신고 정보
+        report_info: reportInfo
       };
-    });
+    }));
 
     res.json({
       success: true,

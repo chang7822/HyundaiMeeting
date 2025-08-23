@@ -4,7 +4,7 @@ import Modal from 'react-modal';
 import { FaSort, FaCheck, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
-import { apiUrl } from '../../services/api.ts';
+import { apiUrl, adminMatchingApi } from '../../services/api.ts';
 import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
 const Container = styled.div<{ sidebarOpen: boolean }>`
@@ -147,21 +147,33 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
 
   // 회차 목록 불러오기
   useEffect(() => {
-    fetch(apiUrl('/admin/matching-log')).then(r=>r.json()).then(setLogs);
+    const loadLogs = async () => {
+      try {
+        const response = await adminMatchingApi.getMatchingLogs();
+        setLogs(Array.isArray(response) ? response : []);
+      } catch (error) {
+        console.error('회차 목록 조회 오류:', error);
+        setLogs([]); // 에러 시 빈 배열로 설정
+      }
+    };
+    loadLogs();
   }, []);
   // 신청 현황 불러오기
   useEffect(() => {
-    setLoading(true);
-    fetch(apiUrl(`/admin/matching-applications?periodId=${periodId}`))
-      .then(r=>r.json())
-      .then(data => {
-        setApplications(Array.isArray(data) ? data : []);
-      })
-      .catch(()=>{
+    const loadApplications = async () => {
+      setLoading(true);
+      try {
+        const response = await adminMatchingApi.getMatchingApplications(periodId);
+        setApplications(Array.isArray(response) ? response : []);
+      } catch (error) {
+        console.error('신청 현황 조회 오류:', error);
         toast.error('신청 현황 조회 실패');
         setApplications([]);
-      })
-      .finally(()=>setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadApplications();
   }, [periodId]);
 
   // 소팅

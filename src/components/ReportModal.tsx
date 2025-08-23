@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
+import { toast } from 'react-toastify';
 import { reportApi } from '../services/api.ts';
 
 interface ReportModalProps {
@@ -150,7 +151,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
   onSuccess
 }) => {
   const [reportType, setReportType] = useState('');
-  const [reportReason, setReportReason] = useState('');
   const [reportDetails, setReportDetails] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -166,10 +166,17 @@ const ReportModal: React.FC<ReportModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!reportType || !reportReason) {
-      alert('신고 유형과 신고 사유를 선택해주세요.');
+    if (!reportType) {
+      toast.error('신고 유형을 선택해주세요.');
       return;
     }
+
+    // console.log('[ReportModal][handleSubmit] 전송할 데이터:', {
+    //   reported_user_id: reportedUser.id,
+    //   period_id: periodId,
+    //   report_type: reportType,
+    //   report_details: reportDetails
+    // });
 
     setIsSubmitting(true);
     
@@ -178,16 +185,15 @@ const ReportModal: React.FC<ReportModalProps> = ({
         reported_user_id: reportedUser.id,
         period_id: periodId,
         report_type: reportType,
-        report_reason: reportReason,
         report_details: reportDetails
       });
       
-      alert('신고가 성공적으로 접수되었습니다.');
+      toast.success('신고가 성공적으로 접수되었습니다.');
       onSuccess?.();
       handleClose();
     } catch (error: any) {
       console.error('신고 등록 오류:', error);
-      alert(error.response?.data?.message || '신고 등록에 실패했습니다.');
+      toast.error(error.response?.data?.message || '신고 등록에 실패했습니다.');
     } finally {
       setIsSubmitting(false);
     }
@@ -195,7 +201,6 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
   const handleClose = () => {
     setReportType('');
-    setReportReason('');
     setReportDetails('');
     setIsSubmitting(false);
     onClose();
@@ -230,59 +235,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
             </Select>
           </FormGroup>
 
-          <FormGroup>
-            <Label>신고 사유 *</Label>
-            <Select
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value)}
-              required
-            >
-              <option value="">신고 사유를 선택하세요</option>
-              {reportType === 'inappropriate_behavior' && (
-                <>
-                  <option value="sexual_harassment">성적 괴롭힘</option>
-                  <option value="verbal_abuse">언어폭력</option>
-                  <option value="stalking">스토킹</option>
-                  <option value="threat">협박/위협</option>
-                </>
-              )}
-              {reportType === 'spam' && (
-                <>
-                  <option value="repeated_messages">반복적인 메시지</option>
-                  <option value="advertising">광고성 메시지</option>
-                  <option value="bot_behavior">봇과 같은 행동</option>
-                </>
-              )}
-              {reportType === 'fake_profile' && (
-                <>
-                  <option value="fake_photos">허위 사진</option>
-                  <option value="fake_info">허위 정보</option>
-                  <option value="stolen_identity">도용된 신원</option>
-                </>
-              )}
-              {reportType === 'harassment' && (
-                <>
-                  <option value="bullying">괴롭힘</option>
-                  <option value="discrimination">차별</option>
-                  <option value="hate_speech">혐오 발언</option>
-                </>
-              )}
-              {reportType === 'commercial' && (
-                <>
-                  <option value="business_promotion">사업 홍보</option>
-                  <option value="sales_activity">판매 활동</option>
-                  <option value="recruitment">채용 홍보</option>
-                </>
-              )}
-              {reportType === 'other' && (
-                <>
-                  <option value="system_abuse">시스템 악용</option>
-                  <option value="rule_violation">이용약관 위반</option>
-                  <option value="other_reason">기타 사유</option>
-                </>
-              )}
-            </Select>
-          </FormGroup>
+
 
           <FormGroup>
             <Label>상세 내용 (선택사항)</Label>

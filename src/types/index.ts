@@ -10,6 +10,8 @@ export interface User {
   updated_at: string;
   is_applied: boolean; // 매칭 신청 여부
   is_matched: boolean | null; // 매칭 결과(성공/실패/null)
+  is_banned?: boolean; // 정지 상태
+  banned_until?: string; // 정지 만료일
 }
 
 // UserProfile(모든 프로필 정보를 한 행에)

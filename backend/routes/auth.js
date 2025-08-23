@@ -585,7 +585,7 @@ router.get('/me', authenticate, async (req, res) => {
     // 계정 정보 조회
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, email, is_verified, is_active, is_admin, created_at, updated_at, is_applied, is_matched')
+      .select('id, email, is_verified, is_active, is_admin, is_banned, banned_until, created_at, updated_at, is_applied, is_matched')
       .eq('id', userId)
       .single();
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { toast } from 'react-toastify';
 import { adminReportApi } from '../../services/api.ts';
 import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
@@ -102,17 +103,17 @@ const StatusBadge = styled.span<{ status: string }>`
           background: #FEF3C7;
           color: #92400E;
         `;
-      case 'investigating':
-        return `
-          background: #DBEAFE;
-          color: #1E40AF;
-        `;
-      case 'resolved':
-        return `
-          background: #D1FAE5;
-          color: #065F46;
-        `;
       case 'dismissed':
+        return `
+          background: #FEE2E2;
+          color: #991B1B;
+        `;
+      case 'temporary_ban':
+        return `
+          background: #FEF3C7;
+          color: #92400E;
+        `;
+      case 'permanent_ban':
         return `
           background: #FEE2E2;
           color: #991B1B;
@@ -304,9 +305,8 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
   const [processModal, setProcessModal] = useState(false);
   const [processForm, setProcessForm] = useState({
     status: '',
-    penalty_points: 0,
-    penalty_type: '',
-    admin_notes: ''
+    admin_notes: '',
+    ban_duration_days: 30
   });
 
   useEffect(() => {
@@ -322,7 +322,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
       setReports(response.data || []);
     } catch (error) {
       console.error('신고 목록 로드 오류:', error);
-      alert('신고 목록을 불러오는데 실패했습니다.');
+      toast.error('신고 목록을 불러오는데 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -331,10 +331,9 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
   const handleProcessReport = (report: any) => {
     setSelectedReport(report);
     setProcessForm({
-      status: 'resolved',
-      penalty_points: 0,
-      penalty_type: '',
-      admin_notes: ''
+      status: report.status === 'pending' ? 'dismissed' : report.status,
+      admin_notes: report.admin_notes || '',
+      ban_duration_days: 30
     });
     setProcessModal(true);
   };
@@ -346,12 +345,18 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
 
     try {
       await adminReportApi.processReport(selectedReport.id, processForm);
-      alert('신고 처리가 완료되었습니다.');
+      const successMessage = selectedReport.status === 'pending' 
+        ? '신고 처리가 완료되었습니다.' 
+        : '처리 내용이 변경되었습니다.';
+      toast.success(successMessage);
       setProcessModal(false);
       loadReports();
     } catch (error) {
       console.error('신고 처리 오류:', error);
-      alert('신고 처리에 실패했습니다.');
+      const errorMessage = selectedReport.status === 'pending' 
+        ? '신고 처리에 실패했습니다.' 
+        : '처리 내용 변경에 실패했습니다.';
+      toast.error(errorMessage);
     }
   };
 
@@ -376,9 +381,9 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
         >
           <option value="all">전체</option>
           <option value="pending">대기중</option>
-          <option value="investigating">조사중</option>
-          <option value="resolved">처리완료</option>
           <option value="dismissed">기각</option>
+          <option value="temporary_ban">기간정지</option>
+          <option value="permanent_ban">영구정지</option>
         </FilterSelect>
       </FilterSection>
 
@@ -393,7 +398,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
               <th>상태</th>
               <th>신고일시</th>
               <th>처리일시</th>
-              <th>벌점</th>
+              <th>신고횟수</th>
               <th>작업</th>
             </tr>
           </thead>
@@ -407,30 +412,20 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
                 <td>
                   <StatusBadge status={report.status}>
                     {report.status === 'pending' && '대기중'}
-                    {report.status === 'investigating' && '조사중'}
-                    {report.status === 'resolved' && '처리완료'}
                     {report.status === 'dismissed' && '기각'}
+                    {report.status === 'temporary_ban' && '기간정지'}
+                    {report.status === 'permanent_ban' && '영구정지'}
                   </StatusBadge>
                 </td>
                 <td>{formatDate(report.created_at)}</td>
                 <td>{report.resolved_at ? formatDate(report.resolved_at) : '-'}</td>
-                <td>{report.penalty_points || 0}점</td>
+                <td>{report.reported_user?.report_count || 0}회</td>
                 <td>
-                  {report.status === 'pending' && (
-                    <ActionButton
-                      variant="primary"
-                      onClick={() => handleProcessReport(report)}
-                    >
-                      처리
-                    </ActionButton>
-                  )}
                   <ActionButton
-                    onClick={() => {
-                      // 상세 보기 기능 (추후 구현)
-                      alert('상세 보기 기능은 추후 구현 예정입니다.');
-                    }}
+                    variant="primary"
+                    onClick={() => handleProcessReport(report)}
                   >
-                    상세
+                    {report.status === 'pending' ? '처리' : '처리변경'}
                   </ActionButton>
                 </td>
               </tr>
@@ -447,14 +442,16 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
 
       <ModalOverlay isOpen={processModal} onClick={handleCloseModal}>
         <ModalContent onClick={(e) => e.stopPropagation()}>
-          <ModalTitle>신고 처리</ModalTitle>
+          <ModalTitle>
+            {selectedReport?.status === 'pending' ? '신고 처리' : '처리 내용 변경'}
+          </ModalTitle>
           
           {selectedReport && (
             <div style={{ marginBottom: '1rem', padding: '1rem', background: '#f9fafb', borderRadius: '8px' }}>
               <strong>신고자:</strong> {selectedReport.reporter?.nickname}<br />
               <strong>신고대상:</strong> {selectedReport.reported_user?.nickname}<br />
               <strong>신고유형:</strong> {selectedReport.report_type}<br />
-              <strong>신고사유:</strong> {selectedReport.report_reason}<br />
+              <strong>신고횟수:</strong> {selectedReport.reported_user?.report_count || 0}회<br />
               {selectedReport.report_details && (
                 <>
                   <strong>상세내용:</strong><br />
@@ -473,34 +470,25 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
                 required
               >
                 <option value="">상태를 선택하세요</option>
-                <option value="resolved">처리완료</option>
                 <option value="dismissed">기각</option>
+                <option value="temporary_ban">기간정지</option>
+                <option value="permanent_ban">영구정지</option>
               </FilterSelect>
             </FormGroup>
 
-            <FormGroup>
-              <Label>벌점</Label>
-              <Input
-                type="number"
-                min="0"
-                value={processForm.penalty_points}
-                onChange={(e) => setProcessForm({ ...processForm, penalty_points: parseInt(e.target.value) || 0 })}
-                placeholder="벌점을 입력하세요"
-              />
-            </FormGroup>
-
-            <FormGroup>
-              <Label>처벌 유형</Label>
-              <FilterSelect
-                value={processForm.penalty_type}
-                onChange={(e) => setProcessForm({ ...processForm, penalty_type: e.target.value })}
-              >
-                <option value="">처벌 유형을 선택하세요</option>
-                <option value="warning">경고</option>
-                <option value="temporary_ban">임시 차단</option>
-                <option value="ban">영구 차단</option>
-              </FilterSelect>
-            </FormGroup>
+            {processForm.status === 'temporary_ban' && (
+              <FormGroup>
+                <Label>정지 기간 (일)</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={processForm.ban_duration_days}
+                  onChange={(e) => setProcessForm({ ...processForm, ban_duration_days: parseInt(e.target.value) || 30 })}
+                  placeholder="정지 기간을 입력하세요 (1-365일)"
+                />
+              </FormGroup>
+            )}
 
             <FormGroup>
               <Label>관리자 메모</Label>

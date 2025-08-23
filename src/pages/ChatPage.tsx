@@ -89,10 +89,10 @@ const ChatPage: React.FC = () => {
         setCanEnter(false);
         return;
       }
-      setPeriodId(period.id);
+      setPeriodId(String(period.id));
       setCanEnter(true);
       setLoading(false);
-      // console.log('[ChatPage][DEBUG] periodId:', period.id, 'user:', user.id, 'partner:', partnerUserId);
+      // console.log('[ChatPage][DEBUG] periodId:', period.id, 'typeof:', typeof period.id, 'stringified:', String(period.id));
     }).catch(() => {
       toast.error('매칭 회차 정보 조회에 실패했습니다.');
       setLoading(false);
@@ -252,6 +252,11 @@ const ChatPage: React.FC = () => {
     setShowProfileModal(true);
   };
   const handleReport = () => {
+    // console.log('[ChatPage][handleReport] periodId:', periodId, 'parseInt:', parseInt(periodId || '0'));
+    if (!periodId || parseInt(periodId) <= 0) {
+      toast.error('매칭 정보를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
     setReportModal(true);
   };
 
@@ -375,7 +380,7 @@ const ChatPage: React.FC = () => {
           id: partnerUserId || '',
           nickname: partnerProfile?.nickname || '상대방'
         }}
-        periodId={periodId ? parseInt(periodId) : 0}
+        periodId={periodId ? parseInt(periodId) : -1}
         onSuccess={() => {
           setReportModal(false);
           toast.success('신고가 성공적으로 접수되었습니다.');

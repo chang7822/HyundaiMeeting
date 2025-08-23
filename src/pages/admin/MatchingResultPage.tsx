@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import Modal from 'react-modal';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
-import { apiUrl } from '../../services/api.ts';
+import { apiUrl, adminMatchingApi } from '../../services/api.ts';
 import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
 const Container = styled.div<{ sidebarOpen: boolean }>`
@@ -88,23 +88,36 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
 
   // 회차 목록 불러오기
   useEffect(() => {
-    fetch(apiUrl('/admin/matching-log')).then(r=>r.json()).then(setLogs);
+    const loadLogs = async () => {
+      try {
+        const response = await adminMatchingApi.getMatchingLogs();
+        setLogs(Array.isArray(response) ? response : []);
+      } catch (error) {
+        console.error('회차 목록 조회 오류:', error);
+        setLogs([]); // 에러 시 빈 배열로 설정
+      }
+    };
+    loadLogs();
   }, []);
   // 매칭 결과 불러오기
   useEffect(() => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    if (periodId && periodId !== 'all') params.append('periodId', periodId);
-    if (nickname) params.append('nickname', nickname);
-    fetch(apiUrl(`/admin/matching-history?${params.toString()}`))
-      .then(r=>r.json())
-      .then(data => {
-        setResults(Array.isArray(data) ? data : []);
-      })
-      .catch(()=>{
+    const loadResults = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams();
+        if (periodId && periodId !== 'all') params.append('periodId', periodId);
+        if (nickname) params.append('nickname', nickname);
+        
+        const response = await adminMatchingApi.getMatchingHistory(periodId, nickname);
+        setResults(Array.isArray(response) ? response : []);
+      } catch (error) {
+        console.error('매칭 결과 조회 오류:', error);
         setResults([]);
-      })
-      .finally(()=>setLoading(false));
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadResults();
   }, [periodId, nickname]);
 
   // 회차 인덱스 → 연속 번호로 변환 함수

@@ -15,13 +15,21 @@ router.get('/period', async (req, res) => {
       .select('*')
       .order('id', { ascending: false })
       .limit(1)
-      .single();
-    if (error || !data) {
-      return res.status(404).json({ message: '매칭 회차 정보가 없습니다.' });
+      .maybeSingle(); // single() 대신 maybeSingle() 사용
+    
+    if (error) {
+      console.error('매칭 회차 조회 오류:', error);
+      return res.status(500).json({ message: '매칭 회차 정보 조회 중 오류가 발생했습니다.' });
     }
+    
+    if (!data) {
+      return res.status(404).json({ message: '아직 생성된 매칭 회차가 없습니다.' });
+    }
+    
     res.json(data);
   } catch (err) {
-    res.status(500).json({ message: '서버 오류' });
+    console.error('매칭 기간 조회 오류:', err);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
 
@@ -31,6 +39,32 @@ router.post('/request', async (req, res) => {
     const { userId } = req.body;
     if (!userId) {
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
+    }
+
+    // 정지 상태 확인
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('is_banned, banned_until')
+      .eq('id', userId)
+      .single();
+    
+    if (userError) {
+      console.error('사용자 상태 조회 오류:', userError);
+      return res.status(500).json({ message: '사용자 상태를 확인할 수 없습니다.' });
+    }
+
+    if (user.is_banned) {
+      if (user.banned_until) {
+        const bannedUntil = new Date(user.banned_until);
+        const now = new Date();
+        if (bannedUntil > now) {
+          return res.status(403).json({ 
+            message: `정지 상태입니다. ${bannedUntil.toLocaleDateString('ko-KR')}까지 매칭 신청이 불가능합니다.` 
+          });
+        }
+      } else {
+        return res.status(403).json({ message: '영구 정지 상태입니다. 매칭 신청이 불가능합니다.' });
+      }
     }
 
     // 최근 신청 내역(취소 포함) 조회
@@ -165,14 +199,16 @@ router.get('/status', async (req, res) => {
       .select('id, matching_run, matching_announce, executed, email_sent, finish, application_start')
       .order('id', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle(); // single() 대신 maybeSingle() 사용
+    
     if (periodError) {
       console.log('[DEBUG][matching/status] periodError:', periodError);
-      throw periodError;
+      return res.status(500).json({ message: '회차 정보 조회 오류' });
     }
-    if (!periodData || !periodData.id) {
-      console.log('[DEBUG][matching/status] periodData 없음:', periodData);
-      return res.json({ status: null });
+    
+    if (!periodData) {
+      console.log('[DEBUG][matching/status] 회차 데이터 없음 - 아직 생성된 회차가 없습니다.');
+      return res.json({ status: null, message: '아직 생성된 회차가 없습니다.' });
     }
     const periodId = periodData.id;
     console.log(`[DEBUG][matching/status] 조회 periodId: ${periodId}, now: ${now.toISOString()}, periodData:`, periodData);
@@ -208,6 +244,32 @@ router.post('/cancel', async (req, res) => {
     const { userId } = req.body;
     if (!userId) {
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
+    }
+
+    // 정지 상태 확인
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('is_banned, banned_until')
+      .eq('id', userId)
+      .single();
+    
+    if (userError) {
+      console.error('사용자 상태 조회 오류:', userError);
+      return res.status(500).json({ message: '사용자 상태를 확인할 수 없습니다.' });
+    }
+
+    if (user.is_banned) {
+      if (user.banned_until) {
+        const bannedUntil = new Date(user.banned_until);
+        const now = new Date();
+        if (bannedUntil > now) {
+          return res.status(403).json({ 
+            message: `정지 상태입니다. ${bannedUntil.toLocaleDateString('ko-KR')}까지 매칭 신청이 불가능합니다.` 
+          });
+        }
+      } else {
+        return res.status(403).json({ message: '영구 정지 상태입니다. 매칭 신청이 불가능합니다.' });
+      }
     }
     
     // 1. 최신 회차 id 조회

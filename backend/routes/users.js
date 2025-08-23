@@ -101,10 +101,10 @@ router.put('/me', authenticate, async (req, res) => {
 router.get('/me', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
-    // 계정 정보 조회
+    // 계정 정보 조회 (정지 상태 포함)
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, email, is_verified, is_active, is_admin, created_at, updated_at')
+      .select('id, email, is_verified, is_active, is_admin, is_banned, banned_until, created_at, updated_at')
       .eq('id', userId)
       .single();
     if (userError || !user) {

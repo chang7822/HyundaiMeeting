@@ -71,7 +71,7 @@ cron.schedule(scheduleInterval, async () => {
           .maybeSingle();
         if (!nextLog) {
           // 다음 회차가 없으면 무조건 초기화 실행
-          console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
+          // console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
           const { error: resetError } = await supabase
             .from('users')
             .update({ is_applied: false, is_matched: null })
@@ -79,7 +79,7 @@ cron.schedule(scheduleInterval, async () => {
           if (resetError) {
             console.error('[스케줄러] users 테이블 초기화 오류:', resetError);
           } else {
-            console.log('[스케줄러] users 테이블 초기화 완료');
+            // console.log('[스케줄러] users 테이블 초기화 완료');
           }
         }
       }
@@ -119,4 +119,56 @@ cron.schedule(scheduleInterval, async () => {
   }
 });
 
-console.log('[스케줄러] 매칭 회차 스케줄러가 시작되었습니다.'); 
+// 정지 해제 스케줄러: 10초마다 정지 기간이 만료된 사용자들의 정지를 해제
+cron.schedule(scheduleInterval, async () => {
+  try {
+    // console.log('[스케줄러] 정지 해제 작업 시작');
+    
+    const now = new Date();
+    
+    // 정지 기간이 만료된 사용자들 조회
+    const { data: expiredBans, error: selectError } = await supabase
+      .from('users')
+      .select('id, banned_until')
+      .eq('is_banned', true)
+      .not('banned_until', 'is', null)
+      .lte('banned_until', now.toISOString());
+    
+    if (selectError) {
+      // console.error('[스케줄러] 정지 만료 사용자 조회 오류:', selectError);
+      return;
+    }
+    
+    if (!expiredBans || expiredBans.length === 0) {
+      // console.log('[스케줄러] 정지 해제할 사용자가 없습니다.');
+      return;
+    }
+    
+    // 정지 해제할 사용자 ID 목록
+    const userIds = expiredBans.map(user => user.id);
+    
+    // 정지 해제 실행
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        is_banned: false,
+        banned_until: null 
+      })
+      .in('id', userIds);
+    
+    if (updateError) {
+      console.error('[스케줄러] 정지 해제 업데이트 오류:', updateError);
+    } else {
+      console.log(`[스케줄러] 정지 해제 완료: ${expiredBans.length}명`);
+      expiredBans.forEach(user => {
+        console.log(`  - ${user.nickname} (ID: ${user.id}): ${user.banned_until} → 해제`);
+      });
+    }
+    
+  } catch (error) {
+    console.error('[스케줄러] 정지 해제 작업 오류:', error);
+  }
+});
+
+console.log('[스케줄러] 매칭 회차 스케줄러가 시작되었습니다.');
+console.log('[스케줄러] 정지 해제 스케줄러가 시작되었습니다. (10초마다)'); 
