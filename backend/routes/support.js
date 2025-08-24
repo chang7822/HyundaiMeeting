@@ -407,11 +407,11 @@ router.put('/admin/inquiries/:id/status', authenticate, async (req, res) => {
     const { status } = req.body;
 
     // 유효한 상태값 확인
-    const validStatuses = ['pending', 'completed', 'closed'];
+    const validStatuses = ['pending', 'completed'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ 
         success: false, 
-        message: '유효하지 않은 상태값입니다.' 
+        message: '유효하지 않은 상태값입니다. (pending 또는 completed만 허용)' 
       });
     }
 

@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { getAdminSupportInquiry, addAdminSupportReply, updateSupportInquiryStatus } from '../../services/api.ts';
+import { getAdminSupportInquiry, addAdminSupportReply } from '../../services/api.ts';
 
 // ===================================
 // 스타일드 컴포넌트
@@ -205,41 +205,7 @@ const ActionSection = styled.div`
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 `;
 
-const StatusControls = styled.div`
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-  align-items: center;
-`;
 
-const StatusSelect = styled.select`
-  padding: 8px 12px;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  font-size: 14px;
-  background: white;
-`;
-
-const StatusButton = styled.button`
-  padding: 8px 16px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  
-  &:hover:not(:disabled) {
-    background: #5a67d8;
-  }
-  
-  &:disabled {
-    background: #cbd5e0;
-    cursor: not-allowed;
-  }
-`;
 
 const ReplyForm = styled.form``;
 
@@ -360,7 +326,7 @@ interface SupportInquiry {
   title: string;
   content: string;
   category: string;
-  status: 'pending' | 'completed' | 'closed';
+  status: 'pending' | 'completed';
   created_at: string;
   updated_at: string;
   user?: {
@@ -391,7 +357,7 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
   const [inquiry, setInquiry] = useState<SupportInquiry | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState('pending');
+
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<ReplyFormData>();
 
@@ -402,7 +368,6 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
       setLoading(true);
       const response = await getAdminSupportInquiry(parseInt(id));
       setInquiry(response.data);
-      setCurrentStatus(response.data.status);
     } catch (error: any) {
       console.error('문의 상세 조회 오류:', error);
       toast.error('문의 내용을 불러오는데 실패했습니다.');
@@ -433,18 +398,7 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
     }
   };
 
-  const handleStatusChange = async () => {
-    if (!inquiry) return;
 
-    try {
-      await updateSupportInquiryStatus(inquiry.id, currentStatus);
-      toast.success('상태가 변경되었습니다.');
-      loadInquiry();
-    } catch (error: any) {
-      console.error('상태 변경 오류:', error);
-      toast.error('상태 변경에 실패했습니다.');
-    }
-  };
 
   const handleBack = () => {
     navigate('/admin/support');
@@ -535,20 +489,7 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
         <ActionSection>
           <SectionTitle>🔧 관리자 작업</SectionTitle>
           
-          <StatusControls>
-            <Label>상태 변경:</Label>
-            <StatusSelect 
-              value={currentStatus} 
-              onChange={(e) => setCurrentStatus(e.target.value)}
-            >
-              <option value="pending">답변 대기</option>
-              <option value="completed">답변 완료</option>
-              <option value="closed">종료</option>
-            </StatusSelect>
-            <StatusButton onClick={handleStatusChange}>
-              상태 변경
-            </StatusButton>
-          </StatusControls>
+
 
           <SectionTitle>✍️ 답변 작성</SectionTitle>
           <ReplyForm onSubmit={handleSubmit(onSubmit)}>
@@ -581,7 +522,7 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
                 variant="primary" 
                 disabled={isSubmitting}
               >
-                {isSubmitting ? '등록 중...' : '답변 등록'}
+                {isSubmitting ? '등록 중...' : '답변 등록 (자동 완료처리)'}
               </Button>
             </ButtonGroup>
           </ReplyForm>

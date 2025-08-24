@@ -275,7 +275,7 @@ interface SupportInquiry {
   title: string;
   content: string;
   category: string;
-  status: 'pending' | 'completed' | 'closed';
+  status: 'pending' | 'completed';
   created_at: string;
   updated_at: string;
 }
@@ -327,7 +327,6 @@ const MySupportInquiriesPage: React.FC<MySupportInquiriesPageProps> = ({ sidebar
     switch (status) {
       case 'pending': return '답변 대기';
       case 'completed': return '답변 완료';
-      case 'closed': return '종료';
       default: return status;
     }
   };

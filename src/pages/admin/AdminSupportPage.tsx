@@ -299,7 +299,7 @@ interface SupportInquiry {
   title: string;
   content: string;
   category: string;
-  status: 'pending' | 'completed' | 'closed';
+  status: 'pending' | 'completed';
   created_at: string;
   updated_at: string;
   user?: {
@@ -323,8 +323,7 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
   const [stats, setStats] = useState({
     total: 0,
     pending: 0,
-    completed: 0,
-    closed: 0
+    completed: 0
   });
 
   const loadInquiries = async () => {
@@ -348,9 +347,8 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
       const total = response.data?.length || 0;
       const pending = response.data?.filter((i: SupportInquiry) => i.status === 'pending').length || 0;
       const completed = response.data?.filter((i: SupportInquiry) => i.status === 'completed').length || 0;
-      const closed = response.data?.filter((i: SupportInquiry) => i.status === 'closed').length || 0;
       
-      setStats({ total, pending, completed, closed });
+      setStats({ total, pending, completed });
 
     } catch (error: any) {
       console.error('문의 목록 조회 오류:', error);
@@ -372,7 +370,6 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
     switch (status) {
       case 'pending': return '답변 대기';
       case 'completed': return '답변 완료';
-      case 'closed': return '종료';
       default: return status;
     }
   };
@@ -429,10 +426,7 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
             <StatLabel>답변 완료</StatLabel>
             <StatValue>{stats.completed}</StatValue>
           </StatCard>
-          <StatCard>
-            <StatLabel>종료</StatLabel>
-            <StatValue>{stats.closed}</StatValue>
-          </StatCard>
+
         </StatsBar>
 
         <FilterBar>
@@ -443,7 +437,6 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
             <option value="all">전체 상태</option>
             <option value="pending">답변 대기</option>
             <option value="completed">답변 완료</option>
-            <option value="closed">종료</option>
           </FilterSelect>
           
           <FilterSelect 

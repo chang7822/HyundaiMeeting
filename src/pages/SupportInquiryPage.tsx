@@ -273,7 +273,6 @@ const SupportInquiryPage: React.FC<SupportInquiryPageProps> = ({ sidebarOpen = t
         <InfoList>
           <li>자주 묻는 질문(FAQ)을 먼저 확인해보세요</li>
           <li>구체적인 상황을 상세히 설명해주시면 더 정확한 답변을 받으실 수 있습니다</li>
-          <li>스크린샷이나 오류 메시지가 있다면 함께 첨부해주세요</li>
           <li>평일 기준 1-2일 내에 답변드립니다</li>
         </InfoList>
       </InfoBox>
