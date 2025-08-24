@@ -20,6 +20,7 @@ const Container = styled.div<{ sidebarOpen?: boolean }>`
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1rem;
+    padding-top: 80px;
   }
 `;
 

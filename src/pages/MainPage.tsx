@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
-import { matchingApi } from '../services/api.ts';
+import { matchingApi, chatApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -441,7 +441,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [loadingPeriod, setLoadingPeriod] = useState(true);
   const [now, setNow] = useState<Date>(new Date());
   const [matchingStatus, setMatchingStatus] = useState<any>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const [statusLoading, setStatusLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
@@ -451,6 +451,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
+  const [unreadCount, setUnreadCount] = useState<number>(0);
   const partnerUserId = useMemo(() => {
     const id = (matchingStatus && matchingStatus.matched === true) ? (matchingStatus.partner_user_id || null) : null;
     return id;
@@ -491,13 +492,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // 매칭 상태 조회
   const fetchMatchingStatus = async () => {
     if (!user?.id) {
+      setStatusLoading(false);
       return;
     }
     setStatusLoading(true);
     try {
-      // console.log('[MainPage][fetchMatchingStatus] 매칭 상태 조회 시작, user_id:', user.id);
       const res = await matchingApi.getMatchingStatus(user.id);
-      // console.log('[MainPage][fetchMatchingStatus] API 응답 전체:', res);
+      
       if (res && typeof res === 'object' && 'status' in res && res.status) {
         const newStatus = {
           ...res.status,
@@ -505,20 +506,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           is_matched: res.status.is_matched ?? res.status.matched,
           is_cancelled: res.status.is_cancelled ?? res.status.cancelled,
         };
-        // console.log('[MainPage][fetchMatchingStatus] 상태 업데이트:', {
-        //   이전상태: matchingStatus,
-        //   새상태: newStatus
-        // });
         setMatchingStatus(newStatus);
       } else {
-        // console.log('[MainPage][fetchMatchingStatus] 응답에 status 필드 없음, 상태 초기화');
         setMatchingStatus(null);
-        // console.warn('[디버깅] fetchMatchingStatus: 응답에 status 필드 없음 또는 null, res:', res);
       }
     } catch (e) {
-      console.error('[MainPage][fetchMatchingStatus] 에러 발생:', e);
+      console.error('매칭 상태 조회 오류:', e);
       setMatchingStatus(null);
-      console.error('[디버깅] fetchMatchingStatus: 에러 발생', e);
     } finally {
       setStatusLoading(false);
     }
@@ -528,8 +522,21 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   useEffect(() => {
     if (user?.id) {
       fetchMatchingStatus();
+      fetchUnreadCount();
     }
   }, [user?.id]);
+
+  // 안읽은 메시지 개수 조회
+  const fetchUnreadCount = async () => {
+    if (!user?.id) return;
+    try {
+      const result = await chatApi.getUnreadCount(user.id);
+      setUnreadCount(result.unreadCount || 0);
+    } catch (error) {
+      console.error('안읽은 메시지 개수 조회 실패:', error);
+      setUnreadCount(0);
+    }
+  };
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
@@ -661,9 +668,50 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [isAuthenticated, navigate]);
 
-  // 카운트다운 계산 함수
+
+
+  // 안읽은 메시지 개수 정기 업데이트 (30초마다)
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const interval = window.setInterval(() => {
+      fetchUnreadCount();
+    }, 30000); // 30초마다 업데이트
+
+    return () => window.clearInterval(interval);
+  }, [user?.id]);
+
+  // 카운트다운 계산 함수 (조건부 렌더링 이전에 선언)
   const calculateCountdown = useCallback(() => {
-    const { status } = getMatchingStatusDisplay();
+    if (!period || !user || !profile || loadingPeriod || statusLoading) return;
+    
+    // getMatchingStatusDisplay 로직을 인라인으로 구현
+    let status = '';
+    if (period && !(period.finish && new Date(period.finish) < now)) {
+      const start = new Date(period.application_start);
+      const end = new Date(period.application_end);
+      const finish = period.finish ? new Date(period.finish) : null;
+      const announce = period.matching_announce ? new Date(period.matching_announce) : null;
+      const nowTime = now.getTime();
+      
+      // 🔧 user 객체 대신 matchingStatus에서 매칭 상태 확인
+      let isApplied = user?.is_applied === true;
+      let isMatched = typeof user?.is_matched !== 'undefined' ? user?.is_matched : null;
+      
+      // user 객체에 매칭 정보가 없으면 matchingStatus에서 가져오기
+      if (user?.is_applied === undefined && matchingStatus) {
+        isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
+      }
+      if (user?.is_matched === undefined && matchingStatus) {
+        isMatched = typeof matchingStatus.is_matched !== 'undefined' ? matchingStatus.is_matched : 
+                    typeof matchingStatus.matched !== 'undefined' ? matchingStatus.matched : null;
+      }
+      
+      if (announce && nowTime >= announce.getTime() && isMatched === true) {
+        status = '매칭 성공';
+      }
+    }
+    
     const canChat = status === '매칭 성공' && partnerUserId;
     
     if (!period?.finish || !canChat) {
@@ -692,7 +740,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     countdownText += `${seconds}초`;
 
     setCountdown(countdownText);
-  }, [period?.finish, partnerUserId]);
+  }, [period, user, profile, loadingPeriod, statusLoading, now, partnerUserId, matchingStatus]); // matchingStatus 의존성 추가
 
   // 카운트다운 업데이트
   useEffect(() => {
@@ -701,8 +749,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return () => window.clearInterval(interval);
   }, [calculateCountdown]);
 
-  // 렌더링 조건 강화: isLoading이 true이거나 user/profile이 null이면 무조건 스피너
-  if (isLoading || !user || !profile) {
+  // 렌더링 조건 강화: 필수 데이터가 모두 로드될 때까지 스피너 표시
+  if (isLoading || !user || !profile || loadingPeriod || statusLoading) {
     return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   }
   if (!isAuthenticated) return null;
@@ -726,29 +774,23 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [리팩터링] users의 is_applied, is_matched 기반 분기 함수 (is_cancelled만 matchingStatus에서)
   const getUserMatchingState = () => {
-    // users 테이블 정보를 우선 사용 (is_applied, is_matched)
-    const isApplied = user?.is_applied === true;
-    const isMatched = typeof user?.is_matched !== 'undefined' ? user?.is_matched : null;
+    // 🔧 임시 해결책: user 객체에 is_applied, is_matched가 없으면 matchingStatus에서 가져오기
+    let isApplied = user?.is_applied === true;
+    let isMatched = typeof user?.is_matched !== 'undefined' ? user?.is_matched : null;
+    
+    // user 객체에 매칭 정보가 없으면 matchingStatus에서 가져오기
+    if (user?.is_applied === undefined && matchingStatus) {
+      isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
+    }
+    if (user?.is_matched === undefined && matchingStatus) {
+      isMatched = typeof matchingStatus.is_matched !== 'undefined' ? matchingStatus.is_matched : 
+                  typeof matchingStatus.matched !== 'undefined' ? matchingStatus.matched : null;
+    }
+    
     // is_cancelled만 matchingStatus에서
     const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
     
-    // console.log('[MainPage][getUserMatchingState] 상태 분석:', {
-    //   user_id: user?.id,
-    //   user_is_applied: user?.is_applied,
-    //   user_is_matched: user?.is_matched,
-    //   matchingStatus,
-    //   isApplied,
-    //   isMatched,
-    //   isCancelled,
-    //   period: period ? {
-    //     id: period.id,
-    //     application_start: period.application_start,
-    //     application_end: period.application_end,
-    //     matching_announce: period.matching_announce,
-    //     finish: period.finish
-    //   } : null,
-    //   now: now.toISOString()
-    // });
+
     
     return { isApplied, isMatched, isCancelled };
   };
@@ -849,9 +891,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
     return { status: '', period: '', color: '#888' };
   };
-
-  // 신청기간 계산 함수 (위치 보장)
-
 
   // [리팩터링] 버튼 상태/표기 결정 (is_applied, is_matched 기준)
   let buttonDisabled = true;
@@ -1687,43 +1726,65 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               {/* 채팅하기 카드만 커스텀 안내문구/버튼 */}
               {baseAction.title === '상대방과 약속잡기' ? (
                 <>
-                  <button
-                    style={{
-                      marginTop: 12,
-                      marginBottom: 8,
-                      background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: 20,
-                      padding: '8px 20px',
-                      fontWeight: 600,
-                      fontSize: '1.05rem',
-                      cursor: canChat ? 'pointer' : 'not-allowed',
-                      opacity: canChat ? 1 : 0.5,
-                      transition: 'all 0.2s ease',
-                      boxShadow: canChat ? '0 3px 10px rgba(124,58,237,0.3)' : '0 2px 6px rgba(0,0,0,0.1)',
-                      display: 'block',
-                      marginLeft: 'auto',
-                      marginRight: 'auto',
-                    }}
-                    disabled={!canChat}
-                    onClick={e => {
-                      e.stopPropagation();
-                      if (canChat) navigate(`/chat/${partnerUserId}`);
-                    }}
-                    onMouseEnter={e => {
-                      if (canChat) {
-                        e.currentTarget.style.transform = 'translateY(-2px)';
-                        e.currentTarget.style.boxShadow = '0 5px 15px rgba(124,58,237,0.4)';
-                      }
-                    }}
-                    onMouseLeave={e => {
-                      if (canChat) {
-                        e.currentTarget.style.transform = 'translateY(0)';
-                        e.currentTarget.style.boxShadow = '0 3px 10px rgba(124,58,237,0.3)';
-                      }
-                    }}
-                  >상대방과 연락하기</button>
+                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      {/* 안읽은 메시지 뱃지 */}
+                      {unreadCount > 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-8px',
+                          right: '-8px',
+                          background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                          color: 'white',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '0.7rem',
+                          fontWeight: '700',
+                          boxShadow: '0 2px 8px rgba(231, 76, 60, 0.4)',
+                          zIndex: 10,
+                          border: '2px solid white'
+                        }}>
+                          {unreadCount > 9 ? '9+' : unreadCount}
+                        </div>
+                      )}
+                      <button
+                        style={{
+                          background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 20,
+                          padding: '8px 20px',
+                          fontWeight: 600,
+                          fontSize: '1.05rem',
+                          cursor: canChat ? 'pointer' : 'not-allowed',
+                          opacity: canChat ? 1 : 0.5,
+                          transition: 'all 0.2s ease',
+                          boxShadow: canChat ? '0 3px 10px rgba(124,58,237,0.3)' : '0 2px 6px rgba(0,0,0,0.1)',
+                        }}
+                        disabled={!canChat}
+                        onClick={e => {
+                          e.stopPropagation();
+                          if (canChat) navigate(`/chat/${partnerUserId}`);
+                        }}
+                        onMouseEnter={e => {
+                          if (canChat) {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 5px 15px rgba(124,58,237,0.4)';
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (canChat) {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 3px 10px rgba(124,58,237,0.3)';
+                          }
+                        }}
+                      >상대방과 연락하기</button>
+                    </div>
+                  </div>
                   {!canChat && (
                     <div style={{ color: '#aaa', fontSize: '0.95rem', marginTop: 6 }}>
                       

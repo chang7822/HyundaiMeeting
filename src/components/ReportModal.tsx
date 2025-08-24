@@ -14,14 +14,14 @@ interface ReportModalProps {
   onSuccess?: () => void;
 }
 
-const ModalOverlay = styled.div<{ isOpen: boolean }>`
+const ModalOverlay = styled.div<{ $isOpen: boolean }>`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
-  display: ${props => props.isOpen ? 'flex' : 'none'};
+  display: ${props => props.$isOpen ? 'flex' : 'none'};
   justify-content: center;
   align-items: center;
   z-index: 1000;
@@ -100,7 +100,7 @@ const ButtonGroup = styled.div`
   margin-top: 1.5rem;
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
+const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   flex: 1;
   padding: 0.75rem 1.5rem;
   border: none;
@@ -110,7 +110,7 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: all 0.2s;
   
-  ${props => props.variant === 'primary' ? `
+  ${props => props.$variant === 'primary' ? `
     background: #7C3AED;
     color: white;
     
@@ -209,7 +209,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <ModalOverlay isOpen={isOpen} onClick={handleClose}>
+    <ModalOverlay $isOpen={isOpen} onClick={handleClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <Title>사용자 신고</Title>
         
@@ -251,7 +251,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
             <Button type="button" onClick={handleClose}>
               취소
             </Button>
-            <Button type="submit" variant="primary" disabled={isSubmitting}>
+            <Button type="submit" $variant="primary" disabled={isSubmitting}>
               {isSubmitting ? '신고 중...' : '신고하기'}
             </Button>
           </ButtonGroup>

@@ -30,13 +30,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const userData = await authApi.getCurrentUser();
           // userData가 snake_case(is_admin)로 올 수 있으니 camelCase로 변환
           const userWithCamel = { ...userData, isAdmin: userData.isAdmin ?? userData.is_admin ?? false };
-          // console.log('[AuthContext] getCurrentUser 성공:', userWithCamel);
           if (!userWithCamel.id) {
             console.error('[AuthContext] userData.id 없음!:', userWithCamel);
           }
           const profileData = await userApi.getUserProfile(userWithCamel.id);
-          // console.log('[AuthContext] getUserProfile 성공:', profileData);
-          // console.log('[AuthContext] setAuthState 직전 (useEffect)', { user: userWithCamel, profile: profileData });
+          // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
           setAuthState({ user: userWithCamel, profile: profileData });
         } catch (err) {
           console.error('[AuthContext] 인증 복원 실패:', err);
@@ -97,8 +95,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('[AuthContext] fetchUser: userData.id 없음!:', userWithCamel);
       }
       const profileData = await userApi.getUserProfile(userWithCamel.id);
-      // console.log('[AuthContext] fetchUser: user/profile 갱신 성공', userWithCamel, profileData);
-      // console.log('[AuthContext] setAuthState 직전 (fetchUser)', { user: userWithCamel, profile: profileData });
+      // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
       setAuthState({ user: userWithCamel, profile: profileData });
     } catch (err) {
       console.error('[AuthContext] fetchUser: 인증 복원 실패:', err);

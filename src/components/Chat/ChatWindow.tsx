@@ -5,6 +5,8 @@ interface Message {
   senderId: string;
   content: string;
   timestamp: string | Date;
+  is_read?: boolean;
+  read_at?: string | null;
 }
 
 interface ChatWindowProps {
@@ -95,6 +97,12 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
                       return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
                     })()}
                   </span>
+                  {/* 내가 보낸 메시지에만 읽음 표시 */}
+                  {msg.senderId === userId && (
+                    <div style={{ fontSize: '0.7rem', color: msg.is_read ? '#4F46E5' : '#999', marginTop: 2, fontWeight: '500', textAlign: 'right' }}>
+                      {msg.is_read ? '읽음' : '전송됨'}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

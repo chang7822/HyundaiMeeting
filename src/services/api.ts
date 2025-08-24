@@ -232,6 +232,18 @@ export const chatApi = {
     const response = await api.post(`/chat/${matchId}/messages`, { content });
     return response.data;
   },
+
+  // 메시지 읽음 처리
+  markAsRead: async (periodId: string, partnerUserId: string, userId: string) => {
+    const response = await api.put(`/chat/${periodId}/${partnerUserId}/read`, { userId });
+    return response.data;
+  },
+
+  // 안읽은 메시지 개수 조회
+  getUnreadCount: async (userId: string) => {
+    const response = await api.get(`/chat/unread-count/${userId}`);
+    return response.data;
+  },
 };
 
 // Admin API

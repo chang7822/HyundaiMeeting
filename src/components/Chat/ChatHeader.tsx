@@ -65,13 +65,13 @@ const InfoCol = styled.div`
   align-items: flex-start;
   min-width: 0;
 `;
-const Name = styled.div<{ gender?: string }>`
+const Name = styled.div<{ $gender?: string }>`
   font-weight: 700;
   font-size: 1.18rem;
-  color: ${({ gender }) =>
-    gender === 'male' || gender === '남성'
+  color: ${({ $gender }) =>
+    $gender === 'male' || $gender === '남성'
       ? '#7C3AED'
-      : gender === 'female' || gender === '여성'
+      : $gender === 'female' || $gender === '여성'
       ? '#F472B6'
       : '#bbb'};
   margin-bottom: 2px;
@@ -109,7 +109,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ partner, onBack, onReport, onSh
         >
           <ProfileIcon gender={partner.gender || ''} />
           <InfoCol>
-            <Name gender={partner.gender}>{partner.nickname}</Name>
+            <Name $gender={partner.gender}>{partner.nickname}</Name>
             <SubRow>
               {partner.birthYear && <SubItem>{partner.birthYear}년생</SubItem>}
               {/* {partner.job && <SubItem>{partner.job}</SubItem>} */}

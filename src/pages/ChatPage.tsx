@@ -16,7 +16,7 @@ import ReportModal from '../components/ReportModal.tsx';
 
 
 
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
+const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://192.168.0.13:3001';
 
 const MainContainer = styled.div`
   flex: 1;
@@ -188,16 +188,21 @@ const ChatPage: React.FC = () => {
     };
   }, [user?.id, partnerUserId, periodId]);
 
-  // 2. 메시지 최초 불러오기(최초 1회만, senderId 통일)
+  // 2. 메시지 최초 불러오기(최초 1회만, senderId 통일) + 읽음 처리
   useEffect(() => {
     if (!user?.id || !partnerUserId || !periodId) return;
     chatApi.getMessages(periodId as string, partnerUserId as string, user.id as string)
-      .then((msgs: any[]) => setMessages(
-        msgs.map(msg => ({
-          ...msg,
-          senderId: String(msg.senderId || msg.sender_id || ''), // 항상 string
-        }))
-      ))
+      .then((msgs: any[]) => {
+        setMessages(
+          msgs.map(msg => ({
+            ...msg,
+            senderId: String(msg.senderId || msg.sender_id || ''), // 항상 string
+          }))
+        );
+        // 채팅방 입장 시 읽음 처리
+        chatApi.markAsRead(periodId as string, partnerUserId as string, user.id as string)
+          .catch(err => console.warn('읽음 처리 실패:', err));
+      })
       .catch(() => setMessages([]));
   }, [user?.id, partnerUserId, periodId]);
 

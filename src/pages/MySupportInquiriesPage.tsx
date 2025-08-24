@@ -19,6 +19,7 @@ const Container = styled.div<{ sidebarOpen?: boolean }>`
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1rem;
+    padding-top: 80px;
   }
 `;
 
@@ -153,11 +154,7 @@ const StatusBadge = styled.span<{ status: string }>`
           background: #d1fae5;
           color: #065f46;
         `;
-      case 'closed':
-        return `
-          background: #f3f4f6;
-          color: #374151;
-        `;
+
       default:
         return `
           background: #e5e7eb;
@@ -365,7 +362,6 @@ const MySupportInquiriesPage: React.FC<MySupportInquiriesPageProps> = ({ sidebar
           <option value="all">전체</option>
           <option value="pending">답변 대기</option>
           <option value="completed">답변 완료</option>
-          <option value="closed">종료</option>
         </FilterSelect>
       </FilterBar>
 
