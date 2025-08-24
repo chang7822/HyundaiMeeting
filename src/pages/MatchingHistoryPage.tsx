@@ -11,22 +11,22 @@ interface MatchingHistoryPageProps {
 }
 
 const Container = styled.div<{ sidebarOpen: boolean }>`
-  min-height: 100vh;
+  flex: 1;
+  margin-left: ${props => props.sidebarOpen ? '280px' : '0'};
   padding: 2rem;
+  min-height: 100vh;
   background: #f8f9fa;
-  margin-left: ${props => props.sidebarOpen ? '250px' : '0'};
-  transition: margin-left 0.3s ease;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  overflow-y: auto;
+  transition: margin-left 0.3s;
   
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1rem;
   }
+`;
+
+const Content = styled.div`
+  max-width: 1000px;
+  margin: 0 auto;
 `;
 
 const Title = styled.h1`
@@ -304,9 +304,10 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
 
   return (
     <Container sidebarOpen={sidebarOpen}>
-      <Title>내 매칭 이력</Title>
-      
-      {history.length === 0 ? (
+      <Content>
+        <Title>내 매칭 이력</Title>
+        
+        {history.length === 0 ? (
         <EmptyState>
           <EmptyIcon>📝</EmptyIcon>
           <EmptyTitle>매칭 이력이 없습니다</EmptyTitle>
@@ -369,20 +370,21 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
         ))
       )}
 
-      <ReportModal
-        isOpen={reportModal.isOpen}
-        onClose={handleCloseReportModal}
-        reportedUser={reportModal.reportedUser!}
-        periodId={reportModal.periodId!}
-        onSuccess={handleReportSuccess}
-      />
+        <ReportModal
+          isOpen={reportModal.isOpen}
+          onClose={handleCloseReportModal}
+          reportedUser={reportModal.reportedUser!}
+          periodId={reportModal.periodId!}
+          onSuccess={handleReportSuccess}
+        />
 
-      <ReportDetailModal
-        isOpen={reportDetailModal.isOpen}
-        onClose={handleCloseReportDetailModal}
-        reportInfo={reportDetailModal.reportInfo}
-        partnerNickname={reportDetailModal.partnerNickname}
-      />
+        <ReportDetailModal
+          isOpen={reportDetailModal.isOpen}
+          onClose={handleCloseReportDetailModal}
+          reportInfo={reportDetailModal.reportInfo}
+          partnerNickname={reportDetailModal.partnerNickname}
+        />
+      </Content>
     </Container>
   );
 };

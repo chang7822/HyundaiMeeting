@@ -18,6 +18,7 @@ const noticeRoutes = require('./routes/notice');
 const faqRoutes = require('./routes/faq');
 const reportRoutes = require('./routes/reports');
 const matchingHistoryRoutes = require('./routes/matching-history');
+const supportRoutes = require('./routes/support');
 const { supabase } = require('./database');
 const { encrypt, decrypt } = require('./utils/encryption');
 
@@ -53,6 +54,7 @@ app.use('/api/notice', noticeRoutes);
 app.use('/api/faq', faqRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/matching-history', matchingHistoryRoutes);
+app.use('/api/support', supportRoutes);
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, '../public')));

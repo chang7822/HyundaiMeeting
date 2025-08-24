@@ -34,6 +34,13 @@ import ReportManagementPage from './pages/admin/ReportManagementPage.tsx';
 import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
 import ChatPage from './pages/ChatPage.tsx';
+// Support Pages
+import SupportInquiryPage from './pages/SupportInquiryPage.tsx';
+import MySupportInquiriesPage from './pages/MySupportInquiriesPage.tsx';
+import SupportInquiryDetailPage from './pages/SupportInquiryDetailPage.tsx';
+// Admin Support Pages
+import AdminSupportPage from './pages/admin/AdminSupportPage.tsx';
+import AdminSupportDetailPage from './pages/admin/AdminSupportDetailPage.tsx';
 
 // Components
 import Sidebar from './components/layout/Sidebar.tsx';
@@ -173,6 +180,31 @@ function App() {
                   </div>
                 </ProtectedRoute>
               } />
+              {/* Support Routes */}
+              <Route path="/support/inquiry" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <SupportInquiryPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/support/my-inquiries" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <MySupportInquiriesPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/support/inquiry/:id" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <SupportInquiryDetailPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
               <Route path="/chat/:partnerUserId" element={
                 <ProtectedRoute>
                   {/* 사이드바 없이 ChatPage만 렌더 */}
@@ -238,6 +270,23 @@ function App() {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <ReportManagementPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              {/* Admin Support Routes */}
+              <Route path="/admin/support" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <AdminSupportPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/support/:id" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <AdminSupportDetailPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />

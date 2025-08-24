@@ -400,6 +400,66 @@ export const sendMatchingResultEmails = async (periodId: number): Promise<any> =
   return response.data;
 };
 
+// ===================================
+// 고객센터 API
+// ===================================
+
+// 문의 등록
+export const createSupportInquiry = async (inquiryData: {
+  title: string;
+  content: string;
+  category?: string;
+}): Promise<any> => {
+  const response = await api.post('/support/inquiries', inquiryData);
+  return response.data;
+};
+
+// 내 문의 목록 조회
+export const getMySupportInquiries = async (params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+}): Promise<any> => {
+  const response = await api.get('/support/inquiries/my', { params });
+  return response.data;
+};
+
+// 문의 상세 조회
+export const getSupportInquiry = async (id: number): Promise<any> => {
+  const response = await api.get(`/support/inquiries/${id}`);
+  return response.data;
+};
+
+export const getAdminSupportInquiry = async (id: number): Promise<any> => {
+  const response = await api.get(`/support/admin/inquiries/${id}`);
+  return response.data;
+};
+
+
+
+// 관리자용 문의 목록 조회
+export const getAdminSupportInquiries = async (params?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  category?: string;
+}): Promise<any> => {
+  const response = await api.get('/support/admin/inquiries', { params });
+  return response.data;
+};
+
+// 관리자 답변 등록
+export const addAdminSupportReply = async (id: number, content: string): Promise<any> => {
+  const response = await api.post(`/support/admin/inquiries/${id}/reply`, { content });
+  return response.data;
+};
+
+// 문의 상태 변경 (관리자)
+export const updateSupportInquiryStatus = async (id: number, status: string): Promise<any> => {
+  const response = await api.put(`/support/admin/inquiries/${id}/status`, { status });
+  return response.data;
+};
+
 // 신고 API
 export const reportApi = {
   // 신고 등록
