@@ -39,9 +39,27 @@ if (!process.env.DB_PASSWORD) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// CORS 설정
+const corsOptions = {
+  origin: [
+    'https://automatchingway.com',
+    'https://www.automatchingway.com',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+
 // 미들웨어
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// OPTIONS 요청 처리 (preflight)
+app.options('*', cors(corsOptions));
 
 // 라우트
 app.use('/api/auth', authRoutes);
@@ -64,7 +82,18 @@ const http = require('http');
 const { Server } = require('socket.io');
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: '*' }
+  cors: {
+    origin: [
+      'https://automatchingway.com',
+      'https://www.automatchingway.com',
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001'
+    ],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
+  }
 });
 
 // chat.js의 messages 배열을 이 파일에서도 사용
