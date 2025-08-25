@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import TermsAgreementModal from '../../components/TermsAgreementModal.tsx';
 
 const RegisterContainer = styled.div`
   min-height: 100vh;
@@ -118,13 +119,23 @@ const InfoBox = styled.div`
 
 const RegisterPage = () => {
   const navigate = useNavigate();
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const handleStart = () => {
-    navigate('/register/company');
+    setShowTermsModal(true);
   };
 
   const handleBack = () => {
     navigate('/');
+  };
+
+  const handleTermsAgree = () => {
+    setShowTermsModal(false);
+    navigate('/register/company');
+  };
+
+  const handleTermsClose = () => {
+    setShowTermsModal(false);
   };
 
   return (
@@ -156,6 +167,12 @@ const RegisterPage = () => {
           뒤로 가기
         </BackButton>
       </RegisterCard>
+
+      <TermsAgreementModal
+        isOpen={showTermsModal}
+        onClose={handleTermsClose}
+        onAgree={handleTermsAgree}
+      />
     </RegisterContainer>
   );
 };

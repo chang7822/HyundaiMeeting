@@ -91,6 +91,12 @@ export const authApi = {
       bodyType: string[] | null;
       jobType: string[] | null;
     };
+                  termsAgreement?: {
+                privacy: boolean;
+                terms: boolean;
+                email: boolean;
+                agreedAt: string;
+              };
   }): Promise<{ user: User; token: string }> => {
     const response = await api.post('/auth/register', userData);
     return response.data;

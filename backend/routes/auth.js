@@ -307,13 +307,19 @@ router.post('/register', async (req, res) => {
       jobType,
       appeal,
       profileData,
-      preferences
+      preferences,
+      termsAgreement
     } = req.body;
 
     // 필수 필드 검증
     if (!email || !password || !nickname || !gender || !birthYear) {
       return res.status(400).json({ error: '필수 정보가 누락되었습니다.' });
     }
+
+                    // 약관 동의 확인
+                if (!termsAgreement || !termsAgreement.privacy || !termsAgreement.terms || !termsAgreement.email) {
+                  return res.status(400).json({ error: '개인정보처리방침, 이용약관 및 이메일 수신 동의에 동의해주세요.' });
+                }
 
     // 이메일 중복 확인
     const { data: existingUser } = await supabase
@@ -338,7 +344,8 @@ router.post('/register', async (req, res) => {
         is_verified: true, // 이메일 인증 완료 가정
         is_active: true,
         is_applied: false, // 매칭 미신청(기본값)
-        is_matched: null   // 매칭 결과 없음(기본값)
+        is_matched: null,  // 매칭 결과 없음(기본값)
+        terms_agreed_at: termsAgreement.agreedAt || new Date().toISOString() // 약관 동의 시간
       }])
       .select('id, email, is_verified, is_active, is_admin')
       .single();

@@ -5,14 +5,14 @@ import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { apiUrl, adminMatchingApi } from '../../services/api.ts';
 import LoadingSpinner from '../../components/LoadingSpinner.tsx';
 
-const Container = styled.div<{ sidebarOpen: boolean }>`
+const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin: 40px auto;
   background: #fff;
   border-radius: 16px;
   box-shadow: 0 2px 16px rgba(80,60,180,0.08);
   padding: 32px 24px;
   max-width: 1200px;
-  margin-left: ${props => (window.innerWidth > 768 && props.sidebarOpen) ? '280px' : '0'};
+  margin-left: ${props => (window.innerWidth > 768 && props.$sidebarOpen) ? '280px' : '0'};
   @media (max-width: 768px) {
     margin-left: 0;
   }
@@ -145,7 +145,7 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
   if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Title>매칭 결과(커플) 리스트</Title>
       <FilterRow>
         <span>회차:</span>

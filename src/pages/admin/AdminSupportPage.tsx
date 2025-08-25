@@ -8,9 +8,9 @@ import { getAdminSupportInquiries } from '../../services/api.ts';
 // 스타일드 컴포넌트
 // ===================================
 
-const Container = styled.div<{ sidebarOpen?: boolean }>`
+const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;
-  margin-left: ${props => props.sidebarOpen ? '280px' : '0'};
+  margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
   background: #f8f9fa;
@@ -398,7 +398,7 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
 
   if (loading) {
     return (
-      <Container sidebarOpen={sidebarOpen}>
+      <Container $sidebarOpen={sidebarOpen}>
         <Content>
           <LoadingSpinner />
         </Content>
@@ -407,7 +407,7 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
   }
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Content>
         <Header>
           <Title>🎧 고객센터 관리</Title>

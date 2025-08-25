@@ -18,46 +18,80 @@ import ReportModal from '../components/ReportModal.tsx';
 
 const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://192.168.0.13:3001';
 
+const PageContainer = styled.div`
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  justify-content: center;
+`;
+
 const MainContainer = styled.div`
   flex: 1;
   min-height: 100vh;
-  background: #f7f7fa;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   flex-direction: column;
   width: 100vw;
+  max-width: 1200px;
   height: 100vh;
   overflow: hidden;
   position: relative;
+  
+  @media (max-width: 1200px) {
+    max-width: 100vw;
+  }
 `;
 
 const ChatHeaderWrapper = styled.div`
   position: fixed;
   top: 0;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100vw;
+  max-width: 1200px;
   z-index: 100;
   background: #fff;
   box-shadow: 0 2px 8px rgba(80,60,180,0.06);
+  
+  @media (max-width: 1200px) {
+    left: 0;
+    transform: none;
+    max-width: 100vw;
+  }
 `;
 
 const ChatInputWrapper = styled.div`
   position: fixed;
   bottom: 0;
-  left: 0;
+  left: 50%;
+  transform: translateX(-50%);
   width: 100vw;
+  max-width: 1200px;
   z-index: 100;
   background: #fff;
   box-shadow: 0 -2px 8px rgba(80,60,180,0.06);
+  
+  @media (max-width: 1200px) {
+    left: 0;
+    transform: none;
+    max-width: 100vw;
+  }
 `;
 
 const ChatWindowWrapper = styled.div`
   flex: 1;
   width: 100vw;
+  max-width: 1200px;
+  margin: 0 auto;
   margin-top: 64px; /* 헤더 높이 */
   margin-bottom: 72px; /* 입력창 높이 */
   overflow-y: auto;
   height: calc(100vh - 64px - 72px);
-  background: #f7f7fa;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  
+  @media (max-width: 1200px) {
+    max-width: 100vw;
+  }
 `;
 
 const ChatPage: React.FC = () => {
@@ -266,9 +300,10 @@ const ChatPage: React.FC = () => {
   };
 
   return (
-    <MainContainer>
-      {/* 헤더 고정 */}
-      <ChatHeaderWrapper>
+    <PageContainer>
+      <MainContainer>
+        {/* 헤더 고정 */}
+        <ChatHeaderWrapper>
         <ChatHeader
           partner={{
             nickname: partnerProfile?.nickname || '상대방',
@@ -391,8 +426,9 @@ const ChatPage: React.FC = () => {
           toast.success('신고가 성공적으로 접수되었습니다.');
         }}
       />
-    </MainContainer>
-  );
-};
+        </MainContainer>
+      </PageContainer>
+    );
+  };
 
 export default ChatPage; 

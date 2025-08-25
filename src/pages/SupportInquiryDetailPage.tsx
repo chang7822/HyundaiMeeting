@@ -8,9 +8,9 @@ import { getSupportInquiry } from '../services/api.ts';
 // 스타일드 컴포넌트
 // ===================================
 
-const Container = styled.div<{ sidebarOpen?: boolean }>`
+const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;
-  margin-left: ${props => props.sidebarOpen ? '280px' : '0'};
+  margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
   background: #f8f9fa;
@@ -312,7 +312,7 @@ const SupportInquiryDetailPage: React.FC<SupportInquiryDetailPageProps> = ({ sid
 
   if (loading) {
     return (
-      <Container sidebarOpen={sidebarOpen}>
+      <Container $sidebarOpen={sidebarOpen}>
         <LoadingSpinner />
       </Container>
     );
@@ -320,14 +320,14 @@ const SupportInquiryDetailPage: React.FC<SupportInquiryDetailPageProps> = ({ sid
 
   if (!inquiry) {
     return (
-      <Container sidebarOpen={sidebarOpen}>
+      <Container $sidebarOpen={sidebarOpen}>
         <div>문의를 찾을 수 없습니다.</div>
       </Container>
     );
   }
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Header>
         <BackButton onClick={handleBack}>←</BackButton>
         <Title>문의 상세</Title>

@@ -150,6 +150,7 @@ const LoginPage = () => {
             <Label>이메일</Label>
             <Input
               type="email"
+              autoComplete="email"
               {...register('email', {
                 required: '이메일을 입력해주세요.',
                 pattern: {
@@ -168,6 +169,7 @@ const LoginPage = () => {
             <div style={{ position: 'relative' }}>
               <Input
                 type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
                 {...register('password', {
                   required: '비밀번호를 입력해주세요.',
                   minLength: {

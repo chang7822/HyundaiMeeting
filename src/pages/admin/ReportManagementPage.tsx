@@ -8,11 +8,11 @@ interface ReportManagementPageProps {
   sidebarOpen: boolean;
 }
 
-const Container = styled.div<{ sidebarOpen: boolean }>`
+const Container = styled.div<{ $sidebarOpen: boolean }>`
   min-height: 100vh;
   padding: 2rem;
   background: #f8f9fa;
-  margin-left: ${props => props.sidebarOpen ? '250px' : '0'};
+  margin-left: ${props => props.$sidebarOpen ? '250px' : '0'};
   transition: margin-left 0.3s ease;
   
   @media (max-width: 768px) {
@@ -127,7 +127,7 @@ const StatusBadge = styled.span<{ status: string }>`
   }}
 `;
 
-const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
   padding: 0.5rem 1rem;
   border: none;
   border-radius: 6px;
@@ -138,7 +138,7 @@ const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger
   margin-right: 0.5rem;
   
   ${props => {
-    switch (props.variant) {
+    switch (props.$variant) {
       case 'primary':
         return `
           background: #7C3AED;
@@ -170,14 +170,14 @@ const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger
   }}
 `;
 
-const ModalOverlay = styled.div<{ isOpen: boolean }>`
+const ModalOverlay = styled.div<{ $isOpen: boolean }>`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
-  display: ${props => props.isOpen ? 'flex' : 'none'};
+  display: ${props => props.$isOpen ? 'flex' : 'none'};
   justify-content: center;
   align-items: center;
   z-index: 1000;
@@ -254,7 +254,7 @@ const ButtonGroup = styled.div`
   margin-top: 1.5rem;
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
+const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   flex: 1;
   padding: 0.75rem 1.5rem;
   border: none;
@@ -264,7 +264,7 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
   cursor: pointer;
   transition: all 0.2s;
   
-  ${props => props.variant === 'primary' ? `
+  ${props => props.$variant === 'primary' ? `
     background: #7C3AED;
     color: white;
     
@@ -370,7 +370,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
   }
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Title>신고 관리</Title>
       
       <FilterSection>
@@ -422,7 +422,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
                 <td>{report.reported_user?.report_count || 0}회</td>
                 <td>
                   <ActionButton
-                    variant="primary"
+                    $variant="primary"
                     onClick={() => handleProcessReport(report)}
                   >
                     {report.status === 'pending' ? '처리' : '처리변경'}
@@ -440,7 +440,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
         )}
       </TableWrapper>
 
-      <ModalOverlay isOpen={processModal} onClick={handleCloseModal}>
+      <ModalOverlay $isOpen={processModal} onClick={handleCloseModal}>
         <ModalContent onClick={(e) => e.stopPropagation()}>
           <ModalTitle>
             {selectedReport?.status === 'pending' ? '신고 처리' : '처리 내용 변경'}
@@ -503,7 +503,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
               <Button type="button" onClick={handleCloseModal}>
                 취소
               </Button>
-              <Button type="submit" variant="primary">
+              <Button type="submit" $variant="primary">
                 처리 완료
               </Button>
             </ButtonGroup>

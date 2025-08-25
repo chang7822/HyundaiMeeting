@@ -8,9 +8,9 @@ import { getMySupportInquiries } from '../services/api.ts';
 // 스타일드 컴포넌트
 // ===================================
 
-const Container = styled.div<{ sidebarOpen?: boolean }>`
+const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;
-  margin-left: ${props => props.sidebarOpen ? '280px' : '0'};
+  margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
   background: #f8f9fa;
@@ -342,7 +342,7 @@ const MySupportInquiriesPage: React.FC<MySupportInquiriesPageProps> = ({ sidebar
   };
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Header>
         <Title>내 문의내역</Title>
         <NewInquiryButton onClick={handleNewInquiry}>

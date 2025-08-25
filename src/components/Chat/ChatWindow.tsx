@@ -78,15 +78,17 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
             }}>
               <div style={{
                 maxWidth: '70%',
-                background: msg.senderId === userId ? 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)' : '#fff',
-                color: msg.senderId === userId ? '#fff' : '#333',
+                background: msg.senderId === userId ? 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)' : '#e9ecef',
+                color: msg.senderId === userId ? '#fff' : '#495057',
                 borderRadius: 16,
                 padding: 'clamp(8px, 2vw, 14px) clamp(12px, 3vw, 22px)',
                 fontSize: 'clamp(0.95rem, 2.5vw, 1.15rem)',
-                boxShadow: '0 2px 8px rgba(80,60,180,0.06)',
+                boxShadow: msg.senderId === userId ? '0 2px 8px rgba(80,60,180,0.06)' : '0 2px 8px rgba(0,0,0,0.08)',
                 marginLeft: msg.senderId === userId ? 0 : 24,
                 marginRight: msg.senderId === userId ? 24 : 0,
                 wordBreak: 'break-all',
+                whiteSpace: 'pre-wrap',
+                border: msg.senderId === userId ? 'none' : '1px solid #e9ecef',
               }}>{msg.content}</div>
               {showTime && (
                 <div style={{ fontSize: 'clamp(0.8rem, 2vw, 0.95rem)', color: '#aaa', margin: msg.senderId === userId ? '0 16px 0 0' : '0 0 0 16px', alignSelf: 'flex-end', minWidth: 38, textAlign: 'center' }}>
@@ -100,7 +102,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
                   {/* 내가 보낸 메시지에만 읽음 표시 */}
                   {msg.senderId === userId && (
                     <div style={{ fontSize: '0.7rem', color: msg.is_read ? '#4F46E5' : '#999', marginTop: 2, fontWeight: '500', textAlign: 'right' }}>
-                      {msg.is_read ? '읽음' : '전송됨'}
+                      {msg.is_read ? '읽음' : '안읽음'}
                     </div>
                   )}
                 </div>

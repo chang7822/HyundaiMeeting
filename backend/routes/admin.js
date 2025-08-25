@@ -245,7 +245,16 @@ router.delete('/matching-log/:id', authenticate, async (req, res) => {
       .eq('period_id', periodId);
     if (reportError) throw reportError;
 
-    // 4. matching_log 삭제
+    // 4. chat_messages 삭제 (해당 회차의 채팅 기록)
+    const { error: chatError } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('period_id', periodId);
+    if (chatError) {
+      console.error(`채팅 기록 삭제 오류:`, chatError);
+    }
+
+    // 5. matching_log 삭제
     const { data, error: logError } = await supabase
       .from('matching_log')
       .delete()
@@ -254,7 +263,7 @@ router.delete('/matching-log/:id', authenticate, async (req, res) => {
       .maybeSingle();
     if (logError) throw logError;
 
-    // 4. [추가] users 테이블 매칭 상태 초기화
+    // 6. [추가] users 테이블 매칭 상태 초기화
     console.log(`[관리자] users 테이블 매칭 상태 초기화 시작`);
     const { error: resetError } = await supabase
       .from('users')
@@ -270,7 +279,7 @@ router.delete('/matching-log/:id', authenticate, async (req, res) => {
     res.json({ 
       success: true, 
       deleted: data,
-      message: '회차 및 관련 데이터(매칭 신청, 이력, 신고)가 삭제되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
+      message: '회차 및 관련 데이터(매칭 신청, 이력, 신고, 채팅 기록)가 삭제되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
     });
   } catch (error) {
     console.error('matching_log 및 연관 데이터 삭제 오류:', error);

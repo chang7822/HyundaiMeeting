@@ -10,9 +10,9 @@ interface MatchingHistoryPageProps {
   sidebarOpen: boolean;
 }
 
-const Container = styled.div<{ sidebarOpen: boolean }>`
+const Container = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
-  margin-left: ${props => props.sidebarOpen ? '280px' : '0'};
+  margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
   background: #f8f9fa;
@@ -304,7 +304,7 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
   }
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Content>
         <Title>내 매칭 이력</Title>
         

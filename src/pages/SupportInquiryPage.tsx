@@ -9,9 +9,9 @@ import { createSupportInquiry } from '../services/api.ts';
 // 스타일드 컴포넌트
 // ===================================
 
-const Container = styled.div<{ sidebarOpen?: boolean }>`
+const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;
-  margin-left: ${props => props.sidebarOpen ? '280px' : '0'};
+  margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
   background: #f8f9fa;
@@ -260,7 +260,7 @@ const SupportInquiryPage: React.FC<SupportInquiryPageProps> = ({ sidebarOpen = t
   };
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Header>
         <Title>고객센터 문의하기</Title>
         <Subtitle>

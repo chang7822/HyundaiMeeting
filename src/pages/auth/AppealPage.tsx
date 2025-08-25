@@ -192,6 +192,16 @@ const AppealPage = () => {
       // 선호도 데이터 파싱
       const preferences = preferencesStr ? JSON.parse(preferencesStr) : {};
       
+      // 약관 동의 정보 가져오기
+      const termsAgreementStr = sessionStorage.getItem('termsAgreement');
+      const termsAgreement = termsAgreementStr ? JSON.parse(termsAgreementStr) : null;
+      
+      if (!termsAgreement) {
+        toast.error('약관 동의 정보가 없습니다. 회원가입을 다시 시작해주세요.');
+        navigate('/register');
+        return;
+      }
+
       // 통합 회원가입 API 호출
       const result = await authApi.registerComplete({
         email,
@@ -206,7 +216,8 @@ const AppealPage = () => {
         jobType: profileData.jobType || undefined,
         appeal: data.appeal,
         profileData,
-        preferences
+        preferences,
+        termsAgreement
       });
       
       // 성공 시 sessionStorage 정리 및 토큰 저장

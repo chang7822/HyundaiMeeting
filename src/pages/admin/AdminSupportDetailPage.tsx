@@ -9,9 +9,9 @@ import { getAdminSupportInquiry, addAdminSupportReply } from '../../services/api
 // 스타일드 컴포넌트
 // ===================================
 
-const Container = styled.div<{ sidebarOpen?: boolean }>`
+const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;
-  margin-left: ${props => props.sidebarOpen ? '280px' : '0'};
+  margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
   background: #f8f9fa;
@@ -164,9 +164,9 @@ const SectionTitle = styled.h3`
   margin: 0 0 16px 0;
 `;
 
-const ReplyItem = styled.div<{ isAdmin?: boolean }>`
-  background: ${props => props.isAdmin ? '#f0f8ff' : '#fff5f5'};
-  border: 1px solid ${props => props.isAdmin ? '#bee3f8' : '#fecaca'};
+const ReplyItem = styled.div<{ $isAdmin?: boolean }>`
+  background: ${props => props.$isAdmin ? '#f0f8ff' : '#fff5f5'};
+  border: 1px solid ${props => props.$isAdmin ? '#bee3f8' : '#fecaca'};
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 12px;
@@ -179,10 +179,10 @@ const ReplyHeader = styled.div`
   margin-bottom: 8px;
 `;
 
-const ReplyAuthor = styled.span<{ isAdmin?: boolean }>`
+const ReplyAuthor = styled.span<{ $isAdmin?: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: ${props => props.isAdmin ? '#1e40af' : '#dc2626'};
+  color: ${props => props.$isAdmin ? '#1e40af' : '#dc2626'};
 `;
 
 const ReplyDate = styled.span`
@@ -426,7 +426,7 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
 
   if (loading) {
     return (
-      <Container sidebarOpen={sidebarOpen}>
+      <Container $sidebarOpen={sidebarOpen}>
         <Content>
           <LoadingSpinner />
         </Content>
@@ -436,7 +436,7 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
 
   if (!inquiry) {
     return (
-      <Container sidebarOpen={sidebarOpen}>
+      <Container $sidebarOpen={sidebarOpen}>
         <Content>
           <div>문의를 찾을 수 없습니다.</div>
         </Content>
@@ -445,7 +445,7 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
   }
 
   return (
-    <Container sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen}>
       <Content>
         <Header>
           <BackButton onClick={handleBack}>←</BackButton>
@@ -473,9 +473,9 @@ const AdminSupportDetailPage: React.FC<AdminSupportDetailPageProps> = ({ sidebar
           <RepliesSection>
             <SectionTitle>💬 답변 내역</SectionTitle>
             {inquiry.replies.map((reply) => (
-              <ReplyItem key={reply.id} isAdmin={reply.is_admin_reply}>
+              <ReplyItem key={reply.id} $isAdmin={reply.is_admin_reply}>
                 <ReplyHeader>
-                  <ReplyAuthor isAdmin={reply.is_admin_reply}>
+                  <ReplyAuthor $isAdmin={reply.is_admin_reply}>
                     {reply.is_admin_reply ? '👨‍💼 관리자' : '👤 사용자'}
                   </ReplyAuthor>
                   <ReplyDate>{formatDate(reply.created_at)}</ReplyDate>
