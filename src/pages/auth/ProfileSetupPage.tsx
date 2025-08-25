@@ -13,6 +13,12 @@ const Container = styled.div`
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px 0 80px 0;
+  
+  /* 모바일 최적화 */
+  @media (max-width: 480px) {
+    padding: 10px 0 80px 0;
+    overflow-x: hidden; /* 가로 스크롤 방지 */
+  }
 `;
 const Section = styled.div`
   background: #fff;
@@ -21,6 +27,14 @@ const Section = styled.div`
   padding: 24px 16px;
   max-width: 480px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  
+  /* 모바일 최적화 */
+  @media (max-width: 480px) {
+    margin: 8px 12px;
+    padding: 20px 12px;
+    max-width: calc(100% - 24px);
+    overflow: hidden; /* 드롭다운이 컨테이너를 벗어나지 않도록 */
+  }
 `;
 const Title = styled.h2`
   font-size: 1.2rem;
@@ -46,6 +60,25 @@ const Select = styled.select`
   font-size: 1rem;
   height: 48px;
   margin-bottom: 20px;
+  
+  /* 모바일 드롭다운 최적화 */
+  @media (max-width: 768px) {
+    font-size: 16px; /* iOS에서 줌 방지 */
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  /* 드롭다운 옵션 스타일링 */
+  option {
+    font-size: 1rem;
+    padding: 8px;
+  }
+  
+  /* 모바일에서 드롭다운 위치 조정 */
+  @media (max-width: 480px) {
+    position: relative;
+    z-index: 1;
+  }
 `;
 
 const Button = styled.button`
@@ -477,7 +510,7 @@ const ProfileSetupPage = () => {
           ))}
         </Select>
         
-        <Label>체형</Label>
+        <Label>체형 (최대 3개)</Label>
         <BodyTypeGrid>
           {(() => {
             // '체형' 카테고리 중 gender가 userGender와 일치하는 것만 사용

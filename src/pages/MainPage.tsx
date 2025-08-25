@@ -857,9 +857,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   }
   if (!isAuthenticated) return null;
-  if (!user.isAdmin) {
-    return <div style={{padding:'2rem',color:'#e74c3c',fontWeight:700,fontSize:'1.2rem'}}>관리자만 접근할 수 있습니다.</div>;
-  }
 
 
 

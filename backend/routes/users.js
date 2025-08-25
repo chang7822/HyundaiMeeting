@@ -299,7 +299,7 @@ router.delete('/me', authenticate, async (req, res) => {
     // matching_applications 익명화
     const { error: error3 } = await supabase
       .from('matching_applications')
-      .update({ user_id: null, updated_at: getKSTISOString() })
+      .update({ user_id: null })
       .eq('user_id', userId);
     if (error3) {
       console.error('[회원탈퇴] matching_applications 익명화 오류:', error3);
@@ -309,7 +309,7 @@ router.delete('/me', authenticate, async (req, res) => {
     // matching_history 익명화
     const { error: error4 } = await supabase
       .from('matching_history')
-      .update({ male_user_id: null, updated_at: getKSTISOString() })
+      .update({ male_user_id: null })
       .eq('male_user_id', userId);
     if (error4) {
       console.error('[회원탈퇴] matching_history male 익명화 오류:', error4);
@@ -318,7 +318,7 @@ router.delete('/me', authenticate, async (req, res) => {
     
     const { error: error5 } = await supabase
       .from('matching_history')
-      .update({ female_user_id: null, updated_at: getKSTISOString() })
+      .update({ female_user_id: null })
       .eq('female_user_id', userId);
     if (error5) {
       console.error('[회원탈퇴] matching_history female 익명화 오류:', error5);
