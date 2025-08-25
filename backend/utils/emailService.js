@@ -50,18 +50,17 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
       </div>
       
       <div style="background: #fef5e7; padding: 20px; border-radius: 10px; border: 1px solid #f6ad55; margin-bottom: 25px;">
-        <h3 style="color: #c05621; margin-top: 0;">💝 설레는 만남을 위한 안내</h3>
+        <h3 style="color: #c05621; margin-top: 0;">만남 전 안내사항</h3>
         <p style="color: #4a5568; line-height: 1.6; margin-bottom: 15px;">
-          <strong>더욱 설레고 특별한 만남을 위해 다음 사항을 참고해주세요:</strong>
+          <strong>안전한 만남을 위해 다음 사항을 참고해주세요:</strong>
         </p>
         <ul style="color: #4a5568; line-height: 1.6; margin: 0; padding-left: 20px;">
           <li>대면 만남 전까지는 서비스 내 채팅을 통해 대화를 나누어보세요</li>
-          <li>서로에 대한 호기심과 기대감을 키워가는 과정을 즐겨보세요</li>
           <li>개인정보는 만남이 확정된 후에 서로 공유하는 걸 추천드립니다.</li>
           <li>소속 조직이나 실명 등은 미리 공개하지 않는 것을 추천드립니다.</li>
         </ul>
         <p style="color: #4a5568; line-height: 1.6; margin: 10px 0 0 0; font-size: 14px;">
-          서비스 내 채팅 기능을 활용하여 서로를 알아가는 설레는 시간을 가져보세요! 💕
+          서비스 내 채팅 기능을 활용하여 대면 만남을 위한 약속을 잡아보세요!
         </p>
       </div>
       
@@ -70,7 +69,7 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
           <strong>발표 시각:</strong> ${koreanTime} (한국 시간)
         </p>
         <p style="color: #718096; margin: 10px 0 0 0; font-size: 14px;">
-          문의사항이 있으시면 관리자에게 연락해주세요.
+          문의사항이 있으시면 고객센터를 통해 관리자에게 연락해주세요.
         </p>
       </div>
     </div>

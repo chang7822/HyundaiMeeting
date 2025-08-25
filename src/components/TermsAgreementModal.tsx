@@ -337,7 +337,12 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
             <strong>4. 개인정보의 제3자 제공</strong><br />
             매칭 서비스 제공을 위해 매칭 상대방에게 제한된 정보(닉네임, 나이, 키, 체형, 직업, 자기소개)를 제공할 수 있습니다.<br /><br />
             
-            <strong>5. 개인정보의 파기</strong><br />
+            <strong>5. 개인정보 보안 및 암호화</strong><br />
+            • 비밀번호는 암호화되어 저장되며, 관리자도 원본 비밀번호를 확인할 수 없습니다.<br />
+            • 채팅 대화내용은 암호화되어 저장되며, 관리자도 내용을 확인할 수 없습니다.<br />
+            • 개인정보는 안전한 암호화 기술을 통해 보호되며, 무단 접근을 방지합니다.<br /><br />
+            
+            <strong>6. 개인정보의 파기</strong><br />
             회원 탈퇴 시 개인정보는 즉시 파기되며, 전자적 파일 형태로 저장된 개인정보는 복구 불가능한 방법으로 영구 삭제됩니다.
           </TermsContent>
           <CheckboxContainer>
@@ -371,12 +376,17 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
             • 위반 행위 시 경고, 일시정지, 영구정지 등의 조치가 취해질 수 있습니다.<br />
             • 신고 접수 시 해당 내용을 검토하여 적절한 조치를 취합니다.<br /><br />
             
-            <strong>4. 면책조항</strong><br />
+            <strong>4. 보안 및 개인정보 보호</strong><br />
+            • 서비스는 개인정보 보호를 위해 최신 보안 기술을 적용합니다.<br />
+            • 비밀번호와 채팅 내용은 암호화되어 저장되며, 관리자도 원본 내용을 확인할 수 없습니다.<br />
+            • 회원은 자신의 계정 정보를 안전하게 관리할 책임이 있습니다.<br /><br />
+            
+            <strong>5. 면책조항</strong><br />
             • 매칭 결과에 대한 책임은 회원에게 있습니다.<br />
             • 서비스 이용 중 발생하는 분쟁은 회원 간 해결해야 합니다.<br />
             • 천재지변, 시스템 장애 등으로 인한 서비스 중단 시 책임을 지지 않습니다.<br /><br />
             
-            <strong>5. 약관 변경</strong><br />
+            <strong>6. 약관 변경</strong><br />
             약관 변경 시 사전 공지하며, 변경된 약관에 동의하지 않는 경우 서비스 이용을 중단할 수 있습니다.
           </TermsContent>
           <CheckboxContainer>
