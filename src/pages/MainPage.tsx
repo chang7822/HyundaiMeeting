@@ -255,6 +255,109 @@ const HalfWidthCard = styled(ActionCard)`
   }
 `;
 
+// 새로운 컴팩트 카드 스타일 (가로 배치용)
+const CompactCard = styled.div`
+  background: white;
+  border-radius: 16px;
+  padding: 1.2rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  min-height: 80px;
+  
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+    border-color: rgba(102, 126, 234, 0.2);
+  }
+  
+  &:active {
+    transform: translateY(-2px);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 1rem;
+    min-height: 70px;
+  }
+  
+  @media (max-width: 480px) {
+    padding: 0.9rem;
+    min-height: 65px;
+  }
+`;
+
+const CompactIcon = styled.div`
+  font-size: 1.8rem;
+  color: #667eea;
+  margin-right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+  min-width: 2.5rem;
+  
+  ${CompactCard}:hover & {
+    transform: scale(1.1);
+  }
+  
+  @media (max-width: 768px) {
+    font-size: 1.6rem;
+    margin-right: 0.8rem;
+    min-width: 2.2rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1.5rem;
+    margin-right: 0.7rem;
+    min-width: 2rem;
+  }
+`;
+
+const CompactTitle = styled.h3`
+  color: #333;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  line-height: 1.3;
+  
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+  }
+`;
+
+const CompactGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+  
+  /* 태블릿에서 2x2 그리드 */
+  @media (max-width: 768px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.8rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  /* 모바일에서 2x2 그리드 유지 */
+  @media (max-width: 480px) {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+  }
+`;
+
 const HalfWidthIcon = styled(ActionIcon)`
   font-size: 1.8rem;
   margin-right: 0.8rem;
@@ -1014,43 +1117,33 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       disabled: !canChat,
       custom: true,
     },
+  ];
+
+  // 컴팩트 카드용 액션들 (2x2 그리드)
+  const compactActions = [
     {
-      type: 'notice-faq',
-      noticeAction: {
-        icon: <FaExclamationTriangle />,
-        title: '공지사항',
-        description: '매칭 관련 공지사항을 확인하세요.',
-        action: () => {
-          navigate('/notice');
-        },
-        disabled: false,
-      },
-      faqAction: {
-        icon: <FaRegStar />,
-        title: 'FAQ',
-        description: '자주 묻는 질문과 답변을 확인하세요.',
-        action: () => {
-          navigate('/faq');
-        },
-        disabled: false,
-      }
+      icon: <FaExclamationTriangle />,
+      title: '공지사항',
+      action: () => navigate('/notice'),
+      disabled: false,
     },
     {
-      type: 'profile-preference',
-      profileAction: {
-        icon: <FaUser />,
-        title: '프로필 관리',
-        description: '내 프로필 정보를 수정하고 관리하세요.',
-        action: () => navigate('/profile'),
-        disabled: false,
-      },
-      preferenceAction: {
-        icon: <FaRegStar />,
-        title: '내가 선호하는 스타일',
-        description: '내가 선호하는 스타일을 조회/수정할 수 있습니다.',
-        action: () => navigate('/preference'),
-        disabled: false,
-      }
+      icon: <FaRegStar />,
+      title: 'FAQ',
+      action: () => navigate('/faq'),
+      disabled: false,
+    },
+    {
+      icon: <FaUser />,
+      title: '프로필',
+      action: () => navigate('/profile'),
+      disabled: false,
+    },
+    {
+      icon: <FaRegStar />,
+      title: '선호 스타일',
+      action: () => navigate('/preference'),
+      disabled: false,
     },
   ];
 
@@ -1573,67 +1666,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       )}
       </WelcomeSection>
       
+      {/* 주요 기능 카드들 */}
       <QuickActions>
         {quickActions.map((action, index) => {
-          // profile-preference 타입 처리
-          if ('type' in action && action.type === 'profile-preference') {
-            const profileAction = action as ProfilePreferenceAction;
-            return (
-              <ProfilePreferenceCard key={index}>
-                <HalfWidthCard
-                  onClick={!profileAction.profileAction.disabled ? profileAction.profileAction.action : undefined}
-                  style={profileAction.profileAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
-                >
-                  <HalfWidthHeader>
-                    <HalfWidthIcon>{profileAction.profileAction.icon}</HalfWidthIcon>
-                    <HalfWidthTitle>{profileAction.profileAction.title}</HalfWidthTitle>
-                  </HalfWidthHeader>
-                  <HalfWidthDescription>{profileAction.profileAction.description}</HalfWidthDescription>
-                </HalfWidthCard>
-                <HalfWidthCard
-                  onClick={!profileAction.preferenceAction.disabled ? profileAction.preferenceAction.action : undefined}
-                  style={profileAction.preferenceAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
-                >
-                  <HalfWidthHeader>
-                    <HalfWidthIcon>{profileAction.preferenceAction.icon}</HalfWidthIcon>
-                    <HalfWidthTitle>{profileAction.preferenceAction.title}</HalfWidthTitle>
-                  </HalfWidthHeader>
-                  <HalfWidthDescription>{profileAction.preferenceAction.description}</HalfWidthDescription>
-                </HalfWidthCard>
-              </ProfilePreferenceCard>
-            );
-          }
-          
-          // notice-faq 타입 처리
-          if ('type' in action && action.type === 'notice-faq') {
-            const noticeFaqAction = action as NoticeFaqAction;
-            return (
-              <ProfilePreferenceCard key={index}>
-                <HalfWidthCard
-                  onClick={!noticeFaqAction.noticeAction.disabled ? noticeFaqAction.noticeAction.action : undefined}
-                  style={noticeFaqAction.noticeAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
-                >
-                  <HalfWidthHeader>
-                    <HalfWidthIcon>{noticeFaqAction.noticeAction.icon}</HalfWidthIcon>
-                    <HalfWidthTitle>{noticeFaqAction.noticeAction.title}</HalfWidthTitle>
-                  </HalfWidthHeader>
-                  <HalfWidthDescription>{noticeFaqAction.noticeAction.description}</HalfWidthDescription>
-                </HalfWidthCard>
-                <HalfWidthCard
-                  onClick={!noticeFaqAction.faqAction.disabled ? noticeFaqAction.faqAction.action : undefined}
-                  style={noticeFaqAction.faqAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
-                >
-                  <HalfWidthHeader>
-                    <HalfWidthIcon>{noticeFaqAction.faqAction.icon}</HalfWidthIcon>
-                    <HalfWidthTitle>{noticeFaqAction.faqAction.title}</HalfWidthTitle>
-                  </HalfWidthHeader>
-                  <HalfWidthDescription>{noticeFaqAction.faqAction.description}</HalfWidthDescription>
-                </HalfWidthCard>
-              </ProfilePreferenceCard>
-            );
-          }
-          
-          // 기존 카드 처리
           const baseAction = action as BaseQuickAction;
           return (
             <ActionCard
@@ -1678,11 +1713,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                           transition: 'all 0.2s ease',
                           marginTop: 16,
                           justifyContent: 'center',
-                          pointerEvents: partnerProfileError ? 'none' : 'auto', // 클릭 막기
+                          pointerEvents: partnerProfileError ? 'none' : 'auto',
                           opacity: partnerProfileError ? 0.6 : 1,
                         }}
                         onClick={async (e) => {
-                          if (partnerProfileError) return; // 방어: 클릭 막기
+                          if (partnerProfileError) return;
                           e.stopPropagation();
                           await fetchPartnerProfile(partnerUserId!);
                           setShowPartnerModal(true);
@@ -1828,6 +1863,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           );
         })}
       </QuickActions>
+
+      {/* 컴팩트 2x2 그리드 카드들 */}
+      <CompactGrid>
+        {compactActions.map((action, index) => (
+          <CompactCard
+            key={index}
+            onClick={!action.disabled ? action.action : undefined}
+            style={action.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
+          >
+            <CompactIcon>{action.icon}</CompactIcon>
+            <CompactTitle>{action.title}</CompactTitle>
+          </CompactCard>
+        ))}
+      </CompactGrid>
 
     </MainContainer>
   );
