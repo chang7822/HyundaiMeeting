@@ -22,4 +22,41 @@ html, body {
 
 #root {
   height: 100%;
+}
+
+/* 모바일 터치 이벤트 최적화 */
+* {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+/* 텍스트 입력 필드는 선택 가능하도록 */
+input, textarea, [contenteditable] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* 토스트 컨테이너 터치 최적화 */
+.Toastify__toast-container {
+  touch-action: manipulation;
+}
+
+.Toastify__toast {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 스크롤 영역 터치 최적화 */
+.scrollable-content {
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch;
 } 

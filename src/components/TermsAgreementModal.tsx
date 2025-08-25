@@ -37,6 +37,9 @@ const ModalContent = styled.div`
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch;
+  touch-action: manipulation;
   
   @media (max-width: 768px) {
     width: 95%;
@@ -101,6 +104,9 @@ const TermsContent = styled.div`
   line-height: 1.6;
   color: #495057;
   margin-bottom: 1rem;
+  -webkit-overflow-scrolling: touch;
+  overflow-scrolling: touch;
+  touch-action: manipulation;
   
   @media (max-width: 768px) {
     max-height: 150px;
@@ -138,6 +144,8 @@ const CheckboxContainer = styled.div`
 const Checkbox = styled.input`
   margin-right: 0.75rem;
   transform: scale(1.2);
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
   
   @media (max-width: 768px) {
     transform: scale(1.4);
@@ -252,6 +260,8 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
     padding: 0.8rem 1rem;
     font-size: 0.9rem;
     min-height: 44px; /* 터치 타겟 최소 크기 */
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
   }
 `;
 
