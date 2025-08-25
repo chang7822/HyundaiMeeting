@@ -12,16 +12,34 @@ const LandingContainer = styled.div`
   color: white;
   text-align: center;
   padding: 20px;
+  padding-top: 60px;
+  
+  @media (max-width: 768px) {
+    padding-top: 80px;
+    padding-bottom: 40px;
+  }
+  
+  @media (max-width: 480px) {
+    padding-top: 100px;
+    padding-bottom: 30px;
+  }
 `;
 
 const Logo = styled.div`
   font-size: 3rem;
   font-weight: bold;
   margin-bottom: 2rem;
+  margin-top: 2rem;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
   
   @media (max-width: 768px) {
     font-size: 2rem;
+    margin-top: 3rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1.8rem;
+    margin-top: 4rem;
   }
 `;
 

@@ -280,21 +280,68 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
 router.delete('/me', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
-    // 1. matching_applications 삭제
-    await supabase.from('matching_applications').delete().eq('user_id', userId);
-    // 2. matching_history 삭제 (male_user_id, female_user_id)
-    await supabase.from('matching_history').delete().eq('male_user_id', userId);
-    await supabase.from('matching_history').delete().eq('female_user_id', userId);
-    // 3. chat_messages 삭제 (sender_id, receiver_id)
-    await supabase.from('chat_messages').delete().eq('sender_id', userId);
-    await supabase.from('chat_messages').delete().eq('receiver_id', userId);
-    // 4. reports 삭제 (reporter_user_id, reported_user_id)
-    await supabase.from('reports').delete().eq('reporter_user_id', userId);
-    await supabase.from('reports').delete().eq('reported_user_id', userId);
-    // 5. user_profiles 삭제
-    await supabase.from('user_profiles').delete().eq('user_id', userId);
-    // 6. users 삭제
-    await supabase.from('users').delete().eq('id', userId);
+    
+    // 1. 개인정보 관련 데이터 삭제
+    // chat_messages 삭제 (개인 대화 내용)
+    const { error: error1 } = await supabase.from('chat_messages').delete().eq('sender_id', userId);
+    if (error1) {
+      console.error('[회원탈퇴] chat_messages sender 삭제 오류:', error1);
+      throw error1;
+    }
+    
+    const { error: error2 } = await supabase.from('chat_messages').delete().eq('receiver_id', userId);
+    if (error2) {
+      console.error('[회원탈퇴] chat_messages receiver 삭제 오류:', error2);
+      throw error2;
+    }
+    
+    // 2. 매칭 데이터 익명화 (삭제하지 않고 user_id를 null로 설정)
+    // matching_applications 익명화
+    const { error: error3 } = await supabase
+      .from('matching_applications')
+      .update({ user_id: null, updated_at: getKSTISOString() })
+      .eq('user_id', userId);
+    if (error3) {
+      console.error('[회원탈퇴] matching_applications 익명화 오류:', error3);
+      throw error3;
+    }
+    
+    // matching_history 익명화
+    const { error: error4 } = await supabase
+      .from('matching_history')
+      .update({ male_user_id: null, updated_at: getKSTISOString() })
+      .eq('male_user_id', userId);
+    if (error4) {
+      console.error('[회원탈퇴] matching_history male 익명화 오류:', error4);
+      throw error4;
+    }
+    
+    const { error: error5 } = await supabase
+      .from('matching_history')
+      .update({ female_user_id: null, updated_at: getKSTISOString() })
+      .eq('female_user_id', userId);
+    if (error5) {
+      console.error('[회원탈퇴] matching_history female 익명화 오류:', error5);
+      throw error5;
+    }
+    
+    // 3. user_profiles 삭제
+    const { error: error6 } = await supabase.from('user_profiles').delete().eq('user_id', userId);
+    if (error6) {
+      console.error('[회원탈퇴] user_profiles 삭제 오류:', error6);
+      throw error6;
+    }
+    
+    // 4. users 삭제 (마지막에)
+    const { error: error7 } = await supabase.from('users').delete().eq('id', userId);
+    if (error7) {
+      console.error('[회원탈퇴] users 삭제 오류:', error7);
+      throw error7;
+    }
+    
+    // 5. reports는 보존 (신고 이력 및 정지 관리용)
+    // matching_log도 보존 (시스템 통계용)
+    
     res.json({ success: true });
   } catch (err) {
     console.error('[회원탈퇴] 서버 오류:', err);
