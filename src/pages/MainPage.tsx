@@ -647,7 +647,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         
         // 정지 상태가 변경되었다면 전체 사용자 정보 업데이트
         if (userData.is_banned !== user?.is_banned || userData.banned_until !== user?.banned_until) {
-          console.log('[MainPage] 사용자 정지 상태 변경 감지, 전체 정보 업데이트');
           await fetchUser();
         }
       }
