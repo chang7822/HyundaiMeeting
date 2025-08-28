@@ -9,6 +9,7 @@ interface ReportModalProps {
   reportedUser: {
     id: string;
     nickname: string;
+    email?: string;
   };
   periodId: number;
   onSuccess?: () => void;
@@ -183,6 +184,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
     try {
       await reportApi.createReport({
         reported_user_id: reportedUser.id,
+        reported_user_email: reportedUser.email, // 탈퇴한 사용자 신고를 위한 이메일 정보
         period_id: periodId,
         report_type: reportType,
         report_details: reportDetails

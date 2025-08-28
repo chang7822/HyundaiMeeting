@@ -258,7 +258,7 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
     }
   };
 
-  const handleReport = (reportedUser: { id: string; nickname: string }, periodId: number) => {
+  const handleReport = (reportedUser: { id: string; nickname: string; email?: string }, periodId: number) => {
     if (!periodId || periodId <= 0) {
       toast.error('매칭 회차 정보가 올바르지 않습니다.');
       return;
@@ -351,7 +351,11 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
                   <ActionButton
                     variant="danger"
                     onClick={() => handleReport(
-                      { id: match.partner_user_id, nickname: match.partner_nickname },
+                      { 
+                        id: match.partner_user_id, 
+                        nickname: match.partner_nickname,
+                        email: match.partner_email 
+                      },
                       match.period_id
                     )}
                   >
