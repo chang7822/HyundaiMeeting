@@ -592,8 +592,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return () => window.clearInterval(timer);
   }, []);
 
+  // 안읽은 메시지 개수 조회
+  const fetchUnreadCount = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const result = await chatApi.getUnreadCount(user.id);
+      setUnreadCount(result.unreadCount || 0);
+    } catch (error) {
+      console.error('안읽은 메시지 개수 조회 실패:', error);
+      setUnreadCount(0);
+    }
+  }, [user?.id]);
+
   // 매칭 상태 조회
-  const fetchMatchingStatus = async () => {
+  const fetchMatchingStatus = useCallback(async () => {
     if (!user?.id) {
       setStatusLoading(false);
       return;
@@ -619,27 +631,40 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } finally {
       setStatusLoading(false);
     }
-  };
-
-  // [수정] MainPage 진입 시 matchingStatus만 자동 fetch (fetchUser 호출 제거)
-  useEffect(() => {
-    if (user?.id) {
-      fetchMatchingStatus();
-      fetchUnreadCount();
-    }
   }, [user?.id]);
 
-  // 안읽은 메시지 개수 조회
-  const fetchUnreadCount = async () => {
-    if (!user?.id) return;
+  // 메인페이지 진입 시 사용자 정지 상태 확인 (로딩 스피너 없이)
+  const checkUserBanStatus = useCallback(async () => {
     try {
-      const result = await chatApi.getUnreadCount(user.id);
-      setUnreadCount(result.unreadCount || 0);
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        
+        // 정지 상태가 변경되었다면 전체 사용자 정보 업데이트
+        if (userData.is_banned !== user?.is_banned || userData.banned_until !== user?.banned_until) {
+          console.log('[MainPage] 사용자 정지 상태 변경 감지, 전체 정보 업데이트');
+          await fetchUser();
+        }
+      }
     } catch (error) {
-      console.error('안읽은 메시지 개수 조회 실패:', error);
-      setUnreadCount(0);
+      console.error('[MainPage] 사용자 상태 확인 오류:', error);
     }
-  };
+  }, [user?.is_banned, user?.banned_until, fetchUser]);
+
+  // MainPage 진입 시 정지 상태 확인 후 기본 데이터 로드
+  useEffect(() => {
+    if (user?.id) {
+      checkUserBanStatus().then(() => {
+        fetchMatchingStatus();
+        fetchUnreadCount();
+      });
+    }
+  }, [user?.id, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount]);
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
@@ -691,7 +716,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }, Math.max(0, diff - 2000));
       return () => window.clearTimeout(pollStart);
     }
-  }, [period, user?.id]);
+  }, [period, user?.id, fetchMatchingStatus]);
 
   // [추가] 회차 시작 시 사용자 정보 자동 업데이트 (30초마다)
   useEffect(() => {
@@ -712,7 +737,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }, 30000); // 30초마다
       return () => window.clearInterval(interval);
     }
-  }, [period, user?.id]);
+  }, [period, user?.id, fetchUser, fetchMatchingStatus]);
 
   // [추가] 매칭 결과 발표 시각 이후 5초간 1초마다 polling (최대 5회)
   useEffect(() => {
@@ -732,7 +757,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }, 1000);
       return () => window.clearInterval(poll);
     }
-  }, [period, user?.id]);
+  }, [period, user?.id, fetchMatchingStatus]);
 
   // [수정] 매칭 공지 시각 이후 is_applied가 true이고 is_matched가 null일 때만 polling
   useEffect(() => {
@@ -750,7 +775,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         window.clearInterval(interval);
       };
     }
-  }, [period, user?.id, user?.is_applied, user?.is_matched]);
+  }, [period, user?.id, user?.is_applied, user?.is_matched, fetchUser]);
 
   // 모달이 열릴 때 body 스크롤 막기
   useEffect(() => {
@@ -782,7 +807,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }, 30000); // 30초마다 업데이트
 
     return () => window.clearInterval(interval);
-  }, [user?.id]);
+  }, [user?.id, fetchUnreadCount]);
 
   // 카운트다운 계산 함수 (조건부 렌더링 이전에 선언)
   const calculateCountdown = useCallback(() => {
