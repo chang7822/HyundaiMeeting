@@ -59,7 +59,28 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
-    // 신고 등록
+    // 신고자와 신고받은 사용자의 이메일 조회
+    const { data: reporterUser, error: reporterError } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', reporter_id)
+      .single();
+
+    const { data: reportedUser, error: reportedError } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', reported_user_id)
+      .single();
+
+    if (reporterError || reportedError) {
+      console.error('사용자 이메일 조회 오류:', reporterError || reportedError);
+      return res.status(500).json({ 
+        success: false, 
+        message: '사용자 정보를 찾을 수 없습니다.' 
+      });
+    }
+
+    // 신고 등록 (이메일 정보 포함)
     const { data, error } = await supabase
       .from('reports')
       .insert({
@@ -68,7 +89,9 @@ router.post('/', authenticate, async (req, res) => {
         period_id,
         report_type,
         report_details,
-        status: 'pending'
+        status: 'pending',
+        reporter_email: reporterUser.email,
+        reported_user_email: reportedUser.email
       })
       .select()
       .single();

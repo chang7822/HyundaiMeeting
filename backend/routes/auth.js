@@ -145,6 +145,8 @@ router.post('/verify-email', async (req, res) => {
       });
     }
 
+
+
     // 환경 변수 확인
     console.log('환경 변수 확인:', {
       EMAIL_USER: process.env.EMAIL_USER,
@@ -331,6 +333,8 @@ router.post('/register', async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ error: '이미 등록된 이메일입니다.' });
     }
+
+
 
     // 비밀번호 해시화
     const hashedPassword = await bcrypt.hash(password, 12);

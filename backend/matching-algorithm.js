@@ -22,27 +22,53 @@ function getAge(birthYear) {
   return now.getFullYear() - birthYear + 1;
 }
 
-// 과거 매칭 이력 조회 함수
+// 과거 매칭 이력 조회 함수 (이메일 기반)
 async function getPreviousMatchHistory(userIds) {
   try {
+    // 1. 사용자 ID들의 이메일 조회
+    const { data: userEmails, error: emailError } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('id', userIds);
+    
+    if (emailError) {
+      console.error('사용자 이메일 조회 실패:', emailError);
+      return new Set();
+    }
+    
+    // 이메일 목록 생성 및 매핑
+    const emails = userEmails.map(user => user.email);
+    const emailToIdMap = {};
+    userEmails.forEach(user => {
+      emailToIdMap[user.email] = user.id;
+    });
+    
+    // 2. 이메일 기반으로 매칭 이력 조회
     const { data: matchHistory, error } = await supabase
       .from('matching_history')
-      .select('male_user_id, female_user_id')
-      .or(`male_user_id.in.(${userIds.join(',')}),female_user_id.in.(${userIds.join(',')})`);
+      .select('male_user_email, female_user_email')
+      .or(`male_user_email.in.("${emails.join('","')}"),female_user_email.in.("${emails.join('","')}")`);
     
     if (error) {
       console.error('과거 매칭 이력 조회 실패:', error);
-      return new Set(); // 오류 시 빈 Set 반환
+      return new Set();
     }
     
-    // 과거 매칭 이력이 있는 사용자 쌍을 Set으로 저장
+    // 3. 이메일 기반 매칭 이력을 현재 user_id로 변환하여 Set에 저장
     const previousMatches = new Set();
     if (matchHistory && matchHistory.length > 0) {
       matchHistory.forEach(match => {
-        previousMatches.add(`${match.male_user_id}-${match.female_user_id}`);
-        previousMatches.add(`${match.female_user_id}-${match.male_user_id}`);
+        if (match.male_user_email && match.female_user_email) {
+          const maleCurrentId = emailToIdMap[match.male_user_email];
+          const femaleCurrentId = emailToIdMap[match.female_user_email];
+          
+          if (maleCurrentId && femaleCurrentId) {
+            previousMatches.add(`${maleCurrentId}-${femaleCurrentId}`);
+            previousMatches.add(`${femaleCurrentId}-${maleCurrentId}`);
+          }
+        }
       });
-      console.log(`과거 매칭 이력 조회 완료: ${matchHistory.length}건의 매칭 이력 발견`);
+      console.log(`과거 매칭 이력 조회 완료: ${matchHistory.length}건의 이메일 기반 매칭 이력 발견`);
     } else {
       console.log('과거 매칭 이력이 없습니다.');
     }
@@ -50,7 +76,7 @@ async function getPreviousMatchHistory(userIds) {
     return previousMatches;
   } catch (error) {
     console.error('과거 매칭 이력 조회 중 오류:', error);
-    return new Set(); // 오류 시 빈 Set 반환
+    return new Set();
   }
 }
 
@@ -203,6 +229,11 @@ async function main() {
     .filter(user => !user.is_banned)
     .map(user => user.id);
   
+  console.log(`매칭 대상자 필터링 결과:`);
+  console.log(`- 전체 신청자: ${userIds.length}명`);
+  console.log(`- 정지 제외: ${userIds.length - eligibleUserIds.length}명`);
+  console.log(`- 최종 매칭 대상자: ${eligibleUserIds.length}명`);
+  
   if (eligibleUserIds.length < 2) {
     console.log('매칭할 신청자가 2명 미만입니다.');
     // [추가] 모든 신청자에 대해 is_matched false 처리
@@ -304,11 +335,24 @@ async function main() {
   let success = 0;
   const matchedAt = new Date().toISOString();
   for (const [userA, userB] of matches) {
-    // 매칭된 사용자들의 닉네임 조회
+    // 매칭된 사용자들의 닉네임과 이메일 조회
     const maleProfile = profiles.find(p => p.user_id === userA);
     const femaleProfile = profiles.find(p => p.user_id === userB);
     
-    // matching_history에 기록
+    // 사용자들의 이메일 조회
+    const { data: maleUser } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', userA)
+      .single();
+    
+    const { data: femaleUser } = await supabase
+      .from('users')
+      .select('email')
+      .eq('id', userB)
+      .single();
+    
+    // matching_history에 기록 (이메일 정보 포함)
     const { error: insertError } = await supabase
       .from('matching_history')
       .insert({
@@ -317,6 +361,8 @@ async function main() {
         female_user_id: userB,
         male_nickname: maleProfile?.nickname || null,
         female_nickname: femaleProfile?.nickname || null,
+        male_user_email: maleUser?.email || null,
+        female_user_email: femaleUser?.email || null,
         created_at: getKSTISOString(),
         matched: true,
         matched_at: matchedAt,
