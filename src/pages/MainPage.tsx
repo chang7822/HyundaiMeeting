@@ -636,6 +636,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // 메인페이지 진입 시 사용자 정지 상태 확인 (로딩 스피너 없이)
   const checkUserBanStatus = useCallback(async () => {
     try {
+      console.log('[MainPage] 사용자 정지 상태 확인 시작', {
+        현재_AuthContext: { is_banned: user?.is_banned, banned_until: user?.banned_until }
+      });
+      
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -645,9 +649,21 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       if (response.ok) {
         const userData = await response.json();
         
+        console.log('[MainPage] 서버에서 받은 사용자 데이터', {
+          서버: { is_banned: userData.is_banned, banned_until: userData.banned_until },
+          AuthContext: { is_banned: user?.is_banned, banned_until: user?.banned_until },
+          비교결과: {
+            is_banned_다름: userData.is_banned !== user?.is_banned,
+            banned_until_다름: userData.banned_until !== user?.banned_until
+          }
+        });
+        
         // 정지 상태가 변경되었다면 전체 사용자 정보 업데이트
         if (userData.is_banned !== user?.is_banned || userData.banned_until !== user?.banned_until) {
+          console.log('[MainPage] 사용자 정지 상태 변경 감지, 전체 정보 업데이트');
           await fetchUser();
+        } else {
+          console.log('[MainPage] 정지 상태 변경 없음, fetchUser 호출 안함');
         }
       }
     } catch (error) {
