@@ -29,13 +29,12 @@ router.get('/my-history', authenticate, async (req, res) => {
     });
 
     // 사용자의 매칭 이력 조회 (남성/여성 모두 포함)
+    // LEFT JOIN을 사용하여 탈퇴한 사용자도 처리 가능하도록 수정
     const { data, error } = await supabase
       .from('matching_history')
       .select(`
         *,
-        period:matching_log(id, application_start, application_end, finish),
-        male_profile:user_profiles!male_user_id(nickname, gender),
-        female_profile:user_profiles!female_user_id(nickname, gender)
+        period:matching_log(id, application_start, application_end, finish)
       `)
       .or(`male_user_id.eq.${user_id},female_user_id.eq.${user_id}`)
       .order('matched_at', { ascending: false });
@@ -53,11 +52,21 @@ router.get('/my-history', authenticate, async (req, res) => {
       const isMale = match.male_user_id === user_id;
       const partnerUserId = isMale ? match.female_user_id : match.male_user_id;
       const partnerNickname = isMale ? match.female_nickname : match.male_nickname;
-      const partnerProfile = isMale ? match.female_profile : match.male_profile;
       
-      // 해당 매칭에 대한 신고 내역 조회
+      // 상대방이 탈퇴하지 않은 경우에만 프로필 정보 조회
+      let partnerProfile = null;
+      if (partnerUserId) {
+        const { data: profileData } = await supabase
+          .from('user_profiles')
+          .select('nickname, gender')
+          .eq('user_id', partnerUserId)
+          .single();
+        partnerProfile = profileData;
+      }
+      
+      // 해당 매칭에 대한 신고 내역 조회 (상대방이 탈퇴하지 않은 경우만)
       let reportInfo = null;
-      if (match.matched === true) {
+      if (match.matched === true && partnerUserId) {
         const { data: reportData } = await supabase
           .from('reports')
           .select('id, report_type, report_details, status, created_at')
@@ -76,10 +85,11 @@ router.get('/my-history', authenticate, async (req, res) => {
         matched_at: match.matched_at,
         matched: match.matched,
         partner_user_id: partnerUserId,
-        partner_nickname: partnerNickname || partnerProfile?.nickname,
-        partner_gender: partnerProfile?.gender,
+        partner_nickname: partnerProfile?.nickname || partnerNickname || '탈퇴한 사용자',
+        partner_gender: partnerProfile?.gender || null,
+        partner_email: isMale ? match.female_user_email : match.male_user_email, // 탈퇴한 사용자 신고를 위한 이메일 정보
         period_info: match.period,
-        // 신고 가능 여부 (매칭 성공하고 아직 신고하지 않은 경우만)
+        // 신고 가능 여부 (매칭 성공하고 아직 신고하지 않은 경우, 탈퇴한 사용자도 이메일 기반으로 신고 가능)
         can_report: match.matched === true && !reportInfo,
         // 신고 정보
         report_info: reportInfo
@@ -110,9 +120,7 @@ router.get('/:id', authenticate, async (req, res) => {
       .from('matching_history')
       .select(`
         *,
-        period:matching_log(id, application_start, application_end, finish),
-        male_profile:user_profiles!male_user_id(nickname, gender, birth_year, height, job_type),
-        female_profile:user_profiles!female_user_id(nickname, gender, birth_year, height, job_type)
+        period:matching_log(id, application_start, application_end, finish)
       `)
       .eq('id', id)
       .or(`male_user_id.eq.${user_id},female_user_id.eq.${user_id}`)
@@ -137,7 +145,17 @@ router.get('/:id', authenticate, async (req, res) => {
     const isMale = data.male_user_id === user_id;
     const partnerUserId = isMale ? data.female_user_id : data.male_user_id;
     const partnerNickname = isMale ? data.female_nickname : data.male_nickname;
-    const partnerProfile = isMale ? data.female_profile : data.male_profile;
+
+    // 상대방이 탈퇴하지 않은 경우에만 프로필 정보 조회
+    let partnerProfile = null;
+    if (partnerUserId) {
+      const { data: profileData } = await supabase
+        .from('user_profiles')
+        .select('nickname, gender, birth_year, height, job_type')
+        .eq('user_id', partnerUserId)
+        .single();
+      partnerProfile = profileData;
+    }
 
     const processedData = {
       id: data.id,
@@ -145,13 +163,13 @@ router.get('/:id', authenticate, async (req, res) => {
       matched_at: data.matched_at,
       matched: data.matched,
       partner_user_id: partnerUserId,
-      partner_nickname: partnerNickname || partnerProfile?.nickname,
-      partner_gender: partnerProfile?.gender,
-      partner_birth_year: partnerProfile?.birth_year,
-      partner_height: partnerProfile?.height,
-      partner_job_type: partnerProfile?.job_type,
+      partner_nickname: partnerProfile?.nickname || partnerNickname || '탈퇴한 사용자',
+      partner_gender: partnerProfile?.gender || null,
+      partner_birth_year: partnerProfile?.birth_year || null,
+      partner_height: partnerProfile?.height || null,
+      partner_job_type: partnerProfile?.job_type || null,
       period_info: data.period,
-      can_report: data.matched === true
+      can_report: data.matched === true // 탈퇴한 사용자도 이메일 기반으로 신고 가능
     };
 
     res.json({

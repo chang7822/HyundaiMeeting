@@ -6,7 +6,7 @@ const authenticate = require('../middleware/authenticate');
 // 신고 등록
 router.post('/', authenticate, async (req, res) => {
   try {
-    const { reported_user_id, period_id, report_type, report_details } = req.body;
+    const { reported_user_id, reported_user_email, period_id, report_type, report_details } = req.body;
     const reporter_id = req.user.userId;
 
     // console.log('[신고 등록] 요청 데이터:', {
@@ -18,8 +18,8 @@ router.post('/', authenticate, async (req, res) => {
     //   reporter_id
     // });
 
-    // 필수 필드 검증
-    if (!reported_user_id || !report_type || !period_id || period_id <= 0) {
+    // 필수 필드 검증 (reported_user_id 또는 reported_user_email 중 하나는 있어야 함)
+    if ((!reported_user_id && !reported_user_email) || !report_type || !period_id || period_id <= 0) {
       return res.status(400).json({ 
         success: false, 
         message: '필수 정보가 누락되었습니다.' 
@@ -34,14 +34,33 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
-    // 이미 신고한 적이 있는지 확인
-    const { data: existingReport, error: checkError } = await supabase
-      .from('reports')
-      .select('id')
-      .eq('reporter_id', reporter_id)
-      .eq('reported_user_id', reported_user_id)
-      .eq('period_id', period_id)
-      .maybeSingle();
+    // 이미 신고한 적이 있는지 확인 (ID 또는 이메일 기반)
+    let existingReport = null;
+    let checkError = null;
+    
+    if (reported_user_id) {
+      // ID 기반 확인 (활성 사용자)
+      const result = await supabase
+        .from('reports')
+        .select('id')
+        .eq('reporter_id', reporter_id)
+        .eq('reported_user_id', reported_user_id)
+        .eq('period_id', period_id)
+        .maybeSingle();
+      existingReport = result.data;
+      checkError = result.error;
+    } else if (reported_user_email) {
+      // 이메일 기반 확인 (탈퇴한 사용자)
+      const result = await supabase
+        .from('reports')
+        .select('id')
+        .eq('reporter_id', reporter_id)
+        .eq('reported_user_email', reported_user_email)
+        .eq('period_id', period_id)
+        .maybeSingle();
+      existingReport = result.data;
+      checkError = result.error;
+    }
 
     if (checkError) {
       console.error('기존 신고 확인 오류:', checkError);
@@ -59,25 +78,41 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
-    // 신고자와 신고받은 사용자의 이메일 조회
+    // 신고자 이메일 조회
     const { data: reporterUser, error: reporterError } = await supabase
       .from('users')
       .select('email')
       .eq('id', reporter_id)
       .single();
 
-    const { data: reportedUser, error: reportedError } = await supabase
-      .from('users')
-      .select('email')
-      .eq('id', reported_user_id)
-      .single();
-
-    if (reporterError || reportedError) {
-      console.error('사용자 이메일 조회 오류:', reporterError || reportedError);
+    if (reporterError) {
+      console.error('신고자 이메일 조회 오류:', reporterError);
       return res.status(500).json({ 
         success: false, 
-        message: '사용자 정보를 찾을 수 없습니다.' 
+        message: '신고자 정보를 찾을 수 없습니다.' 
       });
+    }
+
+    // 신고받은 사용자의 이메일 조회 (활성 사용자인 경우만)
+    let reportedUserEmail = reported_user_email; // 이미 제공된 이메일 사용
+    
+    if (reported_user_id && !reported_user_email) {
+      // ID는 있지만 이메일이 없는 경우 (활성 사용자)
+      const { data: reportedUser, error: reportedError } = await supabase
+        .from('users')
+        .select('email')
+        .eq('id', reported_user_id)
+        .single();
+
+      if (reportedError) {
+        console.error('신고받은 사용자 이메일 조회 오류:', reportedError);
+        return res.status(500).json({ 
+          success: false, 
+          message: '신고받은 사용자 정보를 찾을 수 없습니다.' 
+        });
+      }
+      
+      reportedUserEmail = reportedUser.email;
     }
 
     // 신고 등록 (이메일 정보 포함)
@@ -85,13 +120,13 @@ router.post('/', authenticate, async (req, res) => {
       .from('reports')
       .insert({
         reporter_id,
-        reported_user_id,
+        reported_user_id: reported_user_id || null, // 탈퇴한 사용자인 경우 null
         period_id,
         report_type,
         report_details,
         status: 'pending',
         reporter_email: reporterUser.email,
-        reported_user_email: reportedUser.email
+        reported_user_email: reportedUserEmail
       })
       .select()
       .single();
@@ -152,7 +187,6 @@ router.get('/my-reports', authenticate, async (req, res) => {
       .from('reports')
       .select(`
         *,
-        reported_user:user_profiles!reported_user_id(nickname),
         period:matching_log(id, application_start, application_end)
       `)
       .eq('reporter_id', reporter_id)
@@ -166,9 +200,15 @@ router.get('/my-reports', authenticate, async (req, res) => {
       });
     }
 
+    // 탈퇴한 사용자 처리를 위해 reported_user_email 사용
+    const processedData = data.map(report => ({
+      ...report,
+      reported_user_nickname: report.reported_user_email || '탈퇴한 사용자'
+    }));
+
     res.json({
       success: true,
-      data
+      data: processedData
     });
 
   } catch (error) {

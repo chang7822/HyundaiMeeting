@@ -455,13 +455,11 @@ router.get('/matching-applications', authenticate, async (req, res) => {
 router.get('/matching-history', authenticate, async (req, res) => {
   try {
     const { periodId, nickname } = req.query;
-    // 1. matching_history에서 회차별로 조회
+    // 1. matching_history에서 회차별로 조회 (탈퇴한 사용자도 처리 가능하도록 수정)
     let query = supabase
       .from('matching_history')
       .select(`
-        *,
-        male:user_profiles!male_user_id(*, user:users!user_id(id, email)),
-        female:user_profiles!female_user_id(*, user:users!user_id(id, email))
+        *
       `)
       .order('period_id', { ascending: false });
     if (periodId && periodId !== 'all') {
@@ -469,14 +467,76 @@ router.get('/matching-history', authenticate, async (req, res) => {
     }
     const { data, error } = await query;
     if (error) throw error;
-    let result = data || [];
-    // 2. 닉네임 필터링(남/여 중 하나라도 해당 닉네임 포함)
+    // 2. 각 매칭에 대해 사용자 정보 조회 및 처리
+    const processedResult = await Promise.all((data || []).map(async (row) => {
+      // 남성 사용자 정보 조회
+      let maleInfo = null;
+      if (row.male_user_id) {
+        const { data: maleUser } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('id', row.male_user_id)
+          .single();
+        
+        if (maleUser) {
+          const { data: maleProfile } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', row.male_user_id)
+            .single();
+          
+          maleInfo = {
+            ...maleProfile,
+            user: maleUser
+          };
+        }
+      }
+
+      // 여성 사용자 정보 조회
+      let femaleInfo = null;
+      if (row.female_user_id) {
+        const { data: femaleUser } = await supabase
+          .from('users')
+          .select('id, email')
+          .eq('id', row.female_user_id)
+          .single();
+        
+        if (femaleUser) {
+          const { data: femaleProfile } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('user_id', row.female_user_id)
+            .single();
+          
+          femaleInfo = {
+            ...femaleProfile,
+            user: femaleUser
+          };
+        }
+      }
+
+      return {
+        ...row,
+        male: maleInfo || {
+          nickname: row.male_nickname || '탈퇴한 사용자',
+          user: { id: null, email: row.male_user_email || '탈퇴한 사용자' }
+        },
+        female: femaleInfo || {
+          nickname: row.female_nickname || '탈퇴한 사용자',
+          user: { id: null, email: row.female_user_email || '탈퇴한 사용자' }
+        }
+      };
+    }));
+
+    // 3. 닉네임 필터링(남/여 중 하나라도 해당 닉네임 포함)
+    let result = processedResult;
     if (nickname && nickname.trim() !== '') {
-      result = result.filter(row =>
+      result = processedResult.filter(row =>
         (row.male && row.male.nickname && row.male.nickname.includes(nickname)) ||
         (row.female && row.female.nickname && row.female.nickname.includes(nickname))
       );
     }
+    
     res.json(result);
   } catch (error) {
     console.error('matching_history 조회 오류:', error);
@@ -612,10 +672,7 @@ router.get('/reports', authenticate, async (req, res) => {
       .from('reports')
       .select(`
         *,
-        reporter:users!reporter_id(id, email),
-        reported_user:users!reported_user_id(id, email),
-        period:matching_log(id, application_start, application_end),
-        resolver:users!resolved_by(email)
+        period:matching_log(id, application_start, application_end)
       `)
       .order('created_at', { ascending: false });
 
@@ -631,48 +688,88 @@ router.get('/reports', authenticate, async (req, res) => {
       return res.status(500).json({ message: '신고 목록 조회에 실패했습니다.' });
     }
 
-    // 각 신고에 대해 닉네임 정보 추가
-    const reportsWithNicknames = await Promise.all(
+    // 탈퇴한 사용자 처리를 위해 이메일 정보 사용
+    const reportsWithUserInfo = await Promise.all(
       data.map(async (report) => {
-        // 신고자 닉네임 조회
-        let reporterNickname = null;
-        if (report.reporter) {
-          const { data: reporterProfile } = await supabase
-            .from('user_profiles')
-            .select('nickname')
-            .eq('user_id', report.reporter.id)
+        // 신고자 정보 조회 (탈퇴하지 않은 경우만)
+        let reporterInfo = null;
+        if (report.reporter_id) {
+          const { data: reporterData } = await supabase
+            .from('users')
+            .select('id, email')
+            .eq('id', report.reporter_id)
             .single();
-          reporterNickname = reporterProfile?.nickname;
+          
+          if (reporterData) {
+            const { data: reporterProfile } = await supabase
+              .from('user_profiles')
+              .select('nickname')
+              .eq('user_id', report.reporter_id)
+              .single();
+            
+            reporterInfo = {
+              id: reporterData.id,
+              email: reporterData.email,
+              nickname: reporterProfile?.nickname
+            };
+          }
         }
 
-        // 신고받은 사용자 닉네임 조회
-        let reportedUserNickname = null;
-        if (report.reported_user) {
-          const { data: reportedUserProfile } = await supabase
-            .from('user_profiles')
-            .select('nickname')
-            .eq('user_id', report.reported_user.id)
+        // 신고받은 사용자 정보 조회 (탈퇴하지 않은 경우만)
+        let reportedUserInfo = null;
+        if (report.reported_user_id) {
+          const { data: reportedUserData } = await supabase
+            .from('users')
+            .select('id, email')
+            .eq('id', report.reported_user_id)
             .single();
-          reportedUserNickname = reportedUserProfile?.nickname;
+          
+          if (reportedUserData) {
+            const { data: reportedUserProfile } = await supabase
+              .from('user_profiles')
+              .select('nickname')
+              .eq('user_id', report.reported_user_id)
+              .single();
+            
+            reportedUserInfo = {
+              id: reportedUserData.id,
+              email: reportedUserData.email,
+              nickname: reportedUserProfile?.nickname
+            };
+          }
+        }
+
+        // 처리자 정보 조회 (탈퇴하지 않은 경우만)
+        let resolverInfo = null;
+        if (report.resolved_by) {
+          const { data: resolverData } = await supabase
+            .from('users')
+            .select('email')
+            .eq('id', report.resolved_by)
+            .single();
+          resolverInfo = resolverData;
         }
 
         return {
           ...report,
-          reporter: report.reporter ? {
-            ...report.reporter,
-            nickname: reporterNickname
-          } : null,
-          reported_user: report.reported_user ? {
-            ...report.reported_user,
-            nickname: reportedUserNickname
-          } : null
+          reporter: reporterInfo || {
+            id: null,
+            email: report.reporter_email || '탈퇴한 사용자',
+            nickname: '탈퇴한 사용자'
+          },
+          reported_user: reportedUserInfo || {
+            id: null,
+            email: report.reported_user_email || '탈퇴한 사용자',
+            nickname: '탈퇴한 사용자'
+          },
+          resolver: resolverInfo
         };
       })
     );
 
     res.json({
       success: true,
-      data: reportsWithNicknames,
+      data: reportsWithUserInfo,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),

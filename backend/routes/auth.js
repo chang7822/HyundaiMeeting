@@ -559,8 +559,37 @@ router.post('/register', async (req, res) => {
     }
 
     // JWT 토큰 생성
+        // 재가입 시 이메일 기반 report 정보 갱신
+    console.log(`[회원가입] 이메일 기반 report 정보 갱신 시작: ${email}`);
+    
+    // 신고한 내역 갱신 (reporter_email 기준)
+    const { error: reporterUpdateError } = await supabase
+      .from('reports')
+      .update({ reporter_id: user.id })
+      .eq('reporter_email', email)
+      .is('reporter_id', null);
+    
+    if (reporterUpdateError) {
+      console.error('[회원가입] 신고자 ID 갱신 오류:', reporterUpdateError);
+    } else {
+      console.log(`[회원가입] 신고자 ID 갱신 완료: ${email}`);
+    }
+    
+    // 신고받은 내역 갱신 (reported_user_email 기준)
+    const { error: reportedUpdateError } = await supabase
+      .from('reports')
+      .update({ reported_user_id: user.id })
+      .eq('reported_user_email', email)
+      .is('reported_user_id', null);
+    
+    if (reportedUpdateError) {
+      console.error('[회원가입] 신고받은 사용자 ID 갱신 오류:', reportedUpdateError);
+    } else {
+      console.log(`[회원가입] 신고받은 사용자 ID 갱신 완료: ${email}`);
+    }
+
     const token = jwt.sign(
-      { 
+      {
         userId: user.id, 
         id: user.id, 
         email: user.email,

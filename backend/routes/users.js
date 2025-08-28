@@ -296,47 +296,9 @@ router.delete('/me', authenticate, async (req, res) => {
     const userEmail = userData.email;
     console.log(`[회원탈퇴] 탈퇴 시작: ${userEmail} (ID: ${userId})`);
     
-    // 0-1. 정지 상태인 사용자의 경우 이메일을 블랙리스트에 등록
+    // 0-1. 탈퇴 사용자 정보 로깅 (블랙리스트 시스템 제거)
     if (userData.is_banned || (userData.report_count && userData.report_count > 0)) {
-      console.log(`[회원탈퇴] 정지/신고된 사용자 탈퇴 - 블랙리스트 등록: ${userEmail}`);
-      
-      // 관련 신고 ID들 조회
-      const { data: reports, error: reportsError } = await supabase
-        .from('reports')
-        .select('id, report_type, status')
-        .eq('reported_user_id', userId);
-      
-      if (reportsError) {
-        console.error('[회원탈퇴] 신고 이력 조회 오류:', reportsError);
-      }
-      
-      const reportIds = reports ? reports.map(r => r.id) : [];
-      const banType = userData.is_banned ? 
-        (userData.banned_until ? 'temporary' : 'permanent') : 
-        'permanent'; // 신고 이력이 있으면 영구 정지로 처리
-      
-      const banReason = userData.is_banned ? 
-        '정지 상태에서 탈퇴한 사용자' : 
-        `신고 이력이 있는 탈퇴 사용자 (신고 횟수: ${userData.report_count})`;
-      
-      // 블랙리스트에 추가
-      const { error: blacklistError } = await supabase
-        .rpc('add_to_email_blacklist', {
-          target_email: userEmail,
-          ban_reason: banReason,
-          ban_type_param: banType,
-          banned_until_param: userData.banned_until,
-          original_user_id_param: userId,
-          report_ids: reportIds,
-          admin_notes: `탈퇴일: ${new Date().toISOString()}, 원본 user_id: ${userId}`
-        });
-      
-      if (blacklistError) {
-        console.error('[회원탈퇴] 블랙리스트 등록 오류:', blacklistError);
-        // 블랙리스트 등록 실패해도 탈퇴는 계속 진행
-      } else {
-        console.log(`[회원탈퇴] 블랙리스트 등록 완료: ${userEmail}`);
-      }
+      console.log(`[회원탈퇴] 정지/신고된 사용자 탈퇴: ${userEmail} (정지: ${userData.is_banned}, 신고횟수: ${userData.report_count})`);
     }
     
     // 1. 개인정보 관련 데이터 삭제
