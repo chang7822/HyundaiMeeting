@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi } from '../services/api.ts';
+import { matchingApi, chatApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -640,7 +640,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         현재_AuthContext: { is_banned: user?.is_banned, banned_until: user?.banned_until }
       });
       
-      const userData = await authApi.getMe();
+      const userData = await userApi.getMe();
       
       console.log('[MainPage] 서버에서 받은 사용자 데이터', {
         서버: { is_banned: userData.is_banned, banned_until: userData.banned_until },
