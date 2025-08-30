@@ -361,6 +361,8 @@ async function main() {
         female_user_id: userB,
         male_nickname: maleProfile?.nickname || null,
         female_nickname: femaleProfile?.nickname || null,
+        male_gender: maleProfile?.gender || null,        // 성별 스냅샷 추가
+        female_gender: femaleProfile?.gender || null,    // 성별 스냅샷 추가
         male_user_email: maleUser?.email || null,
         female_user_email: femaleUser?.email || null,
         created_at: getKSTISOString(),

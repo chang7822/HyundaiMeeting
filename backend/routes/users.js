@@ -326,7 +326,7 @@ router.delete('/me', authenticate, async (req, res) => {
       throw error3;
     }
     
-    // matching_history 익명화
+    // matching_history 익명화 (스냅샷 정보는 보존)
     const { error: error4 } = await supabase
       .from('matching_history')
       .update({ male_user_id: null })

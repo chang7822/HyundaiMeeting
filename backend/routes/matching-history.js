@@ -85,8 +85,9 @@ router.get('/my-history', authenticate, async (req, res) => {
         matched_at: match.matched_at,
         matched: match.matched,
         partner_user_id: partnerUserId,
+        // 스냅샷 정보 우선 사용 (탈퇴해도 정보 보존)
         partner_nickname: partnerProfile?.nickname || partnerNickname || '탈퇴한 사용자',
-        partner_gender: partnerProfile?.gender || null,
+        partner_gender: partnerProfile?.gender || (isMale ? match.female_gender : match.male_gender) || null,
         partner_email: isMale ? match.female_user_email : match.male_user_email, // 탈퇴한 사용자 신고를 위한 이메일 정보
         period_info: match.period,
         // 신고 가능 여부 (매칭 성공하고 아직 신고하지 않은 경우, 탈퇴한 사용자도 이메일 기반으로 신고 가능)
