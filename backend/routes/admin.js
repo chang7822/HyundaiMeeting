@@ -866,12 +866,22 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
     const { id } = req.params;
     const { status, admin_notes, ban_duration_days } = req.body;
 
-    // 신고 상태 업데이트
+    // 정지 처리 시 banned_until 계산
+    let bannedUntil = null;
+    if (status === 'temporary_ban') {
+      const duration = ban_duration_days || 30;
+      bannedUntil = new Date(Date.now() + duration * 24 * 60 * 60 * 1000).toISOString();
+    } else if (status === 'permanent_ban') {
+      bannedUntil = null; // 영구정지는 null
+    }
+    
+    // 신고 상태 업데이트 (banned_until 정보 포함)
     const updateData = {
       status,
       admin_notes,
       resolved_at: new Date().toISOString(),
-      resolved_by: req.user?.userId || req.user?.id || null
+      resolved_by: req.user?.userId || req.user?.id || null,
+      banned_until: bannedUntil // 정지 종료 시점 저장
     };
 
     const { data: reportData, error: reportError } = await supabase
@@ -890,11 +900,10 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
     let banUpdateData = {};
     
     if (status === 'temporary_ban' || status === 'permanent_ban') {
-      // 정지 처리
+      // 정지 처리 - reports 테이블에 저장된 banned_until 값과 동일하게 설정
       banUpdateData = {
         is_banned: true,
-        banned_until: status === 'permanent_ban' ? null : 
-          new Date(Date.now() + (ban_duration_days || 30) * 24 * 60 * 60 * 1000).toISOString()
+        banned_until: bannedUntil // reports 테이블과 동일한 값 사용
       };
     } else if (status === 'rejected' || status === 'dismissed' || status === 'no_action') {
       // 정지 해제 (기각, 기각, 조치없음)

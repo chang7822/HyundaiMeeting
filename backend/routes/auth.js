@@ -559,10 +559,53 @@ router.post('/register', async (req, res) => {
     }
 
     // JWT 토큰 생성
-        // 재가입 시 이메일 기반 report 정보 갱신
+        // 재가입 시 이메일 기반 report 정보 갱신 및 정지 상태 확인
     console.log(`[회원가입] 이메일 기반 report 정보 갱신 시작: ${email}`);
     
-    // 신고한 내역 갱신 (reporter_email 기준)
+    // 1. 기존 정지 상태 확인 (이메일 기반으로 처리된 신고 조회)
+    const { data: processedReports, error: reportsError } = await supabase
+      .from('reports')
+      .select('status, resolved_at, banned_until')
+      .eq('reported_user_email', email)
+      .in('status', ['temporary_ban', 'permanent_ban'])
+      .order('resolved_at', { ascending: false }); // 최신 처리 순으로
+    
+    if (reportsError) {
+      console.error('[회원가입] 신고 이력 확인 오류:', reportsError);
+    }
+    
+    let shouldUpdateBanStatus = false;
+    let banUpdateData = {};
+    
+    // 처리된 정지 신고가 있는 경우 정지 상태 적용
+    if (processedReports && processedReports.length > 0) {
+      console.log(`[회원가입] 기존 정지 신고 이력 발견: ${email}`, processedReports);
+      
+      // 최신 처리된 신고 기준으로 정지 상태 결정
+      const latestReport = processedReports[0];
+      
+      if (latestReport.status === 'permanent_ban') {
+        // 영구정지
+        shouldUpdateBanStatus = true;
+        banUpdateData = {
+          is_banned: true,
+          banned_until: null, // 영구정지
+          report_count: processedReports.length
+        };
+        console.log(`[회원가입] 영구정지 적용: ${email}`);
+      } else if (latestReport.status === 'temporary_ban') {
+        // 임시정지 - reports 테이블에 저장된 banned_until 직접 사용
+        shouldUpdateBanStatus = true;
+        banUpdateData = {
+          is_banned: true,
+          banned_until: latestReport.banned_until, // 정확한 정지 종료 시점 사용
+          report_count: processedReports.length
+        };
+        console.log(`[회원가입] 임시정지 적용: ${email}, 종료시점: ${latestReport.banned_until}`);
+      }
+    }
+    
+    // 2. 신고한 내역 갱신 (reporter_email 기준)
     const { error: reporterUpdateError } = await supabase
       .from('reports')
       .update({ reporter_id: user.id })
@@ -575,7 +618,7 @@ router.post('/register', async (req, res) => {
       console.log(`[회원가입] 신고자 ID 갱신 완료: ${email}`);
     }
     
-    // 신고받은 내역 갱신 (reported_user_email 기준)
+    // 3. 신고받은 내역 갱신 (reported_user_email 기준)
     const { error: reportedUpdateError } = await supabase
       .from('reports')
       .update({ reported_user_id: user.id })
@@ -586,6 +629,25 @@ router.post('/register', async (req, res) => {
       console.error('[회원가입] 신고받은 사용자 ID 갱신 오류:', reportedUpdateError);
     } else {
       console.log(`[회원가입] 신고받은 사용자 ID 갱신 완료: ${email}`);
+    }
+    
+    // 4. 정지 상태 적용 (필요한 경우)
+    if (shouldUpdateBanStatus) {
+      console.log(`[회원가입] 기존 정지 상태 적용 중: ${email}`, banUpdateData);
+      const { error: banUpdateError } = await supabase
+        .from('users')
+        .update(banUpdateData)
+        .eq('id', user.id);
+      
+      if (banUpdateError) {
+        console.error('[회원가입] 정지 상태 적용 오류:', banUpdateError);
+      } else {
+        console.log(`[회원가입] 정지 상태 적용 완료: ${email}`);
+        // user 객체도 업데이트
+        user.is_banned = banUpdateData.is_banned;
+        user.banned_until = banUpdateData.banned_until;
+        user.report_count = banUpdateData.report_count;
+      }
     }
 
     const token = jwt.sign(
