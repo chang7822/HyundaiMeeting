@@ -145,6 +145,7 @@ const PasswordSetupPage = () => {
           <div style={{ position: 'relative' }}>
             <Input
               type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
               {...register('password', {
                 required: '비밀번호를 입력해주세요.',
                 minLength: {
@@ -179,6 +180,7 @@ const PasswordSetupPage = () => {
           <div style={{ position: 'relative' }}>
             <Input
               type={showConfirm ? 'text' : 'password'}
+              autoComplete="new-password"
               {...register('confirmPassword', {
                 required: '비밀번호 확인을 입력해주세요.',
               })}

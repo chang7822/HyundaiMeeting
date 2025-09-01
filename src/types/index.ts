@@ -18,6 +18,11 @@ export interface User {
 export interface UserProfile {
   id: number;
   user_id: string;
+  // 사용자 정지 상태 정보 (프로필 조회 시 포함)
+  user?: {
+    is_banned: boolean;
+    banned_until: string | null;
+  };
   // 기본 정보
   nickname?: string;
   gender?: 'male' | 'female';

@@ -14,14 +14,14 @@ interface ReportDetailModalProps {
   partnerNickname: string;
 }
 
-const ModalOverlay = styled.div<{ isOpen: boolean }>`
+const ModalOverlay = styled.div<{ $isOpen: boolean }>`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.5);
-  display: ${props => props.isOpen ? 'flex' : 'none'};
+  display: ${props => props.$isOpen ? 'flex' : 'none'};
   justify-content: center;
   align-items: center;
   z-index: 1000;
@@ -73,7 +73,7 @@ const Value = styled.div`
   border: 1px solid #e9ecef;
 `;
 
-const StatusBadge = styled.span<{ status: string }>`
+const StatusBadge = styled.span<{ $status: string }>`
   display: inline-block;
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
@@ -81,7 +81,7 @@ const StatusBadge = styled.span<{ status: string }>`
   font-weight: 600;
   
   ${props => {
-    switch (props.status) {
+    switch (props.$status) {
       case 'pending':
         return `
           background: #fff3cd;
@@ -180,7 +180,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <ModalOverlay isOpen={isOpen} onClick={onClose}>
+    <ModalOverlay $isOpen={isOpen} onClick={onClose}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <Title>신고 내역</Title>
         
@@ -205,7 +205,7 @@ const ReportDetailModal: React.FC<ReportDetailModalProps> = ({
           <InfoItem>
             <Label>처리 상태</Label>
             <Value>
-              <StatusBadge status={reportInfo.status}>
+              <StatusBadge $status={reportInfo.status}>
                 {getStatusLabel(reportInfo.status)}
               </StatusBadge>
             </Value>

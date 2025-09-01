@@ -52,6 +52,10 @@ router.get('/my-history', authenticate, async (req, res) => {
       const isMale = match.male_user_id === user_id;
       const partnerUserId = isMale ? match.female_user_id : match.male_user_id;
       const partnerNickname = isMale ? match.female_nickname : match.male_nickname;
+      const partnerEmail = isMale ? match.female_user_email : match.male_user_email;
+      
+      // 탈퇴한 사용자의 경우 원래 ID를 추적하기 위해 매칭 기록에서 확인
+      // (reports 테이블에는 원래 user_id가 남아있음)
       
       // 상대방이 탈퇴하지 않은 경우에만 프로필 정보 조회
       let partnerProfile = null;
@@ -64,18 +68,47 @@ router.get('/my-history', authenticate, async (req, res) => {
         partnerProfile = profileData;
       }
       
-      // 해당 매칭에 대한 신고 내역 조회 (상대방이 탈퇴하지 않은 경우만)
+      // 해당 매칭에 대한 신고 내역 조회 (탈퇴한 사용자 포함)
       let reportInfo = null;
-      if (match.matched === true && partnerUserId) {
-        const { data: reportData } = await supabase
-          .from('reports')
-          .select('id, report_type, report_details, status, created_at')
-          .eq('reporter_id', user_id)
-          .eq('reported_user_id', partnerUserId)
-          .eq('period_id', match.period_id)
-          .single();
+      if (match.matched === true) {
+        // 먼저 정확한 reported_user_id로 조회 시도 (상대방이 탈퇴하지 않은 경우)
+        if (partnerUserId) {
+          const { data: reportData } = await supabase
+            .from('reports')
+            .select('id, report_type, report_details, status, created_at')
+            .eq('reporter_id', user_id)
+            .eq('reported_user_id', partnerUserId)
+            .eq('period_id', match.period_id)
+            .single();
+          
+          reportInfo = reportData;
+        }
         
-        reportInfo = reportData;
+        // 위에서 찾지 못한 경우, 이메일 기반으로 조회 (탈퇴 후 재가입한 경우 포함)
+        if (!reportInfo && partnerEmail) {
+          const { data: reportData } = await supabase
+            .from('reports')
+            .select('id, report_type, report_details, status, created_at')
+            .eq('reporter_id', user_id)
+            .eq('reported_user_email', partnerEmail)
+            .eq('period_id', match.period_id)
+            .single();
+          
+          reportInfo = reportData;
+        }
+        
+        // 마지막으로, 같은 period_id에서 내가 신고한 기록 중 reported_user_id가 null인 것 조회
+        if (!reportInfo) {
+          const { data: reportData } = await supabase
+            .from('reports')
+            .select('id, report_type, report_details, status, created_at')
+            .eq('reporter_id', user_id)
+            .eq('period_id', match.period_id)
+            .is('reported_user_id', null)
+            .single();
+          
+          reportInfo = reportData;
+        }
       }
       
       return {

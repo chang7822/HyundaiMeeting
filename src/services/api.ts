@@ -29,10 +29,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle token expiration
+// Global response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // /matching/period 엔드포인트의 404 에러는 조용히 처리
+    if (error?.config?.url?.includes('/matching/period') && error?.response?.status === 404) {
+      // 404를 정상적인 응답으로 변환
+      return Promise.resolve({ data: null });
+    }
+    
+    // Handle token expiration
     const isLoginRequest = error.config && error.config.url && error.config.url.includes('/auth/login');
     if (error.response?.status === 401) {
       if (!isLoginRequest) {
@@ -44,6 +51,7 @@ api.interceptors.response.use(
       }
       // /auth/login 요청이면 아무 토스트도 띄우지 않음 (실패 안내는 LoginPage에서 따로 처리)
     }
+    
     return Promise.reject(error);
   }
 );

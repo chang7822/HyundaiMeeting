@@ -111,6 +111,7 @@ const ChatPage: React.FC = () => {
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
   const [joinDone, setJoinDone] = useState(false);
   const [reportModal, setReportModal] = useState(false);
+  const [isPartnerBanned, setIsPartnerBanned] = useState(false);
 
   // 1. period_id 확보 및 권한 체크
   useEffect(() => {
@@ -243,6 +244,13 @@ const ChatPage: React.FC = () => {
   // 3. 메시지 전송
   const handleSend = async () => {
     if (!input.trim() || !user?.id || !partnerUserId || !periodId || !joinDone) return;
+    
+    // 상대방이 정지된 경우 메시지 전송 차단 및 안내
+    if (isPartnerBanned) {
+      toast.error('정지된 사용자에게 메시지를 전송할 수 없습니다.');
+      return;
+    }
+    
     const socket = socketRef.current;
     if (socket) {
       const newMessage = {
@@ -273,12 +281,28 @@ const ChatPage: React.FC = () => {
     }
   }, [messages, loading]);
 
-  // partnerUserId가 바뀔 때마다 상대방 프로필 fetch
+  // partnerUserId가 바뀔 때마다 상대방 프로필 및 정지 상태 확인
   useEffect(() => {
     if (!partnerUserId) return;
+    
     userApi.getUserProfile(partnerUserId)
-      .then(setPartnerProfile)
-      .catch(() => setPartnerProfile(null));
+      .then(profile => {
+        setPartnerProfile(profile);
+        // 상대방 정지 상태 확인
+        if (profile?.user) {
+          const isBanned = profile.user.is_banned === true;
+          const bannedUntil = profile.user.banned_until ? new Date(profile.user.banned_until) : null;
+          const now = new Date();
+          const isBanActive = isBanned && (!bannedUntil || bannedUntil > now);
+          setIsPartnerBanned(isBanActive);
+        } else {
+          setIsPartnerBanned(false);
+        }
+      })
+      .catch(() => {
+        setPartnerProfile(null);
+        setIsPartnerBanned(false);
+      });
   }, [partnerUserId]);
 
   if (loading) return <LoadingSpinner sidebarOpen={false} />;
@@ -323,7 +347,13 @@ const ChatPage: React.FC = () => {
       </ChatWindowWrapper>
       {/* 입력창 고정 */}
       <ChatInputWrapper>
-        <ChatInput value={input} onChange={setInput} onSend={joinDone ? handleSend : () => {}} />
+        <ChatInput 
+          value={input} 
+          onChange={setInput} 
+          onSend={joinDone ? handleSend : () => {}} 
+          disabled={isPartnerBanned}
+          disabledMessage={isPartnerBanned ? "상대방이 정지되어 채팅을 할 수 없습니다." : ""}
+        />
       </ChatInputWrapper>
       {/* 프로필 모달 등 기존 모달 코드 동일 */}
       <Modal

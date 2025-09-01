@@ -34,7 +34,7 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
-    // 이미 신고한 적이 있는지 확인 (ID 또는 이메일 기반)
+    // 이미 신고한 적이 있는지 확인 (ID와 이메일 모두 확인)
     let existingReport = null;
     let checkError = null;
     
@@ -49,6 +49,19 @@ router.post('/', authenticate, async (req, res) => {
         .maybeSingle();
       existingReport = result.data;
       checkError = result.error;
+      
+      // ID로 찾지 못했고 이메일이 있다면 이메일로도 확인 (재가입 사용자 대비)
+      if (!existingReport && !checkError && reported_user_email) {
+        const emailResult = await supabase
+          .from('reports')
+          .select('id')
+          .eq('reporter_id', reporter_id)
+          .eq('reported_user_email', reported_user_email)
+          .eq('period_id', period_id)
+          .maybeSingle();
+        existingReport = emailResult.data;
+        checkError = emailResult.error;
+      }
     } else if (reported_user_email) {
       // 이메일 기반 확인 (탈퇴한 사용자)
       const result = await supabase

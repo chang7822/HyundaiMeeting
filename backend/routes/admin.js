@@ -913,8 +913,8 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
       };
     }
 
-    // 사용자 상태 업데이트가 필요한 경우
-    if (Object.keys(banUpdateData).length > 0) {
+    // 사용자 상태 업데이트가 필요한 경우 (탈퇴한 사용자 제외)
+    if (Object.keys(banUpdateData).length > 0 && reportData.reported_user_id) {
       const { error: banError } = await supabase
         .from('users')
         .update(banUpdateData)
@@ -924,29 +924,33 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
         console.error('사용자 정지 상태 업데이트 오류:', banError);
         return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
       }
+      
+      console.log(`[신고처리] 사용자 상태 업데이트 완료: ${reportData.reported_user_id} (${status})`);
+    } else if (!reportData.reported_user_id) {
+      console.log(`[신고처리] 탈퇴한 사용자에 대한 신고 처리 완료: ${reportData.reported_user_email} (${status})`);
+    }
 
-      // 정지 처리된 경우 해당 이메일의 모든 신고 이력 업데이트
-      if (status === 'temporary_ban' || status === 'permanent_ban') {
-        const reportedUserEmail = reportData.reported_user_email;
-        
-        if (reportedUserEmail) {
-          // 해당 이메일로 된 모든 신고를 동일한 상태로 업데이트
-          const { error: emailReportsError } = await supabase
-            .from('reports')
-            .update({
-              status: status,
-              resolved_at: new Date().toISOString(),
-              resolved_by: req.user?.userId || req.user?.id || null,
-              admin_notes: `이메일 기반 일괄 처리: ${reportData.reported_user_email}`
-            })
-            .eq('reported_user_email', reportedUserEmail)
-            .neq('status', status); // 이미 같은 상태가 아닌 것만
+    // 정지 처리된 경우 해당 이메일의 모든 신고 이력 업데이트
+    if (status === 'temporary_ban' || status === 'permanent_ban') {
+      const reportedUserEmail = reportData.reported_user_email;
+      
+      if (reportedUserEmail) {
+        // 해당 이메일로 된 모든 신고를 동일한 상태로 업데이트
+        const { error: emailReportsError } = await supabase
+          .from('reports')
+          .update({
+            status: status,
+            resolved_at: new Date().toISOString(),
+            resolved_by: req.user?.userId || req.user?.id || null,
+            admin_notes: `이메일 기반 일괄 처리: ${reportData.reported_user_email}`
+          })
+          .eq('reported_user_email', reportedUserEmail)
+          .neq('status', status); // 이미 같은 상태가 아닌 것만
 
-          if (emailReportsError) {
-            console.error('이메일 기반 신고 일괄 처리 오류:', emailReportsError);
-          } else {
-            console.log(`[신고처리] 이메일 기반 일괄 처리 완료: ${reportedUserEmail} (${status})`);
-          }
+        if (emailReportsError) {
+          console.error('이메일 기반 신고 일괄 처리 오류:', emailReportsError);
+        } else {
+          console.log(`[신고처리] 이메일 기반 일괄 처리 완료: ${reportedUserEmail} (${status})`);
         }
       }
     }

@@ -68,11 +68,11 @@ const PartnerInfo = styled.div`
   gap: 1rem;
 `;
 
-const PartnerAvatar = styled.div<{ gender: string }>`
+const PartnerAvatar = styled.div<{ $gender: string }>`
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  background: ${props => props.gender === 'male' ? '#3B82F6' : '#EC4899'};
+  background: ${props => props.$gender === 'male' ? '#3B82F6' : '#EC4899'};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -131,7 +131,7 @@ const InfoValue = styled.span`
   font-weight: 600;
 `;
 
-const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
+const ActionButton = styled.button<{ $variant?: 'primary' | 'secondary' | 'danger' }>`
   padding: 0.5rem 1rem;
   border: none;
   border-radius: 8px;
@@ -141,7 +141,7 @@ const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger
   transition: all 0.2s;
   
   ${props => {
-    switch (props.variant) {
+    switch (props.$variant) {
       case 'primary':
         return `
           background: #7C3AED;
@@ -322,7 +322,7 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
           <HistoryCard key={match.id}>
             <HistoryHeader>
               <PartnerInfo>
-                <PartnerAvatar gender={match.partner_gender}>
+                <PartnerAvatar $gender={match.partner_gender}>
                   {match.partner_gender === 'male' ? '👨' : '👩'}
                 </PartnerAvatar>
                 <PartnerDetails>
@@ -349,7 +349,7 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
               <ActionSection>
                 {match.can_report ? (
                   <ActionButton
-                    variant="danger"
+                    $variant="danger"
                     onClick={() => handleReport(
                       { 
                         id: match.partner_user_id, 
@@ -363,7 +363,7 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
                   </ActionButton>
                 ) : match.report_info ? (
                   <ActionButton
-                    variant="secondary"
+                    $variant="secondary"
                     onClick={() => handleViewReportDetail(match.report_info, match.partner_nickname)}
                   >
                     신고완료

@@ -35,17 +35,17 @@ const Form = styled.form`
   gap: 1rem;
 `;
 
-const Select = styled.select<{ hasError?: boolean }>`
+const Select = styled.select<{ $hasError?: boolean }>`
   width: 100%;
   padding: 12px;
-  border: 2px solid ${props => props.hasError ? '#e74c3c' : '#e1e5e9'};
+  border: 2px solid ${props => props.$hasError ? '#e74c3c' : '#e1e5e9'};
   border-radius: 8px;
   font-size: 1rem;
   transition: border-color 0.3s ease;
   
   &:focus {
     outline: none;
-    border-color: ${props => props.hasError ? '#e74c3c' : '#667eea'};
+    border-color: ${props => props.$hasError ? '#e74c3c' : '#667eea'};
   }
 `;
 
@@ -190,7 +190,7 @@ const RequiredInfoPage = () => {
                 required: '출생연도를 선택해주세요.',
                 validate: value => value > 0 || '출생연도를 선택해주세요.'
               })}
-              hasError={!!errors.birthYear}
+              $hasError={!!errors.birthYear}
             >
               <option value="">출생연도 선택</option>
               {birthYears.map(year => (
@@ -206,7 +206,7 @@ const RequiredInfoPage = () => {
                 required: '성별을 선택해주세요.',
                 validate: value => value === 'male' || value === 'female' || '성별을 선택해주세요.'
               })}
-              hasError={!!errors.gender}
+              $hasError={!!errors.gender}
             >
               <option value="">성별 선택</option>
               <option value="male">남성</option>

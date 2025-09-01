@@ -110,6 +110,36 @@ io.on('connection', (socket) => {
   socket.on('chat message', async (data) => {
     console.log('[SOCKET][server] chat message 수신:', data);
     if (!data.period_id || !data.sender_id || !data.receiver_id || !data.content) return;
+    
+    // 상대방의 정지 상태 확인
+    try {
+      const { data: receiverData, error: receiverError } = await supabase
+        .from('users')
+        .select('is_banned, banned_until')
+        .eq('id', data.receiver_id)
+        .single();
+      
+      if (receiverError) {
+        console.error('[SOCKET][server] 수신자 정보 조회 실패:', receiverError);
+        return;
+      }
+      
+      if (receiverData) {
+        const isBanned = receiverData.is_banned === true;
+        const bannedUntil = receiverData.banned_until ? new Date(receiverData.banned_until) : null;
+        const now = new Date();
+        const isBanActive = isBanned && (!bannedUntil || bannedUntil > now);
+        
+        if (isBanActive) {
+          console.log('[SOCKET][server] 정지된 사용자에게 메시지 전송 차단:', data.receiver_id);
+          return;
+        }
+      }
+    } catch (e) {
+      console.error('[SOCKET][server] 정지 상태 확인 중 오류:', e);
+      return;
+    }
+    
     // 방 이름: period_id_정렬된userId1_userId2
     const sortedIds = [data.sender_id, data.receiver_id].sort();
     const roomId = `${data.period_id}_${sortedIds[0]}_${sortedIds[1]}`;

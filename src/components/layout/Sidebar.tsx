@@ -234,7 +234,13 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
             setPeriod(periodData);
             const now = new Date();
             const finish = periodData.finish ? new Date(periodData.finish) : null;
-            if (!finish || now < finish) {
+            
+            // 사용자 정지 상태 확인
+            const isBanned = user?.is_banned === true;
+            const bannedUntil = user?.banned_until ? new Date(user.banned_until) : null;
+            const isBanActive = isBanned && (!bannedUntil || bannedUntil > now);
+            
+            if (!isBanActive && (!finish || now < finish)) {
               setCanChat(true);
             } else {
               setCanChat(false);
@@ -251,7 +257,13 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         setCanChat(false);
       });
     }
-  }, [user?.id]);
+  }, [user?.id, user?.is_banned, user?.banned_until]);
+
+  // 사용자 정지 상태 확인
+  const isBanned = user?.is_banned === true;
+  const bannedUntil = user?.banned_until ? new Date(user.banned_until) : null;
+  const now = new Date();
+  const isBanActive = isBanned && (!bannedUntil || bannedUntil > now);
 
   const userMenuItems = [
     { path: '/main', icon: <FaHome />, text: '홈' },
@@ -264,7 +276,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     {
       path: partnerUserId ? `/chat/${partnerUserId}` : '#',
       icon: <FaComments />,
-      text: '상대방과 약속 잡기',
+      text: isBanActive ? '채팅 불가 (정지됨)' : '상대방과 약속 잡기',
       disabled: !canChat,
     },
   ];
@@ -295,7 +307,10 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   const handleLogout = () => {
     logout();
     toast.success('로그아웃되었습니다!');
-    navigate('/');
+    // setTimeout을 사용해 logout() 완료 후 navigate 실행
+    setTimeout(() => {
+      navigate('/');
+    }, 0);
   };
 
   return (

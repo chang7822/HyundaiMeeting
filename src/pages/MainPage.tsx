@@ -562,26 +562,31 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [추가] 매칭 성공 상태라면 partnerProfile을 자동으로 fetch
   useEffect(() => {
+    // 회차가 종료되었으면 파트너 프로필 조회하지 않음
+    const isCurrentPeriodFinished = period && period.finish && new Date(period.finish) < now;
+    
     if (
+      !isCurrentPeriodFinished &&
       matchingStatus &&
       matchingStatus.matched === true &&
       partnerUserId
     ) {
-      if (!partnerProfile || partnerProfile.user_id !== partnerUserId) {
+      // 이미 에러 상태이거나 로딩 중이거나 해당 사용자의 프로필이 있으면 호출하지 않음
+      if (!partnerProfileError && !partnerProfileLoading && (!partnerProfile || partnerProfile.user_id !== partnerUserId)) {
         fetchPartnerProfile(partnerUserId);
       }
     } else {
+      // 매칭 상태가 아니거나 회차가 종료되었을 때 상태 초기화
       setPartnerProfile(null);
-      setPartnerProfileError(false); // 상태 초기화
-      setPartnerProfileLoading(false); // 로딩 상태 초기화
+      setPartnerProfileError(false);
+      setPartnerProfileLoading(false);
     }
-  }, [matchingStatus, partnerUserId]);
+  }, [matchingStatus, partnerUserId, period, now]); // period, now 의존성 추가하고 상태 의존성 제거
 
   useEffect(() => {
     matchingApi.getMatchingPeriod().then(data => {
-      setPeriod(data);
+      setPeriod(data); // data가 null이면 매칭 로그가 없는 상황
       setLoadingPeriod(false);
-      // console.log('[MainPage][DEBUG] period:', data);
     }).catch((err) => {
       setLoadingPeriod(false);
       console.error('[MainPage] 매칭 기간 API 에러:', err);
@@ -636,27 +641,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // 메인페이지 진입 시 사용자 정지 상태 확인 (로딩 스피너 없이)
   const checkUserBanStatus = useCallback(async () => {
     try {
-      console.log('[MainPage] 사용자 정지 상태 확인 시작', {
-        현재_AuthContext: { is_banned: user?.is_banned, banned_until: user?.banned_until }
-      });
-      
       const userData = await userApi.getMe();
-      
-      console.log('[MainPage] 서버에서 받은 사용자 데이터', {
-        서버: { is_banned: userData.is_banned, banned_until: userData.banned_until },
-        AuthContext: { is_banned: user?.is_banned, banned_until: user?.banned_until },
-        비교결과: {
-          is_banned_다름: userData.is_banned !== user?.is_banned,
-          banned_until_다름: userData.banned_until !== user?.banned_until
-        }
-      });
       
       // 정지 상태가 변경되었다면 전체 사용자 정보 업데이트
       if (userData.is_banned !== user?.is_banned || userData.banned_until !== user?.banned_until) {
-        console.log('[MainPage] 사용자 정지 상태 변경 감지, 전체 정보 업데이트');
         await fetchUser();
-      } else {
-        console.log('[MainPage] 정지 상태 변경 없음, fetchUser 호출 안함');
       }
     } catch (error) {
       console.error('[MainPage] 사용자 상태 확인 오류:', error);
@@ -675,19 +664,22 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
+    // 이미 에러 상태이거나 로딩 중이면 중복 호출 방지
+    if (partnerProfileError || partnerProfileLoading) {
+      return;
+    }
+    
     setPartnerProfileLoading(true);
     setPartnerProfileError(false);
     try {
       const res = await userApi.getUserProfile(partnerUserId);
       setPartnerProfile(res);
-      setPartnerProfileError(false); // 성공 시 에러 상태 해제
+      setPartnerProfileError(false);
     } catch (e) {
       console.error('[MainPage][fetchPartnerProfile] API 실패:', e);
-      if (!partnerProfileError) {
-        toast.error('매칭 상대방이 탈퇴했거나 정보를 찾을 수 없습니다.');
-        setPartnerProfileError(true); // 한 번만 토스트
-      }
+      setPartnerProfileError(true);
       setPartnerProfile(null);
+      // 탈퇴한 사용자에 대해서는 토스트 메시지를 표시하지 않음 (조용히 처리)
     } finally {
       setPartnerProfileLoading(false);
     }
@@ -697,9 +689,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   useEffect(() => {
     if (!period) return;
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-    // console.log('[MainPage][DEBUG] period:', period);
-    // console.log('[MainPage][DEBUG] announce:', announce ? announce.toISOString() : null);
-    // console.log('[MainPage][DEBUG] matchingStatus:', matchingStatus);
   }, [period, matchingStatus]);
 
   // [추가] 매칭 공지 시점 직전 polling으로 상태 강제 fetch
@@ -734,9 +723,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const nowTime = now.getTime();
     // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트
     if (startTime - nowTime < 30000 && startTime - nowTime > -300000) {
-      // console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트 시작');
       const interval = window.setInterval(() => {
-        // console.log('[MainPage] 회차 시작 시점 근처, 사용자 정보 업데이트 실행');
         // users 테이블 우선 업데이트
         fetchUser();
         // 그 다음 매칭 상태 업데이트
@@ -884,11 +871,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return () => window.clearInterval(interval);
   }, [calculateCountdown]);
 
+  // 인증되지 않은 상태면 랜딩페이지로 리다이렉트
+  if (!isAuthenticated && !isLoading) {
+    navigate('/');
+    return null;
+  }
+  
   // 렌더링 조건 강화: 필수 데이터가 모두 로드될 때까지 스피너 표시
   if (isLoading || !user || !profile || loadingPeriod || statusLoading) {
     return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   }
-  if (!isAuthenticated) return null;
 
 
 
@@ -929,7 +921,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [리팩터링] 매칭 현황 안내문구 상태/기간 분리 및 색상 반환 (is_applied, is_matched 기준)
   const getMatchingStatusDisplay = () => {
-    if (!period || (period.finish && new Date(period.finish) < now)) {
+    // 매칭 로그가 없는 경우 (관리자가 삭제했거나 아직 생성되지 않음)
+    if (!period) {
+      return {
+        status: '현재 진행 중인 매칭이 없습니다.',
+        period: '새로운 매칭 회차를 기다려주세요.',
+        color: '#888',
+      };
+    }
+    
+    // 회차가 종료된 경우
+    if (period.finish && new Date(period.finish) < now) {
       return {
         status: '이번 회차가 종료되었습니다.',
         period: '',
@@ -1196,7 +1198,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await fetchUser();
       
       setShowMatchingConfirmModal(false);
-      // console.log('[MainPage][handleMatchingConfirm] 매칭 신청 완료, 상태 업데이트 완료');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '매칭 신청에 실패했습니다.');
     } finally {
@@ -1220,7 +1221,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await fetchUser();
       
       setShowCancelConfirmModal(false);
-      // console.log('[MainPage][handleCancel] 매칭 취소 완료, 상태 업데이트 완료');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || '신청 취소에 실패했습니다.');
     } finally {

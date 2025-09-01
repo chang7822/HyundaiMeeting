@@ -260,16 +260,41 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
   }
   try {
     const { userId } = req.params;
-    const { data, error } = await supabase
+    
+    // 프로필 정보 조회
+    const { data: profileData, error: profileError } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
-    if (error) {
-      console.error('프로필 조회 오류:', error);
+    
+    if (profileError) {
+      console.error('프로필 조회 오류:', profileError);
       return res.status(404).json({ message: '프로필을 찾을 수 없습니다.' });
     }
-    res.json(data);
+    
+    // 사용자 정지 상태 정보 조회
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('is_banned, banned_until')
+      .eq('id', userId)
+      .single();
+    
+    if (userError) {
+      console.error('사용자 정보 조회 오류:', userError);
+      return res.status(500).json({ message: '사용자 정보 조회에 실패했습니다.' });
+    }
+    
+    // 프로필 데이터에 정지 상태 정보 추가
+    const responseData = {
+      ...profileData,
+      user: {
+        is_banned: userData.is_banned,
+        banned_until: userData.banned_until
+      }
+    };
+    
+    res.json(responseData);
   } catch (error) {
     console.error('프로필 조회 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
