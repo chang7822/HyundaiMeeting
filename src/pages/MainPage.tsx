@@ -609,13 +609,18 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [user?.id]);
 
-  // 매칭 상태 조회
-  const fetchMatchingStatus = useCallback(async () => {
+  // 매칭 상태 조회 (로딩 상태 최소화)
+  const fetchMatchingStatus = useCallback(async (showLoading = false) => {
     if (!user?.id) {
       setStatusLoading(false);
       return;
     }
-    setStatusLoading(true);
+    
+    // 초기 로드시에만 로딩 표시
+    if (showLoading) {
+      setStatusLoading(true);
+    }
+    
     try {
       const res = await matchingApi.getMatchingStatus(user.id);
       
@@ -626,7 +631,14 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           is_matched: res.status.is_matched ?? res.status.matched,
           is_cancelled: res.status.is_cancelled ?? res.status.cancelled,
         };
-        setMatchingStatus(newStatus);
+        
+        // 상태가 실제로 변경된 경우에만 업데이트 (불필요한 리렌더링 방지)
+        setMatchingStatus(prev => {
+          if (JSON.stringify(prev) !== JSON.stringify(newStatus)) {
+            return newStatus;
+          }
+          return prev;
+        });
       } else {
         setMatchingStatus(null);
       }
@@ -634,7 +646,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       console.error('매칭 상태 조회 오류:', e);
       setMatchingStatus(null);
     } finally {
-      setStatusLoading(false);
+      if (showLoading) {
+        setStatusLoading(false);
+      }
     }
   }, [user?.id]);
 
@@ -643,9 +657,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     try {
       const userData = await userApi.getMe();
       
-      // 정지 상태가 변경되었다면 전체 사용자 정보 업데이트
+      // 정지 상태가 변경되었다면 전체 사용자 정보 업데이트 (백그라운드)
       if (userData.is_banned !== user?.is_banned || userData.banned_until !== user?.banned_until) {
-        await fetchUser();
+        await fetchUser(false);
       }
     } catch (error) {
       console.error('[MainPage] 사용자 상태 확인 오류:', error);
@@ -656,7 +670,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   useEffect(() => {
     if (user?.id) {
       checkUserBanStatus().then(() => {
-        fetchMatchingStatus();
+        fetchMatchingStatus(true); // 초기 로드시에만 로딩 표시
         fetchUnreadCount();
       });
     }
@@ -691,11 +705,43 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
   }, [period, matchingStatus]);
 
+  // [추가] 매칭 신청 시작 직전 강제 갱신
+  useEffect(() => {
+    if (!period || !user?.id) return;
+    const start = new Date(period.application_start);
+    const nowTime = Date.now();
+    const startTime = start.getTime();
+    const diff = startTime - nowTime;
+    
+    // 이미 매칭 신청했다면 강제 갱신 중단
+    const isApplied = matchingStatus?.is_applied === true || user?.is_applied === true;
+    if (isApplied) return;
+    
+    // 매칭 시작 5초 전 ~ 5초 후까지 1초마다 강제 갱신
+    if (diff > 0 && diff < 10000) {
+      const pollStart = window.setTimeout(() => {
+        let count = 0;
+        const poll = window.setInterval(() => {
+          fetchMatchingStatus();
+          fetchUser(false); // 백그라운드로 사용자 정보도 갱신
+          count++;
+          if (count >= 10) window.clearInterval(poll); // 10초간 갱신
+        }, 1000);
+      }, Math.max(0, diff - 5000));
+      return () => window.clearTimeout(pollStart);
+    }
+  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchMatchingStatus, fetchUser]);
+
   // [추가] 매칭 공지 시점 직전 polling으로 상태 강제 fetch
   useEffect(() => {
     if (!period || !user?.id) return;
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
     if (!announce) return;
+    
+    // 매칭 신청하지 않았다면 공지 폴링 불필요
+    const isApplied = matchingStatus?.is_applied === true || user?.is_applied === true;
+    if (!isApplied) return;
+    
     const nowTime = Date.now();
     const announceTime = announce.getTime();
     const diff = announceTime - nowTime;
@@ -712,26 +758,38 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }, Math.max(0, diff - 2000));
       return () => window.clearTimeout(pollStart);
     }
-  }, [period, user?.id, fetchMatchingStatus]);
+  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchMatchingStatus]);
 
-  // [추가] 회차 시작 시 사용자 정보 자동 업데이트 (30초마다)
+  // [수정] 회차 시작 시 사용자 정보 자동 업데이트 (매칭 상태와 사용자 정보 모두 빠르게 갱신)
   useEffect(() => {
     if (!period || !user?.id) return;
     const start = new Date(period.application_start);
     const now = new Date();
     const startTime = start.getTime();
     const nowTime = now.getTime();
-    // 회차 시작 30초 전 ~ 5분 후까지 30초마다 업데이트
-    if (startTime - nowTime < 30000 && startTime - nowTime > -300000) {
-      const interval = window.setInterval(() => {
-        // users 테이블 우선 업데이트
-        fetchUser();
-        // 그 다음 매칭 상태 업데이트
+    
+    // 이미 매칭 신청했다면 폴링 중단
+    const isApplied = matchingStatus?.is_applied === true || user?.is_applied === true;
+    if (isApplied) return;
+    
+    // 회차 시작 1분 전 ~ 2분 후까지만 활성화
+    if (startTime - nowTime < 60000 && startTime - nowTime > -120000) {
+      // 매칭 상태는 3초마다 갱신 (더 빠르게)
+      const statusInterval = window.setInterval(() => {
         fetchMatchingStatus();
-      }, 30000); // 30초마다
-      return () => window.clearInterval(interval);
+      }, 3000);
+      
+      // 사용자 정보도 5초마다 갱신 (백그라운드, 매칭 시작 시점에는 더 빠르게)
+      const userInterval = window.setInterval(() => {
+        fetchUser(false); // 백그라운드 업데이트
+      }, 5000);
+      
+      return () => {
+        window.clearInterval(statusInterval);
+        window.clearInterval(userInterval);
+      };
     }
-  }, [period, user?.id, fetchUser, fetchMatchingStatus]);
+  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchUser, fetchMatchingStatus]);
 
   // [추가] 매칭 결과 발표 시각 이후 5초간 1초마다 polling (최대 5회)
   useEffect(() => {
@@ -753,23 +811,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [period, user?.id, fetchMatchingStatus]);
 
-  // [수정] 매칭 공지 시각 이후 is_applied가 true이고 is_matched가 null일 때만 polling
-  useEffect(() => {
-    if (!period || !user?.id) return;
-    const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-    if (!announce) return;
-    const nowTime = Date.now();
-    const announceTime = announce.getTime();
-    // 발표 이후 + is_applied가 true + is_matched가 null일 때만 polling
-    if (nowTime >= announceTime && user.is_applied === true && (typeof user.is_matched === 'undefined' || user.is_matched === null)) {
-      const interval = window.setInterval(async () => {
-        await fetchUser();
-      }, 1000);
-      return () => {
-        window.clearInterval(interval);
-      };
-    }
-  }, [period, user?.id, user?.is_applied, user?.is_matched, fetchUser]);
+  // 매칭 결과 폴링 제거 - 사용자가 직접 "매칭 결과 확인" 버튼으로 새로고침
 
   // 모달이 열릴 때 body 스크롤 막기
   useEffect(() => {
@@ -898,23 +940,25 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [리팩터링] users의 is_applied, is_matched 기반 분기 함수 (is_cancelled만 matchingStatus에서)
   const getUserMatchingState = () => {
-    // 🔧 임시 해결책: user 객체에 is_applied, is_matched가 없으면 matchingStatus에서 가져오기
-    let isApplied = user?.is_applied === true;
-    let isMatched = typeof user?.is_matched !== 'undefined' ? user?.is_matched : null;
+    // 🔧 matchingStatus를 우선 확인하여 실시간 상태 반영
+    let isApplied = false;
+    let isMatched: boolean | null = null;
     
-    // user 객체에 매칭 정보가 없으면 matchingStatus에서 가져오기
-    if (user?.is_applied === undefined && matchingStatus) {
+    // matchingStatus에서 우선 확인 (실시간 데이터)
+    if (matchingStatus) {
       isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
-    }
-    if (user?.is_matched === undefined && matchingStatus) {
       isMatched = typeof matchingStatus.is_matched !== 'undefined' ? matchingStatus.is_matched : 
                   typeof matchingStatus.matched !== 'undefined' ? matchingStatus.matched : null;
     }
     
-    // is_cancelled만 matchingStatus에서
-    const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
+    // matchingStatus가 없거나 불완전하면 user 객체에서 보완
+    if (!matchingStatus && user) {
+      isApplied = user.is_applied === true;
+      isMatched = user.is_matched ?? null;
+    }
     
-
+    // is_cancelled는 matchingStatus에서만
+    const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
     
     return { isApplied, isMatched, isCancelled };
   };
@@ -995,9 +1039,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }
       if (typeof isMatched === 'undefined' || isMatched === null) {
         return {
-          status: '결과 대기중',
-          period: '매칭 결과를 불러오는 중입니다...',
-          color: '#888',
+          status: '매칭 실패',
+          period: '아쉽지만 다음기회를 기약할게요.',
+          color: '#e74c3c',
         };
       }
       if (isMatched === true) {
@@ -1109,7 +1153,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           showCancel = false;
         } else if (typeof isMatched === 'undefined' || isMatched === null) {
           buttonDisabled = true;
-          buttonLabel = '결과 대기중';
+          buttonLabel = '매칭 실패';
           showCancel = false;
         } else if (isMatched === true) {
           buttonDisabled = true;
@@ -1193,9 +1237,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       // 백엔드 업데이트 완료를 위한 짧은 지연
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // 순차적으로 상태 업데이트
+      // 순차적으로 상태 업데이트 (매칭 신청 후에는 로딩 표시)
       await fetchMatchingStatus();
-      await fetchUser();
+      await fetchUser(true);
       
       setShowMatchingConfirmModal(false);
     } catch (error: any) {
@@ -1216,9 +1260,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       // 백엔드 업데이트 완료를 위한 짧은 지연
       await new Promise(resolve => setTimeout(resolve, 500));
       
-      // 순차적으로 상태 업데이트
+      // 순차적으로 상태 업데이트 (매칭 취소 후에는 로딩 표시)
       await fetchMatchingStatus();
-      await fetchUser();
+      await fetchUser(true);
       
       setShowCancelConfirmModal(false);
     } catch (error: any) {

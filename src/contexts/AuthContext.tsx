@@ -85,9 +85,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // console.log('[AuthContext] 로그아웃, localStorage token:', localStorage.getItem('token'));
   };
 
-  // user 정보 새로고침 함수 추가
-  const fetchUser = async () => {
-    setIsLoading(true);
+  // user 정보 새로고침 함수 추가 (백그라운드 업데이트 옵션)
+  const fetchUser = async (showLoading = false) => {
+    // 초기 로드나 명시적 요청시에만 로딩 표시
+    if (showLoading) {
+      setIsLoading(true);
+    }
+    
     try {
       const userData = await authApi.getCurrentUser();
       const userWithCamel = { ...userData, isAdmin: userData.isAdmin ?? userData.is_admin ?? false };
@@ -102,7 +106,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.removeItem('token');
       setAuthState({ user: null, profile: null });
     } finally {
-      setIsLoading(false);
+      // showLoading이 true였을 때만 로딩 해제
+      if (showLoading) {
+        setIsLoading(false);
+      }
       // console.log('[AuthContext] fetchUser: isLoading false');
     }
   };

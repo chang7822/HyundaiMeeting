@@ -90,14 +90,14 @@ const Table = styled.table`
   }
 `;
 
-const StatusBadge = styled.span<{ status: string }>`
+const StatusBadge = styled.span<{ $status: string }>`
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
   font-size: 0.8rem;
   font-weight: 600;
   
   ${props => {
-    switch (props.status) {
+    switch (props.$status) {
       case 'pending':
         return `
           background: #FEF3C7;
@@ -410,7 +410,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
                 <td>{report.reported_user?.nickname || '알 수 없음'}</td>
                 <td>{report.report_type}</td>
                 <td>
-                  <StatusBadge status={report.status}>
+                  <StatusBadge $status={report.status}>
                     {report.status === 'pending' && '대기중'}
                     {report.status === 'dismissed' && '기각'}
                     {report.status === 'temporary_ban' && '기간정지'}

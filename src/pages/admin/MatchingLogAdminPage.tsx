@@ -162,11 +162,14 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
 
   const handleTestData = () => {
     const now = new Date();
+    // 초와 밀리초를 0으로 설정하여 정시로 맞춤
+    now.setSeconds(0, 0);
+    
     const testData = {
-      application_start: new Date(now.getTime() + 2 * 60 * 1000).toISOString(), // 1분 후
-      application_end: new Date(now.getTime() + 3 * 60 * 1000).toISOString(), // 2분 후
-      matching_run: new Date(now.getTime() + 4 * 60 * 1000).toISOString(), // 3분 후
-      matching_announce: new Date(now.getTime() + 6 * 60 * 1000).toISOString(), // 4분 후
+      application_start: new Date(now.getTime() + 2 * 60 * 1000).toISOString(), // 2분 후
+      application_end: new Date(now.getTime() + 3 * 60 * 1000).toISOString(), // 3분 후
+      matching_run: new Date(now.getTime() + 4 * 60 * 1000).toISOString(), // 4분 후
+      matching_announce: new Date(now.getTime() + 6 * 60 * 1000).toISOString(), // 6분 후
       finish: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3일 후
       executed: false
     };

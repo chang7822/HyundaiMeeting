@@ -190,5 +190,5 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   setProfile: (profile: UserProfile) => void;
-  fetchUser: () => Promise<void>; // 추가
+  fetchUser: (showLoading?: boolean) => Promise<void>; // 백그라운드 업데이트 옵션 추가
 } 

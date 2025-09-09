@@ -48,11 +48,22 @@ cron.schedule(scheduleInterval, async () => {
     // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 시점)
     if (data.application_start) {
       const startTime = new Date(data.application_start);
-      const resetExecutionTime = new Date(startTime.getTime() - 60 * 1000); // 1분 전 실행
+      const resetExecutionTime = new Date(startTime.getTime() - 10 * 1000); // 10초 전 실행으로 변경
       
       if (now >= resetExecutionTime && lastPeriodStartReset !== data.id) {
-        console.log(`[스케줄러] 회차 ${data.id} 신청 기간 시작, users 테이블 is_applied, is_matched 초기화`);
-        await supabase.from('users').update({ is_applied: false, is_matched: null }).not('id', 'is', null);
+        console.log(`[스케줄러] 회차 ${data.id} users 테이블 초기화 실행`);
+        const { data: resetResult, error: resetError } = await supabase
+          .from('users')
+          .update({ is_applied: false, is_matched: null })
+          .not('id', 'is', null)
+          .select('id');
+        
+        if (resetError) {
+          console.error(`[스케줄러] users 테이블 초기화 실패:`, resetError);
+        } else {
+          console.log(`[스케줄러] users 테이블 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋`);
+        }
+        
         lastPeriodStartReset = data.id; // 초기화 완료 표시
       }
     }

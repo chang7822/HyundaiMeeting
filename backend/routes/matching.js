@@ -180,60 +180,94 @@ router.get('/my-matches', (req, res) => {
   }
 });
 
-let debugCallCount = 0;
-// 매칭 신청 상태 조회
+// 매칭 신청 상태 조회 (users 테이블 정보 우선 반영)
 router.get('/status', async (req, res) => {
   try {
-    debugCallCount++;
     const { userId } = req.query;
-    const now = new Date();
-    console.log(`[DEBUG][matching/status] 호출 #${debugCallCount} at ${now.toISOString()} userId:`, userId);
-    console.log('[DEBUG][matching/status] 호출 스택:', new Error().stack.split('\n').slice(1,4).join(' | '));
+    
     if (!userId) {
-      console.log('[DEBUG][matching/status] userId 없음');
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
     }
-    // 1. 최신 matching_log(=period) id 조회
+    
+    // 1. users 테이블에서 실시간 상태 조회 (스케줄러 초기화 즉시 반영)
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('is_applied, is_matched')
+      .eq('id', userId)
+      .single();
+    
+    if (userError) {
+      console.error('users 테이블 조회 실패:', userError);
+      return res.status(500).json({ message: '사용자 상태 조회 오류' });
+    }
+    
+    // 2. 최신 matching_log 조회
     const { data: periodData, error: periodError } = await supabase
       .from('matching_log')
-      .select('id, matching_run, matching_announce, executed, email_sent, finish, application_start')
+      .select('id, application_start, application_end, matching_announce, finish')
       .order('id', { ascending: false })
       .limit(1)
-      .maybeSingle(); // single() 대신 maybeSingle() 사용
+      .maybeSingle();
     
     if (periodError) {
-      console.log('[DEBUG][matching/status] periodError:', periodError);
+      console.error('회차 정보 조회 실패:', periodError);
       return res.status(500).json({ message: '회차 정보 조회 오류' });
     }
     
     if (!periodData) {
-      console.log('[DEBUG][matching/status] 회차 데이터 없음 - 아직 생성된 회차가 없습니다.');
       return res.json({ status: null, message: '아직 생성된 회차가 없습니다.' });
     }
-    const periodId = periodData.id;
-    console.log(`[DEBUG][matching/status] 조회 periodId: ${periodId}, now: ${now.toISOString()}, periodData:`, periodData);
-    // 2. 해당 회차 + user_id로 matching_applications에서 가장 최근 row 1개만 조회 (신청/취소 포함)
-    const { data, error } = await supabase
+    
+    // 3. matching_applications 조회
+    const { data: appData, error: appError } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
-      .eq('period_id', periodId)
+      .eq('period_id', periodData.id)
       .order('applied_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    console.log('[DEBUG][matching/status] 쿼리 조건:', { userId, periodId });
-    if (error && error.code !== 'PGRST116') {
-      console.log('[DEBUG][matching/status] 쿼리 error:', error);
-      throw error;
+    
+    if (appError && appError.code !== 'PGRST116') {
+      console.error('matching_applications 조회 실패:', appError);
+      throw appError;
     }
-    if (!data) {
-      console.log('[DEBUG][matching/status] 쿼리 결과 없음(data=null)');
-      return res.json({ status: null });
+    
+    // 4. 최종 응답 구성
+    let finalStatus;
+    
+    if (!appData) {
+      // matching_applications 데이터 없음 - users 기반
+      finalStatus = {
+        user_id: userId,
+        period_id: periodData.id,
+        applied: userData.is_applied || false,
+        is_applied: userData.is_applied || false,
+        cancelled: false,
+        is_cancelled: false,
+        matched: userData.is_matched,
+        is_matched: userData.is_matched,
+        partner_user_id: null,
+        applied_at: null,
+        cancelled_at: null,
+        matched_at: null
+      };
+    } else {
+      // matching_applications + users 결합
+      finalStatus = {
+        ...appData,
+        applied: userData.is_applied || false,  // users 우선
+        is_applied: userData.is_applied || false,
+        matched: userData.is_matched,  // users 우선
+        is_matched: userData.is_matched,
+        cancelled: appData.cancelled || false,  // app 기준
+        is_cancelled: appData.cancelled || false
+      };
     }
-    console.log('[DEBUG][matching/status] 쿼리 결과 data:', data);
-    res.json({ status: data });
+    
+    res.json({ status: finalStatus });
   } catch (error) {
-    console.error('[DEBUG][matching/status] 매칭 상태 조회 오류:', error);
+    console.error('매칭 상태 조회 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });

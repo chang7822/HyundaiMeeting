@@ -915,9 +915,24 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
 
     // 사용자 상태 업데이트가 필요한 경우 (탈퇴한 사용자 제외)
     if (Object.keys(banUpdateData).length > 0 && reportData.reported_user_id) {
+      // 해당 사용자의 현재 처리된 신고 개수 계산 (이메일 기준)
+      const { data: reportCountData, error: countError } = await supabase
+        .from('reports')
+        .select('id')
+        .eq('reported_user_email', reportData.reported_user_email)
+        .in('status', ['temporary_ban', 'permanent_ban']);
+
+      const reportCount = reportCountData ? reportCountData.length : 0;
+
+      // 정지 상태와 신고 횟수를 함께 업데이트
+      const finalUpdateData = {
+        ...banUpdateData,
+        report_count: reportCount
+      };
+
       const { error: banError } = await supabase
         .from('users')
-        .update(banUpdateData)
+        .update(finalUpdateData)
         .eq('id', reportData.reported_user_id);
 
       if (banError) {
@@ -925,7 +940,7 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
         return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
       }
       
-      console.log(`[신고처리] 사용자 상태 업데이트 완료: ${reportData.reported_user_id} (${status})`);
+      console.log(`[신고처리] 사용자 상태 업데이트 완료: ${reportData.reported_user_id} (${status}, 신고횟수: ${reportCount})`);
     } else if (!reportData.reported_user_id) {
       console.log(`[신고처리] 탈퇴한 사용자에 대한 신고 처리 완료: ${reportData.reported_user_email} (${status})`);
     }
