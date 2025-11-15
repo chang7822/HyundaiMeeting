@@ -1,1 +1,40 @@
+# Dependencies
 node_modules
+node_modules/
+*/node_modules/
+
+# Environment Variables (중요!)
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.env
+config.env
+backend/config.env
+
+# Build outputs
+build/
+dist/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test results
+test-results/
+playwright-report/
+coverage/
+
+# Misc
+*.cache
+.temp
+.tmp
