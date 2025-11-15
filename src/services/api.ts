@@ -134,8 +134,24 @@ export const authApi = {
   },
 
   resendVerificationEmail: async (email: string): Promise<boolean> => {
-    const response = await api.post('/auth/verify-email', { email });
+    const response = await api.post('/auth/resend-verification', { email });
     return response.data.success;
+  },
+
+  // 비밀번호 찾기 API
+  forgotPassword: async (email: string) => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  verifyResetCode: async (email: string, code: string) => {
+    const response = await api.post('/auth/verify-reset-code', { email, code });
+    return response.data;
+  },
+
+  resetPassword: async (email: string, resetToken: string, newPassword: string) => {
+    const response = await api.post('/auth/reset-password', { email, resetToken, newPassword });
+    return response.data;
   },
 };
 

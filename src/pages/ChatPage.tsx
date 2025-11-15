@@ -124,6 +124,19 @@ const ChatPage: React.FC = () => {
         setCanEnter(false);
         return;
       }
+      
+      // 채팅방 마감 시간 체크
+      if (period.finish) {
+        const finishTime = new Date(period.finish);
+        const now = new Date();
+        
+        if (now >= finishTime) {
+          toast.error('채팅 기간이 마감되었습니다.');
+          navigate('/main');
+          return;
+        }
+      }
+      
       setPeriodId(String(period.id));
       setCanEnter(true);
       setLoading(false);
@@ -133,7 +146,7 @@ const ChatPage: React.FC = () => {
       setLoading(false);
       setCanEnter(false);
     });
-  }, [user?.id, partnerUserId]);
+  }, [user?.id, partnerUserId, navigate]);
 
   // 매칭된 상대방 id만 채팅방 진입 허용
   useEffect(() => {
@@ -249,6 +262,24 @@ const ChatPage: React.FC = () => {
     if (isPartnerBanned) {
       toast.error('정지된 사용자에게 메시지를 전송할 수 없습니다.');
       return;
+    }
+    
+    // 채팅방 마감 시간 체크
+    try {
+      const periodData = await matchingApi.getMatchingPeriod();
+      if (periodData && periodData.finish) {
+        const finishTime = new Date(periodData.finish);
+        const now = new Date();
+        
+        if (now >= finishTime) {
+          toast.error('채팅 기간이 마감되었습니다.');
+          navigate('/main');
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('채팅방 마감 시간 체크 오류:', error);
+      // 에러가 발생해도 메시지 전송은 계속 진행 (기존 기능 보장)
     }
     
     const socket = socketRef.current;

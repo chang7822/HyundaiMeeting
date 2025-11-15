@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
-import { matchingApi, chatApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -555,6 +555,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  
+  // 이메일 인증 관련 상태
+  const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
+  const [emailVerificationStep, setEmailVerificationStep] = useState<'input'>('input');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const partnerUserId = useMemo(() => {
     const id = (matchingStatus && matchingStatus.matched === true) ? (matchingStatus.partner_user_id || null) : null;
     return id;
@@ -592,7 +599,15 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       console.error('[MainPage] 매칭 기간 API 에러:', err);
     });
     const timer = window.setInterval(() => {
-      setNow(new Date());
+      const newNow = new Date();
+      // 초 단위가 바뀔 때만 업데이트 (불필요한 리렌더링 방지)
+      setNow(prev => {
+        // 초기값이 없거나 초 단위가 바뀐 경우에만 업데이트
+        if (!prev || Math.floor(newNow.getTime() / 1000) !== Math.floor(prev.getTime() / 1000)) {
+          return newNow;
+        }
+        return prev;
+      });
     }, 1000); // 1초마다 갱신
     return () => window.clearInterval(timer);
   }, []);
@@ -634,7 +649,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         
         // 상태가 실제로 변경된 경우에만 업데이트 (불필요한 리렌더링 방지)
         setMatchingStatus(prev => {
-          if (JSON.stringify(prev) !== JSON.stringify(newStatus)) {
+          // 핵심 상태값만 비교하여 깜빡임 방지
+          if (!prev || 
+              prev.is_applied !== newStatus.is_applied ||
+              prev.is_matched !== newStatus.is_matched ||
+              prev.is_cancelled !== newStatus.is_cancelled ||
+              prev.partner_user_id !== newStatus.partner_user_id) {
             return newStatus;
           }
           return prev;
@@ -717,48 +737,68 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const isApplied = matchingStatus?.is_applied === true || user?.is_applied === true;
     if (isApplied) return;
     
-    // 매칭 시작 5초 전 ~ 5초 후까지 1초마다 강제 갱신
-    if (diff > 0 && diff < 10000) {
+    // 매칭 시작 3초 전 ~ 3초 후까지 2초마다 조용히 상태 확인
+    if (diff > 0 && diff < 6000) {
       const pollStart = window.setTimeout(() => {
         let count = 0;
-        const poll = window.setInterval(() => {
-          fetchMatchingStatus();
-          fetchUser(false); // 백그라운드로 사용자 정보도 갱신
+        const poll = window.setInterval(async () => {
+          try {
+            const response = await matchingApi.getMatchingStatus(user.id);
+            if (response.status) {
+              setMatchingStatus(prev => {
+                if (prev?.is_applied !== response.status.is_applied) {
+                  return response.status;
+                }
+                return prev;
+              });
+            }
+          } catch (error) {
+            // 조용히 무시
+          }
           count++;
-          if (count >= 10) window.clearInterval(poll); // 10초간 갱신
-        }, 1000);
-      }, Math.max(0, diff - 5000));
+          if (count >= 3) window.clearInterval(poll); // 6초간만 갱신
+        }, 2000);
+      }, Math.max(0, diff - 3000));
       return () => window.clearTimeout(pollStart);
     }
-  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchMatchingStatus, fetchUser]);
+  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied]);
 
-  // [추가] 매칭 공지 시점 직전 polling으로 상태 강제 fetch
+  // [수정] 매칭 공지 시점 조용한 상태 확인 (로딩 없이)
   useEffect(() => {
     if (!period || !user?.id) return;
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
     if (!announce) return;
     
-    // 매칭 신청하지 않았다면 공지 폴링 불필요
+    // 매칭 신청하지 않았다면 불필요
     const isApplied = matchingStatus?.is_applied === true || user?.is_applied === true;
     if (!isApplied) return;
     
     const nowTime = Date.now();
     const announceTime = announce.getTime();
     const diff = announceTime - nowTime;
-    // announce 2초 전 ~ 3초 후까지 polling
-    if (diff > 0 && diff < 5000) {
-      // 2초 전부터 5초간 1초 간격 polling
-      const pollStart = window.setTimeout(() => {
-        let count = 0;
-        const poll = window.setInterval(() => {
-          fetchMatchingStatus();
-          count++;
-          if (count >= 5) window.clearInterval(poll);
-        }, 1000);
-      }, Math.max(0, diff - 2000));
-      return () => window.clearTimeout(pollStart);
+    
+    // 공지 시점 직전에 캐시 데이터 클리어 후 최신 데이터로 업데이트
+    if (diff > 0 && diff < 5000) { // 5초 전부터 대기
+      const preAnnounceUpdate = window.setTimeout(async () => {
+        try {
+          // 매칭 상태와 사용자 정보를 최신으로 업데이트
+          const [matchingResponse] = await Promise.all([
+            matchingApi.getMatchingStatus(user.id),
+            fetchUser(false)
+          ]);
+          
+          if (matchingResponse.status) {
+            setMatchingStatus(matchingResponse.status);
+          }
+        } catch (error) {
+          console.error('[매칭 공지 직전 업데이트 오류]:', error);
+        }
+      }, Math.max(0, diff - 1000)); // 공지 시점 1초 전에 미리 업데이트
+      
+      return () => window.clearTimeout(preAnnounceUpdate);
     }
-  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchMatchingStatus]);
+  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchUser]);
+
 
   // [수정] 회차 시작 시 사용자 정보 자동 업데이트 (매칭 상태와 사용자 정보 모두 빠르게 갱신)
   useEffect(() => {
@@ -774,42 +814,30 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     
     // 회차 시작 1분 전 ~ 2분 후까지만 활성화
     if (startTime - nowTime < 60000 && startTime - nowTime > -120000) {
-      // 매칭 상태는 3초마다 갱신 (더 빠르게)
-      const statusInterval = window.setInterval(() => {
-        fetchMatchingStatus();
-      }, 3000);
-      
-      // 사용자 정보도 5초마다 갱신 (백그라운드, 매칭 시작 시점에는 더 빠르게)
-      const userInterval = window.setInterval(() => {
-        fetchUser(false); // 백그라운드 업데이트
+      // 매칭 상태는 5초마다 조용히 갱신 (로딩 표시 없이)
+      const statusInterval = window.setInterval(async () => {
+        try {
+          const response = await matchingApi.getMatchingStatus(user.id);
+          if (response.status) {
+            setMatchingStatus(prev => {
+              if (prev?.is_applied !== response.status.is_applied || 
+                  prev?.is_matched !== response.status.is_matched) {
+                return response.status;
+              }
+              return prev;
+            });
+          }
+        } catch (error) {
+          // 조용히 무시
+        }
       }, 5000);
       
       return () => {
         window.clearInterval(statusInterval);
-        window.clearInterval(userInterval);
       };
     }
-  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchUser, fetchMatchingStatus]);
+  }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied]);
 
-  // [추가] 매칭 결과 발표 시각 이후 5초간 1초마다 polling (최대 5회)
-  useEffect(() => {
-    if (!period || !user?.id) return;
-    const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-    if (!announce) return;
-    const nowTime = Date.now();
-    const announceTime = announce.getTime();
-    const diff = nowTime - announceTime;
-    // 발표 직후 5초 동안만 polling
-    if (diff >= 0 && diff < 5000) {
-      let count = 0;
-      const poll = window.setInterval(() => {
-        fetchMatchingStatus();
-        count++;
-        if (count >= 5) window.clearInterval(poll);
-      }, 1000);
-      return () => window.clearInterval(poll);
-    }
-  }, [period, user?.id, fetchMatchingStatus]);
 
   // 매칭 결과 폴링 제거 - 사용자가 직접 "매칭 결과 확인" 버튼으로 새로고침
 
@@ -834,16 +862,23 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
 
 
-  // 안읽은 메시지 개수 정기 업데이트 (30초마다)
+  // 안읽은 메시지 개수 정기 업데이트 (30초마다, 깜빡임 방지)
   useEffect(() => {
     if (!user?.id) return;
     
-    const interval = window.setInterval(() => {
-      fetchUnreadCount();
+    const interval = window.setInterval(async () => {
+      try {
+        const result = await chatApi.getUnreadCount(user.id);
+        const newCount = result.unreadCount || 0;
+        // 개수가 실제로 변경된 경우에만 업데이트
+        setUnreadCount(prev => prev !== newCount ? newCount : prev);
+      } catch (error) {
+        // 에러 시 조용히 무시 (깜빡임 방지)
+      }
     }, 30000); // 30초마다 업데이트
 
     return () => window.clearInterval(interval);
-  }, [user?.id, fetchUnreadCount]);
+  }, [user?.id]);
 
   // 카운트다운 계산 함수 (조건부 렌더링 이전에 선언)
   const calculateCountdown = useCallback(() => {
@@ -878,6 +913,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     
     const canChat = status === '매칭 성공' && partnerUserId;
     
+    
     if (!period?.finish || !canChat) {
       setCountdown('');
       return;
@@ -903,15 +939,21 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (minutes > 0) countdownText += `${minutes}분 `;
     countdownText += `${seconds}초`;
 
-    setCountdown(countdownText);
+    // 카운트다운이 실제로 변경된 경우에만 업데이트 (깜빡임 방지)
+    setCountdown(prev => prev !== countdownText ? countdownText : prev);
   }, [period, user, profile, loadingPeriod, statusLoading, now, partnerUserId, matchingStatus]); // matchingStatus 의존성 추가
 
-  // 카운트다운 업데이트
+  // 카운트다운 업데이트 (깜빡임 방지)
   useEffect(() => {
     calculateCountdown();
-    const interval = window.setInterval(calculateCountdown, 1000);
+    const interval = window.setInterval(() => {
+      // 카운트다운이 실제로 필요한 상황에서만 계산
+      if (period && user && profile && !loadingPeriod && !statusLoading) {
+        calculateCountdown();
+      }
+    }, 1000);
     return () => window.clearInterval(interval);
-  }, [calculateCountdown]);
+  }, [calculateCountdown, period, user, profile, loadingPeriod, statusLoading]);
 
   // 인증되지 않은 상태면 랜딩페이지로 리다이렉트
   if (!isAuthenticated && !isLoading) {
@@ -988,6 +1030,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const announce = period.matching_announce ? new Date(period.matching_announce) : null;
     const nowTime = now.getTime();
     const { isApplied, isMatched, isCancelled } = getUserMatchingState();
+    
+    
     // 신청 전
     if (nowTime < start.getTime()) {
       return {
@@ -1217,13 +1261,77 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     {
       icon: <FaRegStar />,
       title: '선호 스타일',
-      action: () => navigate('/preference'),
+      action: () => {
+        if (checkEmailVerification()) {
+          navigate('/preference');
+        }
+      },
       disabled: false,
     },
   ];
 
+  // 이메일 인증이 필요한 기능인지 체크
+  const checkEmailVerification = () => {
+    if (!user?.is_verified) {
+      setShowEmailVerificationModal(true);
+      return false;
+    }
+    return true;
+  };
+
+  // 이메일 인증 처리
+  const handleEmailVerification = async () => {
+    if (!verificationCode) {
+      toast.error('인증번호를 입력해주세요.');
+      return;
+    }
+
+    const userEmail = user?.email;
+    if (!userEmail) {
+      toast.error('사용자 이메일 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    setIsVerifying(true);
+    try {
+      await authApi.confirmVerification(userEmail, verificationCode);
+      toast.success('이메일 인증이 완료되었습니다!');
+      setShowEmailVerificationModal(false);
+      setVerificationCode('');
+      // 사용자 정보 새로고침
+      await fetchUser(false);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || '인증번호가 올바르지 않습니다.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  // 이메일 재발송
+  const handleResendVerificationEmail = async () => {
+    const userEmail = user?.email;
+    if (!userEmail) {
+      toast.error('사용자 이메일 정보를 찾을 수 없습니다.');
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      await authApi.resendVerificationEmail(userEmail);
+      toast.success('인증 메일이 재발송되었습니다.');
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || '메일 발송에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   // 매칭 신청
   const handleMatchingRequest = async () => {
+    // 이메일 인증 체크
+    if (!checkEmailVerification()) {
+      return;
+    }
     setShowMatchingConfirmModal(true);
   };
 
@@ -1234,12 +1342,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await matchingApi.requestMatching(user.id);
       toast.success('매칭 신청이 완료되었습니다!');
       
-      // 백엔드 업데이트 완료를 위한 짧은 지연
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // 백엔드 업데이트 완료를 위한 지연 시간 증가
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // 순차적으로 상태 업데이트 (매칭 신청 후에는 로딩 표시)
-      await fetchMatchingStatus();
+      // 순차적으로 상태 업데이트 (users 테이블 우선 업데이트)
       await fetchUser(true);
+      await fetchMatchingStatus();
       
       setShowMatchingConfirmModal(false);
     } catch (error: any) {
@@ -1257,12 +1365,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await matchingApi.cancelMatching(user.id);
       toast.success('매칭 신청이 취소되었습니다.');
       
-      // 백엔드 업데이트 완료를 위한 짧은 지연
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // 백엔드 업데이트 완료를 위한 지연 시간 증가
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // 순차적으로 상태 업데이트 (매칭 취소 후에는 로딩 표시)
-      await fetchMatchingStatus();
+      // 순차적으로 상태 업데이트 (users 테이블 우선 업데이트)
       await fetchUser(true);
+      await fetchMatchingStatus();
       
       setShowCancelConfirmModal(false);
     } catch (error: any) {
@@ -1301,6 +1409,66 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             님!
           </WelcomeTitle>
           <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
+          
+          {/* 이메일 인증 알림 */}
+          {!user?.is_verified && (
+            <div style={{
+              background: 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)',
+              border: '2px solid #f39c12',
+              borderRadius: '16px',
+              padding: '20px',
+              marginTop: '1.5rem',
+              textAlign: 'center',
+              boxShadow: '0 4px 12px rgba(243, 156, 18, 0.2)'
+            }}>
+              <div style={{ 
+                fontSize: '1.1rem', 
+                fontWeight: '600', 
+                color: '#d68910', 
+                marginBottom: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}>
+                <span>⚠️</span>
+                <span>이메일 인증이 필요합니다</span>
+              </div>
+              <p style={{ 
+                color: '#856404', 
+                margin: '0 0 16px 0', 
+                fontSize: '0.95rem',
+                lineHeight: '1.4'
+              }}>
+                매칭 신청 및 프로필 수정을 위해서는 이메일 인증을 완료해주세요.
+              </p>
+              <button
+                onClick={() => setShowEmailVerificationModal(true)}
+                style={{
+                  background: '#f39c12',
+                  color: 'white',
+                  border: 'none',
+                  padding: '12px 24px',
+                  borderRadius: '8px',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 8px rgba(243, 156, 18, 0.3)'
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.background = '#e67e22';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.background = '#f39c12';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }}
+              >
+                📧 이메일 인증하기
+              </button>
+            </div>
+          )}
           
           {/* 정지 상태 안내 */}
           <div style={{
@@ -1363,6 +1531,68 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           님!
         </WelcomeTitle>
         <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
+        
+        {/* 이메일 인증 알림 */}
+        {!user?.is_verified && (
+          <div style={{
+            background: 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)',
+            border: '2px solid #f39c12',
+            borderRadius: '16px',
+            padding: '20px',
+            marginTop: '1.5rem',
+            marginBottom: '1.5rem',
+            textAlign: 'center',
+            boxShadow: '0 4px 12px rgba(243, 156, 18, 0.2)'
+          }}>
+            <div style={{ 
+              fontSize: '1.1rem', 
+              fontWeight: '600', 
+              color: '#d68910', 
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}>
+              <span>⚠️</span>
+              <span>이메일 인증이 필요합니다</span>
+            </div>
+            <p style={{ 
+              color: '#856404', 
+              margin: '0 0 16px 0', 
+              fontSize: '0.95rem',
+              lineHeight: '1.4'
+            }}>
+              매칭 신청 및 프로필 수정을 위해서는 이메일 인증을 완료해주세요.
+            </p>
+            <button
+              onClick={() => setShowEmailVerificationModal(true)}
+              style={{
+                background: '#f39c12',
+                color: 'white',
+                border: 'none',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                fontSize: '1rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 2px 8px rgba(243, 156, 18, 0.3)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#e67e22';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = '#f39c12';
+                e.currentTarget.style.transform = 'translateY(0)';
+              }}
+            >
+              📧 이메일 인증하기
+            </button>
+          </div>
+        )}
+        
         <ButtonRow>
         <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
           {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
@@ -1950,6 +2180,95 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </CompactCard>
         ))}
       </CompactGrid>
+
+      {/* 이메일 인증 모달 */}
+      {showEmailVerificationModal && (
+        <ModalOverlay onClick={() => setShowEmailVerificationModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div style={{ padding: '2rem' }}>
+              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center' }}>이메일 인증</h2>
+              <p style={{ color: '#666', marginBottom: '1.5rem', textAlign: 'center' }}>
+                이 기능을 사용하려면 이메일 인증이 필요합니다.
+              </p>
+              
+              {emailVerificationStep === 'input' && (
+                <div>
+                  <input
+                    type="text"
+                    placeholder="인증번호 6자리를 입력하세요"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    maxLength={6}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '2px solid #e1e5e9',
+                      fontSize: '1rem',
+                      marginBottom: '1rem',
+                      textAlign: 'center'
+                    }}
+                  />
+                  
+                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <button
+                      onClick={handleEmailVerification}
+                      disabled={!verificationCode || isVerifying}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: '#667eea',
+                        color: 'white',
+                        fontSize: '1rem',
+                        cursor: verificationCode && !isVerifying ? 'pointer' : 'not-allowed',
+                        opacity: verificationCode && !isVerifying ? 1 : 0.5
+                      }}
+                    >
+                      {isVerifying ? '인증 중...' : '인증 확인'}
+                    </button>
+                    
+                    <button
+                      onClick={handleResendVerificationEmail}
+                      disabled={isResending}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: '2px solid #667eea',
+                        background: 'transparent',
+                        color: '#667eea',
+                        fontSize: '1rem',
+                        cursor: isResending ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {isResending ? '재발송 중...' : '메일 재발송'}
+                    </button>
+                  </div>
+                </div>
+              )}
+              
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  onClick={() => setShowEmailVerificationModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: '2px solid #ddd',
+                    background: 'transparent',
+                    color: '#888',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  나중에 하기
+                </button>
+              </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
 
     </MainContainer>
   );

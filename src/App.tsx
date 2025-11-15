@@ -18,6 +18,10 @@ import AddressSelectionPage from './pages/auth/AddressSelectionPage.tsx';
 import NicknameSetupPage from './pages/auth/NicknameSetupPage.tsx';
 import PreferenceSetupPage from './pages/auth/PreferenceSetupPage.tsx';
 import AppealPage from './pages/auth/AppealPage.tsx';
+// Password Reset Pages
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage.tsx';
+import ResetPasswordVerifyPage from './pages/auth/ResetPasswordVerifyPage.tsx';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage.tsx';
 import MainPage from './pages/MainPage.tsx';
 import AdminPage from './pages/admin/AdminPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
@@ -115,6 +119,12 @@ function App() {
               <Route path="/register/nickname" element={<NicknameSetupPage />} />
               <Route path="/register/preference" element={<PreferenceSetupPage />} />
               <Route path="/register/appeal" element={<AppealPage />} />
+              
+              {/* Password Reset Routes */}
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password-verify" element={<ResetPasswordVerifyPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              
               {/* Protected Routes */}
               <Route path="/main" element={
                 <ProtectedRoute>

@@ -270,6 +270,13 @@ const EmailVerificationPage = () => {
     navigate('/login');
   };
 
+  const handleSkipVerification = () => {
+    // 인증번호를 나중에 입력할 수 있도록 세션 스토리지에 상태 저장
+    sessionStorage.setItem('emailVerificationSkipped', 'true');
+    toast.info('이메일 인증은 나중에 메인페이지에서 완료할 수 있습니다.');
+    navigate('/register/password');
+  };
+
   return (
     <Container>
       <Card style={{ position: 'relative' }}>
@@ -330,7 +337,9 @@ const EmailVerificationPage = () => {
           <div>
             <SuccessMessage>
               인증 메일이 발송되었습니다!<br />
-              메일함을 확인하여 인증번호를 입력해주세요.
+              메일함을 확인하여 인증번호를 입력해주세요.<br />
+              인증번호는 30분간 유효합니다.<br /><br/>
+              이메일 인증은 나중에 메인페이지에서 완료할 수도 있습니다.
             </SuccessMessage>
             
             <VerificationSection>
@@ -354,6 +363,19 @@ const EmailVerificationPage = () => {
                 onClick={() => setIsVerificationSent(false)}
               >
                 이메일 다시 입력
+              </SecondaryButton>
+              
+              <SecondaryButton
+                type="button"
+                onClick={handleSkipVerification}
+                style={{ 
+                  background: 'transparent', 
+                  color: '#888', 
+                  border: '2px solid #ddd',
+                  marginTop: '0.5rem'
+                }}
+              >
+                나중에 인증하기
               </SecondaryButton>
             </VerificationSection>
           </div>

@@ -77,6 +77,24 @@ const ErrorMessage = styled.span`
   margin-top: 0.25rem;
 `;
 
+const CapsLockWarning = styled.div`
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #856404;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  
+  &::before {
+    content: "⚠️";
+    font-size: 0.9rem;
+  }
+`;
+
 const LoginButton = styled.button`
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -121,12 +139,24 @@ const LoginPage = () => {
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isCapsLockOn, setIsCapsLockOn] = useState(false);
   
   const {
     register,
     handleSubmit,
     formState: { errors },
   } = useForm<LoginCredentials>();
+
+  // Caps Lock 감지 함수
+  const checkCapsLock = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    const key = event.key;
+    const isCapsLock = event.getModifierState && event.getModifierState('CapsLock');
+    
+    // 알파벳 키를 눌렀을 때만 Caps Lock 상태 확인
+    if (/^[a-zA-Z]$/.test(key)) {
+      setIsCapsLockOn(isCapsLock);
+    }
+  };
 
   const onSubmit = async (data: LoginCredentials) => {
     setIsLoading(true);
@@ -180,6 +210,7 @@ const LoginPage = () => {
                 className={errors.password ? 'error' : ''}
                 placeholder="비밀번호를 입력하세요"
                 style={{ paddingRight: 40 }}
+                onKeyDown={checkCapsLock}
               />
               <button
                 type="button"
@@ -202,6 +233,11 @@ const LoginPage = () => {
               </button>
             </div>
             {errors.password && <ErrorMessage>{errors.password.message}</ErrorMessage>}
+            {isCapsLockOn && (
+              <CapsLockWarning>
+                Caps Lock이 켜져있습니다.
+              </CapsLockWarning>
+            )}
           </FormGroup>
 
           <LoginButton type="submit" disabled={isLoading}>
@@ -211,6 +247,10 @@ const LoginPage = () => {
 
         <RegisterLink>
           계정이 없으신가요? <Link to="/register">회원가입</Link>
+        </RegisterLink>
+        
+        <RegisterLink style={{ marginTop: '0.5rem' }}>
+          비밀번호를 잊으셨나요? <Link to="/forgot-password">비밀번호 찾기</Link>
         </RegisterLink>
       </LoginCard>
     </LoginContainer>

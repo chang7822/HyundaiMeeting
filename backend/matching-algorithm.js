@@ -415,6 +415,41 @@ async function main() {
     }
   }
 
+  // [추가] 회차 종료 시 모든 채팅 메시지를 읽음 처리
+  try {
+    console.log(`[매칭 완료] 회차 ${periodId} 종료 - 모든 채팅 메시지를 읽음 처리합니다.`);
+    
+    const { data: chatMessages, error: chatError } = await supabase
+      .from('chat_messages')
+      .select('id')
+      .eq('period_id', periodId)
+      .eq('is_read', false);
+    
+    if (chatError) {
+      console.error(`[매칭 완료] 채팅 메시지 조회 실패:`, chatError);
+    } else if (chatMessages && chatMessages.length > 0) {
+      const { error: updateChatError } = await supabase
+        .from('chat_messages')
+        .update({ 
+          is_read: true, 
+          read_at: new Date().toISOString() 
+        })
+        .eq('period_id', periodId)
+        .eq('is_read', false);
+      
+      if (updateChatError) {
+        console.error(`[매칭 완료] 채팅 메시지 읽음 처리 실패:`, updateChatError);
+      } else {
+        console.log(`[매칭 완료] ${chatMessages.length}개의 채팅 메시지를 읽음 처리했습니다.`);
+      }
+    } else {
+      console.log(`[매칭 완료] 읽지 않은 채팅 메시지가 없습니다.`);
+    }
+  } catch (error) {
+    console.error(`[매칭 완료] 채팅 메시지 읽음 처리 중 오류:`, error);
+    // 채팅 메시지 처리 실패해도 매칭 결과에는 영향 없음
+  }
+
 }
 
 // 함수 export (스케줄러에서 사용)

@@ -482,19 +482,39 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       <Card>
         <CloseButton onClick={() => navigate('/main')} title="닫기"><FaTimes /></CloseButton>
         <Title>내 프로필 관리</Title>
+        
+        {/* 이메일 인증 안내 */}
+        {!user?.is_verified && (
+          <div style={{
+            background: '#fff3cd',
+            border: '1px solid #ffeaa7',
+            borderRadius: '8px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            textAlign: 'center'
+          }}>
+            <p style={{ color: '#856404', margin: 0, fontSize: '0.9rem' }}>
+              ⚠️ 프로필 수정을 위해서는 이메일 인증이 필요합니다.<br />
+              메인 페이지에서 이메일 인증을 완료해주세요.
+            </p>
+          </div>
+        )}
         <Label>닉네임</Label>
         <Input
           value={profile.nickname||''}
           onChange={handleNicknameChange}
           maxLength={10}
           minLength={2}
+          disabled={true}
           style={{
             borderColor: nicknameError
               ? '#e74c3c'
               : profile.nickname && !nicknameError
               ? '#2ecc40'
               : '#e1e5e9',
-            marginBottom:24
+            marginBottom:24,
+            backgroundColor: '#f5f5f5',
+            cursor: 'not-allowed'
           }}
         />
         {nicknameError && (
@@ -623,8 +643,26 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         </SelectButton>
         <Label>더 표현하고 싶은 나에 대해</Label>
         <Input as="textarea" rows={10} maxLength={100} value={profile.appeal||''} onChange={e=>setProfile({...profile, appeal:e.target.value})} placeholder="100자 이내로 자기소개를 입력하세요" style={{marginBottom:16}} />
-        <Button onClick={handleSave} disabled={isSaving}>{isSaving ? '저장 중...' : '저장'}</Button>
-        <Button type="button" style={{background:'#fff',color:'#764ba2',border:'2px solid #764ba2'}} onClick={()=>setPwPopup(true)}>비밀번호 변경</Button>
+        <Button 
+          onClick={handleSave} 
+          disabled={isSaving || !user?.is_verified}
+          style={!user?.is_verified ? {opacity: 0.5, cursor: 'not-allowed'} : {}}
+        >
+          {isSaving ? '저장 중...' : '저장'}
+        </Button>
+        <Button 
+          type="button" 
+          style={{
+            background:'#fff',
+            color:'#764ba2',
+            border:'2px solid #764ba2',
+            ...((!user?.is_verified) && {opacity: 0.5, cursor: 'not-allowed'})
+          }} 
+          onClick={!user?.is_verified ? undefined : ()=>setPwPopup(true)}
+          disabled={!user?.is_verified}
+        >
+          비밀번호 변경
+        </Button>
         <DangerButton type="button" onClick={()=>setDelPopup(true)}>회원 탈퇴</DangerButton>
         <Button type="button" style={{background:'#fff',color:'#764ba2',border:'2px solid #764ba2',marginTop:32}} onClick={()=>navigate('/main')}>닫기</Button>
       </Card>

@@ -26,6 +26,9 @@ console.log('=====================');
 // 인증번호 임시 저장 (데이터베이스로 변경 예정)
 const verificationCodes = new Map();
 
+// 비밀번호 재설정용 인증번호 저장 Map (별도 관리)
+const passwordResetCodes = new Map();
+
 // 이메일 설정
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -192,8 +195,81 @@ router.post('/verify-email', async (req, res) => {
   }
 });
 
+// 기존 사용자용 이메일 재발송 (메인페이지에서 사용)
+router.post('/resend-verification', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: '이메일을 입력해주세요.' });
+    }
+
+    // 기존 사용자 확인 (가입된 사용자여야 함)
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id, is_verified')
+      .eq('email', email)
+      .single();
+
+    if (checkError || !existingUser) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '등록되지 않은 이메일입니다.' 
+      });
+    }
+
+    // 이미 인증된 사용자인 경우
+    if (existingUser.is_verified) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '이미 인증된 사용자입니다.' 
+      });
+    }
+
+    const verificationCode = generateVerificationCode();
+    verificationCodes.set(email, {
+      code: verificationCode,
+      createdAt: Date.now()
+    });
+
+    // 이메일 발송 로직 (기존과 동일)
+    const transporter = nodemailer.createTransporter({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: '현대자동차(울산) 사내 매칭 - 이메일 인증번호 재발송',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333; text-align: center;">이메일 인증번호</h2>
+          <p>안녕하세요! 현대자동차(울산) 사내 매칭 플랫폼입니다.</p>
+          <p>요청하신 이메일 인증번호입니다:</p>
+          <div style="background: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+            <h1 style="color: #007bff; margin: 0; font-size: 32px; letter-spacing: 4px;">${verificationCode}</h1>
+          </div>
+          <p>이 인증번호는 30분간 유효합니다.</p>
+          <p>감사합니다.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: '인증번호가 재발송되었습니다.' });
+
+  } catch (error) {
+    console.error('이메일 재발송 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // 인증번호 확인
-router.post('/confirm-verification', (req, res) => {
+router.post('/confirm-verification', async (req, res) => {
   try {
     const { email, code } = req.body;
     
@@ -222,6 +298,20 @@ router.post('/confirm-verification', (req, res) => {
 
     // 인증 성공 - 인증번호 삭제
     verificationCodes.delete(email);
+    
+    // DB에서 해당 사용자의 is_verified를 true로 업데이트
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ 
+        is_verified: true, 
+        email_verification_status: 'verified' 
+      })
+      .eq('email', email);
+    
+    if (updateError) {
+      console.error('이메일 인증 상태 업데이트 오류:', updateError);
+      return res.status(500).json({ success: false, message: '인증 상태 업데이트 중 오류가 발생했습니다.' });
+    }
     
     res.json({ success: true, message: '이메일 인증이 완료되었습니다.' });
   } catch (error) {
@@ -345,7 +435,7 @@ router.post('/register', async (req, res) => {
       .insert([{
         email,
         password: hashedPassword,
-        is_verified: true, // 이메일 인증 완료 가정
+        is_verified: false, // 이메일 인증은 선택적으로 변경
         is_active: true,
         is_applied: false, // 매칭 미신청(기본값)
         is_matched: null,  // 매칭 결과 없음(기본값)
@@ -712,6 +802,172 @@ router.get('/me', authenticate, async (req, res) => {
     res.json(userData);
   } catch (err) {
     res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+// ===== 비밀번호 찾기 API =====
+
+// 1. 비밀번호 찾기 - 이메일 확인 및 인증번호 발송
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ success: false, message: '이메일을 입력해주세요.' });
+    }
+
+    // 가입된 이메일인지 확인
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id, email')
+      .eq('email', email)
+      .single();
+
+    if (checkError || !existingUser) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '등록되지 않은 이메일입니다.' 
+      });
+    }
+
+    // 비밀번호 재설정용 인증번호 생성
+    const resetCode = generateVerificationCode();
+    passwordResetCodes.set(email, {
+      code: resetCode,
+      createdAt: Date.now(),
+      userId: existingUser.id
+    });
+
+    // 이메일 발송
+    const mailOptions = {
+      from: process.env.EMAIL_USER,
+      to: email,
+      subject: '현대자동차(울산) 사내 매칭 - 비밀번호 재설정 인증번호',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #333; text-align: center;">비밀번호 재설정 인증번호</h2>
+          <p>안녕하세요! 현대자동차(울산) 사내 매칭 플랫폼입니다.</p>
+          <p>비밀번호 재설정을 위한 인증번호입니다:</p>
+          <div style="background: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
+            <h1 style="color: #e74c3c; margin: 0; font-size: 32px; letter-spacing: 4px;">${resetCode}</h1>
+          </div>
+          <p>이 인증번호는 30분간 유효합니다.</p>
+          <p>본인이 요청하지 않았다면 이 이메일을 무시해주세요.</p>
+          <p>감사합니다.</p>
+        </div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ 
+      success: true, 
+      message: '비밀번호 재설정 인증번호가 발송되었습니다.' 
+    });
+
+  } catch (error) {
+    console.error('비밀번호 찾기 이메일 발송 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 2. 비밀번호 재설정용 인증번호 확인
+router.post('/verify-reset-code', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    if (!email || !code) {
+      return res.status(400).json({ success: false, message: '이메일과 인증번호를 입력해주세요.' });
+    }
+
+    const resetData = passwordResetCodes.get(email);
+    
+    if (!resetData) {
+      return res.status(400).json({ success: false, message: '인증번호를 먼저 요청해주세요.' });
+    }
+
+    // 30분 제한 확인
+    const now = Date.now();
+    const timeLimit = 30 * 60 * 1000; // 30분
+    
+    if (now - resetData.createdAt > timeLimit) {
+      passwordResetCodes.delete(email);
+      return res.status(400).json({ success: false, message: '인증번호가 만료되었습니다. 다시 요청해주세요.' });
+    }
+
+    if (resetData.code !== code) {
+      return res.status(400).json({ success: false, message: '인증번호가 일치하지 않습니다.' });
+    }
+
+    // 인증 성공 - 임시 토큰 생성 (1회용)
+    const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    passwordResetCodes.set(email, {
+      ...resetData,
+      verified: true,
+      resetToken: resetToken,
+      tokenCreatedAt: Date.now()
+    });
+    
+    res.json({ 
+      success: true, 
+      message: '인증이 완료되었습니다.',
+      resetToken: resetToken
+    });
+
+  } catch (error) {
+    console.error('비밀번호 재설정 인증번호 확인 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 3. 새 비밀번호 설정
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, resetToken, newPassword } = req.body;
+    
+    if (!email || !resetToken || !newPassword) {
+      return res.status(400).json({ success: false, message: '모든 필드를 입력해주세요.' });
+    }
+
+    const resetData = passwordResetCodes.get(email);
+    
+    if (!resetData || !resetData.verified || resetData.resetToken !== resetToken) {
+      return res.status(400).json({ success: false, message: '유효하지 않은 요청입니다.' });
+    }
+
+    // 토큰 유효시간 확인 (10분)
+    const now = Date.now();
+    const tokenTimeLimit = 10 * 60 * 1000; // 10분
+    
+    if (now - resetData.tokenCreatedAt > tokenTimeLimit) {
+      passwordResetCodes.delete(email);
+      return res.status(400).json({ success: false, message: '인증이 만료되었습니다. 다시 시도해주세요.' });
+    }
+
+    // 비밀번호 해시화
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    // 데이터베이스에서 비밀번호 업데이트
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password: hashedPassword })
+      .eq('email', email);
+
+    if (updateError) {
+      console.error('비밀번호 업데이트 오류:', updateError);
+      return res.status(500).json({ success: false, message: '비밀번호 업데이트 중 오류가 발생했습니다.' });
+    }
+
+    // 사용된 토큰 삭제
+    passwordResetCodes.delete(email);
+    
+    res.json({ 
+      success: true, 
+      message: '비밀번호가 성공적으로 변경되었습니다.' 
+    });
+
+  } catch (error) {
+    console.error('비밀번호 재설정 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
 
