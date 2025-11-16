@@ -35,7 +35,11 @@ const ChatInput: React.FC<ChatInputProps> = ({ value, onChange, onSend, disabled
     adjustHeight();
   }, [value]);
 
-  const handleSend = () => {
+  const handleSend = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     onSend();
     // 버튼 클릭/터치 시 포커스 유지
     inputRef.current?.focus();
@@ -85,7 +89,6 @@ const ChatInput: React.FC<ChatInputProps> = ({ value, onChange, onSend, disabled
         <button
           type="button"
           onClick={disabled ? undefined : handleSend}
-          onTouchEnd={disabled ? undefined : handleSend}
           disabled={disabled}
           style={{ 
             background: disabled ? '#ccc' : 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)', 
