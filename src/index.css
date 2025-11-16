@@ -18,9 +18,6 @@ code {
 
 html, body {
   height: 100%;
-  /* 모바일 키보드 대응: 주소창 높이 보정 */
-  height: 100vh;
-  height: -webkit-fill-available;
 }
 
 #root {

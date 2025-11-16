@@ -37,6 +37,13 @@ const MainContainer = styled.div`
   overflow: hidden;
   position: relative;
   
+  /* 모바일: visualViewport 높이 사용 */
+  @supports (-webkit-touch-callout: none) {
+    @media (max-width: 768px) {
+      height: 100dvh; /* dynamic viewport height */
+    }
+  }
+  
   @media (max-width: 1200px) {
     max-width: 100vw;
   }
@@ -53,16 +60,7 @@ const ChatHeaderWrapper = styled.div`
   background: #fff;
   box-shadow: 0 2px 8px rgba(80,60,180,0.06);
   
-  /* 모바일 키보드 대응: position을 sticky로 변경하여 스크롤 시에도 유지 */
-  @media (max-width: 768px) {
-    position: sticky;
-    top: 0;
-    left: 0;
-    transform: none;
-    max-width: 100vw;
-  }
-  
-  @media (min-width: 769px) and (max-width: 1200px) {
+  @media (max-width: 1200px) {
     left: 0;
     transform: none;
     max-width: 100vw;
@@ -92,22 +90,26 @@ const ChatWindowWrapper = styled.div`
   width: 100vw;
   max-width: 1200px;
   margin: 0 auto;
+  margin-top: 64px;
+  margin-bottom: 72px;
   overflow-y: auto;
+  overflow-x: hidden;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-overflow-scrolling: touch;
   
   /* PC 및 태블릿: 고정 높이 */
   @media (min-width: 769px) {
-    margin-top: 64px;
-    margin-bottom: 72px;
     height: calc(100vh - 64px - 72px);
   }
   
-  /* 모바일: 키보드 대응을 위한 유연한 높이 */
+  /* 모바일: 키보드에 따라 동적으로 변하는 높이 */
   @media (max-width: 768px) {
-    padding-top: 0;
-    padding-bottom: 72px;
-    min-height: 100vh;
-    height: auto;
+    height: calc(100vh - 136px);
+    
+    /* iOS Safari의 dynamic viewport */
+    @supports (-webkit-touch-callout: none) {
+      height: calc(100dvh - 136px);
+    }
   }
   
   @media (max-width: 1200px) {

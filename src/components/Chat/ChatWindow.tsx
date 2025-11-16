@@ -16,11 +16,39 @@ interface ChatWindowProps {
 }
 
 const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId }) => {
-  useLayoutEffect(() => {
+  // 채팅창을 최하단으로 스크롤하는 함수
+  const scrollToBottom = () => {
     if (chatWindowRef.current) {
       chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
     }
+  };
+
+  // 메시지 변경 시 스크롤
+  useLayoutEffect(() => {
+    scrollToBottom();
   }, [messages]);
+
+  // 모바일 키보드 대응: resize 이벤트 시에도 스크롤
+  useLayoutEffect(() => {
+    const handleResize = () => {
+      // 약간의 딜레이를 주어 키보드 애니메이션 후 스크롤
+      setTimeout(scrollToBottom, 100);
+    };
+
+    // visualViewport가 지원되는 경우 (모바일)
+    if ('visualViewport' in window && window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleResize);
+      return () => {
+        window.visualViewport?.removeEventListener('resize', handleResize);
+      };
+    }
+
+    // fallback: window resize
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
   // 날짜 구분선 컴포넌트
   const DateDivider: React.FC<{ date: Date }> = ({ date }) => {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
