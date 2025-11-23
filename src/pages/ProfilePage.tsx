@@ -498,7 +498,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         <Title>내 프로필 관리</Title>
         
         {/* 이메일 인증 안내 */}
-        {!user?.is_verified && (
+        {user?.is_verified === false && (
           <div style={{
             background: '#fff3cd',
             border: '1px solid #ffeaa7',

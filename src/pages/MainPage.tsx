@@ -1324,8 +1324,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 이메일 인증이 필요한 기능인지 체크
   const checkEmailVerification = () => {
-    if (!user?.is_verified) {
+    if (user?.is_verified === false) {
       setShowEmailVerificationModal(true);
+      return false;
+    }
+    if (user?.is_verified !== true) {
       return false;
     }
     return true;
@@ -1463,7 +1466,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
           
           {/* 이메일 인증 알림 */}
-          {!user?.is_verified && (
+          {user?.is_verified === false && (
             <div style={{
               background: 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)',
               border: '2px solid #f39c12',
@@ -1585,7 +1588,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
         
         {/* 이메일 인증 알림 */}
-        {!user?.is_verified && (
+        {user?.is_verified === false && (
           <div style={{
             background: 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)',
             border: '2px solid #f39c12',
