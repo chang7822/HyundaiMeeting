@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { adminReportApi } from '../../services/api.ts';
-import LoadingSpinner from '../../components/LoadingSpinner.tsx';
+import InlineSpinner from '../../components/InlineSpinner.tsx';
 
 interface ReportManagementPageProps {
   sidebarOpen: boolean;
@@ -365,10 +365,6 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
     setSelectedReport(null);
   };
 
-  if (loading) {
-    return <LoadingSpinner sidebarOpen={sidebarOpen} />;
-  }
-
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Title>신고 관리</Title>
@@ -388,55 +384,63 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
       </FilterSection>
 
       <TableWrapper>
-        <Table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>신고자</th>
-              <th>신고대상</th>
-              <th>신고유형</th>
-              <th>상태</th>
-              <th>신고일시</th>
-              <th>처리일시</th>
-              <th>신고횟수</th>
-              <th>작업</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reports.map((report) => (
-              <tr key={report.id}>
-                <td>{report.id}</td>
-                <td>{report.reporter?.nickname || '알 수 없음'}</td>
-                <td>{report.reported_user?.nickname || '알 수 없음'}</td>
-                <td>{report.report_type}</td>
-                <td>
-                  <StatusBadge $status={report.status}>
-                    {report.status === 'pending' && '대기중'}
-                    {report.status === 'dismissed' && '기각'}
-                    {report.status === 'temporary_ban' && '기간정지'}
-                    {report.status === 'permanent_ban' && '영구정지'}
-                  </StatusBadge>
-                </td>
-                <td>{formatDate(report.created_at)}</td>
-                <td>{report.resolved_at ? formatDate(report.resolved_at) : '-'}</td>
-                <td>{report.reported_user?.report_count || 0}회</td>
-                <td>
-                  <ActionButton
-                    $variant="primary"
-                    onClick={() => handleProcessReport(report)}
-                  >
-                    {report.status === 'pending' ? '처리' : '처리변경'}
-                  </ActionButton>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-        
-        {reports.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-            신고 내역이 없습니다.
+        {loading ? (
+          <div style={{ padding: '3rem 0', display: 'flex', justifyContent: 'center' }}>
+            <InlineSpinner text="신고 목록을 불러오는 중입니다..." />
           </div>
+        ) : (
+          <>
+            <Table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>신고자</th>
+                  <th>신고대상</th>
+                  <th>신고유형</th>
+                  <th>상태</th>
+                  <th>신고일시</th>
+                  <th>처리일시</th>
+                  <th>신고횟수</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reports.map((report) => (
+                  <tr key={report.id}>
+                    <td>{report.id}</td>
+                    <td>{report.reporter?.nickname || '알 수 없음'}</td>
+                    <td>{report.reported_user?.nickname || '알 수 없음'}</td>
+                    <td>{report.report_type}</td>
+                    <td>
+                      <StatusBadge $status={report.status}>
+                        {report.status === 'pending' && '대기중'}
+                        {report.status === 'dismissed' && '기각'}
+                        {report.status === 'temporary_ban' && '기간정지'}
+                        {report.status === 'permanent_ban' && '영구정지'}
+                      </StatusBadge>
+                    </td>
+                    <td>{formatDate(report.created_at)}</td>
+                    <td>{report.resolved_at ? formatDate(report.resolved_at) : '-'}</td>
+                    <td>{report.reported_user?.report_count || 0}회</td>
+                    <td>
+                      <ActionButton
+                        $variant="primary"
+                        onClick={() => handleProcessReport(report)}
+                      >
+                        {report.status === 'pending' ? '처리' : '처리변경'}
+                      </ActionButton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            
+            {reports.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                신고 내역이 없습니다.
+              </div>
+            )}
+          </>
         )}
       </TableWrapper>
 

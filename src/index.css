@@ -20,6 +20,10 @@ html, body {
   height: 100%;
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 #root {
   height: 100%;
 }

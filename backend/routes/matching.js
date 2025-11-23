@@ -234,6 +234,13 @@ router.get('/status', async (req, res) => {
     }
     
     // 4. 최종 응답 구성
+    const resolvedMatchState = typeof userData.is_matched === 'boolean'
+      ? userData.is_matched
+      : (typeof appData?.matched === 'boolean' ? appData.matched : null);
+    const resolvedAppliedState = typeof userData.is_applied === 'boolean'
+      ? userData.is_applied
+      : (typeof appData?.applied === 'boolean' ? appData.applied : false);
+    
     let finalStatus;
     
     if (!appData) {
@@ -241,12 +248,12 @@ router.get('/status', async (req, res) => {
       finalStatus = {
         user_id: userId,
         period_id: periodData.id,
-        applied: userData.is_applied || false,
-        is_applied: userData.is_applied || false,
+        applied: resolvedAppliedState,
+        is_applied: resolvedAppliedState,
         cancelled: false,
         is_cancelled: false,
-        matched: userData.is_matched,
-        is_matched: userData.is_matched,
+        matched: resolvedMatchState,
+        is_matched: resolvedMatchState,
         partner_user_id: null,
         applied_at: null,
         cancelled_at: null,
@@ -256,10 +263,10 @@ router.get('/status', async (req, res) => {
       // matching_applications + users 결합
       finalStatus = {
         ...appData,
-        applied: userData.is_applied || false,  // users 우선
-        is_applied: userData.is_applied || false,
-        matched: userData.is_matched,  // users 우선
-        is_matched: userData.is_matched,
+        applied: resolvedAppliedState,
+        is_applied: resolvedAppliedState,
+        matched: resolvedMatchState,
+        is_matched: resolvedMatchState,
         cancelled: appData.cancelled || false,  // app 기준
         is_cancelled: appData.cancelled || false
       };

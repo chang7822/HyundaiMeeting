@@ -4,7 +4,7 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Modal from 'react-modal';
 import { adminMatchingApi } from '../../services/api.ts';
-import LoadingSpinner from '../../components/LoadingSpinner.tsx';
+import InlineSpinner from '../../components/InlineSpinner.tsx';
 
 // API 함수들
 const fetchMatchingLogs = async () => {
@@ -176,45 +176,51 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
     setForm(testData);
   };
 
-  if (loading) return <LoadingSpinner sidebarOpen={isSidebarOpen} />;
-
   return (
     <Container $sidebarOpen={isSidebarOpen}>
       <Title>매칭 회차 관리</Title>
-      <TableWrapper>
-        <Table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>신청 시작</th>
-              <th>신청 마감</th>
-              <th>매칭 실행</th>
-              <th>매칭 공지</th>
-              <th>회차 종료</th>
-              <th>실행됨</th>
-              <th>수정/삭제</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log, idx) => (
-              <tr key={log.id}>
-                <td>{idx + 1}</td>
-                <td>{formatKST(log.application_start)}</td>
-                <td>{formatKST(log.application_end)}</td>
-                <td>{formatKST(log.matching_run)}</td>
-                <td>{formatKST(log.matching_announce)}</td>
-                <td>{formatKST(log.finish)}</td>
-                <td>{log.executed ? '✅' : ''}</td>
-                <td>
-                  <Button onClick={() => handleEdit(log)}>수정</Button>
-                  <Button style={{ background: '#e74c3c' }} onClick={() => handleDelete(log.id)}>삭제</Button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      </TableWrapper>
-      <Button onClick={() => { setModalOpen(true); setEditing(null); setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); }}>새 회차 추가</Button>
+      {loading ? (
+        <div style={{ padding: '3rem 0', display: 'flex', justifyContent: 'center' }}>
+          <InlineSpinner text="매칭 회차 데이터를 불러오는 중입니다..." />
+        </div>
+      ) : (
+        <>
+          <TableWrapper>
+            <Table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>신청 시작</th>
+                  <th>신청 마감</th>
+                  <th>매칭 실행</th>
+                  <th>매칭 공지</th>
+                  <th>회차 종료</th>
+                  <th>실행됨</th>
+                  <th>수정/삭제</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log, idx) => (
+                  <tr key={log.id}>
+                    <td>{idx + 1}</td>
+                    <td>{formatKST(log.application_start)}</td>
+                    <td>{formatKST(log.application_end)}</td>
+                    <td>{formatKST(log.matching_run)}</td>
+                    <td>{formatKST(log.matching_announce)}</td>
+                    <td>{formatKST(log.finish)}</td>
+                    <td>{log.executed ? '✅' : ''}</td>
+                    <td>
+                      <Button onClick={() => handleEdit(log)}>수정</Button>
+                      <Button style={{ background: '#e74c3c' }} onClick={() => handleDelete(log.id)}>삭제</Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+          </TableWrapper>
+          <Button onClick={() => { setModalOpen(true); setEditing(null); setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); }}>새 회차 추가</Button>
+        </>
+      )}
       <Modal
         isOpen={modalOpen || !!editing}
         onRequestClose={() => { setModalOpen(false); setEditing(null); }}

@@ -631,7 +631,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return;
     }
     
-    // 초기 로드시에만 로딩 표시
     if (showLoading) {
       setStatusLoading(true);
     }
@@ -799,6 +798,59 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [period, user?.id, user?.is_applied, matchingStatus?.is_applied, fetchUser]);
 
+  // 매칭 공지 이후 결과 확정까지 짧은 폴링 (새로고침 없이 상태 반영)
+  useEffect(() => {
+    if (!period || !user?.id) return;
+    const announce = period.matching_announce ? new Date(period.matching_announce) : null;
+    if (!announce) return;
+    
+    const nowTime = Date.now();
+    if (nowTime < announce.getTime()) return;
+    
+    const isApplied = matchingStatus?.is_applied === true || matchingStatus?.applied === true || user?.is_applied === true;
+    if (!isApplied) return;
+    
+    const hasResolvedResult = typeof (matchingStatus?.is_matched ?? user?.is_matched ?? matchingStatus?.matched) === 'boolean';
+    if (hasResolvedResult) return;
+    
+    let attempts = 0;
+    const interval = window.setInterval(async () => {
+      attempts += 1;
+      try {
+        const response = await matchingApi.getMatchingStatus(user.id);
+        if (response?.status) {
+          setMatchingStatus(response.status);
+          const resolved = typeof response.status.is_matched === 'boolean' || typeof response.status.matched === 'boolean';
+          if (resolved) {
+            await fetchUser(false);
+            window.clearInterval(interval);
+            return;
+          }
+        }
+        if (attempts >= 5) {
+          await fetchUser(false);
+          window.clearInterval(interval);
+        }
+      } catch (error) {
+        if (attempts >= 5) {
+          window.clearInterval(interval);
+        }
+      }
+    }, 4000);
+    
+    return () => window.clearInterval(interval);
+  }, [
+    period,
+    user?.id,
+    user?.is_applied,
+    user?.is_matched,
+    matchingStatus?.is_applied,
+    matchingStatus?.is_matched,
+    matchingStatus?.matched,
+    matchingStatus?.applied,
+    fetchUser
+  ]);
+
 
   // [수정] 회차 시작 시 사용자 정보 자동 업데이트 (매칭 상태와 사용자 정보 모두 빠르게 갱신)
   useEffect(() => {
@@ -845,11 +897,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   useEffect(() => {
     const isAnyModalOpen = showProfileModal || showPartnerModal || showMatchingConfirmModal || showCancelConfirmModal;
     if (isAnyModalOpen) {
-      document.body.style.overflow = 'hidden';
+      document.body.classList.add('modal-open');
     } else {
-      document.body.style.overflow = '';
+      document.body.classList.remove('modal-open');
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => { document.body.classList.remove('modal-open'); };
   }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showCancelConfirmModal]);
 
   // 모든 useState, useEffect 선언 이후
@@ -961,8 +1013,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return null;
   }
   
-  // 렌더링 조건 강화: 필수 데이터가 모두 로드될 때까지 스피너 표시
-  if (isLoading || !user || !profile || loadingPeriod || statusLoading) {
+  // 핵심 데이터 로딩 시 전체 스피너
+  if (!user || !profile) {
     return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   }
 
@@ -1083,9 +1135,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }
       if (typeof isMatched === 'undefined' || isMatched === null) {
         return {
-          status: '매칭 실패',
-          period: '아쉽지만 다음기회를 기약할게요.',
-          color: '#e74c3c',
+          status: '결과 준비중',
+          period: '매칭 결과를 불러오는 중입니다.',
+          color: '#7C3AED',
         };
       }
       if (isMatched === true) {

@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import Modal from 'react-modal';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { apiUrl, adminMatchingApi } from '../../services/api.ts';
-import LoadingSpinner from '../../components/LoadingSpinner.tsx';
+import InlineSpinner from '../../components/InlineSpinner.tsx';
 
 const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin: 40px auto;
@@ -142,8 +142,6 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
     setModalUser(null);
   };
 
-  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
-
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Title>매칭 결과(커플) 리스트</Title>
@@ -159,32 +157,38 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
         <input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="닉네임 검색" style={{padding:'6px 10px',borderRadius:6,border:'1.5px solid #bbb',minWidth:120}}/>
       </FilterRow>
       <TableWrapper>
-        <Table>
-          <thead>
-            <tr>
-              <th>회차</th>
-              <th>남성 닉네임</th>
-              <th>남성 직군</th>
-              <th>여성 닉네임</th>
-              <th>여성 직군</th>
-            </tr>
-          </thead>
-          <tbody>
-            {results.map(row => (
-              <tr key={row.id}>
-                <td>{getPeriodDisplayNumber(row.period_id)}</td>
-                <td>
-                  <NicknameBtn onClick={()=>openModal(row.male)}>{row.male?.nickname || '-'}</NicknameBtn>
-                </td>
-                <td>{row.male?.job_type || '-'}</td>
-                <td>
-                  <NicknameBtn onClick={()=>openModal(row.female)}>{row.female?.nickname || '-'}</NicknameBtn>
-                </td>
-                <td>{row.female?.job_type || '-'}</td>
+        {loading ? (
+          <div style={{ padding: '3rem 0', display: 'flex', justifyContent: 'center' }}>
+            <InlineSpinner text="매칭 결과를 불러오는 중입니다..." />
+          </div>
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th>회차</th>
+                <th>남성 닉네임</th>
+                <th>남성 직군</th>
+                <th>여성 닉네임</th>
+                <th>여성 직군</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {results.map(row => (
+                <tr key={row.id}>
+                  <td>{getPeriodDisplayNumber(row.period_id)}</td>
+                  <td>
+                    <NicknameBtn onClick={()=>openModal(row.male)}>{row.male?.nickname || '-'}</NicknameBtn>
+                  </td>
+                  <td>{row.male?.job_type || '-'}</td>
+                  <td>
+                    <NicknameBtn onClick={()=>openModal(row.female)}>{row.female?.nickname || '-'}</NicknameBtn>
+                  </td>
+                  <td>{row.female?.job_type || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
       </TableWrapper>
       {/* 프로필/선호스타일 모달 (신청현황 페이지와 동일 컴포넌트 사용) */}
       <ProfileDetailModal isOpen={modalOpen} onRequestClose={closeModal} user={modalUser ? { ...modalUser, email: modalUser.user?.email } : null} />

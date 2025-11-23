@@ -11,7 +11,7 @@ import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
 import ProfileCard from '../components/ProfileCard.tsx';
 import Modal from 'react-modal';
-import LoadingSpinner from '../components/LoadingSpinner.tsx';
+import InlineSpinner from '../components/InlineSpinner.tsx';
 import ReportModal from '../components/ReportModal.tsx';
 
 
@@ -115,6 +115,19 @@ const ChatWindowWrapper = styled.div`
   @media (max-width: 1200px) {
     max-width: 100vw;
   }
+`;
+
+const LoadingOverlay = styled.div`
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255,255,255,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
 `;
 
 const ChatPage: React.FC = () => {
@@ -359,7 +372,6 @@ const ChatPage: React.FC = () => {
       });
   }, [partnerUserId]);
 
-  if (loading) return <LoadingSpinner sidebarOpen={false} />;
   if (!canEnter) return null;
 
   const handleBack = () => {
@@ -380,6 +392,11 @@ const ChatPage: React.FC = () => {
   return (
     <PageContainer>
       <MainContainer>
+        {loading && (
+          <LoadingOverlay>
+            <InlineSpinner text="채팅방을 준비하고 있습니다..." />
+          </LoadingOverlay>
+        )}
         {/* 헤더 고정 */}
         <ChatHeaderWrapper>
         <ChatHeader

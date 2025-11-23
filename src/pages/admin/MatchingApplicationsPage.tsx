@@ -5,7 +5,7 @@ import { FaSort, FaCheck, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { apiUrl, adminMatchingApi } from '../../services/api.ts';
-import LoadingSpinner from '../../components/LoadingSpinner.tsx';
+import InlineSpinner from '../../components/InlineSpinner.tsx';
 
 const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin: 40px auto;
@@ -231,8 +231,6 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     return idx >= 0 ? idx + 1 : period_id;
   };
 
-  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
-
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Title>매칭 신청 현황</Title>
@@ -246,42 +244,48 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
         </StyledSelect>
       </FilterRow>
       <TableWrapper>
-        <Table>
-          <thead>
-            <tr>
-              <th onClick={()=>{setSortKey('user_id');setSortAsc(k=>!k);}}>닉네임 <FaSort /></th>
-              <th onClick={()=>{setSortKey('user.email');setSortAsc(k=>!k);}}>이메일 <FaSort /></th>
-              <th onClick={()=>{setSortKey('applied_at');setSortAsc(k=>!k);}}>신청시각 <FaSort /></th>
-              <th onClick={()=>{setSortKey('cancelled_at');setSortAsc(k=>!k);}}>취소시각 <FaSort /></th>
-              <th onClick={()=>{setSortKey('matched');setSortAsc(k=>!k);}}>매칭 <FaSort /></th>
-              <th>상대방</th>
-              <th>회차</th>
-              <th>매칭가능</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedApps.map(app => (
-              <tr key={app.id} style={app.cancelled ? { color: '#aaa' } : {}}>
-                <td>
-                  <NicknameBtn onClick={()=>openModal(app)} style={app.cancelled ? { color: '#aaa', textDecoration: 'line-through' } : {}}>{app.profile?.nickname || '-'}</NicknameBtn>
-                </td>
-                <td>{app.user?.email || '-'}</td>
-                <td>{formatKST(app.applied_at)}</td>
-                <td>{app.cancelled ? formatKST(app.cancelled_at) : '-'}</td>
-                <td>{app.matched ? <FaCheck color="#4F46E5"/> : <FaTimes color="#aaa"/>}</td>
-                <td>{app.partner ? (app.partner.email || app.partner.id) : '-'}</td>
-                <td>{getPeriodDisplayNumber(app.period_id)}</td>
-                <td>
-                  {!app.cancelled && (
-                    <Button style={{padding:'4px 10px',fontSize:'1em'}} onClick={()=>setMatchableModal({open:true, list:matchableMap[app.user_id]||[]})}>
-                      {matchableMap[app.user_id]?.length ?? 0}명
-                    </Button>
-                  )}
-                </td>
+        {loading ? (
+          <div style={{ padding: '3rem 0', display: 'flex', justifyContent: 'center' }}>
+            <InlineSpinner text="신청 현황을 불러오는 중입니다..." />
+          </div>
+        ) : (
+          <Table>
+            <thead>
+              <tr>
+                <th onClick={()=>{setSortKey('user_id');setSortAsc(k=>!k);}}>닉네임 <FaSort /></th>
+                <th onClick={()=>{setSortKey('user.email');setSortAsc(k=>!k);}}>이메일 <FaSort /></th>
+                <th onClick={()=>{setSortKey('applied_at');setSortAsc(k=>!k);}}>신청시각 <FaSort /></th>
+                <th onClick={()=>{setSortKey('cancelled_at');setSortAsc(k=>!k);}}>취소시각 <FaSort /></th>
+                <th onClick={()=>{setSortKey('matched');setSortAsc(k=>!k);}}>매칭 <FaSort /></th>
+                <th>상대방</th>
+                <th>회차</th>
+                <th>매칭가능</th>
               </tr>
-            ))}
-          </tbody>
-        </Table>
+            </thead>
+            <tbody>
+              {sortedApps.map(app => (
+                <tr key={app.id} style={app.cancelled ? { color: '#aaa' } : {}}>
+                  <td>
+                    <NicknameBtn onClick={()=>openModal(app)} style={app.cancelled ? { color: '#aaa', textDecoration: 'line-through' } : {}}>{app.profile?.nickname || '-'}</NicknameBtn>
+                  </td>
+                  <td>{app.user?.email || '-'}</td>
+                  <td>{formatKST(app.applied_at)}</td>
+                  <td>{app.cancelled ? formatKST(app.cancelled_at) : '-'}</td>
+                  <td>{app.matched ? <FaCheck color="#4F46E5"/> : <FaTimes color="#aaa"/>}</td>
+                  <td>{app.partner ? (app.partner.email || app.partner.id) : '-'}</td>
+                  <td>{getPeriodDisplayNumber(app.period_id)}</td>
+                  <td>
+                    {!app.cancelled && (
+                      <Button style={{padding:'4px 10px',fontSize:'1em'}} onClick={()=>setMatchableModal({open:true, list:matchableMap[app.user_id]||[]})}>
+                        {matchableMap[app.user_id]?.length ?? 0}명
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
       </TableWrapper>
       {/* 프로필/선호 모달 */}
       <ProfileDetailModal isOpen={modalOpen} onRequestClose={closeModal} user={modalUser?.profile ? { ...modalUser.profile, email: modalUser.user?.email } : null} />

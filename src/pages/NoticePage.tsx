@@ -331,11 +331,13 @@ const NoticePage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = true })
     });
   };
 
-  if (loading) {
+  if (id && loading && !selectedNotice) {
     return (
       <MainContainer $sidebarOpen={sidebarOpen}>
         <ContentWrapper>
-          <LoadingSpinner>공지사항을 불러오는 중...</LoadingSpinner>
+          <DetailContainer>
+            <LoadingSpinner>공지사항을 불러오는 중...</LoadingSpinner>
+          </DetailContainer>
         </ContentWrapper>
       </MainContainer>
     );
@@ -397,7 +399,9 @@ const NoticePage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = true })
         </Header>
         
         <NoticeList>
-          {notices.length === 0 ? (
+          {loading ? (
+            <LoadingSpinner>공지사항을 불러오는 중...</LoadingSpinner>
+          ) : notices.length === 0 ? (
             <EmptyState>
               <EmptyIcon>
                 <FaBullhorn />

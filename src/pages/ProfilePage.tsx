@@ -8,7 +8,7 @@ import { ProfileCategory, ProfileOption, User, UserProfile } from '../types';
 import Slider from 'rc-slider';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaEye, FaEyeSlash, FaCheckCircle, FaTimesCircle, FaTimes } from 'react-icons/fa';
-import LoadingSpinner from '../components/LoadingSpinner.tsx';
+import InlineSpinner from '../components/InlineSpinner.tsx';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -41,6 +41,16 @@ const Card = styled.div`
   @media (min-width: 1200px) {
     max-width: 1000px;
   }
+`;
+const CardOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  border-radius: 15px;
 `;
 const CloseButton = styled.button`
   position: absolute;
@@ -474,12 +484,16 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return options.filter(o => o.category_id === cat.id).map(o => o.option_text);
   })();
 
-  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   if (isLoading || !isAuthenticated) return null;
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
       <Card>
+        {loading && (
+          <CardOverlay>
+            <InlineSpinner text="프로필 정보를 불러오는 중입니다..." />
+          </CardOverlay>
+        )}
         <CloseButton onClick={() => navigate('/main')} title="닫기"><FaTimes /></CloseButton>
         <Title>내 프로필 관리</Title>
         

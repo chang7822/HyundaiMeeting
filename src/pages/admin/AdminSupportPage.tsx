@@ -396,128 +396,124 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
     return content.substring(0, maxLength) + '...';
   };
 
-  if (loading) {
-    return (
-      <Container $sidebarOpen={sidebarOpen}>
-        <Content>
-          <LoadingSpinner />
-        </Content>
-      </Container>
-    );
-  }
-
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Content>
-        <Header>
-          <Title>🎧 고객센터 관리</Title>
-        </Header>
+        {loading ? (
+          <LoadingSpinner />
+        ) : (
+          <>
+            <Header>
+              <Title>🎧 고객센터 관리</Title>
+            </Header>
 
-        <StatsBar>
-          <StatCard>
-            <StatLabel>전체 문의</StatLabel>
-            <StatValue>{stats.total}</StatValue>
-          </StatCard>
-          <StatCard>
-            <StatLabel>답변 대기</StatLabel>
-            <StatValue>{stats.pending}</StatValue>
-          </StatCard>
-          <StatCard>
-            <StatLabel>답변 완료</StatLabel>
-            <StatValue>{stats.completed}</StatValue>
-          </StatCard>
+            <StatsBar>
+              <StatCard>
+                <StatLabel>전체 문의</StatLabel>
+                <StatValue>{stats.total}</StatValue>
+              </StatCard>
+              <StatCard>
+                <StatLabel>답변 대기</StatLabel>
+                <StatValue>{stats.pending}</StatValue>
+              </StatCard>
+              <StatCard>
+                <StatLabel>답변 완료</StatLabel>
+                <StatValue>{stats.completed}</StatValue>
+              </StatCard>
 
-        </StatsBar>
+            </StatsBar>
 
-        <FilterBar>
-          <FilterSelect 
-            value={statusFilter} 
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">전체 상태</option>
-            <option value="pending">답변 대기</option>
-            <option value="completed">답변 완료</option>
-          </FilterSelect>
-          
-          <FilterSelect 
-            value={categoryFilter} 
-            onChange={(e) => setCategoryFilter(e.target.value)}
-          >
-            <option value="all">전체 카테고리</option>
-            <option value="일반문의">일반문의</option>
-            <option value="기술문의">기술문의</option>
-            <option value="계정문의">계정문의</option>
-            <option value="매칭문의">매칭문의</option>
-            <option value="신고문의">신고문의</option>
-            <option value="기타">기타</option>
-          </FilterSelect>
-        </FilterBar>
-
-        <InquiryList>
-          {inquiries.length === 0 ? (
-            <EmptyState>
-              <EmptyIcon>📝</EmptyIcon>
-              <EmptyTitle>문의가 없습니다</EmptyTitle>
-              <EmptyDescription>
-                아직 등록된 문의가 없습니다.
-              </EmptyDescription>
-            </EmptyState>
-          ) : (
-            <>
-              {inquiries.map((inquiry) => (
-                <InquiryItem key={inquiry.id} onClick={() => handleInquiryClick(inquiry)}>
-                  <InquiryHeader>
-                    <InquiryTitle>{inquiry.title}</InquiryTitle>
-                    <InquiryMeta>
-                      <CategoryBadge>{inquiry.category}</CategoryBadge>
-                      <StatusBadge status={inquiry.status}>
-                        {getStatusText(inquiry.status)}
-                      </StatusBadge>
-                      <UserInfo>
-                        {inquiry.user?.email || '알 수 없는 사용자'}
-                      </UserInfo>
-                      <InquiryDate>{formatDate(inquiry.created_at)}</InquiryDate>
-                    </InquiryMeta>
-                  </InquiryHeader>
-                  <InquiryPreview>
-                    {truncateContent(inquiry.content)}
-                  </InquiryPreview>
-                </InquiryItem>
-              ))}
+            <FilterBar>
+              <FilterSelect 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="all">전체 상태</option>
+                <option value="pending">답변 대기</option>
+                <option value="completed">답변 완료</option>
+              </FilterSelect>
               
-              {totalPages > 1 && (
-                <Pagination>
-                  <PageButton 
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                  >
-                    이전
-                  </PageButton>
+              <FilterSelect 
+                value={categoryFilter} 
+                onChange={(e) => setCategoryFilter(e.target.value)}
+              >
+                <option value="all">전체 카테고리</option>
+                <option value="일반문의">일반문의</option>
+                <option value="기술문의">기술문의</option>
+                <option value="계정문의">계정문의</option>
+                <option value="매칭문의">매칭문의</option>
+                <option value="신고문의">신고문의</option>
+                <option value="기타">기타</option>
+              </FilterSelect>
+            </FilterBar>
+
+            <InquiryList>
+              {inquiries.length === 0 ? (
+                <EmptyState>
+                  <EmptyIcon>📝</EmptyIcon>
+                  <EmptyTitle>문의가 없습니다</EmptyTitle>
+                  <EmptyDescription>
+                    아직 등록된 문의가 없습니다.
+                  </EmptyDescription>
+                </EmptyState>
+              ) : (
+                <>
+                  {inquiries.map((inquiry) => (
+                    <InquiryItem key={inquiry.id} onClick={() => handleInquiryClick(inquiry)}>
+                      <InquiryHeader>
+                        <InquiryTitle>{inquiry.title}</InquiryTitle>
+                        <InquiryMeta>
+                          <CategoryBadge>{inquiry.category}</CategoryBadge>
+                          <StatusBadge status={inquiry.status}>
+                            {getStatusText(inquiry.status)}
+                          </StatusBadge>
+                          <UserInfo>
+                            {inquiry.user?.email || '알 수 없는 사용자'}
+                          </UserInfo>
+                          <InquiryDate>{formatDate(inquiry.created_at)}</InquiryDate>
+                        </InquiryMeta>
+                      </InquiryHeader>
+                      <InquiryPreview>
+                        {truncateContent(inquiry.content)}
+                      </InquiryPreview>
+                    </InquiryItem>
+                  ))}
                   
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    const page = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
-                    return (
-                      <PageButton
-                        key={page}
-                        active={page === currentPage}
-                        onClick={() => handlePageChange(page)}
+                  {totalPages > 1 && (
+                    <Pagination>
+                      <PageButton 
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1}
                       >
-                        {page}
+                        이전
                       </PageButton>
-                    );
-                  })}
-                  
-                  <PageButton 
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                  >
-                    다음
-                  </PageButton>
-                </Pagination>
+                      
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        const page = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i;
+                        return (
+                          <PageButton
+                            key={page}
+                            active={page === currentPage}
+                            onClick={() => handlePageChange(page)}
+                          >
+                            {page}
+                          </PageButton>
+                        );
+                      })}
+                      
+                      <PageButton 
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      >
+                        다음
+                      </PageButton>
+                    </Pagination>
+                  )}
+                </>
               )}
-            </>
-          )}
-        </InquiryList>
+            </InquiryList>
+          </>
+        )}
       </Content>
     </Container>
   );

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { toast } from 'react-toastify';
 import { matchingHistoryApi } from '../services/api.ts';
-import LoadingSpinner from '../components/LoadingSpinner.tsx';
 import ReportModal from '../components/ReportModal.tsx';
 import ReportDetailModal from '../components/ReportDetailModal.tsx';
+import InlineSpinner from '../components/InlineSpinner.tsx';
 
 interface MatchingHistoryPageProps {
   sidebarOpen: boolean;
@@ -53,6 +53,23 @@ const HistoryCard = styled.div`
     flex-direction: column;
     align-items: flex-start;
   }
+`;
+
+const skeletonAnimation = keyframes`
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+`;
+
+const SkeletonCard = styled.div`
+  height: 150px;
+  border-radius: 15px;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 37%, #f3f4f6 63%);
+  background-size: 400% 100%;
+  animation: ${skeletonAnimation} 1.4s ease infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
 const HistoryHeader = styled.div`
@@ -299,81 +316,85 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
     });
   };
 
-  if (loading) {
-    return <LoadingSpinner sidebarOpen={sidebarOpen} />;
-  }
-
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Content>
         <Title>내 매칭 이력</Title>
         
-        {history.length === 0 ? (
-        <EmptyState>
-          <EmptyIcon>📝</EmptyIcon>
-          <EmptyTitle>매칭 이력이 없습니다</EmptyTitle>
-          <EmptyDescription>
-            아직 매칭에 참여한 적이 없습니다.<br />
-            매칭에 참여하면 여기에 이력이 표시됩니다.
-          </EmptyDescription>
-        </EmptyState>
-      ) : (
-        history.map((match) => (
-          <HistoryCard key={match.id}>
-            <HistoryHeader>
-              <PartnerInfo>
-                <PartnerAvatar $gender={match.partner_gender}>
-                  {match.partner_gender === 'male' ? '👨' : '👩'}
-                </PartnerAvatar>
-                <PartnerDetails>
-                  <PartnerName>{match.partner_nickname}</PartnerName>
-                  <PartnerGender>
-                    {match.partner_gender === 'male' ? '남성' : '여성'}
-                  </PartnerGender>
-                </PartnerDetails>
-              </PartnerInfo>
-            </HistoryHeader>
-            
-            <HistoryContent>
-              <InfoItem>
-                <InfoLabel>매칭 날짜</InfoLabel>
-                <InfoValue>{formatDate(match.matched_at)}</InfoValue>
-              </InfoItem>
-              <InfoItem>
-                <InfoLabel>회차</InfoLabel>
-                <InfoValue>{match.round_number}회차</InfoValue>
-              </InfoItem>
-            </HistoryContent>
-            
-            {match.matched && (
-              <ActionSection>
-                {match.can_report ? (
-                  <ActionButton
-                    $variant="danger"
-                    onClick={() => handleReport(
-                      { 
-                        id: match.partner_user_id, 
-                        nickname: match.partner_nickname,
-                        email: match.partner_email 
-                      },
-                      match.period_id
-                    )}
-                  >
-                    신고하기
-                  </ActionButton>
-                ) : match.report_info ? (
-                  <ActionButton
-                    $variant="secondary"
-                    onClick={() => handleViewReportDetail(match.report_info, match.partner_nickname)}
-                  >
-                    신고완료
-                  </ActionButton>
-                ) : null}
-              </ActionSection>
-            )}
-          </HistoryCard>
-        ))
-      )}
+        {loading ? (
+          <>
+            {[1, 2, 3].map(key => (
+              <SkeletonCard key={key}>
+                <InlineSpinner text="매칭 이력을 불러오는 중입니다..." />
+              </SkeletonCard>
+            ))}
+          </>
+        ) : history.length === 0 ? (
+          <EmptyState>
+            <EmptyIcon>📝</EmptyIcon>
+            <EmptyTitle>매칭 이력이 없습니다</EmptyTitle>
+            <EmptyDescription>
+              아직 매칭에 참여한 적이 없습니다.<br />
+              매칭에 참여하면 여기에 이력이 표시됩니다.
+            </EmptyDescription>
+          </EmptyState>
+        ) : (
+          history.map((match) => (
+            <HistoryCard key={match.id}>
+              <HistoryHeader>
+                <PartnerInfo>
+                  <PartnerAvatar $gender={match.partner_gender}>
+                    {match.partner_gender === 'male' ? '👨' : '👩'}
+                  </PartnerAvatar>
+                  <PartnerDetails>
+                    <PartnerName>{match.partner_nickname}</PartnerName>
+                    <PartnerGender>
+                      {match.partner_gender === 'male' ? '남성' : '여성'}
+                    </PartnerGender>
+                  </PartnerDetails>
+                </PartnerInfo>
+              </HistoryHeader>
+              
+              <HistoryContent>
+                <InfoItem>
+                  <InfoLabel>매칭 날짜</InfoLabel>
+                  <InfoValue>{formatDate(match.matched_at)}</InfoValue>
+                </InfoItem>
+                <InfoItem>
+                  <InfoLabel>회차</InfoLabel>
+                  <InfoValue>{match.round_number}회차</InfoValue>
+                </InfoItem>
+              </HistoryContent>
+              
+              {match.matched && (
+                <ActionSection>
+                  {match.can_report ? (
+                    <ActionButton
+                      $variant="danger"
+                      onClick={() => handleReport(
+                        { 
+                          id: match.partner_user_id, 
+                          nickname: match.partner_nickname,
+                          email: match.partner_email 
+                        },
+                        match.period_id
+                      )}
+                    >
+                      신고하기
+                    </ActionButton>
+                  ) : match.report_info ? (
+                    <ActionButton
+                      $variant="secondary"
+                      onClick={() => handleViewReportDetail(match.report_info, match.partner_nickname)}
+                    >
+                      신고완료
+                    </ActionButton>
+                  ) : null}
+                </ActionSection>
+              )}
+            </HistoryCard>
+          ))
+        )}
 
         <ReportModal
           isOpen={reportModal.isOpen}

@@ -25,6 +25,27 @@ console.log('=====================');
 
 // 인증번호 임시 저장 (데이터베이스로 변경 예정)
 const verificationCodes = new Map();
+// 회원가입 이전에 이메일 인증을 완료한 사용자 임시 저장 (서버 재시작 시 초기화됨)
+const preVerifiedEmails = new Map();
+const PRE_VERIFIED_EMAIL_TTL = 24 * 60 * 60 * 1000; // 24시간
+
+function markEmailAsPreVerified(email) {
+  preVerifiedEmails.set(email, {
+    verifiedAt: Date.now()
+  });
+}
+
+function isEmailPreVerified(email) {
+  const info = preVerifiedEmails.get(email);
+  if (!info) return false;
+  
+  const isExpired = Date.now() - info.verifiedAt > PRE_VERIFIED_EMAIL_TTL;
+  if (isExpired) {
+    preVerifiedEmails.delete(email);
+    return false;
+  }
+  return true;
+}
 
 // 비밀번호 재설정용 인증번호 저장 Map (별도 관리)
 const passwordResetCodes = new Map();
@@ -299,6 +320,28 @@ router.post('/confirm-verification', async (req, res) => {
     // 인증 성공 - 인증번호 삭제
     verificationCodes.delete(email);
     
+    // 사용자 존재 여부 확인
+    const { data: existingUser, error: fetchUserError } = await supabase
+      .from('users')
+      .select('id, is_verified')
+      .eq('email', email)
+      .maybeSingle();
+    
+    if (fetchUserError && fetchUserError.code !== 'PGRST116') {
+      console.error('이메일 인증 사용자 조회 오류:', fetchUserError);
+      return res.status(500).json({ success: false, message: '인증 상태 확인 중 오류가 발생했습니다.' });
+    }
+    
+    // 아직 가입 전이라 DB에 사용자 정보가 없는 경우 → 회원가입 시 반영하도록 임시 저장
+    if (!existingUser) {
+      markEmailAsPreVerified(email);
+      return res.json({ success: true, message: '이메일 인증이 완료되었습니다. 회원가입을 계속 진행해주세요.' });
+    }
+    
+    if (existingUser.is_verified) {
+      return res.json({ success: true, message: '이미 이메일 인증이 완료된 계정입니다.' });
+    }
+    
     // DB에서 해당 사용자의 is_verified를 true로 업데이트
     const { error: updateError } = await supabase
       .from('users')
@@ -313,6 +356,7 @@ router.post('/confirm-verification', async (req, res) => {
       return res.status(500).json({ success: false, message: '인증 상태 업데이트 중 오류가 발생했습니다.' });
     }
     
+    preVerifiedEmails.delete(email);
     res.json({ success: true, message: '이메일 인증이 완료되었습니다.' });
   } catch (error) {
     console.error('인증번호 확인 오류:', error);
@@ -423,9 +467,9 @@ router.post('/register', async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ error: '이미 등록된 이메일입니다.' });
     }
-
-
-
+    
+    const alreadyPreVerified = isEmailPreVerified(email);
+    
     // 비밀번호 해시화
     const hashedPassword = await bcrypt.hash(password, 12);
 
@@ -435,11 +479,12 @@ router.post('/register', async (req, res) => {
       .insert([{
         email,
         password: hashedPassword,
-        is_verified: false, // 이메일 인증은 선택적으로 변경
+        is_verified: alreadyPreVerified,
         is_active: true,
         is_applied: false, // 매칭 미신청(기본값)
         is_matched: null,  // 매칭 결과 없음(기본값)
-        terms_agreed_at: termsAgreement.agreedAt || new Date().toISOString() // 약관 동의 시간
+        terms_agreed_at: termsAgreement.agreedAt || new Date().toISOString(), // 약관 동의 시간
+        email_verification_status: alreadyPreVerified ? 'verified' : 'pending'
       }])
       .select('id, email, is_verified, is_active, is_admin')
       .single();
@@ -447,6 +492,10 @@ router.post('/register', async (req, res) => {
     if (userError) {
       console.error('사용자 생성 오류:', userError);
       return res.status(500).json({ error: '사용자 생성 중 오류가 발생했습니다.' });
+    }
+    
+    if (alreadyPreVerified) {
+      preVerifiedEmails.delete(email);
     }
 
     // 프로필 데이터 준비

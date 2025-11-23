@@ -8,7 +8,7 @@ import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaTimes } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import LoadingSpinner from '../components/LoadingSpinner.tsx';
+import InlineSpinner from '../components/InlineSpinner.tsx';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -41,6 +41,16 @@ const Card = styled.div`
   @media (min-width: 1200px) {
     max-width: 1000px;
   }
+`;
+const CardOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
 `;
 const CloseButton = styled.button`
   position: absolute;
@@ -376,11 +386,14 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     });
   };
 
-  if (loading) return <LoadingSpinner sidebarOpen={sidebarOpen} />;
-
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
       <Card>
+        {loading && (
+          <CardOverlay>
+            <InlineSpinner text="선호 정보를 불러오는 중입니다..." />
+          </CardOverlay>
+        )}
         <CloseButton onClick={() => navigate('/main')} title="닫기"><FaTimes /></CloseButton>
         <Title>내가 선호하는 스타일</Title>
         {/* 선호 나이 */}

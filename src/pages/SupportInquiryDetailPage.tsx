@@ -310,61 +310,51 @@ const SupportInquiryDetailPage: React.FC<SupportInquiryDetailPageProps> = ({ sid
     });
   };
 
-  if (loading) {
-    return (
-      <Container $sidebarOpen={sidebarOpen}>
-        <LoadingSpinner />
-      </Container>
-    );
-  }
-
-  if (!inquiry) {
-    return (
-      <Container $sidebarOpen={sidebarOpen}>
-        <div>문의를 찾을 수 없습니다.</div>
-      </Container>
-    );
-  }
-
   return (
     <Container $sidebarOpen={sidebarOpen}>
-      <Header>
-        <BackButton onClick={handleBack}>←</BackButton>
-        <Title>문의 상세</Title>
-      </Header>
+      {loading ? (
+        <LoadingSpinner />
+      ) : !inquiry ? (
+        <div>문의를 찾을 수 없습니다.</div>
+      ) : (
+        <>
+          <Header>
+            <BackButton onClick={handleBack}>←</BackButton>
+            <Title>문의 상세</Title>
+          </Header>
 
-      <InquiryCard>
-        <InquiryHeader>
-          <InquiryTitle>{inquiry.title}</InquiryTitle>
-          <InquiryMeta>
-            <CategoryBadge>{inquiry.category}</CategoryBadge>
-            <StatusBadge status={inquiry.status}>
-              {getStatusText(inquiry.status)}
-            </StatusBadge>
-            <InquiryDate>{formatDate(inquiry.created_at)}</InquiryDate>
-          </InquiryMeta>
-        </InquiryHeader>
-        <InquiryContent>{inquiry.content}</InquiryContent>
-      </InquiryCard>
+          <InquiryCard>
+            <InquiryHeader>
+              <InquiryTitle>{inquiry.title}</InquiryTitle>
+              <InquiryMeta>
+                <CategoryBadge>{inquiry.category}</CategoryBadge>
+                <StatusBadge status={inquiry.status}>
+                  {getStatusText(inquiry.status)}
+                </StatusBadge>
+                <InquiryDate>{formatDate(inquiry.created_at)}</InquiryDate>
+              </InquiryMeta>
+            </InquiryHeader>
+            <InquiryContent>{inquiry.content}</InquiryContent>
+          </InquiryCard>
 
-      {inquiry.replies && inquiry.replies.length > 0 && (
-        <RepliesSection>
-          <SectionTitle>💬 답변 내역</SectionTitle>
-          {inquiry.replies.map((reply) => (
-            <ReplyItem key={reply.id} isAdmin={reply.is_admin_reply}>
-              <ReplyHeader>
-                <ReplyAuthor isAdmin={reply.is_admin_reply}>
-                  {reply.is_admin_reply ? '👨‍💼 관리자' : '👤 나'}
-                </ReplyAuthor>
-                <ReplyDate>{formatDate(reply.created_at)}</ReplyDate>
-              </ReplyHeader>
-              <ReplyContent>{reply.content}</ReplyContent>
-            </ReplyItem>
-          ))}
-        </RepliesSection>
+          {inquiry.replies && inquiry.replies.length > 0 && (
+            <RepliesSection>
+              <SectionTitle>💬 답변 내역</SectionTitle>
+              {inquiry.replies.map((reply) => (
+                <ReplyItem key={reply.id} isAdmin={reply.is_admin_reply}>
+                  <ReplyHeader>
+                    <ReplyAuthor isAdmin={reply.is_admin_reply}>
+                      {reply.is_admin_reply ? '👨‍💼 관리자' : '👤 나'}
+                    </ReplyAuthor>
+                    <ReplyDate>{formatDate(reply.created_at)}</ReplyDate>
+                  </ReplyHeader>
+                  <ReplyContent>{reply.content}</ReplyContent>
+                </ReplyItem>
+              ))}
+            </RepliesSection>
+          )}
+        </>
       )}
-
-
     </Container>
   );
 };
