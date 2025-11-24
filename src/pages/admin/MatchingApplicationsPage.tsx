@@ -4,7 +4,7 @@ import Modal from 'react-modal';
 import { FaSort, FaCheck, FaTimes } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
-import { apiUrl, adminMatchingApi } from '../../services/api.ts';
+import { adminMatchingApi } from '../../services/api.ts';
 import InlineSpinner from '../../components/InlineSpinner.tsx';
 
 const Container = styled.div<{ $sidebarOpen: boolean }>`
@@ -89,6 +89,58 @@ const StyledSelect = styled.select`
     background-color: #ede7f6;
   }
 `;
+const TabWrapper = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+`;
+
+const TabButton = styled.button<{ $active: boolean }>`
+  flex: 1;
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  color: ${props => props.$active ? '#fff' : '#4F46E5'};
+  background: ${props => props.$active ? '#7C3AED' : '#ede7f6'};
+  transition: all 0.2s ease;
+`;
+
+const CompatibilityList = styled.div`
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+`;
+
+const CompatibilityRow = styled.div<{ $mutual: boolean }>`
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: ${props => props.$mutual ? 'rgba(16,185,129,0.12)' : '#f8f9fa'};
+  border: 1px solid ${props => props.$mutual ? 'rgba(16,185,129,0.4)' : 'transparent'};
+  & + & {
+    margin-top: 10px;
+  }
+`;
+
+const Badge = styled.span<{ $positive?: boolean }>`
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: ${props => props.$positive ? '#0f766e' : '#6b7280'};
+  background: ${props => props.$positive ? 'rgba(45,212,191,0.2)' : '#e5e7eb'};
+  border-radius: 999px;
+  padding: 4px 10px;
+`;
+
+const EmptyRow = styled.div`
+  text-align: center;
+  color: #6b7280;
+  padding: 40px 0;
+`;
 Modal.setAppElement('#root');
 
 function formatKST(dateStr: string | null) {
@@ -102,37 +154,6 @@ function formatKST(dateStr: string | null) {
   return `${yyyy}-${mm}-${dd} ${hh}:${min}`;
 }
 
-function isMutualMatch(a: any, b: any) {
-  // 나이: 최소/최대 출생연도 = 내 출생연도 - preferred_age_max/min (min: 연상, max: 연하)
-  const a_min_birth = a.birth_year - (a.preferred_age_max ?? 0); // 연상(나이 많은 쪽)
-  const a_max_birth = a.birth_year - (a.preferred_age_min ?? 0); // 연하(나이 어린 쪽)
-  const b_min_birth = b.birth_year - (b.preferred_age_max ?? 0);
-  const b_max_birth = b.birth_year - (b.preferred_age_min ?? 0);
-  if (b.birth_year < a_min_birth || b.birth_year > a_max_birth) return false;
-  if (a.birth_year < b_min_birth || a.birth_year > b_max_birth) return false;
-  // 키
-  if (b.height < (a.preferred_height_min ?? 0) || b.height > (a.preferred_height_max ?? 999)) return false;
-  if (a.height < (b.preferred_height_min ?? 0) || a.height > (b.preferred_height_max ?? 999)) return false;
-  // 체형 - 매칭 알고리즘과 동일한 로직
-  const aBody = a.preferred_body_types ? (Array.isArray(a.preferred_body_types) ? a.preferred_body_types : (typeof a.preferred_body_types === 'string' ? JSON.parse(a.preferred_body_types) : [])) : [];
-  const bBody = b.body_type ? (Array.isArray(b.body_type) ? b.body_type : (typeof b.body_type === 'string' ? JSON.parse(b.body_type) : [])) : [];
-  if (aBody.length > 0 && bBody.length > 0 && !aBody.some((type: string) => bBody.includes(type))) return false;
-  const bPrefBody = b.preferred_body_types ? (Array.isArray(b.preferred_body_types) ? b.preferred_body_types : (typeof b.preferred_body_types === 'string' ? JSON.parse(b.preferred_body_types) : [])) : [];
-  const aRealBody = a.body_type ? (Array.isArray(a.body_type) ? a.body_type : (typeof a.body_type === 'string' ? JSON.parse(a.body_type) : [])) : [];
-  if (bPrefBody.length > 0 && aRealBody.length > 0 && !bPrefBody.some((type: string) => aRealBody.includes(type))) return false;
-  // 직군
-  const aJob = Array.isArray(a.preferred_job_types) ? a.preferred_job_types : (a.preferred_job_types ? JSON.parse(a.preferred_job_types) : []);
-  const bJob = Array.isArray(b.preferred_job_types) ? b.preferred_job_types : (b.preferred_job_types ? JSON.parse(b.preferred_job_types) : []);
-  if (aJob.length > 0 && !aJob.includes(b.job_type)) return false;
-  if (bJob.length > 0 && !bJob.includes(a.job_type)) return false;
-  // 결혼상태
-  const aMarital = Array.isArray(a.preferred_marital_statuses) ? a.preferred_marital_statuses : (a.preferred_marital_statuses ? JSON.parse(a.preferred_marital_statuses) : []);
-  const bMarital = Array.isArray(b.preferred_marital_statuses) ? b.preferred_marital_statuses : (b.preferred_marital_statuses ? JSON.parse(b.preferred_marital_statuses) : []);
-  if (aMarital.length > 0 && (!b.marital_status || !aMarital.includes(b.marital_status))) return false;
-  if (bMarital.length > 0 && (!a.marital_status || !bMarital.includes(a.marital_status))) return false;
-  return true;
-}
-
 const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) => {
   const [logs, setLogs] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
@@ -141,8 +162,19 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalUser, setModalUser] = useState<any>(null);
-  const [matchableMap, setMatchableMap] = useState<{[userId:string]: any[]}>({});
-  const [matchableModal, setMatchableModal] = useState<{open:boolean, list:any[]}>({open:false, list:[]});
+const [compatModal, setCompatModal] = useState<{
+  open: boolean;
+  loading: boolean;
+  data: { iPrefer: any[]; preferMe: any[] } | null;
+  user: any;
+  activeTab: 'iPrefer' | 'preferMe';
+}>({
+  open: false,
+  loading: false,
+  data: null,
+  user: null,
+  activeTab: 'iPrefer'
+});
   const [loading, setLoading] = useState(true);
 
   // 회차 목록 불러오기
@@ -201,35 +233,50 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     setModalUser(null);
   };
 
-  // 신청자 데이터 변경 시 매칭 가능 인원 계산
-  useEffect(() => {
-    // 1. user_id 기준으로 가장 최근 신청만 남기기 (중복 제거)
-    const latestAppsMap = new Map();
-    for (const app of applications) {
-      if (!latestAppsMap.has(app.user_id) || new Date(app.applied_at) > new Date(latestAppsMap.get(app.user_id).applied_at)) {
-        latestAppsMap.set(app.user_id, app);
-      }
-    }
-    // [수정] periodId가 'all'이 아니면 해당 회차만, 'all'이면 전체
-    const filteredApps = periodId === 'all'
-      ? Array.from(latestAppsMap.values())
-      : Array.from(latestAppsMap.values()).filter(a => String(a.period_id) === String(periodId));
-    // 2. 같은 회차 신청자만(취소 제외)
-    const validApps = filteredApps.filter(a => !a.cancelled && a.profile && a.profile.birth_year && a.profile.height);
-    const map: {[userId:string]: any[]} = {};
-    for (const a of validApps) {
-      // others도 반드시 취소자 제외 및 중복 제거
-      const others = validApps.filter(b => b.user_id !== a.user_id && !b.cancelled);
-      map[a.user_id] = others.filter(b => isMutualMatch(a.profile, b.profile));
-    }
-    setMatchableMap(map);
-  }, [applications, periodId]);
-
   // 회차 인덱스 → 연속 번호로 변환 함수
-  const getPeriodDisplayNumber = (period_id: number|string) => {
+const getPeriodDisplayNumber = (period_id: number|string) => {
     const idx = logs.findIndex(log => String(log.id) === String(period_id));
     return idx >= 0 ? idx + 1 : period_id;
   };
+
+const openCompatibilityModal = async (app: any, tab: 'iPrefer' | 'preferMe') => {
+  if (periodId === 'all') {
+    toast.warn('회차를 선택한 후 확인해주세요.');
+    return;
+  }
+  setCompatModal({
+    open: true,
+    loading: true,
+    data: null,
+    user: app,
+    activeTab: tab
+  });
+  try {
+    const data = await adminMatchingApi.getMatchingCompatibility(app.user_id, periodId);
+    setCompatModal(prev => ({
+      ...prev,
+      loading: false,
+      data
+    }));
+  } catch (error) {
+    console.error('호환성 조회 오류:', error);
+    toast.error('호환성 정보를 불러오지 못했습니다.');
+    setCompatModal(prev => ({
+      ...prev,
+      loading: false
+    }));
+  }
+};
+
+const closeCompatibilityModal = () => {
+  setCompatModal({
+    open: false,
+    loading: false,
+    data: null,
+    user: null,
+    activeTab: 'iPrefer'
+  });
+};
 
   return (
     <Container $sidebarOpen={sidebarOpen}>
@@ -259,7 +306,8 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                 <th onClick={()=>{setSortKey('matched');setSortAsc(k=>!k);}}>매칭 <FaSort /></th>
                 <th>상대방</th>
                 <th>회차</th>
-                <th>매칭가능</th>
+                <th>내가 선호하는</th>
+                <th>나를 선호하는</th>
               </tr>
             </thead>
             <tbody>
@@ -275,9 +323,24 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                   <td>{app.partner ? (app.partner.email || app.partner.id) : '-'}</td>
                   <td>{getPeriodDisplayNumber(app.period_id)}</td>
                   <td>
-                    {!app.cancelled && (
-                      <Button style={{padding:'4px 10px',fontSize:'1em'}} onClick={()=>setMatchableModal({open:true, list:matchableMap[app.user_id]||[]})}>
-                        {matchableMap[app.user_id]?.length ?? 0}명
+                    {app.cancelled ? '-' : (
+                      <Button
+                        style={{ padding:'4px 10px', fontSize:'1em' }}
+                        onClick={()=>openCompatibilityModal(app, 'iPrefer')}
+                        disabled={periodId === 'all'}
+                      >
+                        보기
+                      </Button>
+                    )}
+                  </td>
+                  <td>
+                    {app.cancelled ? '-' : (
+                      <Button
+                        style={{ padding:'4px 10px', fontSize:'1em', background:'#4F46E5' }}
+                        onClick={()=>openCompatibilityModal(app, 'preferMe')}
+                        disabled={periodId === 'all'}
+                      >
+                        보기
                       </Button>
                     )}
                   </td>
@@ -289,30 +352,57 @@ const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
       </TableWrapper>
       {/* 프로필/선호 모달 */}
       <ProfileDetailModal isOpen={modalOpen} onRequestClose={closeModal} user={modalUser?.profile ? { ...modalUser.profile, email: modalUser.user?.email } : null} />
-      {/* 매칭가능 닉네임 목록 모달 */}
       <Modal
-        isOpen={matchableModal.open}
-        onRequestClose={()=>setMatchableModal({open:false, list:[]})}
-        style={{content:{maxWidth:340,minWidth:200,margin:'auto',borderRadius:14,padding:18,overflowY:'auto'}}}
-        contentLabel="매칭 가능 인원 목록"
+        isOpen={compatModal.open}
+        onRequestClose={closeCompatibilityModal}
+        style={{content:{maxWidth:520,minWidth:320,margin:'auto',borderRadius:16,padding:24,overflowY:'auto'}}}
+        contentLabel="매칭 선호 상세"
       >
-        <h3 style={{marginBottom:12,fontSize:'1.1rem',color:'#4F46E5'}}>매칭 가능 인원</h3>
-        {matchableModal.list.length === 0 ? <div style={{color:'#888'}}>매칭 가능한 인원이 없습니다.</div> : (
-          <ul style={{padding:0,margin:0,listStyle:'none',maxHeight:320,overflowY:'auto'}}>
-            {matchableModal.list.filter(b => {
-              // 혹시라도 매칭 가능 인원 리스트에 취소자가 포함되어 있으면 제외
-              const app = applications.find(a => a.user_id === b.user_id && !a.cancelled);
-              return app;
-            }).map((b:any)=> (
-              <li key={b.user_id} style={{marginBottom:6}}>
-                <NicknameBtn onClick={()=>{openModal(applications.find(a=>a.user_id===b.user_id && !a.cancelled)); setMatchableModal({open:false,list:[]});}}>
-                  {b.profile?.nickname || b.nickname || b.user_id}
-                </NicknameBtn>
-              </li>
-            ))}
-          </ul>
+        <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#4F46E5' }}>
+          {compatModal.user?.profile?.nickname || compatModal.user?.user?.email || '회원'}님의 매칭 선호
+        </h3>
+        <p style={{ marginTop: 0, marginBottom: 16, color: '#6b7280', fontSize: '0.9rem' }}>
+          동일 회차 신청 여부와 과거 매칭 이력을 함께 확인할 수 있습니다.
+        </p>
+        <TabWrapper>
+          <TabButton
+            type="button"
+            $active={compatModal.activeTab === 'iPrefer'}
+            onClick={() => setCompatModal(prev => ({ ...prev, activeTab: 'iPrefer' }))}
+          >
+            내가 선호하는
+          </TabButton>
+          <TabButton
+            type="button"
+            $active={compatModal.activeTab === 'preferMe'}
+            onClick={() => setCompatModal(prev => ({ ...prev, activeTab: 'preferMe' }))}
+          >
+            나를 선호하는
+          </TabButton>
+        </TabWrapper>
+        {compatModal.loading ? (
+          <div style={{ padding: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+            <InlineSpinner text="데이터를 불러오는 중입니다..." />
+          </div>
+        ) : (
+          <CompatibilityList>
+            {(compatModal.data?.[compatModal.activeTab] || []).length === 0 ? (
+              <EmptyRow>해당되는 회원이 없습니다.</EmptyRow>
+            ) : (
+              compatModal.data?.[compatModal.activeTab].map(item => (
+                <CompatibilityRow key={item.user_id} $mutual={item.mutual}>
+                  <div>
+                    <strong>{item.nickname}</strong>
+                    <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
+                  </div>
+                  <Badge $positive={item.applied}>신청 {item.applied ? 'O' : 'X'}</Badge>
+                  <Badge $positive={item.hasHistory}>매칭이력 {item.hasHistory ? 'O' : 'X'}</Badge>
+                </CompatibilityRow>
+              ))
+            )}
+          </CompatibilityList>
         )}
-        <Button onClick={()=>setMatchableModal({open:false,list:[]})} style={{marginTop:10,width:'100%'}}>닫기</Button>
+        <Button onClick={closeCompatibilityModal} style={{ marginTop: 16, width: '100%' }}>닫기</Button>
       </Modal>
     </Container>
   );

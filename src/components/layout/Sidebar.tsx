@@ -22,6 +22,7 @@ import { matchingApi } from '../../services/api.ts';
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
   height: 100vh;
+  min-height: 100dvh;
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   color: white;
   position: fixed;
@@ -33,6 +34,7 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
   display: flex;
   flex-direction: column;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   
   @media (max-width: 768px) {
     width: 100%;
@@ -171,6 +173,7 @@ const NavText = styled.span`
 
 const LogoutSection = styled.div`
   padding: 1rem 1.5rem;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   flex-shrink: 0;

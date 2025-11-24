@@ -627,6 +627,16 @@ export const adminMatchingApi = {
     const response = await api.get(`/admin/matching-history${queryString}`);
     return response.data;
   },
+
+  getMatchingCompatibility: async (userId: string, periodId: string): Promise<{
+    iPrefer: any[];
+    preferMe: any[];
+  }> => {
+    const response = await api.get(`/admin/matching-compatibility/${userId}`, {
+      params: { periodId }
+    });
+    return response.data;
+  },
 };
 
 export default api; 

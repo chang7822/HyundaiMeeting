@@ -287,6 +287,191 @@ router.delete('/matching-log/:id', authenticate, async (req, res) => {
   }
 });
 
+function ensureArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed) return [parsed];
+    } catch (e) {
+      return [value];
+    }
+    return [value];
+  }
+  return [];
+}
+
+function profileMatchesPreference(target, owner) {
+  if (!owner) return false;
+  const targetBirthYear = target.birth_year;
+  const ownerBirthYear = owner.birth_year;
+
+  if (ownerBirthYear && (owner.preferred_age_min != null || owner.preferred_age_max != null)) {
+    if (!targetBirthYear) return false;
+    const minBirth = ownerBirthYear - (owner.preferred_age_max ?? 0);
+    const maxBirth = ownerBirthYear - (owner.preferred_age_min ?? 0);
+    if (targetBirthYear < minBirth || targetBirthYear > maxBirth) return false;
+  }
+
+  if (owner.preferred_height_min != null) {
+    if (typeof target.height !== 'number' || target.height < owner.preferred_height_min) return false;
+  }
+  if (owner.preferred_height_max != null) {
+    if (typeof target.height !== 'number' || target.height > owner.preferred_height_max) return false;
+  }
+
+  const prefBodyTypes = ensureArray(owner.preferred_body_types);
+  if (prefBodyTypes.length > 0) {
+    const targetBodyTypes = ensureArray(target.body_type);
+    if (targetBodyTypes.length === 0 || !prefBodyTypes.some(type => targetBodyTypes.includes(type))) {
+      return false;
+    }
+  }
+
+  const prefJobTypes = ensureArray(owner.preferred_job_types);
+  if (prefJobTypes.length > 0) {
+    if (!target.job_type || !prefJobTypes.includes(target.job_type)) {
+      return false;
+    }
+  }
+
+  const prefMarital = ensureArray(owner.preferred_marital_statuses);
+  if (prefMarital.length > 0) {
+    if (!target.marital_status || !prefMarital.includes(target.marital_status)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// 매칭 호환성 조회
+router.get('/matching-compatibility/:userId', authenticate, async (req, res) => {
+  const { userId } = req.params;
+  const { periodId } = req.query;
+
+  if (!periodId) {
+    return res.status(400).json({ message: 'periodId 파라미터가 필요합니다.' });
+  }
+
+  try {
+    const { data: subjectProfile, error: subjectError } = await supabase
+      .from('user_profiles')
+      .select(`
+        user_id,
+        nickname,
+        gender,
+        birth_year,
+        height,
+        job_type,
+        marital_status,
+        body_type,
+        preferred_age_min,
+        preferred_age_max,
+        preferred_height_min,
+        preferred_height_max,
+        preferred_body_types,
+        preferred_job_types,
+        preferred_marital_statuses
+      `)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (subjectError || !subjectProfile) {
+      return res.status(404).json({ message: '사용자 프로필을 찾을 수 없습니다.' });
+    }
+
+    const { data: profileRows, error: profilesError } = await supabase
+      .from('user_profiles')
+      .select(`
+        user_id,
+        nickname,
+        gender,
+        birth_year,
+        height,
+        job_type,
+        marital_status,
+        body_type,
+        preferred_age_min,
+        preferred_age_max,
+        preferred_height_min,
+        preferred_height_max,
+        preferred_body_types,
+        preferred_job_types,
+        preferred_marital_statuses,
+        users:users(email)
+      `);
+
+    if (profilesError || !profileRows) {
+      throw profilesError;
+    }
+
+    const { data: appliedRows, error: appliedError } = await supabase
+      .from('matching_applications')
+      .select('user_id')
+      .eq('period_id', periodId)
+      .eq('applied', true)
+      .eq('cancelled', false);
+
+    if (appliedError) {
+      throw appliedError;
+    }
+    const appliedSet = new Set((appliedRows || []).map(row => row.user_id));
+
+    const { data: historyRows, error: historyError } = await supabase
+      .from('matching_history')
+      .select('male_user_id, female_user_id, period_id')
+      .lt('period_id', periodId)
+      .or(`male_user_id.eq.${userId},female_user_id.eq.${userId}`);
+
+    if (historyError) {
+      throw historyError;
+    }
+    const historySet = new Set();
+    (historyRows || []).forEach(row => {
+      const otherId = row.male_user_id === userId ? row.female_user_id : row.male_user_id;
+      if (otherId) historySet.add(otherId);
+    });
+
+    const others = profileRows.filter(profile => profile.user_id !== userId);
+
+    const makeEntry = (profile, mutual = false) => ({
+      user_id: profile.user_id,
+      nickname: profile.nickname || '(닉네임 없음)',
+      email: profile.users?.email || '',
+      applied: appliedSet.has(profile.user_id),
+      hasHistory: historySet.has(profile.user_id),
+      mutual
+    });
+
+    const iPrefer = [];
+    const preferMe = [];
+
+    for (const profile of others) {
+      const fitsMyPreference = profileMatchesPreference(profile, subjectProfile);
+      const iFitTheirPreference = profileMatchesPreference(subjectProfile, profile);
+      const mutual = fitsMyPreference && iFitTheirPreference;
+
+      if (fitsMyPreference) {
+        iPrefer.push(makeEntry(profile, mutual));
+      }
+      if (iFitTheirPreference) {
+        preferMe.push(makeEntry(profile, mutual));
+      }
+    }
+
+    res.json({
+      iPrefer,
+      preferMe
+    });
+  } catch (error) {
+    console.error('[matching-compatibility] 오류:', error);
+    res.status(500).json({ message: '호환성 정보를 불러오지 못했습니다.' });
+  }
+});
+
 // [카테고리 전체 조회]
 router.get('/profile-categories', authenticate, async (req, res) => {
   try {
