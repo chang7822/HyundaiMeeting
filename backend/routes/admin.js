@@ -190,10 +190,8 @@ router.post('/matching-log', authenticate, async (req, res) => {
       console.log(`[관리자] 초기화된 사용자 샘플:`, resetResult?.slice(0, 3));
     }
     
-    res.json({
-      ...data,
-      message: '새로운 회차가 생성되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
-    });
+    // 엔티티 자체에는 존재하지 않는 message 필드를 섞지 않고, 순수 row만 반환
+    res.json(data);
   } catch (error) {
     console.error('matching_log 생성 오류:', error);
     res.status(500).json({ message: 'matching_log 생성 실패' });
@@ -204,18 +202,49 @@ router.post('/matching-log', authenticate, async (req, res) => {
 router.put('/matching-log/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const updateData = req.body;
+
+    // 프론트에서 내려온 응답 객체 전체를 그대로 넘기면
+    // DB에 존재하지 않는 message 등의 필드까지 update에 포함되어
+    // PGRST204 (schema cache에 해당 컬럼 없음) 오류가 발생할 수 있음.
+    // 따라서 실제 테이블 컬럼으로 사용하는 필드만 골라서 업데이트한다.
+    const allowedFields = [
+      'application_start',
+      'application_end',
+      'matching_announce',
+      'matching_run',
+      'finish',
+      'executed',
+      'email_sent'
+    ];
+    const rawBody = req.body || {};
+    const updateData = {};
+    for (const key of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(rawBody, key)) {
+        updateData[key] = rawBody[key];
+      }
+    }
+
     const { data, error } = await supabase
       .from('matching_log')
       .update(updateData)
       .eq('id', id)
       .select()
-      .single();
-    if (error) throw error;
+      .maybeSingle();
+
+    if (error) {
+      console.error('matching_log 수정 오류 (supabase):', error);
+      return res.status(500).json({ message: 'matching_log 수정 실패', error: error.message || error });
+    }
+
+    if (!data) {
+      // 해당 ID 회차가 존재하지 않는 경우
+      return res.status(404).json({ message: `ID ${id} 회차를 찾을 수 없습니다.` });
+    }
+
     res.json(data);
   } catch (error) {
-    console.error('matching_log 수정 오류:', error);
-    res.status(500).json({ message: 'matching_log 수정 실패' });
+    console.error('matching_log 수정 오류 (서버):', error);
+    res.status(500).json({ message: 'matching_log 수정 실패', error: error.message || error });
   }
 });
 
