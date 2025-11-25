@@ -1248,8 +1248,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           buttonLabel = '매칭 신청 불가';
           showCancel = false;
         } else if (typeof isMatched === 'undefined' || isMatched === null) {
+          // 🔧 아직 매칭 결과(boolean)가 결정되지 않은 상태에서는
+          // 실패로 취급하지 않고 "결과 준비중" 상태로만 표시한다.
+          // (모바일처럼 네트워크/렌더 타이밍이 느린 환경에서
+          // 잠깐이라도 "매칭 실패"로 보이는 현상 방지)
           buttonDisabled = true;
-          buttonLabel = '매칭 실패';
+          buttonLabel = '결과 준비중';
           showCancel = false;
         } else if (isMatched === true) {
           buttonDisabled = true;
