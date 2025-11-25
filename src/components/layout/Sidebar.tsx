@@ -39,6 +39,9 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   @media (max-width: 768px) {
     width: 100%;
     max-width: 280px;
+    /* 모바일에서는 실제 보이는 화면 높이(dvh)를 강제 */
+    height: 100dvh;
+    min-height: 100dvh;
   }
 `;
 
