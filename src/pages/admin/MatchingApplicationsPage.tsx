@@ -223,6 +223,17 @@ const [compatModal, setCompatModal] = useState<{
     };
     loadLogs();
   }, []);
+
+  // 회차 목록이 로드되면 기본 선택값을 "전체"가 아니라
+  // 가장 마지막 인덱스(가장 최근 회차)의 id로 설정
+  useEffect(() => {
+    if (logs.length > 0 && periodId === 'all') {
+      const lastLog = logs[logs.length - 1];
+      if (lastLog?.id != null) {
+        setPeriodId(String(lastLog.id));
+      }
+    }
+  }, [logs, periodId]);
   // 신청 현황 불러오기
   useEffect(() => {
     const loadApplications = async () => {
