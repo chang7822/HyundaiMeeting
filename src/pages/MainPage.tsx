@@ -1032,28 +1032,37 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return `${yyyy}-${mm}-${dd} ${hh}시 ${min}분`;
   };
 
-  // [리팩터링] users의 is_applied, is_matched 기반 분기 함수 (is_cancelled만 matchingStatus에서)
+  // [리팩터링] 매칭 상태 분기 함수
   const getUserMatchingState = () => {
-    // 🔧 matchingStatus를 우선 확인하여 실시간 상태 반영
+    // 🔧 성공/실패 여부(isMatched)는 **항상 서버에서 내려준 matchingStatus만** 신뢰하고,
+    // user 객체의 과거 is_matched 값(이전 회차 결과 등)은 사용하지 않는다.
+    // (모바일에서 과거 회차의 실패 값이 잠깐 섞여 "매칭 실패"로 보이는 문제 방지)
+
     let isApplied = false;
     let isMatched: boolean | null = null;
-    
-    // matchingStatus에서 우선 확인 (실시간 데이터)
+
     if (matchingStatus) {
+      // 신청 여부는 matchingStatus를 우선 사용하되, 없으면 false
       isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
-      isMatched = typeof matchingStatus.is_matched !== 'undefined' ? matchingStatus.is_matched : 
-                  typeof matchingStatus.matched !== 'undefined' ? matchingStatus.matched : null;
-    }
-    
-    // matchingStatus가 없거나 불완전하면 user 객체에서 보완
-    if (!matchingStatus && user) {
+
+      // 매칭 결과(boolean)가 명시된 경우에만 성공/실패로 사용
+      if (typeof matchingStatus.is_matched === 'boolean') {
+        isMatched = matchingStatus.is_matched;
+      } else if (typeof matchingStatus.matched === 'boolean') {
+        isMatched = matchingStatus.matched;
+      } else {
+        isMatched = null; // 아직 결과 미정 → "결과 준비중"
+      }
+    } else if (user) {
+      // matchingStatus가 아직 없으면, 신청 여부만 user에서 보완
       isApplied = user.is_applied === true;
-      isMatched = user.is_matched ?? null;
+      // isMatched는 과거 회차의 잔존값일 수 있으므로 **사용하지 않고 null로 둔다**
+      isMatched = null;
     }
-    
-    // is_cancelled는 matchingStatus에서만
+
+    // is_cancelled는 matchingStatus에서만 사용
     const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
-    
+
     return { isApplied, isMatched, isCancelled };
   };
 
