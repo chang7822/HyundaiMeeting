@@ -303,6 +303,34 @@ function ensureArray(value) {
   return [];
 }
 
+function extractSnapshotPreferences(profile) {
+  if (!profile) return null;
+  const result = {};
+  Object.keys(profile).forEach(key => {
+    if (key.startsWith('preferred_')) {
+      result[key] = profile[key];
+    }
+  });
+  return Object.keys(result).length ? result : null;
+}
+
+function normalizeProfileSnapshots(profileSnapshot, preferenceSnapshot, fallbackProfile = null) {
+  const baseProfile = profileSnapshot || (fallbackProfile ? { ...fallbackProfile } : null);
+  const prefs = preferenceSnapshot || extractSnapshotPreferences(baseProfile || fallbackProfile);
+  return {
+    profileSnapshot: baseProfile ? { ...baseProfile } : null,
+    preferenceSnapshot: prefs ? { ...prefs } : null
+  };
+}
+
+function composeProfileForMatching(profileSnapshot, preferenceSnapshot) {
+  if (!profileSnapshot && !preferenceSnapshot) return null;
+  return {
+    ...(profileSnapshot || {}),
+    ...(preferenceSnapshot || {})
+  };
+}
+
 function profileMatchesPreference(target, owner) {
   if (!owner) return false;
   const targetBirthYear = target.birth_year;
@@ -357,68 +385,67 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
   }
 
   try {
-    const { data: subjectProfile, error: subjectError } = await supabase
-      .from('user_profiles')
+    const { data: subjectRow, error: subjectError } = await supabase
+      .from('matching_applications')
       .select(`
         user_id,
-        nickname,
-        gender,
-        birth_year,
-        height,
-        job_type,
-        marital_status,
-        body_type,
-        preferred_age_min,
-        preferred_age_max,
-        preferred_height_min,
-        preferred_height_max,
-        preferred_body_types,
-        preferred_job_types,
-        preferred_marital_statuses
+        profile_snapshot,
+        preference_snapshot,
+        profile:user_profiles(*)
       `)
       .eq('user_id', userId)
+      .eq('period_id', periodId)
+      .eq('applied', true)
+      .eq('cancelled', false)
       .maybeSingle();
 
-    if (subjectError || !subjectProfile) {
-      return res.status(404).json({ message: '사용자 프로필을 찾을 수 없습니다.' });
+    if (subjectError) {
+      throw subjectError;
     }
 
-    const { data: profileRows, error: profilesError } = await supabase
-      .from('user_profiles')
+    if (!subjectRow) {
+      return res.status(404).json({ message: '해당 회차의 신청 내역이 없습니다.' });
+    }
+
+    const { profileSnapshot: subjectProfileSnapshot, preferenceSnapshot: subjectPreferenceSnapshot } =
+      normalizeProfileSnapshots(subjectRow.profile_snapshot, subjectRow.preference_snapshot, subjectRow.profile);
+    const subjectProfile = composeProfileForMatching(subjectProfileSnapshot, subjectPreferenceSnapshot);
+
+    if (!subjectProfile) {
+      return res.status(404).json({ message: '신청자의 프로필 스냅샷이 없습니다.' });
+    }
+
+    const { data: applicantRows, error: applicantError } = await supabase
+      .from('matching_applications')
       .select(`
         user_id,
-        nickname,
-        gender,
-        birth_year,
-        height,
-        job_type,
-        marital_status,
-        body_type,
-        preferred_age_min,
-        preferred_age_max,
-        preferred_height_min,
-        preferred_height_max,
-        preferred_body_types,
-        preferred_job_types,
-        preferred_marital_statuses,
-        users:users(email)
-      `);
-
-    if (profilesError || !profileRows) {
-      throw profilesError;
-    }
-
-    const { data: appliedRows, error: appliedError } = await supabase
-      .from('matching_applications')
-      .select('user_id')
+        profile_snapshot,
+        preference_snapshot,
+        profile:user_profiles(*),
+        user:users(email)
+      `)
       .eq('period_id', periodId)
       .eq('applied', true)
       .eq('cancelled', false);
 
-    if (appliedError) {
-      throw appliedError;
+    if (applicantError) {
+      throw applicantError;
     }
-    const appliedSet = new Set((appliedRows || []).map(row => row.user_id));
+
+    const applicants = (applicantRows || []).map(row => {
+      const { profileSnapshot, preferenceSnapshot } = normalizeProfileSnapshots(
+        row.profile_snapshot,
+        row.preference_snapshot,
+        row.profile
+      );
+      return {
+        user_id: row.user_id,
+        profile: composeProfileForMatching(profileSnapshot, preferenceSnapshot),
+        email: row.user?.email || ''
+      };
+    }).filter(row => row.profile);
+
+    const appliedSet = new Set(applicants.map(row => row.user_id));
 
     const { data: historyRows, error: historyError } = await supabase
       .from('matching_history')
@@ -431,34 +458,35 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
     }
     const historySet = new Set();
     (historyRows || []).forEach(row => {
-      const otherId = row.male_user_id === userId ? row.female_user_id : row.male_user_id;
-      if (otherId) historySet.add(otherId);
+      const otherId = String(row.male_user_id) === String(userId) ? row.female_user_id : row.male_user_id;
+      if (otherId != null) historySet.add(String(otherId));
     });
 
-    const others = profileRows.filter(profile => profile.user_id !== userId);
+    const subjectIdStr = String(userId);
+    const others = applicants.filter(applicant => String(applicant.user_id) !== subjectIdStr);
 
-    const makeEntry = (profile, mutual = false) => ({
-      user_id: profile.user_id,
-      nickname: profile.nickname || '(닉네임 없음)',
-      email: profile.users?.email || '',
-      applied: appliedSet.has(profile.user_id),
-      hasHistory: historySet.has(profile.user_id),
+    const makeEntry = (applicant, mutual = false) => ({
+      user_id: applicant.user_id,
+      nickname: applicant.profile.nickname || '(닉네임 없음)',
+      email: applicant.email,
+      applied: appliedSet.has(applicant.user_id),
+      hasHistory: historySet.has(String(applicant.user_id)),
       mutual
     });
 
     const iPrefer = [];
     const preferMe = [];
 
-    for (const profile of others) {
-      const fitsMyPreference = profileMatchesPreference(profile, subjectProfile);
-      const iFitTheirPreference = profileMatchesPreference(subjectProfile, profile);
+    for (const applicant of others) {
+      const fitsMyPreference = profileMatchesPreference(applicant.profile, subjectProfile);
+      const iFitTheirPreference = profileMatchesPreference(subjectProfile, applicant.profile);
       const mutual = fitsMyPreference && iFitTheirPreference;
 
       if (fitsMyPreference) {
-        iPrefer.push(makeEntry(profile, mutual));
+        iPrefer.push(makeEntry(applicant, mutual));
       }
       if (iFitTheirPreference) {
-        preferMe.push(makeEntry(profile, mutual));
+        preferMe.push(makeEntry(applicant, mutual));
       }
     }
 
@@ -627,7 +655,20 @@ router.get('/matching-applications', authenticate, async (req, res) => {
         }
       }
     }
-    res.json(data);
+    const normalizedData = data.map(row => {
+      const { profileSnapshot, preferenceSnapshot } = normalizeProfileSnapshots(
+        row.profile_snapshot,
+        row.preference_snapshot,
+        row.profile
+      );
+      return {
+        ...row,
+        profile_snapshot: profileSnapshot,
+        preference_snapshot: preferenceSnapshot,
+        profile: profileSnapshot
+      };
+    });
+    res.json(normalizedData);
   } catch (error) {
     console.error('matching_applications 현황 조회 오류:', error);
     res.status(500).json({ message: '매칭 신청 현황 조회 실패', error: error?.message || error });

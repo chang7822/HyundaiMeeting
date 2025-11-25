@@ -143,6 +143,39 @@ const EmptyRow = styled.div`
 `;
 Modal.setAppElement('#root');
 
+const pickPreferenceFields = (profile?: any | null) => {
+  if (!profile) return null;
+  const prefs: Record<string, any> = {};
+  Object.keys(profile).forEach(key => {
+    if (key.startsWith('preferred_')) {
+      prefs[key] = profile[key];
+    }
+  });
+  return Object.keys(prefs).length ? prefs : null;
+};
+
+const getProfileSnapshot = (application: any) => {
+  if (!application) return null;
+  return application.profile_snapshot ?? application.profile ?? null;
+};
+
+const getPreferenceSnapshot = (application: any) => {
+  if (!application) return null;
+  if (application.preference_snapshot) return application.preference_snapshot;
+  const profile = getProfileSnapshot(application);
+  return pickPreferenceFields(profile);
+};
+
+const buildSnapshotPayload = (application: any) => {
+  const profile = getProfileSnapshot(application);
+  const preference = getPreferenceSnapshot(application);
+  if (!profile && !preference) return null;
+  return {
+    ...(profile || {}),
+    ...(preference || {})
+  };
+};
+
 function formatKST(dateStr: string | null) {
   if (!dateStr) return '-';
   const d = new Date(dateStr);
@@ -211,9 +244,13 @@ const [compatModal, setCompatModal] = useState<{
   // 소팅
   const sortedApps = [...applications].sort((a, b) => {
     let v1 = a[sortKey], v2 = b[sortKey];
-    if (sortKey === 'user_id' && a.profile && b.profile) {
-      v1 = a.profile.nickname || '';
-      v2 = b.profile.nickname || '';
+    if (sortKey === 'user_id') {
+      const profileA = buildSnapshotPayload(a);
+      const profileB = buildSnapshotPayload(b);
+      if (profileA && profileB) {
+        v1 = profileA.nickname || '';
+        v2 = profileB.nickname || '';
+      }
     }
     if (v1 === undefined || v1 === null) v1 = '';
     if (v2 === undefined || v2 === null) v2 = '';
@@ -278,6 +315,9 @@ const closeCompatibilityModal = () => {
   });
 };
 
+const modalProfile = modalUser ? buildSnapshotPayload(modalUser) : null;
+const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) : null;
+
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Title>매칭 신청 현황</Title>
@@ -311,10 +351,12 @@ const closeCompatibilityModal = () => {
               </tr>
             </thead>
             <tbody>
-              {sortedApps.map(app => (
+              {sortedApps.map(app => {
+                const profile = buildSnapshotPayload(app);
+                return (
                 <tr key={app.id} style={app.cancelled ? { color: '#aaa' } : {}}>
                   <td>
-                    <NicknameBtn onClick={()=>openModal(app)} style={app.cancelled ? { color: '#aaa', textDecoration: 'line-through' } : {}}>{app.profile?.nickname || '-'}</NicknameBtn>
+                    <NicknameBtn onClick={()=>openModal(app)} style={app.cancelled ? { color: '#aaa', textDecoration: 'line-through' } : {}}>{profile?.nickname || '-'}</NicknameBtn>
                   </td>
                   <td>{app.user?.email || '-'}</td>
                   <td>{formatKST(app.applied_at)}</td>
@@ -345,13 +387,13 @@ const closeCompatibilityModal = () => {
                     )}
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </Table>
         )}
       </TableWrapper>
       {/* 프로필/선호 모달 */}
-      <ProfileDetailModal isOpen={modalOpen} onRequestClose={closeModal} user={modalUser?.profile ? { ...modalUser.profile, email: modalUser.user?.email } : null} />
+      <ProfileDetailModal isOpen={modalOpen} onRequestClose={closeModal} user={modalProfile ? { ...modalProfile, email: modalUser?.user?.email } : null} />
       <Modal
         isOpen={compatModal.open}
         onRequestClose={closeCompatibilityModal}
@@ -359,7 +401,7 @@ const closeCompatibilityModal = () => {
         contentLabel="매칭 선호 상세"
       >
         <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#4F46E5' }}>
-          {compatModal.user?.profile?.nickname || compatModal.user?.user?.email || '회원'}님의 매칭 선호
+          {compatProfile?.nickname || compatModal.user?.user?.email || '회원'}님의 매칭 선호
         </h3>
         <p style={{ marginTop: 0, marginBottom: 16, color: '#6b7280', fontSize: '0.9rem' }}>
           동일 회차 신청 여부와 과거 매칭 이력을 함께 확인할 수 있습니다.
