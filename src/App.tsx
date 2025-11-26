@@ -138,24 +138,31 @@ const AppInner: React.FC = () => {
   // 시스템 상태(유지보수 모드) 조회
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const fetchStatus = async () => {
       try {
         const res = await systemApi.getStatus();
         if (!cancelled) {
           const m = res?.maintenance;
           setMaintenance(m ? { enabled: !!m.enabled, message: m.message || '' } : { enabled: false, message: '' });
+          setMaintenanceLoading(false);
         }
       } catch {
         if (!cancelled) {
-          setMaintenance(false);
-        }
-      } finally {
-        if (!cancelled) {
+          setMaintenance({ enabled: false, message: '' });
           setMaintenanceLoading(false);
         }
       }
-    })();
-    return () => { cancelled = true; };
+    };
+
+    // 최초 1회 즉시 조회
+    fetchStatus();
+    // 이후 주기적으로 상태 확인 (예: 10초마다)
+    const intervalId = window.setInterval(fetchStatus, 10000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
   // F5(새로고침) 시 디버깅 로그를 화면에 출력 (복사 가능)
