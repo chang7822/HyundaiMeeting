@@ -148,6 +148,7 @@ const ChatPage: React.FC = () => {
   const [joinDone, setJoinDone] = useState(false);
   const [reportModal, setReportModal] = useState(false);
   const [isPartnerBanned, setIsPartnerBanned] = useState(false);
+  const [chatEndTime, setChatEndTime] = useState<Date | null>(null);
 
   // 1. period_id 확보 및 권한 체크
   useEffect(() => {
@@ -171,6 +172,9 @@ const ChatPage: React.FC = () => {
           navigate('/main');
           return;
         }
+        setChatEndTime(finishTime);
+      } else {
+        setChatEndTime(null);
       }
       
       setPeriodId(String(period.id));
@@ -290,6 +294,17 @@ const ChatPage: React.FC = () => {
       .catch(() => setMessages([]));
   }, [user?.id, partnerUserId, periodId]);
 
+  // 2-1. 실시간으로 새 메시지가 올 때마다 읽음 처리 (현재 채팅방 기준)
+  useEffect(() => {
+    if (!user?.id || !partnerUserId || !periodId) return;
+    if (!messages.length) return;
+    chatApi
+      .markAsRead(periodId as string, partnerUserId as string, user.id as string)
+      .catch(() => {
+        // 조용히 무시 (UI 깜빡임 방지)
+      });
+  }, [messages.length, user?.id, partnerUserId, periodId]);
+
   // 3. 메시지 전송
   const handleSend = async () => {
     if (!input.trim() || !user?.id || !partnerUserId || !periodId || !joinDone) return;
@@ -300,22 +315,14 @@ const ChatPage: React.FC = () => {
       return;
     }
     
-    // 채팅방 마감 시간 체크
-    try {
-      const periodData = await matchingApi.getMatchingPeriod();
-      if (periodData && periodData.finish) {
-        const finishTime = new Date(periodData.finish);
-        const now = new Date();
-        
-        if (now >= finishTime) {
-          toast.error('채팅 기간이 마감되었습니다.');
-          navigate('/main');
-          return;
-        }
+    // 채팅방 마감 시간 체크 (초기 진입 시 받아온 finish 기준, 추가 네트워크 호출 없이 로컬에서만 확인)
+    if (chatEndTime) {
+      const now = new Date();
+      if (now >= chatEndTime) {
+        toast.error('채팅 기간이 마감되었습니다.');
+        navigate('/main');
+        return;
       }
-    } catch (error) {
-      console.error('채팅방 마감 시간 체크 오류:', error);
-      // 에러가 발생해도 메시지 전송은 계속 진행 (기존 기능 보장)
     }
     
     const socket = socketRef.current;
