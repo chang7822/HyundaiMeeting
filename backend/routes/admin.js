@@ -529,6 +529,126 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
   }
 });
 
+// 현재 프로필/선호 기준 매칭 호환성 조회 (회차/신청과 무관하게 전체 회원 대상)
+router.get('/matching-compatibility-live/:userId', authenticate, async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // 1) 기준 사용자 현재 프로필 조회
+    const { data: subjectProfile, error: subjectError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (subjectError) {
+      console.error('[matching-compatibility-live] 기준 사용자 프로필 조회 오류:', subjectError);
+      return res.status(500).json({ message: '기준 사용자 프로필 조회 실패' });
+    }
+
+    if (!subjectProfile) {
+      return res.status(404).json({ message: '기준 사용자 프로필이 없습니다.' });
+    }
+
+    // 2) 다른 모든 사용자 현재 프로필 + 이메일 조회 (탈퇴/비활성/정지 여부에 따라 필터링 가능)
+    const { data: otherProfiles, error: othersError } = await supabase
+      .from('user_profiles')
+      .select(`
+        *,
+        user:users(id, email, is_active, is_banned)
+      `)
+      .neq('user_id', userId);
+
+    if (othersError) {
+      console.error('[matching-compatibility-live] 대상 사용자 프로필 조회 오류:', othersError);
+      return res.status(500).json({ message: '대상 사용자 프로필 조회 실패' });
+    }
+
+    // 비활성/정지 사용자는 기본적으로 제외 (원하면 조건 조정 가능)
+    const applicants = (otherProfiles || [])
+      .filter(row => row.user && row.user.is_active !== false && row.user.is_banned !== true)
+      .map(row => ({
+        user_id: row.user_id,
+        profile: row,
+        email: row.user?.email || ''
+      }));
+
+    // 3) 최신 회차 기준 "신청 여부" 표시 (배지용)
+    let appliedSet = new Set();
+    const { data: latestLog, error: latestLogError } = await supabase
+      .from('matching_log')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (latestLogError) {
+      console.error('[matching-compatibility-live] 최신 회차 조회 오류:', latestLogError);
+    } else if (latestLog) {
+      const { data: latestApps, error: appsError } = await supabase
+        .from('matching_applications')
+        .select('user_id')
+        .eq('period_id', latestLog.id)
+        .eq('applied', true)
+        .eq('cancelled', false);
+
+      if (appsError) {
+        console.error('[matching-compatibility-live] 신청자 조회 오류:', appsError);
+      } else if (latestApps) {
+        appliedSet = new Set(latestApps.map(row => row.user_id));
+      }
+    }
+
+    // 4) 과거 매칭 이력 조회 (해당 사용자와 한 번이라도 매칭된 적 있는지)
+    const { data: historyRows, error: historyError } = await supabase
+      .from('matching_history')
+      .select('male_user_id, female_user_id')
+      .or(`male_user_id.eq.${userId},female_user_id.eq.${userId}`);
+
+    if (historyError) {
+      console.error('[matching-compatibility-live] 매칭 이력 조회 오류:', historyError);
+    }
+
+    const historySet = new Set();
+    (historyRows || []).forEach(row => {
+      const otherId = String(row.male_user_id) === String(userId) ? row.female_user_id : row.male_user_id;
+      if (otherId != null) historySet.add(String(otherId));
+    });
+
+    // 5) 기준 사용자와의 호환성 계산 (현재 프로필/선호 기준)
+    const subject = subjectProfile;
+    const makeEntry = (applicant, mutual = false) => ({
+      user_id: applicant.user_id,
+      nickname: applicant.profile.nickname || '(닉네임 없음)',
+      email: applicant.email,
+      applied: appliedSet.has(applicant.user_id),
+      hasHistory: historySet.has(String(applicant.user_id)),
+      mutual
+    });
+
+    const iPrefer = [];
+    const preferMe = [];
+
+    for (const applicant of applicants) {
+      const fitsMyPreference = profileMatchesPreference(applicant.profile, subject);
+      const iFitTheirPreference = profileMatchesPreference(subject, applicant.profile);
+      const mutual = fitsMyPreference && iFitTheirPreference;
+
+      if (fitsMyPreference) {
+        iPrefer.push(makeEntry(applicant, mutual));
+      }
+      if (iFitTheirPreference) {
+        preferMe.push(makeEntry(applicant, mutual));
+      }
+    }
+
+    res.json({ iPrefer, preferMe });
+  } catch (error) {
+    console.error('[matching-compatibility-live] 오류:', error);
+    res.status(500).json({ message: '호환성 정보를 불러오지 못했습니다.' });
+  }
+});
+
 // [카테고리 전체 조회]
 router.get('/profile-categories', authenticate, async (req, res) => {
   try {

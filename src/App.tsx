@@ -36,6 +36,7 @@ import NoticeManagerPage from './pages/admin/NoticeManagerPage.tsx';
 import FaqManagerPage from './pages/admin/FaqManagerPage.tsx';
 import ReportManagementPage from './pages/admin/ReportManagementPage.tsx';
 import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
+import UserMatchingOverviewPage from './pages/admin/UserMatchingOverviewPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
 import ChatPage from './pages/ChatPage.tsx';
 // Support Pages
@@ -256,6 +257,14 @@ function App() {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <MatchingResultPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/user-matching-overview" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <UserMatchingOverviewPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />

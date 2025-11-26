@@ -637,6 +637,15 @@ export const adminMatchingApi = {
     });
     return response.data;
   },
+
+  // 현재 프로필/선호 기준 전체 회원 호환성 조회 (회차/신청과 무관)
+  getMatchingCompatibilityLive: async (userId: string): Promise<{
+    iPrefer: any[];
+    preferMe: any[];
+  }> => {
+    const response = await api.get(`/admin/matching-compatibility-live/${userId}`);
+    return response.data;
+  },
 };
 
 export default api; 
