@@ -297,6 +297,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
     { path: '/admin/notice-manager', icon: <span role="img" aria-label="notice">📢</span>, text: '공지사항 관리' },
     { path: '/admin/faq-manager', icon: <span role="img" aria-label="faq">❓</span>, text: 'FAQ 관리' },
+    { path: '/admin/settings', icon: <span role="img" aria-label="settings">⚙️</span>, text: '설정' },
   ] : [];
   // console.log('[Sidebar] adminMenuItems 배열:', adminMenuItems);
 

@@ -46,6 +46,7 @@ import SupportInquiryDetailPage from './pages/SupportInquiryDetailPage.tsx';
 // Admin Support Pages
 import AdminSupportPage from './pages/admin/AdminSupportPage.tsx';
 import AdminSupportDetailPage from './pages/admin/AdminSupportDetailPage.tsx';
+import SettingsPage from './pages/admin/SettingsPage.tsx';
 
 // Components
 import Sidebar from './components/layout/Sidebar.tsx';
@@ -53,13 +54,42 @@ import ProtectedRoute from './components/auth/ProtectedRoute.tsx';
 import AdminRoute from './components/auth/AdminRoute.tsx';
 
 // Contexts
-import { AuthProvider } from './contexts/AuthContext.tsx';
+import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
+import { systemApi } from './services/api.ts';
 
 const queryClient = new QueryClient();
 
-function App() {
+const MaintenanceScreen: React.FC = () => {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      color: '#fff',
+      padding: '0 24px',
+      textAlign: 'center'
+    }}>
+      <h1 style={{ fontSize: '2.2rem', marginBottom: 16 }}>서버 점검중입니다</h1>
+      <p style={{ fontSize: '1rem', opacity: 0.9, marginBottom: 24, whiteSpace: 'pre-line' }}>
+        현재 서비스 안정화를 위한 점검이 진행 중입니다.
+        {'\n'}점검 완료 후 다시 이용 부탁드립니다.
+      </p>
+      <div style={{ marginTop: 16, fontSize: '0.9rem', opacity: 0.8 }}>
+        관리자 계정으로는 정상 접속이 가능합니다.
+      </div>
+    </div>
+  );
+};
+
+const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
+  const { user, isAuthenticated } = useAuth();
+  const [maintenance, setMaintenance] = useState<boolean | null>(null);
+  const [maintenanceLoading, setMaintenanceLoading] = useState(true);
 
   // 모바일 진입 시 사이드바 자동 닫기
   useEffect(() => {
@@ -76,6 +106,28 @@ function App() {
   }, [location]);
 
   const handleSidebarToggle = () => setSidebarOpen(open => !open);
+
+  // 시스템 상태(유지보수 모드) 조회
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await systemApi.getStatus();
+        if (!cancelled) {
+          setMaintenance(!!res?.maintenance?.enabled);
+        }
+      } catch {
+        if (!cancelled) {
+          setMaintenance(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setMaintenanceLoading(false);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // F5(새로고침) 시 디버깅 로그를 화면에 출력 (복사 가능)
   if ((window as any)._debugLogs && (window as any)._debugLogs.length > 0) {
@@ -100,12 +152,18 @@ function App() {
     );
   }
 
+  // 유지보수 모드: 인증 완료 후 일반 사용자만 막고, 관리자는 통과
+  const isAdmin = !!user?.isAdmin;
+  const showMaintenance =
+    maintenanceLoading ? false : (maintenance === true && isAuthenticated && !isAdmin);
+
+  if (showMaintenance) {
+    return <MaintenanceScreen />;
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        {/* Router 제거됨, 바로 App 내용 시작 */}
-          <div className="App">
-            <Routes>
+    <div className="App">
+      <Routes>
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
@@ -284,6 +342,14 @@ function App() {
                   </div>
                 </AdminRoute>
               } />
+              <Route path="/admin/settings" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <SettingsPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
               <Route path="/admin/report-management" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
@@ -327,6 +393,14 @@ function App() {
               }}
             />
           </div>
+  );
+}
+
+function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppInner />
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -8,6 +8,15 @@ const authenticate = require('../middleware/authenticate');
 const users = [];
 const matches = [];
 
+// 공통: 관리자 권한 체크 유틸
+function ensureAdmin(req, res) {
+  if (!req.user || !req.user.isAdmin) {
+    res.status(403).json({ success: false, message: '관리자 권한이 필요합니다.' });
+    return false;
+  }
+  return true;
+}
+
 // 모든 사용자 조회 (계정 정보 + 프로필 정보)
 router.get('/users', authenticate, async (req, res) => {
   try {
@@ -41,6 +50,72 @@ router.get('/users', authenticate, async (req, res) => {
   } catch (error) {
     console.error('사용자 목록 조회 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 시스템 설정 조회 (현재는 유지보수 모드만)
+router.get('/system-settings', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'maintenance')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[admin][system-settings] 조회 오류:', error);
+      return res.status(500).json({ success: false, message: '시스템 설정 조회에 실패했습니다.' });
+    }
+
+    const enabled = !!(data && data.value && data.value.enabled === true);
+    res.json({
+      success: true,
+      maintenance: {
+        enabled,
+      },
+    });
+  } catch (error) {
+    console.error('[admin][system-settings] 조회 오류:', error);
+    res.status(500).json({ success: false, message: '시스템 설정 조회에 실패했습니다.' });
+  }
+});
+
+// 유지보수 모드 토글
+router.put('/system-settings/maintenance', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { enabled } = req.body || {};
+
+    const value = {
+      enabled: !!enabled,
+    };
+
+    const { data, error } = await supabase
+      .from('app_settings')
+      .upsert({
+        key: 'maintenance',
+        value,
+        updated_by: req.user.userId,
+      }, { onConflict: 'key' })
+      .select('value')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[admin][system-settings] 유지보수 모드 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '유지보수 모드 변경에 실패했습니다.' });
+    }
+
+    res.json({
+      success: true,
+      maintenance: {
+        enabled: !!(data && data.value && data.value.enabled === true),
+      },
+    });
+  } catch (error) {
+    console.error('[admin][system-settings] 유지보수 모드 업데이트 오류:', error);
+    res.status(500).json({ success: false, message: '유지보수 모드 변경에 실패했습니다.' });
   }
 });
 
