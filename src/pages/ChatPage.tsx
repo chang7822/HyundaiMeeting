@@ -262,13 +262,37 @@ const ChatPage: React.FC = () => {
         return [...prev, { ...data, senderId }];
       });
     };
+
+    // 상대가 내 메시지를 읽었을 때 읽음 상태 업데이트
+    const handleRead = (data: any) => {
+      if (!data || !data.period_id || !data.reader_id || !data.partner_id) return;
+      // 이 방(periodId) + 내가 보낸 메시지를 상대가 읽은 경우만 처리
+      if (String(data.period_id) !== String(periodId)) return;
+      const myId = String(user.id);
+      const partnerId = String(partnerUserId);
+      const readerId = String(data.reader_id);
+      const partnerIdFromEvent = String(data.partner_id);
+      // partner_id === 나, reader_id === 상대 인 경우에만 (상대가 내 메시지를 읽음)
+      if (partnerIdFromEvent !== myId || readerId !== partnerId) return;
+
+      setMessages(prev =>
+        prev.map(msg =>
+          msg.senderId === myId
+            ? { ...msg, is_read: true }
+            : msg
+        )
+      );
+    };
+
     socket.on('chat message', handleSocketMessage);
+    socket.on('read', handleRead);
     socket.on('disconnect', () => {
       setJoinDone(false);
       // console.log('[ChatPage][SOCKET] disconnect:', socket.id);
     });
     return () => {
       socket.off('chat message', handleSocketMessage);
+      socket.off('read', handleRead);
       socket.off('joined');
       socket.disconnect();
       setJoinDone(false);
@@ -294,16 +318,36 @@ const ChatPage: React.FC = () => {
       .catch(() => setMessages([]));
   }, [user?.id, partnerUserId, periodId]);
 
-  // 2-1. 실시간으로 새 메시지가 올 때마다 읽음 처리 (현재 채팅방 기준)
+  // 2-1. 실시간으로 새 메시지가 올 때마다 읽음 처리 (현재 채팅방 기준) + 읽음 이벤트 emit
   useEffect(() => {
     if (!user?.id || !partnerUserId || !periodId) return;
     if (!messages.length) return;
+
+    const myId = String(user.id);
+    const partnerId = String(partnerUserId);
+
+    // 내가 받은 "안읽은" 메시지가 있을 때만 처리
+    const hasUnreadFromPartner = messages.some(
+      (m: any) => m.senderId === partnerId && m.is_read !== true
+    );
+    if (!hasUnreadFromPartner) return;
+
     chatApi
       .markAsRead(periodId as string, partnerUserId as string, user.id as string)
+      .then(() => {
+        const socket = socketRef.current;
+        if (socket) {
+          socket.emit('read', {
+            period_id: periodId,
+            reader_id: myId,
+            partner_id: partnerId,
+          });
+        }
+      })
       .catch(() => {
         // 조용히 무시 (UI 깜빡임 방지)
       });
-  }, [messages.length, user?.id, partnerUserId, periodId]);
+  }, [messages, user?.id, partnerUserId, periodId]);
 
   // 3. 메시지 전송
   const handleSend = async () => {

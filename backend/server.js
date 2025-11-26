@@ -180,6 +180,18 @@ io.on('connection', (socket) => {
       console.error('[SOCKET][server] [채팅 DB 저장 예외]', e);
     }
   });
+  // 읽음 상태 브로드캐스트
+  socket.on('read', (data) => {
+    try {
+      if (!data || !data.period_id || !data.reader_id || !data.partner_id) return;
+      const sortedIds = [String(data.reader_id), String(data.partner_id)].sort();
+      const roomId = `${data.period_id}_${sortedIds[0]}_${sortedIds[1]}`;
+      io.to(roomId).emit('read', data);
+      console.log('[SOCKET][server] read 이벤트 브로드캐스트:', roomId, data);
+    } catch (e) {
+      console.error('[SOCKET][server] read 이벤트 처리 오류:', e);
+    }
+  });
   socket.on('disconnect', () => {
     console.log('[SOCKET][server] disconnect:', socket.id);
   });
