@@ -193,7 +193,9 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
   };
 
   const openCompatibilityModal = async (user: any, tab: 'iPrefer' | 'preferMe') => {
-    if (!user?.id) {
+    // 주의: /admin/users 응답에서 user.id는 user_profiles.id(숫자)로 덮어쓰여 있으므로,
+    // 실제 사용자 식별자는 user.user_id(문자열/uuid)를 사용해야 함.
+    if (!user?.user_id) {
       toast.warn('회원 정보를 찾을 수 없습니다.');
       return;
     }
@@ -205,7 +207,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
       activeTab: tab,
     });
     try {
-      const data = await adminMatchingApi.getMatchingCompatibilityLive(String(user.id));
+      const data = await adminMatchingApi.getMatchingCompatibilityLive(String(user.user_id));
       setCompatModal(prev => ({
         ...prev,
         loading: false,
@@ -254,7 +256,6 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                 <th onClick={() => { setSortKey('email'); setSortAsc(k => !k); }}>
                   이메일 <FaSort />
                 </th>
-                <th>프로필/선호 보기</th>
                 <th>내가 선호하는</th>
                 <th>나를 선호하는</th>
               </tr>
@@ -269,14 +270,6 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                   </td>
                   <td>{user.gender === 'male' ? '남성' : user.gender === 'female' ? '여성' : '-'}</td>
                   <td>{user.email || '-'}</td>
-                  <td>
-                    <Button
-                      style={{ padding: '4px 10px', fontSize: '0.9em' }}
-                      onClick={() => openProfileModal(user)}
-                    >
-                      보기
-                    </Button>
-                  </td>
                   <td>
                     <Button
                       style={{ padding: '4px 10px', fontSize: '0.9em' }}

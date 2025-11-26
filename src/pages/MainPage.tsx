@@ -879,7 +879,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
     let isApplied = false;
     let isMatched: boolean | null = null;
-
+    
     if (matchingStatus) {
       // 신청 여부는 matchingStatus를 우선 사용하되, 없으면 false
       isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
@@ -891,17 +891,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         isMatched = matchingStatus.matched;
       } else {
         isMatched = null; // 아직 결과 미정 → "결과 준비중"
-      }
+    }
     } else if (user) {
       // matchingStatus가 아직 없으면, 신청 여부만 user에서 보완
       isApplied = user.is_applied === true;
       // isMatched는 과거 회차의 잔존값일 수 있으므로 **사용하지 않고 null로 둔다**
       isMatched = null;
     }
-
+    
     // is_cancelled는 matchingStatus에서만 사용
     const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
-
+    
     return { isApplied, isMatched, isCancelled };
   };
 
