@@ -168,6 +168,36 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     loadUsers();
   }, []);
 
+  // 페이지 진입 시 각 회원별 호환 인원 수 미리 조회해서 캐싱
+  useEffect(() => {
+    if (!users.length) return;
+    const fetchAllCounts = async () => {
+      const next: Record<string, { iPrefer: number; preferMe: number }> = {};
+      await Promise.all(
+        users.map(async (u) => {
+          if (!u?.user_id) return;
+          const key = String(u.user_id);
+          try {
+            const data = await adminMatchingApi.getMatchingCompatibilityLive(key);
+            next[key] = {
+              iPrefer: Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0,
+              preferMe: Array.isArray(data?.preferMe) ? data.preferMe.length : 0,
+            };
+          } catch {
+            // 에러가 나더라도 기본값 0 유지
+            if (!next[key]) {
+              next[key] = { iPrefer: 0, preferMe: 0 };
+            }
+          }
+        })
+      );
+      if (Object.keys(next).length) {
+        setCompatCounts(prev => ({ ...prev, ...next }));
+      }
+    };
+    fetchAllCounts();
+  }, [users]);
+
   const sortedUsers = [...users].sort((a, b) => {
     let v1: any = a[sortKey];
     let v2: any = b[sortKey];
@@ -288,7 +318,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                       style={{ padding: '4px 10px', fontSize: '0.9em' }}
                       onClick={() => openCompatibilityModal(user, 'iPrefer')}
                     >
-                      보기{counts.iPrefer ? ` (${counts.iPrefer})` : ''}
+                      보기 ({counts.iPrefer})
                     </Button>
                   </td>
                   <td>
@@ -296,7 +326,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                       style={{ padding: '4px 10px', fontSize: '0.9em', background: '#4F46E5' }}
                       onClick={() => openCompatibilityModal(user, 'preferMe')}
                     >
-                      보기{counts.preferMe ? ` (${counts.preferMe})` : ''}
+                      보기 ({counts.preferMe})
                     </Button>
                   </td>
                 </tr>
