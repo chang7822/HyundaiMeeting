@@ -753,7 +753,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
 
 
-  // 안읽은 메시지 개수 정기 업데이트 (30초마다, 깜빡임 방지)
+  // 안읽은 메시지 개수 정기 업데이트 (5초마다, 최대한 실시간에 가깝게)
   useEffect(() => {
     if (!user?.id) return;
     
@@ -766,7 +766,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       } catch (error) {
         // 에러 시 조용히 무시 (깜빡임 방지)
       }
-    }, 30000); // 30초마다 업데이트
+    }, 5000); // 5초마다 업데이트
 
     return () => window.clearInterval(interval);
   }, [user?.id]);
