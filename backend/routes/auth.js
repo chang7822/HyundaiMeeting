@@ -101,6 +101,12 @@ async function sendVerificationEmail(email, code) {
           <h1 style="color: #667eea; font-size: 32px; margin: 0;">${code}</h1>
         </div>
         <p>이 인증번호는 30분간 유효합니다.</p>
+        <div style="text-align: center; margin: 24px 0;">
+          <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
+             style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+            사쏠공 (사내 솔로공모)<br/>바로가기
+          </a>
+        </div>
         <p style="color: #666; font-size: 14px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px;">
           <strong>송신 시각:</strong> ${koreanTime} (한국 시간)<br>
           <strong>만료 시각:</strong> ${new Intl.DateTimeFormat('ko-KR', {
@@ -275,6 +281,12 @@ router.post('/resend-verification', async (req, res) => {
             <h1 style="color: #007bff; margin: 0; font-size: 32px; letter-spacing: 4px;">${verificationCode}</h1>
           </div>
           <p>이 인증번호는 30분간 유효합니다.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
+               style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+              사쏠공 (사내 솔로공모)<br/>바로가기
+            </a>
+          </div>
           <p>감사합니다.</p>
         </div>
       `
@@ -902,6 +914,12 @@ router.post('/forgot-password', async (req, res) => {
           </div>
           <p>이 인증번호는 30분간 유효합니다.</p>
           <p>본인이 요청하지 않았다면 이 이메일을 무시해주세요.</p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
+               style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+              사쏠공 (사내 솔로공모)<br/>바로가기
+            </a>
+          </div>
           <p>감사합니다.</p>
         </div>
       `

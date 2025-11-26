@@ -64,6 +64,13 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
         </p>
       </div>
       
+      <div style="text-align: center; margin: 24px 0;">
+        <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
+           style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+          사쏠공 (사내 솔로공모)<br/>바로가기
+        </a>
+      </div>
+      
       <div style="background: #f7fafc; padding: 20px; border-radius: 10px; text-align: center;">
         <p style="color: #718096; margin: 0; font-size: 14px;">
           <strong>발표 시각:</strong> ${koreanTime} (한국 시간)
