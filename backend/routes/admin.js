@@ -493,6 +493,7 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
 
     const subjectIdStr = String(userId);
     const others = applicants.filter(applicant => String(applicant.user_id) !== subjectIdStr);
+    const subjectGender = subjectProfile?.gender || null;
 
     const makeEntry = (applicant, mutual = false) => ({
       user_id: applicant.user_id,
@@ -507,6 +508,12 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
     const preferMe = [];
 
     for (const applicant of others) {
+      // 성별 필터: 기본적으로 이성만 대상으로 계산 (스냅샷 기반 호환성도 동일 정책 적용)
+      const otherGender = applicant.profile?.gender || null;
+      if (subjectGender && otherGender && subjectGender === otherGender) {
+        continue;
+      }
+
       const fitsMyPreference = profileMatchesPreference(applicant.profile, subjectProfile);
       const iFitTheirPreference = profileMatchesPreference(subjectProfile, applicant.profile);
       const mutual = fitsMyPreference && iFitTheirPreference;
@@ -617,6 +624,7 @@ router.get('/matching-compatibility-live/:userId', authenticate, async (req, res
 
     // 5) 기준 사용자와의 호환성 계산 (현재 프로필/선호 기준)
     const subject = subjectProfile;
+    const subjectGender = subject?.gender || null;
     const makeEntry = (applicant, mutual = false) => ({
       user_id: applicant.user_id,
       nickname: applicant.profile.nickname || '(닉네임 없음)',
@@ -630,6 +638,12 @@ router.get('/matching-compatibility-live/:userId', authenticate, async (req, res
     const preferMe = [];
 
     for (const applicant of applicants) {
+      // 성별 필터: 기본적으로 이성만 대상으로 계산
+      const otherGender = applicant.profile?.gender || null;
+      if (subjectGender && otherGender && subjectGender === otherGender) {
+        continue;
+      }
+
       const fitsMyPreference = profileMatchesPreference(applicant.profile, subject);
       const iFitTheirPreference = profileMatchesPreference(subject, applicant.profile);
       const mutual = fitsMyPreference && iFitTheirPreference;

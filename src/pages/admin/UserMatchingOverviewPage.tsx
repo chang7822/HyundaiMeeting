@@ -149,6 +149,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
   });
 
   const [loading, setLoading] = useState(true);
+  const [compatCounts, setCompatCounts] = useState<Record<string, { iPrefer: number; preferMe: number }>>({});
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -208,6 +209,16 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     });
     try {
       const data = await adminMatchingApi.getMatchingCompatibilityLive(String(user.user_id));
+      // 버튼 옆에 표시할 인원 수 캐싱
+      const iPreferCount = Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0;
+      const preferMeCount = Array.isArray(data?.preferMe) ? data.preferMe.length : 0;
+      setCompatCounts(prev => ({
+        ...prev,
+        [String(user.user_id)]: {
+          iPrefer: iPreferCount,
+          preferMe: preferMeCount,
+        },
+      }));
       setCompatModal(prev => ({
         ...prev,
         loading: false,
@@ -261,7 +272,9 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
               </tr>
             </thead>
             <tbody>
-              {sortedUsers.map(user => (
+              {sortedUsers.map(user => {
+                const counts = compatCounts[String(user.user_id)] || { iPrefer: 0, preferMe: 0 };
+                return (
                 <tr key={user.id}>
                   <td>
                     <NicknameBtn onClick={() => openProfileModal(user)}>
@@ -275,7 +288,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                       style={{ padding: '4px 10px', fontSize: '0.9em' }}
                       onClick={() => openCompatibilityModal(user, 'iPrefer')}
                     >
-                      보기
+                      보기{counts.iPrefer ? ` (${counts.iPrefer})` : ''}
                     </Button>
                   </td>
                   <td>
@@ -283,11 +296,11 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                       style={{ padding: '4px 10px', fontSize: '0.9em', background: '#4F46E5' }}
                       onClick={() => openCompatibilityModal(user, 'preferMe')}
                     >
-                      보기
+                      보기{counts.preferMe ? ` (${counts.preferMe})` : ''}
                     </Button>
                   </td>
                 </tr>
-              ))}
+              );})}
             </tbody>
           </Table>
         )}
