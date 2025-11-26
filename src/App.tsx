@@ -116,7 +116,7 @@ const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
-  const [maintenance, setMaintenance] = useState<boolean | null>(null);
+  const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
 
   // 모바일 진입 시 사이드바 자동 닫기
@@ -142,7 +142,8 @@ const AppInner: React.FC = () => {
       try {
         const res = await systemApi.getStatus();
         if (!cancelled) {
-          setMaintenance(!!res?.maintenance?.enabled);
+          const m = res?.maintenance;
+          setMaintenance(m ? { enabled: !!m.enabled, message: m.message || '' } : { enabled: false, message: '' });
         }
       } catch {
         if (!cancelled) {
@@ -183,7 +184,7 @@ const AppInner: React.FC = () => {
   // 유지보수 모드: 인증 완료 후 일반 사용자만 막고, 관리자는 통과
   const isAdmin = !!user?.isAdmin;
   const showMaintenance =
-    maintenanceLoading ? false : (maintenance === true && isAuthenticated && !isAdmin);
+    maintenanceLoading ? false : ((maintenance?.enabled === true) && isAuthenticated && !isAdmin);
 
   if (showMaintenance) {
     return (
@@ -192,7 +193,7 @@ const AppInner: React.FC = () => {
           logout();
           window.location.href = '/';
         }}
-        message={typeof (maintenance as any)?.message === 'string' ? (maintenance as any).message : undefined}
+        message={maintenance?.message}
       />
     );
   }
