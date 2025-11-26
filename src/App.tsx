@@ -59,7 +59,7 @@ import { systemApi } from './services/api.ts';
 
 const queryClient = new QueryClient();
 
-const MaintenanceScreen: React.FC = () => {
+const MaintenanceScreen: React.FC<{ onLogout: () => void; message?: string }> = ({ onLogout, message }) => {
   return (
     <div style={{
       minHeight: '100vh',
@@ -77,9 +77,37 @@ const MaintenanceScreen: React.FC = () => {
         현재 서비스 안정화를 위한 점검이 진행 중입니다.
         {'\n'}점검 완료 후 다시 이용 부탁드립니다.
       </p>
-      <div style={{ marginTop: 16, fontSize: '0.9rem', opacity: 0.8 }}>
-        관리자 계정으로는 정상 접속이 가능합니다.
-      </div>
+      {message && (
+        <div style={{
+          maxWidth: 520,
+          margin: '0 auto 24px',
+          padding: '12px 16px',
+          borderRadius: 12,
+          background: 'rgba(15,23,42,0.35)',
+          fontSize: '0.9rem',
+          lineHeight: 1.5,
+          whiteSpace: 'pre-line',
+        }}>
+          {message}
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={onLogout}
+        style={{
+          marginTop: 8,
+          padding: '10px 20px',
+          borderRadius: 999,
+          border: 'none',
+          background: '#111827',
+          color: '#fff',
+          fontWeight: 600,
+          cursor: 'pointer',
+          fontSize: '0.9rem',
+        }}
+      >
+        로그아웃
+      </button>
     </div>
   );
 };
@@ -87,7 +115,7 @@ const MaintenanceScreen: React.FC = () => {
 const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, logout } = useAuth();
   const [maintenance, setMaintenance] = useState<boolean | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
 
@@ -158,7 +186,15 @@ const AppInner: React.FC = () => {
     maintenanceLoading ? false : (maintenance === true && isAuthenticated && !isAdmin);
 
   if (showMaintenance) {
-    return <MaintenanceScreen />;
+    return (
+      <MaintenanceScreen
+        onLogout={() => {
+          logout();
+          window.location.href = '/';
+        }}
+        message={typeof (maintenance as any)?.message === 'string' ? (maintenance as any).message : undefined}
+      />
+    );
   }
 
   return (

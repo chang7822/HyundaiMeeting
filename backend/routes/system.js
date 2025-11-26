@@ -17,11 +17,15 @@ router.get('/status', async (req, res) => {
     }
 
     const enabled = !!(data && data.value && data.value.enabled === true);
+    const message = (data && data.value && typeof data.value.message === 'string')
+      ? data.value.message
+      : '';
 
     res.json({
       success: true,
       maintenance: {
         enabled,
+        message,
       },
     });
   } catch (error) {

@@ -168,6 +168,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [loading, setLoading] = useState(true);
   const [maintenance, setMaintenance] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState('');
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -175,6 +176,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       try {
         const res = await adminApi.getSystemSettings();
         setMaintenance(!!res?.maintenance?.enabled);
+        setMaintenanceMessage(res?.maintenance?.message || '');
       } catch (e) {
         console.error('[SettingsPage] 시스템 설정 조회 오류:', e);
         toast.error('시스템 설정을 불러오지 못했습니다.');
@@ -190,12 +192,25 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
     setMaintenance(next);
     setSaving(true);
     try {
-      await adminApi.updateMaintenance(next);
+      await adminApi.updateMaintenance(next, maintenanceMessage);
       toast.success(next ? '서버 점검 모드가 활성화되었습니다.' : '서버 점검 모드가 해제되었습니다.');
     } catch (e) {
       console.error('[SettingsPage] 유지보수 모드 업데이트 오류:', e);
       setMaintenance(!next); // 롤백
       toast.error('유지보수 모드를 변경하지 못했습니다.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMessageBlur = async () => {
+    setSaving(true);
+    try {
+      await adminApi.updateMaintenance(maintenance, maintenanceMessage);
+      toast.success('서버 점검 안내 문구가 저장되었습니다.');
+    } catch (e) {
+      console.error('[SettingsPage] 유지보수 안내 문구 업데이트 오류:', e);
+      toast.error('서버 점검 안내 문구를 저장하지 못했습니다.');
     } finally {
       setSaving(false);
     }
@@ -237,6 +252,32 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 <SwitchSlider />
               </SwitchLabel>
             </ToggleRow>
+
+            <div style={{ marginTop: '1rem' }}>
+              <SectionTitle style={{ fontSize: '1rem', marginBottom: '0.4rem' }}>서버 점검 안내 문구</SectionTitle>
+              <SectionDescription>
+                서버 점검 화면 하단에 노출될 안내 문구입니다.
+                {'\n'}점검 사유, 예상 종료 시각 등을 자유롭게 작성해주세요.
+              </SectionDescription>
+              <textarea
+                value={maintenanceMessage}
+                onChange={e => setMaintenanceMessage(e.target.value)}
+                onBlur={handleMessageBlur}
+                rows={4}
+                style={{
+                  width: '100%',
+                  borderRadius: 12,
+                  border: '1px solid #e2e8f0',
+                  padding: '0.75rem 1rem',
+                  fontSize: '0.9rem',
+                  resize: 'vertical',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+                placeholder={'예) 서버 성능 개선을 위한 점검이 진행 중입니다.\n예상 종료 시각: 21:30\n불편을 드려 죄송합니다.'}
+                disabled={saving}
+              />
+            </div>
           </Section>
 
           <Section>

@@ -70,10 +70,14 @@ router.get('/system-settings', authenticate, async (req, res) => {
     }
 
     const enabled = !!(data && data.value && data.value.enabled === true);
+    const message = (data && data.value && typeof data.value.message === 'string')
+      ? data.value.message
+      : '';
     res.json({
       success: true,
       maintenance: {
         enabled,
+        message,
       },
     });
   } catch (error) {
@@ -86,10 +90,11 @@ router.get('/system-settings', authenticate, async (req, res) => {
 router.put('/system-settings/maintenance', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
-    const { enabled } = req.body || {};
+    const { enabled, message } = req.body || {};
 
     const value = {
       enabled: !!enabled,
+      message: typeof message === 'string' ? message : '',
     };
 
     const { data, error } = await supabase

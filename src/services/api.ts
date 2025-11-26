@@ -278,7 +278,7 @@ export const chatApi = {
 
 // System API (유지보수 모드 등 전역 설정)
 export const systemApi = {
-  getStatus: async (): Promise<{ success: boolean; maintenance: { enabled: boolean } }> => {
+  getStatus: async (): Promise<{ success: boolean; maintenance: { enabled: boolean; message?: string } }> => {
     const response = await api.get('/system/status');
     return response.data;
   },
@@ -307,14 +307,14 @@ export const adminApi = {
   },
 
   // 시스템 설정 조회 (유지보수 모드 등)
-  getSystemSettings: async (): Promise<{ success: boolean; maintenance: { enabled: boolean } }> => {
+  getSystemSettings: async (): Promise<{ success: boolean; maintenance: { enabled: boolean; message?: string } }> => {
     const response = await api.get('/admin/system-settings');
     return response.data;
   },
 
   // 유지보수 모드 토글
-  updateMaintenance: async (enabled: boolean): Promise<any> => {
-    const response = await api.put('/admin/system-settings/maintenance', { enabled });
+  updateMaintenance: async (enabled: boolean, message?: string): Promise<any> => {
+    const response = await api.put('/admin/system-settings/maintenance', { enabled, message });
     return response.data;
   },
 };
