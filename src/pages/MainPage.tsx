@@ -539,7 +539,7 @@ const cancelTime = 1;
 
 const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
-  const { user, profile, isLoading, isAuthenticated, fetchUser } = useAuth();
+  const { user, profile, isLoading, isAuthenticated, fetchUser, setProfile } = useAuth() as any;
   const [period, setPeriod] = useState<any>(null);
   const [loadingPeriod, setLoadingPeriod] = useState(true);
   const [now, setNow] = useState<Date>(new Date());
@@ -1235,6 +1235,43 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 매칭 신청
   const handleMatchingRequest = async () => {
+    // 최신 프로필 정보를 서버에서 다시 조회 (기존 캐시/컨텍스트와 무관하게)
+    let bodyTypes: string[] = [];
+    let me: any = null;
+    try {
+      me = await userApi.getMe();
+      const val: any = me.body_type;
+      if (!val) {
+        bodyTypes = [];
+      } else if (Array.isArray(val)) {
+        bodyTypes = val as string[];
+      } else {
+        try {
+          const parsed = JSON.parse(val as any);
+          bodyTypes = Array.isArray(parsed) ? parsed : [String(val)];
+        } catch {
+          bodyTypes = [String(val)];
+        }
+      }
+    } catch (e) {
+      console.error('[MainPage] 프로필 조회 중 오류:', e);
+      bodyTypes = [];
+    }
+
+    // 모달에 보여줄 프로필도 최신 값으로 업데이트
+    if (me) {
+      try {
+        setProfile(me);
+      } catch (e) {
+        console.error('[MainPage] setProfile 중 오류:', e);
+      }
+    }
+
+    if (bodyTypes.length !== 3) {
+      toast.error('원활한 매칭을 위해 프로필에서 체형 3개를 선택해 주세요.');
+      return;
+    }
+
     // 이메일 인증 체크
     if (!checkEmailVerification()) {
       return;
@@ -1427,12 +1464,29 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     );
   }
 
+  const handleOpenProfileModal = async () => {
+    try {
+      const me = await userApi.getMe();
+      if (me) {
+        try {
+          setProfile(me);
+        } catch (e) {
+          console.error('[MainPage] 프로필 모달 setProfile 중 오류:', e);
+        }
+      }
+    } catch (e) {
+      console.error('[MainPage] 프로필 모달용 프로필 조회 중 오류:', e);
+    } finally {
+      setShowProfileModal(true);
+    }
+  };
+
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
       <WelcomeSection>
         <WelcomeTitle>
           환영합니다,{' '}
-          <NicknameSpan onClick={() => setShowProfileModal(true)}>
+          <NicknameSpan onClick={handleOpenProfileModal}>
             {displayName}
           </NicknameSpan>
           님!
@@ -1523,6 +1577,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               birthYear={profile?.birth_year || 0}
               gender={profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
               job={profile?.job_type || '-'}
+              company={profile?.company || undefined}
               mbti={profile?.mbti}
               maritalStatus={profile?.marital_status}
               appeal={profile?.appeal}
@@ -1551,6 +1606,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               birthYear={partnerProfile.birth_year}
               gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : '-'}
               job={partnerProfile.job_type || '-'}
+              company={partnerProfile.company || undefined}
               mbti={partnerProfile.mbti}
               maritalStatus={partnerProfile.marital_status}
               appeal={partnerProfile.appeal}
@@ -1667,7 +1723,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               }}>
                 <div style={{marginBottom:14}}>
                   <div style={{fontWeight:700,fontSize:'1.18rem',color:'#4F46E5',marginBottom:2}}>{profile?.nickname || displayName}</div>
-                  <div style={{fontSize:'0.98rem',color:'#666'}}>{profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'} · {profile?.job_type || '-'}</div>
+                  <div style={{fontSize:'0.98rem',color:'#666'}}>
+                    {profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'} · {profile?.job_type || '-'}
+                    {profile?.company ? ` · ${profile.company}` : ''}
+                  </div>
                 </div>
                 <div style={{
                   display:'flex',

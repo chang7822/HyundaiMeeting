@@ -245,6 +245,10 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
   // 본인 또는 매칭된 상대방이면 허용
   const requesterId = String(req.user.userId);
   const targetId = String(req.params.userId);
+
+  // 매칭 정보(상대 프로필 스냅샷용) 보관용 변수
+  let matchRowForSnapshot = null;
+
   if (requesterId !== targetId) {
     // 매칭 성공 여부 확인
     const { data: matchRow, error: matchError } = await supabase
@@ -254,37 +258,85 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
       .order('applied_at', { ascending: false })
       .limit(1)
       .single();
+
     if (matchError || !matchRow || !matchRow.matched || matchRow.partner_user_id !== targetId) {
       return res.status(403).json({ error: '본인 또는 매칭된 상대방만 프로필을 조회할 수 있습니다.' });
     }
+
+    // 상대방 프로필 스냅샷 조회 시 사용할 매칭 row 저장
+    matchRowForSnapshot = matchRow;
   }
+
   try {
     const { userId } = req.params;
-    
-    // 프로필 정보 조회
-    const { data: profileData, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-    
-    if (profileError) {
-      console.error('프로필 조회 오류:', profileError);
-      return res.status(404).json({ message: '프로필을 찾을 수 없습니다.' });
+    let profileData;
+
+    if (requesterId === targetId) {
+      // 본인인 경우: 항상 최신 프로필(user_profiles) 사용
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error) {
+        console.error('프로필 조회 오류:', error);
+        return res.status(404).json({ message: '프로필을 찾을 수 없습니다.' });
+      }
+      profileData = data;
+    } else {
+      // 매칭된 상대방인 경우: 매칭 신청 당시 스냅샷을 우선 사용
+      let snapshot = null;
+      if (matchRowForSnapshot && matchRowForSnapshot.period_id) {
+        const { data: appRow, error: appError } = await supabase
+          .from('matching_applications')
+          .select('profile_snapshot')
+          .eq('user_id', targetId)
+          .eq('period_id', matchRowForSnapshot.period_id)
+          .order('applied_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (appError && appError.code !== 'PGRST116') {
+          console.error('프로필 스냅샷 조회 오류:', appError);
+          return res.status(500).json({ message: '프로필 스냅샷 조회에 실패했습니다.' });
+        }
+
+        if (appRow && appRow.profile_snapshot) {
+          snapshot = appRow.profile_snapshot;
+        }
+      }
+
+      if (snapshot) {
+        profileData = snapshot;
+      } else {
+        // 스냅샷이 없으면 안전하게 최신 프로필로 fallback
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        if (error) {
+          console.error('프로필 조회 오류(스냅샷 없음, 최신 프로필 사용):', error);
+          return res.status(404).json({ message: '프로필을 찾을 수 없습니다.' });
+        }
+        profileData = data;
+      }
     }
-    
-    // 사용자 정지 상태 정보 조회
+
+    // 사용자 정지 상태 정보 조회 (항상 실시간)
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('is_banned, banned_until')
       .eq('id', userId)
       .single();
-    
+
     if (userError) {
       console.error('사용자 정보 조회 오류:', userError);
       return res.status(500).json({ message: '사용자 정보 조회에 실패했습니다.' });
     }
-    
+
     // 프로필 데이터에 정지 상태 정보 추가
     const responseData = {
       ...profileData,
@@ -293,7 +345,7 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
         banned_until: userData.banned_until
       }
     };
-    
+
     res.json(responseData);
   } catch (error) {
     console.error('프로필 조회 오류:', error);

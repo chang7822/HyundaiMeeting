@@ -267,7 +267,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const isPwNotMatch = !!pw2 && pw !== pw2;
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
-  // [1] 체형 선택 상태를 배열로 변경
+  // [1] 체형 선택 상태를 배열로 변경 (정확히 3개 선택)
   const [bodyTypes, setBodyTypes] = useState<string[]>(Array.isArray(profile.body_type) ? profile.body_type : (profile.body_type ? JSON.parse(profile.body_type) : []));
   // [2] 체형 MultiSelect 팝업
   // [삭제] bodyTypePopup 관련 상태/컴포넌트 제거
@@ -353,8 +353,8 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!profile.residence) missingFields.push('거주지');
     if (!profile.job_type) missingFields.push('직군');
     if (!profile.marital_status) missingFields.push('결혼상태');
-    // [추가] 체형 최소 1개 선택 필수
-    if (!bodyTypes || bodyTypes.length === 0) missingFields.push('체형');
+    // [추가] 체형은 정확히 3개 선택 필수
+    if (!bodyTypes || bodyTypes.length !== 3) missingFields.push('체형(3개)');
     const interestsArr = Array.isArray(profile.interests) ? profile.interests : (profile.interests ? JSON.parse(profile.interests) : []);
     if (!interestsArr || interestsArr.length === 0) missingFields.push('관심사');
     const appearanceArr = Array.isArray(profile.appearance) ? profile.appearance : (profile.appearance ? JSON.parse(profile.appearance) : []);
@@ -363,8 +363,8 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!personalityArr || personalityArr.length === 0) missingFields.push('성격');
     if (!profile.appeal || profile.appeal.trim().length === 0) missingFields.push('자기소개');
     if (missingFields.length > 0) {
-      if (missingFields.includes('체형')) {
-        toast.error('체형은 최소 1개 이상 선택해야 합니다.');
+      if (missingFields.includes('체형(3개)')) {
+        toast.error('원활한 매칭을 위해 체형 3개를 선택 바랍니다.');
         return;
       }
       toast.error(`다음 항목을 입력해주세요: ${missingFields.join(', ')}`);
@@ -534,6 +534,17 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         {nicknameError && (
           <div style={{ color: '#e74c3c', fontSize: '0.95rem', marginTop: -12, marginBottom: 8 }}>{nicknameError}</div>
         )}
+        {/* 회사 - 읽기 전용 */}
+        <Label>회사명</Label>
+        <Input
+          value={profile.company || '회사 정보가 없습니다.'}
+          disabled={true}
+          style={{
+            marginBottom:24,
+            backgroundColor: '#f5f5f5',
+            cursor: 'not-allowed'
+          }}
+        />
         <Label>키</Label>
         <div style={{marginBottom:'8px',padding:'0 16px'}}>
           <Slider
@@ -558,7 +569,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             {profile.height ? `${profile.height} cm` : '키를 입력해주세요'}
           </div>
         </div>
-        <Label>체형 (최대 3개)</Label>
+        <Label>체형 (3개 선택)</Label>
         <BodyTypeGrid>
           {(() => {
             // '체형' 카테고리 중 gender가 profile.gender와 일치하는 것만 사용

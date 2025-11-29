@@ -267,7 +267,7 @@ const ProfileSetupPage = () => {
   // 팝업 상태
   const [popup, setPopup] = useState<{type: string} | null>(null);
   const [addressPopup, setAddressPopup] = useState(false);
-  // [3] 체형 MultiSelect 팝업
+  // [3] 체형 MultiSelect (정확히 3개 선택)
   // [삭제] bodyTypePopup 관련 상태/컴포넌트 제거
   // [추가] handleBodyTypeToggle 함수
   const handleBodyTypeToggle = (bodyType: string) => {
@@ -390,8 +390,9 @@ const ProfileSetupPage = () => {
       missingFields.push('MBTI');
     }
     
-    if (bodyTypes.length === 0) {
-      missingFields.push('체형');
+    // 체형은 정확히 3개 선택 필수
+    if (bodyTypes.length !== 3) {
+      missingFields.push('체형(3개)');
     }
     
     if (!jobType) {
@@ -441,6 +442,10 @@ const ProfileSetupPage = () => {
     }
 
     if (missingFields.length > 0) {
+      if (missingFields.includes('체형(3개)')) {
+        toast.error('원활한 매칭을 위해 체형 3개를 선택바랍니다.');
+        return;
+      }
       toast.error(`다음 항목을 입력해주세요: ${missingFields.join(', ')}`);
       return;
     }
@@ -510,7 +515,7 @@ const ProfileSetupPage = () => {
           ))}
         </Select>
         
-        <Label>체형 (최대 3개)</Label>
+        <Label>체형 (3개 선택)</Label>
         <BodyTypeGrid>
           {(() => {
             // '체형' 카테고리 중 gender가 userGender와 일치하는 것만 사용

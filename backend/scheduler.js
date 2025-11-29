@@ -1,6 +1,13 @@
 // 매칭 회차 스케줄러: matching_log의 matching_run 시각에 맞춰 matching-algorithm.js 실행
 const cron = require('node-cron');
 const { exec } = require('child_process');
+const path = require('path');
+const dotenv = require('dotenv');
+
+// 로컬 개발 시 backend/config.env 를 읽어서 SUPABASE_* 등 환경변수 세팅
+// - Render 운영 서버에서는 config.env 파일이 없어도, Render Environment 변수에서 값을 읽기 때문에 문제 없음
+dotenv.config({ path: path.join(__dirname, 'config.env') });
+
 const { supabase } = require('./database');
 
 let lastPeriodStartReset = null; // 회차 시작 초기화 중복 실행 방지용

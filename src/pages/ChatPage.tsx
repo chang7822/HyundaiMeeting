@@ -428,7 +428,15 @@ const ChatPage: React.FC = () => {
   const handleBack = () => {
     navigate('/main');
   };
-  const handleShowProfile = () => {
+  const handleShowProfile = async () => {
+    if (partnerUserId) {
+      try {
+        const latest = await userApi.getUserProfile(partnerUserId);
+        setPartnerProfile(latest);
+      } catch (e) {
+        console.error('[ChatPage] 프로필 모달용 상대 프로필 조회 중 오류:', e);
+      }
+    }
     setShowProfileModal(true);
   };
   const handleReport = () => {
@@ -546,6 +554,7 @@ const ChatPage: React.FC = () => {
             birthYear={partnerProfile.birth_year}
             gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : partnerProfile.gender || ''}
             job={partnerProfile.job_type}
+            company={partnerProfile.company || undefined}
             mbti={partnerProfile.mbti}
             maritalStatus={partnerProfile.marital_status}
             appeal={partnerProfile.appeal}

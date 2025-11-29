@@ -518,7 +518,7 @@ router.post('/register', async (req, res) => {
       birth_year: birthYear,
       height: height || null,
       residence: residence || null,
-      company: company || null,
+      company: null,
       job_type: jobType || null,
       appeal: appeal || null,
       // 단일 선택 항목들 초기화
@@ -540,6 +540,49 @@ router.post('/register', async (req, res) => {
       preferred_body_types: null,
       preferred_job_types: null
     };
+
+    // 회사 정보 자동 설정 (도메인 또는 회사 선택 기반)
+    try {
+      let resolvedCompanyName = null;
+
+      // 1) 프론트에서 전달한 company 값이 회사 id인 경우: companies 테이블에서 이름 조회
+      if (company) {
+        const { data: companyRow, error: companyError } = await supabase
+          .from('companies')
+          .select('name')
+          .eq('id', company)
+          .maybeSingle();
+
+        if (!companyError && companyRow && companyRow.name) {
+          resolvedCompanyName = companyRow.name;
+          console.log('[회원가입] company id 기반 회사명 설정:', resolvedCompanyName);
+        }
+      }
+
+      // 2) company id로 못 찾았으면, 이메일 도메인으로 companies.email_domains 기반 매핑
+      if (!resolvedCompanyName && email && email.includes('@')) {
+        const domain = email.split('@')[1].toLowerCase();
+        const { data: domainCompanies, error: domainError } = await supabase
+          .from('companies')
+          .select('name, email_domains');
+
+        if (!domainError && Array.isArray(domainCompanies)) {
+          const match = domainCompanies.find(row =>
+            Array.isArray(row.email_domains) &&
+            row.email_domains.some(d => String(d).toLowerCase() === domain)
+          );
+          if (match && match.name) {
+            resolvedCompanyName = match.name;
+            console.log('[회원가입] 이메일 도메인 기반 회사명 설정:', resolvedCompanyName, '도메인:', domain);
+          }
+        }
+      }
+
+      profileDataToInsert.company = resolvedCompanyName;
+    } catch (e) {
+      console.error('[회원가입] 회사명 자동 설정 중 오류:', e);
+      profileDataToInsert.company = null;
+    }
 
     // 프로필 데이터 처리
     if (profileData) {

@@ -6,6 +6,7 @@ interface ProfileCardProps {
   birthYear: number;
   gender: string;
   job: string;
+  company?: string;
   mbti?: string;
   maritalStatus?: string;
   appeal?: string;
@@ -95,6 +96,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
   birthYear,
   gender,
   job,
+  company,
   mbti,
   maritalStatus,
   appeal,
@@ -130,7 +132,9 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         <ProfileIcon gender={gender} />
         <div>
           <div style={{fontWeight:700,fontSize:'1.25rem',color:'#4F46E5',marginBottom:2}}>{nickname}</div>
-          <div style={{fontSize:'0.98rem',color:'#666'}}>{birthYear}년생 · {gender} · {job}</div>
+          <div style={{fontSize:'0.98rem',color:'#666'}}>
+            {birthYear}년생 · {gender} · {job}{company ? ` · ${company}` : ''}
+          </div>
         </div>
       </div>
       <div style={sectionStyle}>
