@@ -189,9 +189,6 @@ router.post('/verify-email', async (req, res) => {
       code: verificationCode,
       createdAt: Date.now()
     });
-
-    
-
     const emailSent = await sendVerificationEmail(email, verificationCode);
     
     if (emailSent) {
@@ -259,14 +256,11 @@ router.post('/resend-verification', async (req, res) => {
       createdAt: Date.now()
     });
 
-    // 이메일 발송 로직 (기존과 동일)
-    const transporter = nodemailer.createTransporter({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-      }
-    });
+    // 개발 모드에서 재발송된 인증번호를 콘솔에 한 번만 출력
+    console.log('\n🔐 === 이메일 인증번호 재발송 (개발 모드) ===');
+    console.log(`📧 이메일: ${email}`);
+    console.log(`🔢 인증번호: ${verificationCode}`);
+    console.log('====================================\n');
 
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -292,6 +286,7 @@ router.post('/resend-verification', async (req, res) => {
       `
     };
 
+    // 상단에서 생성한 공용 transporter 재사용
     await transporter.sendMail(mailOptions);
     res.json({ success: true, message: '인증번호가 재발송되었습니다.' });
 
@@ -464,10 +459,19 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: '필수 정보가 누락되었습니다.' });
     }
 
-                    // 약관 동의 확인
-                if (!termsAgreement || !termsAgreement.privacy || !termsAgreement.terms || !termsAgreement.email) {
-                  return res.status(400).json({ error: '개인정보처리방침, 이용약관 및 이메일 수신 동의에 동의해주세요.' });
-                }
+    // 약관 동의 확인
+    if (!termsAgreement || !termsAgreement.privacy || !termsAgreement.terms || !termsAgreement.email) {
+      return res.status(400).json({ error: '개인정보처리방침, 이용약관 및 이메일 수신 동의에 동의해주세요.' });
+    }
+
+    // 선호 회사 선택 필수 검증 (프론트 우회 방지용)
+    if (
+      !preferences ||
+      !Array.isArray(preferences.preferCompanyIds) ||
+      preferences.preferCompanyIds.length === 0
+    ) {
+      return res.status(400).json({ error: '선호 회사를 최소 1개 이상 선택해주세요.' });
+    }
 
     // 이메일 중복 확인
     const { data: existingUser } = await supabase
@@ -732,13 +736,30 @@ router.post('/register', async (req, res) => {
       profileDataToInsert.preferred_age_max = preferences.ageMax ?? null;
       profileDataToInsert.preferred_height_min = preferences.heightMin ?? null;
       profileDataToInsert.preferred_height_max = preferences.heightMax ?? null;
-      profileDataToInsert.preferred_body_types = preferences.preferredBodyTypes && preferences.preferredBodyTypes.length > 0 ? JSON.stringify(preferences.preferredBodyTypes) : null;
-      profileDataToInsert.preferred_job_types = preferences.preferredJobTypes && preferences.preferredJobTypes.length > 0 ? JSON.stringify(preferences.preferredJobTypes) : null;
-      // [추가] preferred_marital_statuses 저장
+      profileDataToInsert.preferred_body_types =
+        preferences.preferredBodyTypes && preferences.preferredBodyTypes.length > 0
+          ? JSON.stringify(preferences.preferredBodyTypes)
+          : null;
+      profileDataToInsert.preferred_job_types =
+        preferences.preferredJobTypes && preferences.preferredJobTypes.length > 0
+          ? JSON.stringify(preferences.preferredJobTypes)
+          : null;
+      // preferred_marital_statuses 저장
       if (preferences.preferredMaritalStatuses && preferences.preferredMaritalStatuses.length > 0) {
         profileDataToInsert.preferred_marital_statuses = JSON.stringify(preferences.preferredMaritalStatuses);
       } else {
         profileDataToInsert.preferred_marital_statuses = null;
+      }
+
+      // 선호 회사 저장 (integer[] 컬럼: prefer_company)
+      if (Array.isArray(preferences.preferCompanyIds) && preferences.preferCompanyIds.length > 0) {
+        const parsedIds = preferences.preferCompanyIds
+          .map(id => parseInt(id, 10))
+          .filter(n => !Number.isNaN(n));
+        if (parsedIds.length === 0) {
+          return res.status(400).json({ error: '선호 회사 정보가 올바르지 않습니다.' });
+        }
+        profileDataToInsert.prefer_company = parsedIds;
       }
     }
 

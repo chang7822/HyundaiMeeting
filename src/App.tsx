@@ -126,6 +126,13 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
+  // 회원가입 단계 이동 시마다 스크롤을 최상단으로 이동
+  useEffect(() => {
+    if (location.pathname.startsWith('/register')) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
+  }, [location.pathname]);
+
   // 페이지 이동 시에도 모바일이면 닫기
   useEffect(() => {
     if (window.innerWidth <= 768) {

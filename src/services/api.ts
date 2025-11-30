@@ -93,12 +93,8 @@ export const authApi = {
       smoking?: string;
       drinking?: string;
     };
-    preferences: {
-      age: number[] | null;
-      height: number[] | null;
-      bodyType: string[] | null;
-      jobType: string[] | null;
-    };
+    // 선호값 전체를 그대로 서버로 넘긴다 (ageMin, heightMin, preferredBodyTypes 등 + preferCompanyIds 포함)
+    preferences: any;
                   termsAgreement?: {
                 privacy: boolean;
                 terms: boolean;

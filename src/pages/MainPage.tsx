@@ -3,10 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
+import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
 
 // 액션 타입 정의
@@ -555,6 +556,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [companies, setCompanies] = useState<Company[]>([]);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -610,6 +612,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       });
     }, 1000); // 1초마다 갱신
     return () => window.clearInterval(timer);
+  }, []);
+
+  // 선호 회사 이름 매핑용 회사 목록 로드
+  useEffect(() => {
+    companyApi
+      .getCompanies()
+      .then(setCompanies)
+      .catch(() => {
+        // 회사 목록 로드 실패 시에도 페이지는 계속 동작하게 둔다.
+      });
   }, []);
 
   // 안읽은 메시지 개수 조회
@@ -1267,6 +1279,21 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }
     }
 
+    // 선호 회사 선택 여부 확인 (기존 회원 보호용)
+    try {
+      const preferCompany = me?.prefer_company;
+      const preferCompanyCount =
+        Array.isArray(preferCompany) ? preferCompany.length : 0;
+      if (!preferCompanyCount || preferCompanyCount === 0) {
+        toast.error('선호 스타일에서 선호 회사를 선택해주세요.');
+        return;
+      }
+    } catch (e) {
+      // 예외가 나더라도 매칭 전에 안전하게 막힌 상태이므로 추가 처리 없음
+      toast.error('선호 스타일에서 선호 회사를 선택해주세요.');
+      return;
+    }
+
     if (bodyTypes.length !== 3) {
       toast.error('원활한 매칭을 위해 프로필에서 체형 3개를 선택해 주세요.');
       return;
@@ -1839,6 +1866,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     <b>체형:</b> {(() => {
                       const arr = profile?.preferred_body_types ? (Array.isArray(profile.preferred_body_types) ? profile.preferred_body_types : (()=>{try{return JSON.parse(profile.preferred_body_types);}catch{return[];}})()) : [];
                       return arr.length > 0 ? arr.join(', ') : '-';
+                    })()}<br/>
+                    <b>회사:</b> {(() => {
+                      const ids = (profile as any)?.prefer_company;
+                      if (!ids || !Array.isArray(ids) || !companies.length) return '-';
+                      const names = ids
+                        .map((id: number) => {
+                          const found = companies.find(c => Number(c.id) === id);
+                          return found?.name;
+                        })
+                        .filter((name): name is string => !!name);
+                      return names.length > 0 ? names.join(', ') : '-';
                     })()}<br/>
                     <b>직군:</b> {(() => {
                       const arr = profile?.preferred_job_types ? (Array.isArray(profile.preferred_job_types) ? profile.preferred_job_types : (()=>{try{return JSON.parse(profile.preferred_job_types);}catch{return[];}})()) : [];

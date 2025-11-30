@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getProfileCategories, getProfileOptions, userApi } from '../services/api.ts';
-import { ProfileCategory, ProfileOption } from '../types/index.ts';
+import { getProfileCategories, getProfileOptions, userApi, companyApi } from '../services/api.ts';
+import { ProfileCategory, ProfileOption, Company } from '../types/index.ts';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaTimes } from 'react-icons/fa';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import InlineSpinner from '../components/InlineSpinner.tsx';
+import PreferredCompanyModal from '../components/PreferredCompanyModal.tsx';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -118,6 +119,37 @@ const BodyTypeGrid = styled.div`
   margin-top: 0;
   margin-bottom: 32px;
 `;
+const CompanySection = styled.div`
+  margin-bottom: 32px;
+`;
+const CompanyOpenButton = styled.button`
+  width: 100%;
+  background: #f5f3ff;
+  color: #4f46e5;
+  border: 1.5px solid #a5b4fc;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #e0e7ff;
+    border-color: #818cf8;
+  }
+`;
+const CompanySummaryText = styled.div`
+  margin-top: 6px;
+  padding-left: 2px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4f46e5;
+`;
 const BodyTypeButton = styled.button<{ selected: boolean; fullwidth?: boolean }>`
   background: ${props => props.selected ? '#764ba2' : '#f7f7fa'};
   color: ${props => props.selected ? '#fff' : '#333'};
@@ -182,13 +214,14 @@ type PreferenceType = {
 
 const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
-  const { setProfile } = useAuth();
+  const { profile, setProfile } = useAuth();
   const userGender = sessionStorage.getItem('userGender') as 'male' | 'female' | null;
   const [categories, setCategories] = useState<ProfileCategory[]>([]);
   const [options, setOptions] = useState<ProfileOption[]>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [optionsLoaded, setOptionsLoaded] = useState(false);
   const [loading, setLoading] = React.useState(true);
+  const [companies, setCompanies] = useState<Company[]>([]);
 
   useEffect(() => {
     setLoading(true);
@@ -200,6 +233,10 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }).catch(()=>{});
     getProfileCategories().then(data => { setCategories(data); setCategoriesLoaded(true); });
     getProfileOptions().then(data => { setOptions(data); setOptionsLoaded(true); });
+    // 선호 회사 이름 매핑용 회사 목록 로드
+    companyApi.getCompanies().then(setCompanies).catch(() => {
+      // 회사 목록 로드 실패 시에도 페이지는 계속 동작하게 둔다.
+    });
   }, []);
 
   const oppositeGender = userGender === 'male' ? 'female' : userGender === 'female' ? 'male' : null;
@@ -222,6 +259,9 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // 1. 상태 추가
   const [preferredMaritalStatuses, setPreferredMaritalStatuses] = useState<string[]>([]);
   const [preferMaritalNoPreference, setPreferMaritalNoPreference] = useState(false);
+  const [preferCompanyIds, setPreferCompanyIds] = useState<string[]>([]);
+  const [preferCompanyNames, setPreferCompanyNames] = useState<string[]>([]);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
 
   // 2. 결혼상태 옵션 추출
   const maritalCategory = categories.find(cat => cat.name === '결혼상태');
@@ -253,6 +293,14 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         try { setPreferredMaritalStatuses(JSON.parse(profile.preferred_marital_statuses)); } catch { setPreferredMaritalStatuses([]); }
       }
       setPreferMaritalNoPreference(Array.isArray(profile.preferred_marital_statuses) && profile.preferred_marital_statuses.length === 0);
+      // 4. 선호 회사 id 배열 복원
+      if (Array.isArray(profile.prefer_company)) {
+        setPreferCompanyIds(profile.prefer_company.map((id: number) => String(id)));
+      }
+      // 4. 선호 회사 id 배열 복원 (이름은 모달에서 다시 선택 시 세팅)
+      if (Array.isArray(profile.prefer_company)) {
+        setPreferCompanyIds(profile.prefer_company.map((id: number) => String(id)));
+      }
     }).finally(() => setLoading(false));
     // 2. sessionStorage 값이 있으면 덮어쓰기
     const saved = sessionStorage.getItem('userPreferences');
@@ -277,6 +325,29 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [categoriesLoaded, optionsLoaded]);
 
+  // 프로필 및 회사 목록이 준비되면, 저장된 선호 회사 id를 이름으로 매핑해 요약 표시
+  useEffect(() => {
+    if (!companies.length) return;
+    // 이미 모달에서 이름을 세팅했다면 다시 계산할 필요 없음
+    if (preferCompanyNames.length > 0) return;
+    // 컨텍스트 profile 혹은 서버에서 복원된 preferCompanyIds 기준으로 이름 매핑
+    const ids =
+      (profile && Array.isArray((profile as any).prefer_company))
+        ? (profile as any).prefer_company as number[]
+        : preferCompanyIds.map(id => parseInt(id, 10)).filter(n => !Number.isNaN(n));
+    if (!ids || ids.length === 0) return;
+    const names = ids
+      .map(id => {
+        const found = companies.find(c => Number(c.id) === id);
+        return found?.name;
+      })
+      .filter((name): name is string => !!name);
+    if (names.length > 0) {
+      setPreferCompanyIds(ids.map(id => String(id)));
+      setPreferCompanyNames(names);
+    }
+  }, [companies, profile, preferCompanyIds, preferCompanyNames.length]);
+
   // [추가] 모든 옵션 선택 시 '상관없음' 버튼 자동 활성화 useEffect
   useEffect(() => {
     // 체형
@@ -299,8 +370,23 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [preferredBodyTypes, preferredJobTypes, preferredMaritalStatuses, bodyTypeOptions, jobTypeOptions, maritalOptions]);
 
+  const companySummary = useMemo(() => {
+    if (preferCompanyNames.length === 0) return '';
+    const count = preferCompanyNames.length;
+    const preview = preferCompanyNames.slice(0, 3);
+    if (count <= 3) {
+      return `${preview.join(', ')} (${count})`;
+    }
+    return `${preview.join(', ')} 등 (${count})`;
+  }, [preferCompanyNames]);
+
   // 저장
   const handleSave = async () => {
+    // 선호 회사 필수
+    if (preferCompanyIds.length === 0) {
+      toast.error('선호 회사를 선택해주세요');
+      return;
+    }
     if (!preferAgeNoPreference && ageMin === ageMax) {
       toast.error('선호 나이 차이 범위를 설정해주세요');
       return;
@@ -309,8 +395,9 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       toast.error('선호 키 범위를 설정해주세요');
       return;
     }
-    if (!preferBodyTypeNoPreference && preferredBodyTypes.length === 0) {
-      toast.error('선호 체형을 선택해주세요');
+    // 선호 체형 최소 3개 선택
+    if (!preferBodyTypeNoPreference && preferredBodyTypes.length < 3) {
+      toast.error('선호 체형은 최소 3개 이상 선택해주세요');
       return;
     }
     if (!preferJobTypeNoPreference && preferredJobTypes.length === 0) {
@@ -331,6 +418,9 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         preferred_body_types: JSON.stringify(preferredBodyTypes),
         preferred_job_types: JSON.stringify(preferredJobTypes),
         preferred_marital_statuses: JSON.stringify(preferredMaritalStatuses),
+        prefer_company: preferCompanyIds
+          .map(id => parseInt(id, 10))
+          .filter(n => !Number.isNaN(n)),
       });
       // [추가] 저장 후 최신 프로필 fetch 및 setProfile로 갱신
       const latestProfile = await userApi.getMe();
@@ -494,7 +584,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         )}
         {/* 선호 체형 */}
         <BodyTypeContainer>
-          <SectionTitle>선호 체형 (중복 선택 가능)</SectionTitle>
+          <SectionTitle>선호 체형 (최소 3개)</SectionTitle>
           <NoPreferenceButton 
             selected={preferBodyTypeNoPreference}
             onClick={() => handleBodyTypeToggle('상관없음')}
@@ -518,6 +608,23 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               <div style={{color:'#e74c3c',marginTop:8}}>체형 옵션이 없습니다. 관리자에게 문의하세요.</div>
             )
           )}
+        </BodyTypeContainer>
+        {/* 선호 회사 */}
+        <BodyTypeContainer>
+          <SectionTitle>선호 회사 (중복 선택 가능)</SectionTitle>
+          <CompanySection>
+            <CompanyOpenButton type="button" onClick={() => setIsCompanyModalOpen(true)}>
+              <span>{preferCompanyIds.length === 0 ? '선호 회사를 선택해주세요' : '선호 회사 다시 선택하기'}</span>
+              <span>선택하기</span>
+            </CompanyOpenButton>
+            {preferCompanyIds.length === 0 ? (
+              <CompanySummaryText style={{ color: '#ef4444' }}>
+                아직 선호 회사를 선택하지 않았어요.
+              </CompanySummaryText>
+            ) : (
+              companySummary && <CompanySummaryText>{companySummary}</CompanySummaryText>
+            )}
+          </CompanySection>
         </BodyTypeContainer>
         {/* 선호 직군 */}
         <BodyTypeContainer>
@@ -576,6 +683,16 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           <Button style={{ background: '#eee', color: '#333' }} onClick={() => navigate('/main')}>닫기</Button>
         </ButtonRow>
       </Card>
+      <PreferredCompanyModal
+        isOpen={isCompanyModalOpen}
+        initialSelectedIds={preferCompanyIds}
+        onClose={() => setIsCompanyModalOpen(false)}
+        onConfirm={(ids, names) => {
+          setPreferCompanyIds(ids);
+          setPreferCompanyNames(names);
+          setIsCompanyModalOpen(false);
+        }}
+      />
     </MainContainer>
   );
 };

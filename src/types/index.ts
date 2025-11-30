@@ -54,6 +54,7 @@ export interface UserProfile {
   preferred_body_types?: string; // JSON: ["마른", "슬림탄탄", "보통"]
   preferred_job_types?: string; // JSON: ["일반직", "기술직"]
   preferred_marital_statuses?: string; // JSON: ["미혼", "돌싱"]
+  prefer_company?: number[]; // integer[]: 선호 회사 id 배열
   
   created_at: string;
   updated_at: string;

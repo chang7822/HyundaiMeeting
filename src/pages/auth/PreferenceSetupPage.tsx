@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -7,6 +7,7 @@ import { ProfileCategory, ProfileOption } from '../../types/index.ts';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaArrowLeft } from 'react-icons/fa';
+import PreferredCompanyModal from '../../components/PreferredCompanyModal.tsx';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -86,6 +87,40 @@ const BodyTypeGrid = styled.div`
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+`;
+
+const CompanySection = styled.div`
+  margin-bottom: 24px;
+`;
+
+const CompanyOpenButton = styled.button`
+  width: 100%;
+  background: #f5f3ff;
+  color: #4f46e5;
+  border: 1.5px solid #a5b4fc;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #e0e7ff;
+    border-color: #818cf8;
+  }
+`;
+
+const CompanySummaryText = styled.div`
+  margin-top: 6px;
+  padding-left: 30px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4f46e5;
 `;
 
 const BodyTypeButton = styled.button<{ selected: boolean }>`
@@ -214,15 +249,29 @@ const PreferenceSetupPage = () => {
   const [preferJobTypeNoPreference, setPreferJobTypeNoPreference] = useState(false);
   const [preferredMaritalStatuses, setPreferredMaritalStatuses] = useState<string[]>([]);
   const [preferMaritalNoPreference, setPreferMaritalNoPreference] = useState(false);
+  const [preferCompanyIds, setPreferCompanyIds] = useState<string[]>([]);
+  const [preferCompanyNames, setPreferCompanyNames] = useState<string[]>([]);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   
   // 3. savePreferenceData 함수
-  const savePreferenceData = (next: Partial<PreferenceType & { preferredMaritalStatuses: string[]; preferMaritalNoPreference: boolean }> = {}) => {
+  const savePreferenceData = (
+    next: Partial<
+      PreferenceType & {
+        preferredMaritalStatuses: string[];
+        preferMaritalNoPreference: boolean;
+        preferCompanyIds: string[];
+        preferCompanyNames: string[];
+      }
+    > = {},
+  ) => {
     const data = {
       ageMin, ageMax, heightMin, heightMax,
       preferredBodyTypes, preferredJobTypes,
       preferAgeNoPreference, preferHeightNoPreference,
       preferBodyTypeNoPreference, preferJobTypeNoPreference,
       preferredMaritalStatuses, preferMaritalNoPreference,
+      preferCompanyIds,
+      preferCompanyNames,
       ...next
     };
     sessionStorage.setItem('userPreferences', JSON.stringify(data));
@@ -249,6 +298,8 @@ const PreferenceSetupPage = () => {
         if (typeof parsed.preferJobTypeNoPreference === 'boolean') setPreferJobTypeNoPreference(parsed.preferJobTypeNoPreference);
         if (Array.isArray(parsed.preferredMaritalStatuses)) setPreferredMaritalStatuses(parsed.preferredMaritalStatuses);
         if (typeof parsed.preferMaritalNoPreference === 'boolean') setPreferMaritalNoPreference(parsed.preferMaritalNoPreference);
+        if (Array.isArray(parsed.preferCompanyIds)) setPreferCompanyIds(parsed.preferCompanyIds);
+        if (Array.isArray(parsed.preferCompanyNames)) setPreferCompanyNames(parsed.preferCompanyNames);
       } catch {}
     }
   }, [categoriesLoaded, optionsLoaded]);
@@ -400,6 +451,10 @@ const PreferenceSetupPage = () => {
   
   // 다음 단계로 이동
   const handleNext = () => {
+    if (preferCompanyIds.length === 0) {
+      toast.error('선호 회사를 선택해주세요');
+      return;
+    }
     // 유효성 검사
     if (!preferAgeNoPreference && ageMin === ageMax) {
       toast.error('선호 나이 차이 범위를 설정해주세요');
@@ -409,8 +464,8 @@ const PreferenceSetupPage = () => {
       toast.error('선호 키 범위를 설정해주세요');
       return;
     }
-    if (!preferBodyTypeNoPreference && preferredBodyTypes.length === 0) {
-      toast.error('선호 체형을 선택해주세요');
+    if (!preferBodyTypeNoPreference && preferredBodyTypes.length < 3) {
+      toast.error('선호 체형은 최소 3개 이상 선택해주세요');
       return;
     }
     if (!preferJobTypeNoPreference && preferredJobTypes.length === 0) {
@@ -431,6 +486,16 @@ const PreferenceSetupPage = () => {
     }
     navigate('/register/nickname');
   };
+
+  const companySummary = useMemo(() => {
+    if (preferCompanyNames.length === 0) return '';
+    const count = preferCompanyNames.length;
+    const preview = preferCompanyNames.slice(0, 3);
+    if (count <= 3) {
+      return `${preview.join(', ')} (${count})`;
+    }
+    return `${preview.join(', ')} 등 (${count})`;
+  }, [preferCompanyNames]);
   
   // 나이 슬라이더 위치 계산
   const ageMinPercent = ((ageMin - 20) / 30) * 100;
@@ -553,7 +618,7 @@ const PreferenceSetupPage = () => {
         
         {/* 선호 체형 */}
         <BodyTypeContainer>
-          <Label>선호 체형 (중복 선택 가능)</Label>
+          <Label>선호 체형 (최소 3개)</Label>
           <NoPreferenceButton 
             selected={preferBodyTypeNoPreference}
             onClick={() => handleBodyTypeToggle('상관없음')}
@@ -575,6 +640,22 @@ const PreferenceSetupPage = () => {
             </BodyTypeGrid>
           )}
         </BodyTypeContainer>
+        
+        {/* 선호 회사 */}
+        <CompanySection>
+          <Label>선호 회사 (중복 선택 가능)</Label>
+          <CompanyOpenButton type="button" onClick={() => setIsCompanyModalOpen(true)}>
+            <span>{preferCompanyIds.length === 0 ? '선호 회사를 선택해주세요' : '선호 회사 다시 선택하기'}</span>
+            <span>선택하기</span>
+          </CompanyOpenButton>
+          {preferCompanyIds.length === 0 ? (
+            <CompanySummaryText style={{ color: '#ef4444' }}>
+              아직 선호 회사를 선택하지 않았어요.
+            </CompanySummaryText>
+          ) : (
+            <CompanySummaryText>{companySummary}</CompanySummaryText>
+          )}
+        </CompanySection>
         
         {/* 선호 직군 */}
         <BodyTypeContainer>
@@ -634,6 +715,18 @@ const PreferenceSetupPage = () => {
           다음
         </Button>
       </Section>
+
+      <PreferredCompanyModal
+        isOpen={isCompanyModalOpen}
+        initialSelectedIds={preferCompanyIds}
+        onClose={() => setIsCompanyModalOpen(false)}
+        onConfirm={(ids, names) => {
+          setPreferCompanyIds(ids);
+          setPreferCompanyNames(names);
+          savePreferenceData({ preferCompanyIds: ids, preferCompanyNames: names });
+          setIsCompanyModalOpen(false);
+        }}
+      />
     </Container>
   );
 };
