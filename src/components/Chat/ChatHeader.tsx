@@ -9,6 +9,8 @@ interface ChatHeaderProps {
     birthYear?: number;
     gender?: string;
     job?: string;
+    company?: string;
+    residence?: string;
     mbti?: string;
   };
   onBack?: () => void;
@@ -112,7 +114,8 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ partner, onBack, onReport, onSh
             <Name $gender={partner.gender}>{partner.nickname}</Name>
             <SubRow>
               {partner.birthYear && <SubItem>{partner.birthYear}년생</SubItem>}
-              {/* {partner.job && <SubItem>{partner.job}</SubItem>} */}
+              {partner.company && <SubItem>{partner.company}</SubItem>}
+              {partner.residence && <SubItem>{partner.residence}</SubItem>}
               {partner.mbti && <SubItem>{partner.mbti}</SubItem>}
             </SubRow>
           </InfoCol>

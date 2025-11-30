@@ -133,7 +133,9 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         <div>
           <div style={{fontWeight:700,fontSize:'1.25rem',color:'#4F46E5',marginBottom:2}}>{nickname}</div>
           <div style={{fontSize:'0.98rem',color:'#666'}}>
-            {birthYear}년생 · {gender} · {job}{company ? ` · ${company}` : ''}
+            {birthYear}년생 · {gender}
+            {company ? ` · ${company}` : ''}
+            {job ? ` · ${job}` : ''}
           </div>
         </div>
       </div>

@@ -150,6 +150,10 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
 
   const [loading, setLoading] = useState(true);
   const [compatCounts, setCompatCounts] = useState<Record<string, { iPrefer: number; preferMe: number }>>({});
+  const [reasonModal, setReasonModal] = useState<{ open: boolean; item: any | null }>({
+    open: false,
+    item: null,
+  });
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -382,7 +386,16 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
               <EmptyRow>해당되는 회원이 없습니다.</EmptyRow>
             ) : (
               compatModal.data?.[compatModal.activeTab].map((item: any) => (
-                <CompatibilityRow key={item.user_id} $mutual={item.mutual}>
+                <CompatibilityRow
+                  key={item.user_id}
+                  $mutual={item.mutual}
+                  onClick={() => {
+                    if (!item.mutual) {
+                      setReasonModal({ open: true, item });
+                    }
+                  }}
+                  style={{ cursor: !item.mutual ? 'pointer' : 'default' }}
+                >
                   <div>
                     <strong>{item.nickname}</strong>
                     <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
@@ -395,6 +408,91 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
           </CompatibilityList>
         )}
         <Button onClick={closeCompatibilityModal} style={{ marginTop: 16, width: '100%' }}>
+          닫기
+        </Button>
+      </Modal>
+      {/* 매칭 실패 사유 모달 */}
+      <Modal
+        isOpen={reasonModal.open}
+        onRequestClose={() => setReasonModal({ open: false, item: null })}
+        style={{
+          content: {
+            top: '50%',
+            left: '50%',
+            right: 'auto',
+            bottom: 'auto',
+            transform: 'translate(-50%, -50%)',
+            maxWidth: 480,
+            minWidth: 280,
+            borderRadius: 16,
+            padding: 20,
+          },
+        }}
+        contentLabel="매칭 실패 사유"
+      >
+        <h3 style={{ marginBottom: 8, fontSize: '1.1rem', color: '#4F46E5' }}>
+          매칭이 성사되지 않은 이유
+        </h3>
+        <p style={{ marginTop: 0, marginBottom: 12, color: '#6b7280', fontSize: '0.9rem' }}>
+          회색 항목은 한쪽 또는 양쪽의 선호 조건이 맞지 않아 매칭이 되지 않은 경우입니다.
+        </p>
+        {reasonModal.item ? (
+          <>
+            {(() => {
+              const item: any = reasonModal.item;
+              const isIPreferTab = compatModal.activeTab === 'iPrefer';
+              const reasons =
+                isIPreferTab ? (item.reasonsFromOther || []) : (item.reasonsFromSubject || []);
+
+              if (!reasons || reasons.length === 0) {
+                return (
+                  <p style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+                    설정된 선호 조건에는 모두 맞지만, 다른 내부 조건으로 인해 매칭이 성사되지 않았습니다.
+                  </p>
+                );
+              }
+
+              const labelMap: Record<string, string> = {
+                age: '나이',
+                height: '키',
+                body: '체형',
+                job: '직군',
+                marital: '결혼상태',
+                region: '지역',
+                company: '회사',
+              };
+
+              const ownerLabel = isIPreferTab ? '상대의' : '나의';
+              const targetLabel = isIPreferTab ? '나의' : '상대의';
+
+              return (
+                <>
+                  <ul style={{ paddingLeft: '0', listStyle: 'none', fontSize: '0.9rem', color: '#374151' }}>
+                    {reasons.map((r: any, idx: number) => {
+                      const fieldLabel = labelMap[r.key] || '';
+                      return (
+                        <li key={r.key || idx} style={{ marginBottom: 8 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                            {idx + 1}. {r.title}
+                          </div>
+                          <div style={{ marginLeft: 8 }}>
+                            - {ownerLabel} 선호 {fieldLabel ? `${fieldLabel}은` : '값은'} [{r.ownerPref}] 인데,
+                            {' '}{targetLabel} {fieldLabel ? `${fieldLabel}은` : '값은'} [{r.targetValue}] 입니다.
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              );
+            })()}
+          </>
+        ) : (
+          <p style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+            선택된 항목 정보가 없습니다.
+          </p>
+        )}
+        <Button onClick={() => setReasonModal({ open: false, item: null })} style={{ marginTop: 16, width: '100%' }}>
           닫기
         </Button>
       </Modal>

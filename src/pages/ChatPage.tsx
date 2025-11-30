@@ -464,6 +464,8 @@ const ChatPage: React.FC = () => {
             birthYear: partnerProfile?.birth_year,
             gender: partnerProfile?.gender,
             job: partnerProfile?.job_type,
+            company: partnerProfile?.company,
+            residence: partnerProfile?.residence,
             mbti: partnerProfile?.mbti,
           }}
           onBack={handleBack}

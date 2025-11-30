@@ -1765,8 +1765,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 <div style={{marginBottom:14}}>
                   <div style={{fontWeight:700,fontSize:'1.18rem',color:'#4F46E5',marginBottom:2}}>{profile?.nickname || displayName}</div>
                   <div style={{fontSize:'0.98rem',color:'#666'}}>
-                    {profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'} · {profile?.job_type || '-'}
+                    {profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
                     {profile?.company ? ` · ${profile.company}` : ''}
+                    {' · '}{profile?.job_type || '-'}
                   </div>
                 </div>
                 <div style={{
@@ -1808,7 +1809,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>종교</span>
                     <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.religion || '-'}</span>
                   </div>
-                  {/* 체형 - 마지막, row 배치, ,로 join해서 한 줄로 모두 표시 */}
+                  {/* 체형 - row 배치, ,로 join해서 한 줄로 모두 표시 */}
                   <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 100%',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
                     <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>체형</span>
                     <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(() => {
@@ -1821,6 +1822,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                       }
                       return arr.length > 0 ? arr.join(', ') : '-';
                     })()}</span>
+                  </div>
+                  {/* 거주지 - 체형 밑 한 줄 전체 사용 */}
+                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 100%',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>거주지</span>
+                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+                      {profile?.residence || '-'}
+                    </span>
                   </div>
                 </div>
                 <div style={{marginBottom:10}}>

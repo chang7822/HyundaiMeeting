@@ -209,6 +209,11 @@ const [compatModal, setCompatModal] = useState<{
   activeTab: 'iPrefer'
 });
   const [loading, setLoading] = useState(true);
+  const [compatCounts, setCompatCounts] = useState<Record<string, { iPrefer: number; preferMe: number }>>({});
+  const [reasonModal, setReasonModal] = useState<{ open: boolean; item: any | null }>({
+    open: false,
+    item: null,
+  });
 
   // 회차 목록 불러오기
   useEffect(() => {
@@ -251,6 +256,42 @@ const [compatModal, setCompatModal] = useState<{
     };
     loadApplications();
   }, [periodId]);
+
+  // 페이지 진입/회차 변경 시 각 신청자의 호환 인원 수 미리 조회해서 캐싱
+  useEffect(() => {
+    // 회차가 '전체'이면 호환 인원 수를 표시하지 않으므로 초기화만
+    if (periodId === 'all') {
+      setCompatCounts({});
+      return;
+    }
+    if (!applications.length) return;
+
+    const fetchAllCounts = async () => {
+      const next: Record<string, { iPrefer: number; preferMe: number }> = {};
+      await Promise.all(
+        applications.map(async (app) => {
+          if (!app?.user_id) return;
+          const key = String(app.user_id);
+          try {
+            const data = await adminMatchingApi.getMatchingCompatibility(app.user_id, periodId);
+            next[key] = {
+              iPrefer: Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0,
+              preferMe: Array.isArray(data?.preferMe) ? data.preferMe.length : 0,
+            };
+          } catch {
+            if (!next[key]) {
+              next[key] = { iPrefer: 0, preferMe: 0 };
+            }
+          }
+        })
+      );
+      if (Object.keys(next).length) {
+        setCompatCounts(prev => ({ ...prev, ...next }));
+      }
+    };
+
+    fetchAllCounts();
+  }, [applications, periodId]);
 
   // 소팅
   const sortedApps = [...applications].sort((a, b) => {
@@ -301,6 +342,15 @@ const openCompatibilityModal = async (app: any, tab: 'iPrefer' | 'preferMe') => 
   });
   try {
     const data = await adminMatchingApi.getMatchingCompatibility(app.user_id, periodId);
+    const iPreferCount = Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0;
+    const preferMeCount = Array.isArray(data?.preferMe) ? data.preferMe.length : 0;
+    setCompatCounts(prev => ({
+      ...prev,
+      [String(app.user_id)]: {
+        iPrefer: iPreferCount,
+        preferMe: preferMeCount,
+      },
+    }));
     setCompatModal(prev => ({
       ...prev,
       loading: false,
@@ -351,6 +401,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             <thead>
               <tr>
                 <th onClick={()=>{setSortKey('user_id');setSortAsc(k=>!k);}}>닉네임 <FaSort /></th>
+                <th>성별</th>
                 <th onClick={()=>{setSortKey('user.email');setSortAsc(k=>!k);}}>이메일 <FaSort /></th>
                 <th onClick={()=>{setSortKey('applied_at');setSortAsc(k=>!k);}}>신청시각 <FaSort /></th>
                 <th onClick={()=>{setSortKey('cancelled_at');setSortAsc(k=>!k);}}>취소시각 <FaSort /></th>
@@ -364,10 +415,18 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             <tbody>
               {sortedApps.map(app => {
                 const profile = buildSnapshotPayload(app);
+                const counts = compatCounts[String(app.user_id)] || { iPrefer: 0, preferMe: 0 };
                 return (
                 <tr key={app.id} style={app.cancelled ? { color: '#aaa' } : {}}>
                   <td>
                     <NicknameBtn onClick={()=>openModal(app)} style={app.cancelled ? { color: '#aaa', textDecoration: 'line-through' } : {}}>{profile?.nickname || '-'}</NicknameBtn>
+                  </td>
+                  <td>
+                    {profile?.gender === 'male'
+                      ? '남성'
+                      : profile?.gender === 'female'
+                      ? '여성'
+                      : '-'}
                   </td>
                   <td>{app.user?.email || '-'}</td>
                   <td>{formatKST(app.applied_at)}</td>
@@ -382,7 +441,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                         onClick={()=>openCompatibilityModal(app, 'iPrefer')}
                         disabled={periodId === 'all'}
                       >
-                        보기
+                        보기 ({counts.iPrefer})
                       </Button>
                     )}
                   </td>
@@ -393,7 +452,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                         onClick={()=>openCompatibilityModal(app, 'preferMe')}
                         disabled={periodId === 'all'}
                       >
-                        보기
+                        보기 ({counts.preferMe})
                       </Button>
                     )}
                   </td>
@@ -443,7 +502,16 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
               <EmptyRow>해당되는 회원이 없습니다.</EmptyRow>
             ) : (
               compatModal.data?.[compatModal.activeTab].map(item => (
-                <CompatibilityRow key={item.user_id} $mutual={item.mutual}>
+                <CompatibilityRow
+                  key={item.user_id}
+                  $mutual={item.mutual}
+                  onClick={() => {
+                    if (!item.mutual) {
+                      setReasonModal({ open: true, item });
+                    }
+                  }}
+                  style={{ cursor: !item.mutual ? 'pointer' : 'default' }}
+                >
                   <div>
                     <strong>{item.nickname}</strong>
                     <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
@@ -456,6 +524,93 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
           </CompatibilityList>
         )}
         <Button onClick={closeCompatibilityModal} style={{ marginTop: 16, width: '100%' }}>닫기</Button>
+      </Modal>
+      {/* 매칭 실패 사유 모달 */}
+      <Modal
+        isOpen={reasonModal.open}
+        onRequestClose={() => setReasonModal({ open: false, item: null })}
+        style={{
+          content: {
+            top: '50%',
+            left: '50%',
+            right: 'auto',
+            bottom: 'auto',
+            transform: 'translate(-50%, -50%)',
+            maxWidth: 480,
+            minWidth: 280,
+            borderRadius: 16,
+            padding: 20,
+          },
+        }}
+        contentLabel="매칭 실패 사유"
+      >
+        <h3 style={{ marginBottom: 8, fontSize: '1.1rem', color: '#4F46E5' }}>
+          매칭이 성사되지 않은 이유
+        </h3>
+        <p style={{ marginTop: 0, marginBottom: 12, color: '#6b7280', fontSize: '0.9rem' }}>
+          회색 항목은 한쪽 또는 양쪽의 선호 조건이 맞지 않아 매칭이 되지 않은 경우입니다.
+        </p>
+        {reasonModal.item ? (
+          <>
+            {(() => {
+              const item: any = reasonModal.item;
+              const isIPreferTab = compatModal.activeTab === 'iPrefer';
+              // iPrefer 탭에서 mutual=false면 "상대가 나를 선호하지 않음" → 상대 기준(reasonFromOther)
+              // preferMe 탭에서 mutual=false면 "내가 상대를 선호하지 않음" → 내 기준(reasonFromSubject)
+              const reasons =
+                isIPreferTab ? (item.reasonsFromOther || []) : (item.reasonsFromSubject || []);
+
+              if (!reasons || reasons.length === 0) {
+                return (
+                  <p style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+                    설정된 선호 조건에는 모두 맞지만, 다른 내부 조건으로 인해 매칭이 성사되지 않았습니다.
+                  </p>
+                );
+              }
+
+              const labelMap: Record<string, string> = {
+                age: '나이',
+                height: '키',
+                body: '체형',
+                job: '직군',
+                marital: '결혼상태',
+                region: '지역',
+                company: '회사',
+              };
+
+              const ownerLabel = isIPreferTab ? '상대의' : '나의';
+              const targetLabel = isIPreferTab ? '나의' : '상대의';
+
+              return (
+                <>
+                  <ul style={{ paddingLeft: '0', listStyle: 'none', fontSize: '0.9rem', color: '#374151' }}>
+                    {reasons.map((r: any, idx: number) => {
+                      const fieldLabel = labelMap[r.key] || '';
+                      return (
+                        <li key={r.key || idx} style={{ marginBottom: 8 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                            {idx + 1}. {r.title}
+                          </div>
+                          <div style={{ marginLeft: 8 }}>
+                            - {ownerLabel} 선호 {fieldLabel ? `${fieldLabel}은` : '값은'} [{r.ownerPref}] 인데,
+                            {' '}{targetLabel} {fieldLabel ? `${fieldLabel}은` : '값은'} [{r.targetValue}] 입니다.
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              );
+            })()}
+          </>
+        ) : (
+          <p style={{ fontSize: '0.9rem', color: '#4b5563' }}>
+            선택된 항목 정보가 없습니다.
+          </p>
+        )}
+        <Button onClick={() => setReasonModal({ open: false, item: null })} style={{ marginTop: 16, width: '100%' }}>
+          닫기
+        </Button>
       </Modal>
     </Container>
   );

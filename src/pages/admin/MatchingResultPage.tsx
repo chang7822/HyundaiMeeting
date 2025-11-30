@@ -99,6 +99,17 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
     };
     loadLogs();
   }, []);
+
+  // 회차 목록이 로드되면 기본 선택값을 "전체"가 아니라
+  // 가장 마지막 인덱스(가장 최근 회차)의 id로 설정
+  useEffect(() => {
+    if (logs.length > 0 && periodId === 'all') {
+      const lastLog = logs[logs.length - 1];
+      if (lastLog?.id != null) {
+        setPeriodId(String(lastLog.id));
+      }
+    }
+  }, [logs, periodId]);
   // 매칭 결과 불러오기
   useEffect(() => {
     const loadResults = async () => {
@@ -167,9 +178,9 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
               <tr>
                 <th>회차</th>
                 <th>남성 닉네임</th>
-                <th>남성 직군</th>
+                <th>남성 이메일</th>
                 <th>여성 닉네임</th>
-                <th>여성 직군</th>
+                <th>여성 이메일</th>
               </tr>
             </thead>
             <tbody>
@@ -179,11 +190,11 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
                   <td>
                     <NicknameBtn onClick={()=>openModal(row.male)}>{row.male?.nickname || '-'}</NicknameBtn>
                   </td>
-                  <td>{row.male?.job_type || '-'}</td>
+                  <td>{row.male?.user?.email || '-'}</td>
                   <td>
                     <NicknameBtn onClick={()=>openModal(row.female)}>{row.female?.nickname || '-'}</NicknameBtn>
                   </td>
-                  <td>{row.female?.job_type || '-'}</td>
+                  <td>{row.female?.user?.email || '-'}</td>
                 </tr>
               ))}
             </tbody>

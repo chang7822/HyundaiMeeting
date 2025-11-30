@@ -396,6 +396,40 @@ router.delete('/matching-log/:id', authenticate, async (req, res) => {
   }
 });
 
+let adminCompanyIdNameMap = null;
+
+async function loadAdminCompanyMap() {
+  if (adminCompanyIdNameMap) return adminCompanyIdNameMap;
+  try {
+    const { data: companies, error } = await supabase
+      .from('companies')
+      .select('id, name')
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('[admin matching] 회사 목록 조회 오류:', error);
+      adminCompanyIdNameMap = null;
+      return null;
+    }
+    if (!companies || companies.length === 0) {
+      adminCompanyIdNameMap = null;
+      return null;
+    }
+    adminCompanyIdNameMap = new Map();
+    companies.forEach(c => {
+      if (c && c.id !== undefined && c.name) {
+        adminCompanyIdNameMap.set(c.id, c.name);
+      }
+    });
+    console.log(`[admin matching] 활성 회사 ${companies.length}개 로드 (호환성 계산용)`);
+    return adminCompanyIdNameMap;
+  } catch (e) {
+    console.error('[admin matching] 회사 목록 로드 중 예외:', e);
+    adminCompanyIdNameMap = null;
+    return null;
+  }
+}
+
 function ensureArray(value) {
   if (!value) return [];
   if (Array.isArray(value)) return value;
@@ -410,6 +444,174 @@ function ensureArray(value) {
     return [value];
   }
   return [];
+}
+
+function extractSido(residence) {
+  if (!residence || typeof residence !== 'string') return null;
+  const trimmed = residence.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(/\s+/);
+  return parts[0] || null;
+}
+
+// owner의 선호 기준 대비 target이 어떤 이유로 탈락하는지 설명 리스트 반환
+function getPreferenceMismatchReasons(target, owner) {
+  const reasons = [];
+  if (!owner) return reasons;
+
+  const targetBirthYear = target.birth_year;
+  const ownerBirthYear = owner.birth_year;
+
+  // 나이
+  if (ownerBirthYear && (owner.preferred_age_min != null || owner.preferred_age_max != null)) {
+    const prefMin = owner.preferred_age_min ?? 0;
+    const prefMax = owner.preferred_age_max ?? 0;
+    const minBirth = ownerBirthYear - (prefMax ?? 0);
+    const maxBirth = ownerBirthYear - (prefMin ?? 0);
+    const ownerRangeLabel = `${minBirth}년 ~ ${maxBirth}년`;
+
+    if (!targetBirthYear) {
+      reasons.push({
+        key: 'age',
+        title: '나이 불일치',
+        ownerPref: ownerRangeLabel,
+        targetValue: '정보 없음',
+      });
+    } else {
+      if (targetBirthYear < minBirth || targetBirthYear > maxBirth) {
+        reasons.push({
+          key: 'age',
+          title: '나이 불일치',
+          ownerPref: ownerRangeLabel,
+          targetValue: `${targetBirthYear}년`,
+        });
+      }
+    }
+  }
+
+  // 키
+  const hasHeightPref =
+    owner.preferred_height_min != null || owner.preferred_height_max != null;
+  if (hasHeightPref) {
+    const minH =
+      owner.preferred_height_min != null ? owner.preferred_height_min : owner.preferred_height_max;
+    const maxH =
+      owner.preferred_height_max != null ? owner.preferred_height_max : owner.preferred_height_min;
+    const ownerHeightLabel =
+      minH != null && maxH != null
+        ? `${minH}cm ~ ${maxH}cm`
+        : minH != null
+        ? `${minH}cm 이상`
+        : `${maxH}cm 이하`;
+
+    let mismatch = false;
+    if (typeof target.height !== 'number') {
+      mismatch = true;
+      reasons.push({
+        key: 'height',
+        title: '키 불일치',
+        ownerPref: ownerHeightLabel,
+        targetValue: '정보 없음',
+      });
+    } else {
+      if (owner.preferred_height_min != null && target.height < owner.preferred_height_min) {
+        mismatch = true;
+      }
+      if (owner.preferred_height_max != null && target.height > owner.preferred_height_max) {
+        mismatch = true;
+      }
+      if (mismatch) {
+        reasons.push({
+          key: 'height',
+          title: '키 불일치',
+          ownerPref: ownerHeightLabel,
+          targetValue: `${target.height}cm`,
+        });
+      }
+    }
+  }
+
+  // 체형
+  const prefBodyTypes = ensureArray(owner.preferred_body_types);
+  if (prefBodyTypes.length > 0) {
+    const targetBodyTypes = ensureArray(target.body_type);
+    if (targetBodyTypes.length === 0 || !prefBodyTypes.some(type => targetBodyTypes.includes(type))) {
+      const prefLabel = prefBodyTypes.join(', ');
+      const targetLabel = targetBodyTypes.length ? targetBodyTypes.join(', ') : '정보 없음';
+      reasons.push({
+        key: 'body',
+        title: '체형 불일치',
+        ownerPref: prefLabel,
+        targetValue: targetLabel,
+      });
+    }
+  }
+
+  // 직군
+  const prefJobTypes = ensureArray(owner.preferred_job_types);
+  if (prefJobTypes.length > 0) {
+    const targetJob = target.job_type || '정보 없음';
+    if (!target.job_type || !prefJobTypes.includes(target.job_type)) {
+      reasons.push({
+        key: 'job',
+        title: '직군 불일치',
+        ownerPref: prefJobTypes.join(', '),
+        targetValue: targetJob,
+      });
+    }
+  }
+
+  // 결혼상태
+  const prefMarital = ensureArray(owner.preferred_marital_statuses);
+  if (prefMarital.length > 0) {
+    const targetMarital = target.marital_status || '정보 없음';
+    if (!target.marital_status || !prefMarital.includes(target.marital_status)) {
+      reasons.push({
+        key: 'marital',
+        title: '결혼상태 불일치',
+        ownerPref: prefMarital.join(', '),
+        targetValue: targetMarital,
+      });
+    }
+  }
+
+  // 선호 지역 (시/도 기준)
+  const prefRegions = Array.isArray(owner.prefer_region) ? owner.prefer_region : [];
+  if (prefRegions.length > 0) {
+    const targetSido = extractSido(target.residence);
+    if (!targetSido || !prefRegions.includes(targetSido)) {
+      const targetLabel = targetSido || '정보 없음';
+      reasons.push({
+        key: 'region',
+        title: '지역 불일치',
+        ownerPref: prefRegions.join(', '),
+        targetValue: targetLabel,
+      });
+    }
+  }
+
+  // 선호 회사 (회사명 기준)
+  if (adminCompanyIdNameMap) {
+    const prefCompanyNames = Array.isArray(owner.prefer_company)
+      ? owner.prefer_company
+          .map(id => adminCompanyIdNameMap.get(id))
+          .filter(name => !!name)
+      : [];
+    if (prefCompanyNames.length > 0) {
+      const targetCompany = typeof target.company === 'string' ? target.company.trim() : '';
+      if (!targetCompany || !prefCompanyNames.includes(targetCompany)) {
+        const targetLabel = targetCompany || '정보 없음';
+        reasons.push({
+          key: 'company',
+          title: '회사 불일치',
+          ownerPref: prefCompanyNames.join(', '),
+          targetValue: targetLabel,
+        });
+      }
+    }
+  }
+
+  return reasons;
 }
 
 function extractSnapshotPreferences(profile) {
@@ -481,6 +683,30 @@ function profileMatchesPreference(target, owner) {
     }
   }
 
+  // 선호 지역 (시/도 기준)
+  const prefRegions = Array.isArray(owner.prefer_region) ? owner.prefer_region : [];
+  if (prefRegions.length > 0) {
+    const targetSido = extractSido(target.residence);
+    if (!targetSido || !prefRegions.includes(targetSido)) {
+      return false;
+    }
+  }
+
+  // 선호 회사 (회사명 기준)
+  if (adminCompanyIdNameMap) {
+    const prefCompanyNames = Array.isArray(owner.prefer_company)
+      ? owner.prefer_company
+          .map(id => adminCompanyIdNameMap.get(id))
+          .filter(name => !!name)
+      : [];
+    if (prefCompanyNames.length > 0) {
+      const targetCompany = typeof target.company === 'string' ? target.company.trim() : '';
+      if (!targetCompany || !prefCompanyNames.includes(targetCompany)) {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -494,6 +720,7 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
   }
 
   try {
+    await loadAdminCompanyMap();
     const { data: subjectRow, error: subjectError } = await supabase
       .from('matching_applications')
       .select(`
@@ -575,13 +802,15 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
     const others = applicants.filter(applicant => String(applicant.user_id) !== subjectIdStr);
     const subjectGender = subjectProfile?.gender || null;
 
-    const makeEntry = (applicant, mutual = false) => ({
+    const makeEntry = (applicant, mutual = false, reasonsFromSubject = [], reasonsFromOther = []) => ({
       user_id: applicant.user_id,
       nickname: applicant.profile.nickname || '(닉네임 없음)',
       email: applicant.email,
       applied: appliedSet.has(applicant.user_id),
       hasHistory: historySet.has(String(applicant.user_id)),
-      mutual
+      mutual,
+      reasonsFromSubject,
+      reasonsFromOther,
     });
 
     const iPrefer = [];
@@ -598,11 +827,14 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
       const iFitTheirPreference = profileMatchesPreference(subjectProfile, applicant.profile);
       const mutual = fitsMyPreference && iFitTheirPreference;
 
+      const reasonsFromSubject = getPreferenceMismatchReasons(applicant.profile, subjectProfile);
+      const reasonsFromOther = getPreferenceMismatchReasons(subjectProfile, applicant.profile);
+
       if (fitsMyPreference) {
-        iPrefer.push(makeEntry(applicant, mutual));
+        iPrefer.push(makeEntry(applicant, mutual, reasonsFromSubject, reasonsFromOther));
       }
       if (iFitTheirPreference) {
-        preferMe.push(makeEntry(applicant, mutual));
+        preferMe.push(makeEntry(applicant, mutual, reasonsFromSubject, reasonsFromOther));
       }
     }
 
@@ -621,6 +853,7 @@ router.get('/matching-compatibility-live/:userId', authenticate, async (req, res
   const { userId } = req.params;
 
   try {
+    await loadAdminCompanyMap();
     // 1) 기준 사용자 현재 프로필 조회
     const { data: subjectProfile, error: subjectError } = await supabase
       .from('user_profiles')
@@ -705,13 +938,15 @@ router.get('/matching-compatibility-live/:userId', authenticate, async (req, res
     // 5) 기준 사용자와의 호환성 계산 (현재 프로필/선호 기준)
     const subject = subjectProfile;
     const subjectGender = subject?.gender || null;
-    const makeEntry = (applicant, mutual = false) => ({
+    const makeEntry = (applicant, mutual = false, reasonsFromSubject = [], reasonsFromOther = []) => ({
       user_id: applicant.user_id,
       nickname: applicant.profile.nickname || '(닉네임 없음)',
       email: applicant.email,
       applied: appliedSet.has(applicant.user_id),
       hasHistory: historySet.has(String(applicant.user_id)),
-      mutual
+      mutual,
+      reasonsFromSubject,
+      reasonsFromOther,
     });
 
     const iPrefer = [];
@@ -728,11 +963,14 @@ router.get('/matching-compatibility-live/:userId', authenticate, async (req, res
       const iFitTheirPreference = profileMatchesPreference(subject, applicant.profile);
       const mutual = fitsMyPreference && iFitTheirPreference;
 
+      const reasonsFromSubject = getPreferenceMismatchReasons(applicant.profile, subject);
+      const reasonsFromOther = getPreferenceMismatchReasons(subject, applicant.profile);
+
       if (fitsMyPreference) {
-        iPrefer.push(makeEntry(applicant, mutual));
+        iPrefer.push(makeEntry(applicant, mutual, reasonsFromSubject, reasonsFromOther));
       }
       if (iFitTheirPreference) {
-        preferMe.push(makeEntry(applicant, mutual));
+        preferMe.push(makeEntry(applicant, mutual, reasonsFromSubject, reasonsFromOther));
       }
     }
 
