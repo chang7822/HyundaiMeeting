@@ -22,6 +22,18 @@ function getAge(birthYear) {
   return now.getFullYear() - birthYear + 1;
 }
 
+// 거주지 문자열에서 시/도 부분만 추출 (예: "서울특별시 강남구" -> "서울특별시", "경기도 수원시" -> "경기도")
+function extractSido(residence) {
+  if (!residence || typeof residence !== 'string') return null;
+  const trimmed = residence.trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(/\s+/);
+  return parts[0] || null;
+}
+
+// 매칭 알고리즘 전체에서 공유할 회사 id->name 매핑
+let companyIdNameMap = null;
+
 // 과거 매칭 이력 조회 함수 (이메일 기반)
 async function getPreviousMatchHistory(userIds) {
   try {
@@ -115,6 +127,44 @@ function isMutualMatch(a, b, previousMatches = null) {
   const bMarital = b.preferred_marital_statuses ? (typeof b.preferred_marital_statuses === 'string' ? JSON.parse(b.preferred_marital_statuses) : b.preferred_marital_statuses) : [];
   if (aMarital.length > 0 && (!b.marital_status || !aMarital.includes(b.marital_status))) return false;
   if (bMarital.length > 0 && (!a.marital_status || !bMarital.includes(a.marital_status))) return false;
+
+  // 선호 지역 (시/도 기준) - 상호 만족해야 매칭
+  const aRegions = Array.isArray(a.prefer_region) ? a.prefer_region : [];
+  const bRegions = Array.isArray(b.prefer_region) ? b.prefer_region : [];
+  const aSido = extractSido(a.residence);
+  const bSido = extractSido(b.residence);
+
+  if (aRegions.length > 0) {
+    if (!bSido || !aRegions.includes(bSido)) return false;
+  }
+  if (bRegions.length > 0) {
+    if (!aSido || !bRegions.includes(aSido)) return false;
+  }
+
+  // 선호 회사 - 내 선호 회사 리스트 안에 상대 회사명이 포함되어야 함 (상호 만족)
+  if (companyIdNameMap) {
+    const aPreferCompanyNames = Array.isArray(a.prefer_company)
+      ? a.prefer_company
+          .map(id => companyIdNameMap.get(id))
+          .filter(name => !!name)
+      : [];
+    const bPreferCompanyNames = Array.isArray(b.prefer_company)
+      ? b.prefer_company
+          .map(id => companyIdNameMap.get(id))
+          .filter(name => !!name)
+      : [];
+
+    const aCompanyName = typeof a.company === 'string' ? a.company.trim() : '';
+    const bCompanyName = typeof b.company === 'string' ? b.company.trim() : '';
+
+    if (aPreferCompanyNames.length > 0) {
+      if (!bCompanyName || !aPreferCompanyNames.includes(bCompanyName)) return false;
+    }
+    if (bPreferCompanyNames.length > 0) {
+      if (!aCompanyName || !bPreferCompanyNames.includes(aCompanyName)) return false;
+    }
+  }
+
   return true;
 }
 
@@ -251,6 +301,33 @@ async function main() {
   console.log('과거 매칭 이력 조회 시작...');
   const previousMatches = await getPreviousMatchHistory(filteredUserIds);
   console.log(`과거 매칭 이력 조회 완료: ${previousMatches.size}개의 매칭 쌍이 필터링 대상`);
+
+  // 2-3. 회사 id -> name 매핑 로드 (선호 회사 매칭용)
+  try {
+    const { data: companies, error: companiesError } = await supabase
+      .from('companies')
+      .select('id, name')
+      .eq('is_active', true);
+
+    if (companiesError) {
+      console.error('회사 목록 조회 실패:', companiesError);
+      companyIdNameMap = null;
+    } else if (companies && companies.length > 0) {
+      companyIdNameMap = new Map();
+      companies.forEach(c => {
+        if (c && c.id !== undefined && c.name) {
+          companyIdNameMap.set(c.id, c.name);
+        }
+      });
+      console.log(`[매칭 알고리즘] 활성 회사 ${companies.length}개 로드 (선호 회사 필터에 사용)`);
+    } else {
+      companyIdNameMap = null;
+      console.log('[매칭 알고리즘] 활성 회사가 없습니다. 선호 회사 필터는 건너뜁니다.');
+    }
+  } catch (e) {
+    console.error('회사 목록 로드 중 오류:', e);
+    companyIdNameMap = null;
+  }
 
   // 3. 신청자 프로필/선호도 정보 조회 (batch)
   let profiles = [];

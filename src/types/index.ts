@@ -55,6 +55,7 @@ export interface UserProfile {
   preferred_job_types?: string; // JSON: ["일반직", "기술직"]
   preferred_marital_statuses?: string; // JSON: ["미혼", "돌싱"]
   prefer_company?: number[]; // integer[]: 선호 회사 id 배열
+  prefer_region?: string[]; // text[]: 선호 지역(시/도 등) 배열
   
   created_at: string;
   updated_at: string;

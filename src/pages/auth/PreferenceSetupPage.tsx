@@ -8,6 +8,8 @@ import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaArrowLeft } from 'react-icons/fa';
 import PreferredCompanyModal from '../../components/PreferredCompanyModal.tsx';
+import PreferredRegionModal from '../../components/PreferredRegionModal.tsx';
+import PreferenceMultiSelectModal from '../../components/PreferenceMultiSelectModal.tsx';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -123,6 +125,40 @@ const CompanySummaryText = styled.div`
   color: #4f46e5;
 `;
 
+const RegionSection = styled.div`
+  margin-bottom: 24px;
+`;
+
+const RegionOpenButton = styled.button`
+  width: 100%;
+  background: #f5f3ff;
+  color: #4f46e5;
+  border: 1.5px solid #a5b4fc;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #e0e7ff;
+    border-color: #818cf8;
+  }
+`;
+
+const RegionSummaryText = styled.div`
+  margin-top: 6px;
+  padding-left: 30px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #4f46e5;
+`;
+
 const BodyTypeButton = styled.button<{ selected: boolean }>`
   background: ${props => props.selected ? '#764ba2' : '#f7f7fa'};
   color: ${props => props.selected ? '#fff' : '#333'};
@@ -209,8 +245,9 @@ type PreferenceType = {
 const PreferenceSetupPage = () => {
   const navigate = useNavigate();
   
-  // 성별 정보 가져오기
+  // 성별 / 출생연도 정보 가져오기
   const userGender = sessionStorage.getItem('userGender') as 'male' | 'female' | null;
+  const userBirthYear = sessionStorage.getItem('userBirthYear');
   
   // DB에서 불러온 카테고리/옵션
   const [categories, setCategories] = useState<ProfileCategory[]>([]);
@@ -252,6 +289,11 @@ const PreferenceSetupPage = () => {
   const [preferCompanyIds, setPreferCompanyIds] = useState<string[]>([]);
   const [preferCompanyNames, setPreferCompanyNames] = useState<string[]>([]);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [preferRegions, setPreferRegions] = useState<string[]>([]);
+  const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
+  const [isBodyTypeModalOpen, setIsBodyTypeModalOpen] = useState(false);
+  const [isJobTypeModalOpen, setIsJobTypeModalOpen] = useState(false);
+  const [isMaritalModalOpen, setIsMaritalModalOpen] = useState(false);
   
   // 3. savePreferenceData 함수
   const savePreferenceData = (
@@ -261,6 +303,7 @@ const PreferenceSetupPage = () => {
         preferMaritalNoPreference: boolean;
         preferCompanyIds: string[];
         preferCompanyNames: string[];
+        preferRegions: string[];
       }
     > = {},
   ) => {
@@ -272,6 +315,7 @@ const PreferenceSetupPage = () => {
       preferredMaritalStatuses, preferMaritalNoPreference,
       preferCompanyIds,
       preferCompanyNames,
+      preferRegions,
       ...next
     };
     sessionStorage.setItem('userPreferences', JSON.stringify(data));
@@ -300,6 +344,7 @@ const PreferenceSetupPage = () => {
         if (typeof parsed.preferMaritalNoPreference === 'boolean') setPreferMaritalNoPreference(parsed.preferMaritalNoPreference);
         if (Array.isArray(parsed.preferCompanyIds)) setPreferCompanyIds(parsed.preferCompanyIds);
         if (Array.isArray(parsed.preferCompanyNames)) setPreferCompanyNames(parsed.preferCompanyNames);
+        if (Array.isArray(parsed.preferRegions)) setPreferRegions(parsed.preferRegions);
       } catch {}
     }
   }, [categoriesLoaded, optionsLoaded]);
@@ -455,6 +500,10 @@ const PreferenceSetupPage = () => {
       toast.error('선호 회사를 선택해주세요');
       return;
     }
+    if (preferRegions.length === 0) {
+      toast.error('선호 지역을 선택해주세요');
+      return;
+    }
     // 유효성 검사
     if (!preferAgeNoPreference && ageMin === ageMax) {
       toast.error('선호 나이 차이 범위를 설정해주세요');
@@ -497,6 +546,16 @@ const PreferenceSetupPage = () => {
     return `${preview.join(', ')} 등 (${count})`;
   }, [preferCompanyNames]);
   
+  const regionSummary = useMemo(() => {
+    if (preferRegions.length === 0) return '';
+    const count = preferRegions.length;
+    const preview = preferRegions.slice(0, 3);
+    if (count <= 3) {
+      return `${preview.join(', ')} (${count})`;
+    }
+    return `${preview.join(', ')} 등 (${count})`;
+  }, [preferRegions]);
+  
   // 나이 슬라이더 위치 계산
   const ageMinPercent = ((ageMin - 20) / 30) * 100;
   const ageMaxPercent = ((ageMax - 20) / 30) * 100;
@@ -524,7 +583,10 @@ const PreferenceSetupPage = () => {
         
         {/* 선호 나이 */}
         <AgeRangeContainer>
-          <Label>선호 나이 (본인 출생연도 기준)</Label>
+          <Label>
+            선호 나이
+            {userBirthYear ? ` (본인 출생연도 : ${userBirthYear} 기준)` : ' (본인 출생연도 기준)'}
+          </Label>
           <NoPreferenceButton 
             selected={preferAgeNoPreference}
             onClick={() => {
@@ -619,25 +681,25 @@ const PreferenceSetupPage = () => {
         {/* 선호 체형 */}
         <BodyTypeContainer>
           <Label>선호 체형 (최소 3개)</Label>
-          <NoPreferenceButton 
-            selected={preferBodyTypeNoPreference}
-            onClick={() => handleBodyTypeToggle('상관없음')}
-          >
-            {preferBodyTypeNoPreference ? '모든 체형 선택됨' : '모든 체형 (상관없음)'}
-          </NoPreferenceButton>
-          
-          {!preferBodyTypeNoPreference && (
-            <BodyTypeGrid>
-              {bodyTypeOptions.map(bodyType => (
-                <BodyTypeButton
-                  key={bodyType}
-                  selected={preferredBodyTypes.includes(bodyType)}
-                  onClick={() => handleBodyTypeToggle(bodyType)}
-                >
-                  {bodyType}
-                </BodyTypeButton>
-              ))}
-            </BodyTypeGrid>
+          <CompanyOpenButton type="button" onClick={() => setIsBodyTypeModalOpen(true)}>
+            <span>{preferredBodyTypes.length === 0 && !preferBodyTypeNoPreference ? '선호 체형을 선택해주세요' : '선호 체형 다시 선택하기'}</span>
+            <span>선택하기</span>
+          </CompanyOpenButton>
+          {(!preferredBodyTypes.length && !preferBodyTypeNoPreference) ? (
+            <CompanySummaryText style={{ color: '#ef4444' }}>
+              아직 선호 체형을 선택하지 않았어요.
+            </CompanySummaryText>
+          ) : (
+            <CompanySummaryText>
+              {preferBodyTypeNoPreference
+                ? '모든 체형 (상관없음)'
+                : (() => {
+                    const count = preferredBodyTypes.length;
+                    const preview = preferredBodyTypes.slice(0, 3);
+                    if (count <= 3) return `${preview.join(', ')} (${count})`;
+                    return `${preview.join(', ')} 등 (${count})`;
+                  })()}
+            </CompanySummaryText>
           )}
         </BodyTypeContainer>
         
@@ -660,54 +722,66 @@ const PreferenceSetupPage = () => {
         {/* 선호 직군 */}
         <BodyTypeContainer>
           <Label>선호 직군 (중복 선택 가능)</Label>
-          <NoPreferenceButton 
-            selected={preferJobTypeNoPreference}
-            onClick={() => handleJobTypeToggle('상관없음')}
-          >
-            {preferJobTypeNoPreference ? '모든 직군 선택됨' : '모든 직군 (상관없음)'}
-          </NoPreferenceButton>
-          
-          {!preferJobTypeNoPreference && (
-            <BodyTypeGrid>
-              {jobTypeOptions.map(jobType => (
-                <BodyTypeButton
-                  key={jobType}
-                  selected={preferredJobTypes.includes(jobType)}
-                  onClick={() => handleJobTypeToggle(jobType)}
-                >
-                  {jobType}
-                </BodyTypeButton>
-              ))}
-            </BodyTypeGrid>
+          <CompanyOpenButton type="button" onClick={() => setIsJobTypeModalOpen(true)}>
+            <span>{preferredJobTypes.length === 0 && !preferJobTypeNoPreference ? '선호 직군을 선택해주세요' : '선호 직군 다시 선택하기'}</span>
+            <span>선택하기</span>
+          </CompanyOpenButton>
+          {(!preferredJobTypes.length && !preferJobTypeNoPreference) ? (
+            <CompanySummaryText style={{ color: '#ef4444' }}>
+              아직 선호 직군을 선택하지 않았어요.
+            </CompanySummaryText>
+          ) : (
+            <CompanySummaryText>
+              {preferJobTypeNoPreference
+                ? '모든 직군 (상관없음)'
+                : (() => {
+                    const count = preferredJobTypes.length;
+                    const preview = preferredJobTypes.slice(0, 3);
+                    if (count <= 3) return `${preview.join(', ')} (${count})`;
+                    return `${preview.join(', ')} 등 (${count})`;
+                  })()}
+            </CompanySummaryText>
           )}
         </BodyTypeContainer>
+
+        {/* 선호 지역 */}
+        <RegionSection>
+          <Label>선호 지역 (중복 선택 가능)</Label>
+          <RegionOpenButton type="button" onClick={() => setIsRegionModalOpen(true)}>
+            <span>{preferRegions.length === 0 ? '선호 지역을 선택해주세요' : '선호 지역 다시 선택하기'}</span>
+            <span>선택하기</span>
+          </RegionOpenButton>
+          {preferRegions.length === 0 ? (
+            <RegionSummaryText style={{ color: '#ef4444' }}>
+              아직 선호 지역을 선택하지 않았어요.
+            </RegionSummaryText>
+          ) : (
+            <RegionSummaryText>{regionSummary}</RegionSummaryText>
+          )}
+        </RegionSection>
         
         {/* 선호 결혼상태 */}
         <BodyTypeContainer>
           <Label style={{marginTop: '32px'}}>선호 결혼상태 (중복 선택 가능)</Label>
-          <NoPreferenceButton 
-            selected={preferMaritalNoPreference}
-            onClick={() => {
-              setPreferMaritalNoPreference(!preferMaritalNoPreference);
-              setPreferredMaritalStatuses(!preferMaritalNoPreference ? maritalOptions : []);
-            }}
-          >
-            {preferMaritalNoPreference ? '모든 결혼상태 선택됨' : '모든 결혼상태 (상관없음)'}
-          </NoPreferenceButton>
-          {!preferMaritalNoPreference && (
-            <BodyTypeGrid>
-              {maritalOptions.map(opt => (
-                <BodyTypeButton
-                  key={opt}
-                  selected={preferredMaritalStatuses.includes(opt)}
-                  onClick={() => {
-                    setPreferredMaritalStatuses(prev => prev.includes(opt) ? prev.filter(o => o !== opt) : [...prev, opt]);
-                  }}
-                >
-                  {opt}
-                </BodyTypeButton>
-              ))}
-            </BodyTypeGrid>
+          <CompanyOpenButton type="button" onClick={() => setIsMaritalModalOpen(true)}>
+            <span>{preferredMaritalStatuses.length === 0 && !preferMaritalNoPreference ? '선호 결혼상태를 선택해주세요' : '선호 결혼상태 다시 선택하기'}</span>
+            <span>선택하기</span>
+          </CompanyOpenButton>
+          {(!preferredMaritalStatuses.length && !preferMaritalNoPreference) ? (
+            <CompanySummaryText style={{ color: '#ef4444' }}>
+              아직 선호 결혼상태를 선택하지 않았어요.
+            </CompanySummaryText>
+          ) : (
+            <CompanySummaryText>
+              {preferMaritalNoPreference
+                ? '모든 결혼상태 (상관없음)'
+                : (() => {
+                    const count = preferredMaritalStatuses.length;
+                    const preview = preferredMaritalStatuses.slice(0, 3);
+                    if (count <= 3) return `${preview.join(', ')} (${count})`;
+                    return `${preview.join(', ')} 등 (${count})`;
+                  })()}
+            </CompanySummaryText>
           )}
         </BodyTypeContainer>
         
@@ -725,6 +799,79 @@ const PreferenceSetupPage = () => {
           setPreferCompanyNames(names);
           savePreferenceData({ preferCompanyIds: ids, preferCompanyNames: names });
           setIsCompanyModalOpen(false);
+        }}
+      />
+      <PreferredRegionModal
+        isOpen={isRegionModalOpen}
+        initialSelectedRegions={preferRegions}
+        onClose={() => setIsRegionModalOpen(false)}
+        onConfirm={(regions) => {
+          setPreferRegions(regions);
+          savePreferenceData({ preferRegions: regions });
+          setIsRegionModalOpen(false);
+        }}
+      />
+      <PreferenceMultiSelectModal
+        isOpen={isBodyTypeModalOpen}
+        title="선호 체형 선택"
+        description="매칭 시 참고되는 선호 체형을 선택해주세요. 상단의 상관없음 버튼을 누르면 모든 체형을 선호하는 것으로 처리돼요."
+        options={bodyTypeOptions}
+        initialSelected={preferredBodyTypes}
+        initialNoPreference={preferBodyTypeNoPreference}
+        minCount={3}
+        anyInactiveLabel="상관없음 (모든 체형 선택)"
+        anyActiveLabel="모든 체형 선택 해제"
+        onClose={() => setIsBodyTypeModalOpen(false)}
+        onConfirm={(selected, noPref) => {
+          setPreferBodyTypeNoPreference(noPref);
+          setPreferredBodyTypes(selected);
+          savePreferenceData({
+            preferredBodyTypes: selected,
+            preferBodyTypeNoPreference: noPref,
+          });
+          setIsBodyTypeModalOpen(false);
+        }}
+      />
+      <PreferenceMultiSelectModal
+        isOpen={isJobTypeModalOpen}
+        title="선호 직군 선택"
+        description="매칭 시 참고되는 선호 직군을 선택해주세요. 상단의 상관없음 버튼을 누르면 모든 직군을 선호하는 것으로 처리돼요."
+        options={jobTypeOptions}
+        initialSelected={preferredJobTypes}
+        initialNoPreference={preferJobTypeNoPreference}
+        minCount={1}
+        anyInactiveLabel="상관없음 (모든 직군 선택)"
+        anyActiveLabel="모든 직군 선택 해제"
+        onClose={() => setIsJobTypeModalOpen(false)}
+        onConfirm={(selected, noPref) => {
+          setPreferJobTypeNoPreference(noPref);
+          setPreferredJobTypes(selected);
+          savePreferenceData({
+            preferredJobTypes: selected,
+            preferJobTypeNoPreference: noPref,
+          });
+          setIsJobTypeModalOpen(false);
+        }}
+      />
+      <PreferenceMultiSelectModal
+        isOpen={isMaritalModalOpen}
+        title="선호 결혼상태 선택"
+        description="매칭 시 참고되는 선호 결혼상태를 선택해주세요. 상단의 상관없음 버튼을 누르면 모든 결혼상태를 선호하는 것으로 처리돼요."
+        options={maritalOptions}
+        initialSelected={preferredMaritalStatuses}
+        initialNoPreference={preferMaritalNoPreference}
+        minCount={1}
+        anyInactiveLabel="상관없음 (모든 결혼상태 선택)"
+        anyActiveLabel="모든 결혼상태 선택 해제"
+        onClose={() => setIsMaritalModalOpen(false)}
+        onConfirm={(selected, noPref) => {
+          setPreferMaritalNoPreference(noPref);
+          setPreferredMaritalStatuses(selected);
+          savePreferenceData({
+            preferredMaritalStatuses: selected,
+            preferMaritalNoPreference: noPref,
+          });
+          setIsMaritalModalOpen(false);
         }}
       />
     </Container>

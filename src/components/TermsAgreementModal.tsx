@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 
@@ -266,6 +266,7 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
 `;
 
 const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClose, onAgree }) => {
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const [agreements, setAgreements] = useState({
     privacy: false,
     terms: false,
@@ -282,6 +283,23 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
   const handleAllAgree = () => {
     const newAllState = !agreements.all;
     setAgreements({ privacy: newAllState, terms: newAllState, email: newAllState, all: newAllState });
+    
+    // 모두 동의 ON 시 모달 전체 스크롤을 최하단으로 이동 (다음 버튼이 바로 보이도록)
+    if (newAllState) {
+      setTimeout(() => {
+        if (contentRef.current) {
+          const el = contentRef.current;
+          try {
+            el.scrollTo({
+              top: el.scrollHeight,
+              behavior: 'smooth',
+            });
+          } catch {
+            el.scrollTop = el.scrollHeight;
+          }
+        }
+      }, 0);
+    }
   };
 
   const handleAgree = () => {
@@ -301,7 +319,7 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
 
   return (
     <ModalOverlay $isOpen={isOpen} onClick={onClose}>
-      <ModalContent onClick={(e) => e.stopPropagation()}>
+      <ModalContent ref={contentRef} onClick={(e) => e.stopPropagation()}>
         <ModalTitle>개인정보처리방침 및 이용약관 동의</ModalTitle>
         
         <AllAgreeContainer>
@@ -318,7 +336,7 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
 
         <TermsSection>
           <SectionTitle>개인정보처리방침</SectionTitle>
-          <TermsContent>
+          <TermsContent className="terms-scroll">
             <strong>1. 개인정보의 수집 및 이용목적</strong><br />
             본 서비스는 다음과 같은 목적으로 개인정보를 수집하고 있습니다:<br />
             • 회원가입 및 서비스 제공<br />
@@ -360,7 +378,7 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
 
         <TermsSection>
           <SectionTitle>이용약관</SectionTitle>
-          <TermsContent>
+          <TermsContent className="terms-scroll">
             <strong>1. 서비스 이용</strong><br />
             • 본 서비스는 성인(만 19세 이상)만 이용할 수 있습니다.<br />
             • 허위 정보 입력 시 서비스 이용이 제한될 수 있습니다.<br />
@@ -404,7 +422,7 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
 
         <TermsSection>
           <SectionTitle>이메일 수신 동의</SectionTitle>
-          <TermsContent>
+          <TermsContent className="terms-scroll">
             <strong>1. 이메일 수신 동의의 목적</strong><br />
             본 서비스는 다음과 같은 목적으로 이메일을 발송합니다:<br />
             • 회원가입 시 이메일 인증 (필수)<br />

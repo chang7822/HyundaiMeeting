@@ -473,6 +473,14 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: '선호 회사를 최소 1개 이상 선택해주세요.' });
     }
 
+    // 선호 지역 선택 필수 검증 (시/도 기준, 프론트 우회 방지용)
+    if (
+      !Array.isArray(preferences.preferRegions) ||
+      preferences.preferRegions.length === 0
+    ) {
+      return res.status(400).json({ error: '선호 지역을 최소 1개 이상 선택해주세요.' });
+    }
+
     // 이메일 중복 확인
     const { data: existingUser } = await supabase
       .from('users')
@@ -760,6 +768,18 @@ router.post('/register', async (req, res) => {
           return res.status(400).json({ error: '선호 회사 정보가 올바르지 않습니다.' });
         }
         profileDataToInsert.prefer_company = parsedIds;
+      }
+
+      // 선호 지역 저장 (text[] 컬럼: prefer_region, 시/도 배열)
+      if (Array.isArray(preferences.preferRegions) && preferences.preferRegions.length > 0) {
+        // 문자열만 남기고, 공백 요소 제거
+        const regions = preferences.preferRegions
+          .map(r => (typeof r === 'string' ? r.trim() : ''))
+          .filter(r => r.length > 0);
+        if (regions.length === 0) {
+          return res.status(400).json({ error: '선호 지역 정보가 올바르지 않습니다.' });
+        }
+        profileDataToInsert.prefer_region = regions;
       }
     }
 

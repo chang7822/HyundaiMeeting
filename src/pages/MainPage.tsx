@@ -1294,6 +1294,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return;
     }
 
+    // 선호 지역 선택 여부 확인 (기존 회원 보호용, 시/도 단위)
+    try {
+      const preferRegion = me?.prefer_region;
+      const preferRegionCount =
+        Array.isArray(preferRegion) ? preferRegion.length : 0;
+      if (!preferRegionCount || preferRegionCount === 0) {
+        toast.error('선호 스타일에서 선호 지역을 선택해주세요.');
+        return;
+      }
+    } catch (e) {
+      toast.error('선호 스타일에서 선호 지역을 선택해주세요.');
+      return;
+    }
+
     if (bodyTypes.length !== 3) {
       toast.error('원활한 매칭을 위해 프로필에서 체형 3개를 선택해 주세요.');
       return;
@@ -1880,6 +1894,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     })()}<br/>
                     <b>직군:</b> {(() => {
                       const arr = profile?.preferred_job_types ? (Array.isArray(profile.preferred_job_types) ? profile.preferred_job_types : (()=>{try{return JSON.parse(profile.preferred_job_types);}catch{return[];}})()) : [];
+                      return arr.length > 0 ? arr.join(', ') : '-';
+                    })()}<br/>
+                    <b>지역:</b> {(() => {
+                      const arr = profile?.prefer_region;
+                      if (!arr || !Array.isArray(arr)) return '-';
                       return arr.length > 0 ? arr.join(', ') : '-';
                     })()}<br/>
                     <b>결혼상태:</b> {(() => {

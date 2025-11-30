@@ -32,6 +32,12 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
     return names.length ? names.join(', ') : '-';
   })();
 
+  const preferRegions = (() => {
+    const regions = user && Array.isArray(user.prefer_region) ? user.prefer_region as string[] : [];
+    if (!regions.length) return '-';
+    return regions.join(', ');
+  })();
+
   if (!user) return null;
   return (
     <Modal
@@ -59,6 +65,7 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
         <div style={{marginBottom:8}}><b>성별:</b> {user.gender}</div>
         <div style={{marginBottom:8}}><b>생년:</b> {user.birth_year}</div>
         <div style={{marginBottom:8}}><b>키:</b> {user.height}</div>
+        <div style={{marginBottom:8}}><b>거주지:</b> {user.residence}</div>
         <div style={{marginBottom:8}}><b>회사:</b> {user.company}</div>
         <div style={{marginBottom:8}}><b>직군:</b> {user.job_type}</div>
         <div style={{marginBottom:8}}><b>결혼상태:</b> {user.marital_status}</div>
@@ -71,6 +78,7 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
         <div style={{marginBottom:8}}><b>선호 체형:</b> {parseArray(user.preferred_body_types).join(', ')}</div>
         <div style={{marginBottom:8}}><b>선호 회사:</b> {preferCompanyNames}</div>
         <div style={{marginBottom:8}}><b>선호 직군:</b> {parseArray(user.preferred_job_types).join(', ')}</div>
+        <div style={{marginBottom:8}}><b>선호 지역:</b> {preferRegions}</div>
         <div style={{marginBottom:8}}><b>선호 결혼상태:</b> {parseArray(user.preferred_marital_statuses).join(', ')}</div>
         <button onClick={onRequestClose} style={{marginTop:12, width:'100%',background:'#7C3AED',color:'#fff',border:'none',borderRadius:8,padding:'10px 0',fontWeight:600}}>닫기</button>
       </div>
