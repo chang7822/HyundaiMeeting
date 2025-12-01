@@ -96,7 +96,10 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    // 메일 발송 실패는 조용히 무시 (로그 남기지 않음)
+    // 개발 환경에서는 최소한의 로그만 남겨서 원인 파악이 가능하도록 함
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[sendMatchingResultEmail] 이메일 발송 실패:', error?.message || error);
+    }
     return false;
   }
 }
@@ -124,7 +127,9 @@ async function sendAdminNotificationEmail(subject, content) {
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    // 관리자 알림 메일 실패도 조용히 무시
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[sendAdminNotificationEmail] 관리자 알림 메일 발송 실패:', error?.message || error);
+    }
     return false;
   }
 }
@@ -190,7 +195,9 @@ async function sendAdminBroadcastEmail(toEmail, subject, content) {
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    // 공지 메일 실패도 조용히 무시
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[sendAdminBroadcastEmail] 관리자 공지 메일 발송 실패:', error?.message || error);
+    }
     return false;
   }
 }
