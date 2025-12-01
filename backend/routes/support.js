@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
+const { sendAdminNotificationEmail } = require('../utils/emailService');
 
 // ===================================
 // 사용자용 API
@@ -48,6 +49,27 @@ router.post('/inquiries', authenticate, async (req, res) => {
         success: false, 
         message: '문의 등록에 실패했습니다.' 
       });
+    }
+
+    // 관리자 알림 메일 발송 (비동기)
+    try {
+      const adminSubject = '신규 고객센터 문의 접수';
+      const adminBodyLines = [
+        '새로운 고객센터 문의가 등록되었습니다.',
+        '',
+        `문의 ID: ${data.id}`,
+        `작성자 ID: ${user_id}`,
+        `카테고리: ${category}`,
+        `제목: ${title.trim()}`,
+        '',
+        '문의 내용:',
+        content.trim(),
+      ];
+      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+        console.error('[문의 등록] 관리자 알림 메일 발송 실패:', err);
+      });
+    } catch (e) {
+      console.error('[문의 등록] 관리자 알림 메일 처리 중 오류:', e);
     }
 
     res.json({

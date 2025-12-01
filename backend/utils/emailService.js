@@ -93,12 +93,38 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
   };
 
   try {
-    console.log(`📧 매칭 결과 이메일 발송 시도: ${userEmail} (매칭 ${isMatched ? '성공' : '실패'})`);
-    const result = await transporter.sendMail(mailOptions);
-    console.log(`✅ 매칭 결과 이메일 발송 성공: ${userEmail}`);
+    await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    console.error(`❌ 매칭 결과 이메일 발송 실패: ${userEmail}`, error);
+    // 메일 발송 실패는 조용히 무시 (로그 남기지 않음)
+    return false;
+  }
+}
+
+// 내부 관리자 알림용 단순 텍스트 이메일
+async function sendAdminNotificationEmail(subject, content) {
+  const toEmail = process.env.EMAIL_USER;
+  if (!toEmail) {
+    // EMAIL_USER 미설정 시에도 조용히 패스
+    return false;
+  }
+
+  const finalSubject = subject && subject.startsWith('[직장인 솔로 공모]')
+    ? subject
+    : `[직장인 솔로 공모] ${subject || '관리자 알림'}`;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: toEmail,
+    subject: finalSubject,
+    text: content || '',
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    // 관리자 알림 메일 실패도 조용히 무시
     return false;
   }
 }
@@ -161,11 +187,10 @@ async function sendAdminBroadcastEmail(toEmail, subject, content) {
   };
 
   try {
-    console.log(`📧 관리자 공지 메일 발송 시도: ${toEmail}, subject=${finalSubject}`);
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    console.error(`❌ 관리자 공지 메일 발송 실패: ${toEmail}`, error);
+    // 공지 메일 실패도 조용히 무시
     return false;
   }
 }
@@ -174,4 +199,5 @@ module.exports = {
   sendMatchingResultEmail,
   sendAdminBroadcastEmail,
   buildAdminBroadcastEmailHtml,
+  sendAdminNotificationEmail,
 };

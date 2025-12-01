@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
+const { sendAdminNotificationEmail } = require('../utils/emailService');
 
 // 신고 등록
 router.post('/', authenticate, async (req, res) => {
@@ -174,6 +175,28 @@ router.post('/', authenticate, async (req, res) => {
         console.error('신고 횟수 업데이트 오류:', updateError);
         // 신고 등록은 성공했지만 횟수 업데이트 실패는 로그만 남김
       }
+    }
+
+    // 관리자 알림 메일 발송 (비동기, 실패해도 신고 등록은 유지)
+    try {
+      const adminSubject = '신규 신고 접수';
+      const adminBodyLines = [
+        '새로운 신고가 접수되었습니다.',
+        '',
+        `신고 ID: ${data.id}`,
+        `회차 ID: ${data.period_id}`,
+        `신고 유형: ${data.report_type}`,
+        `신고자 이메일: ${reporterUser.email}`,
+        `신고 대상자 이메일: ${reportedUserEmail || '알 수 없음'}`,
+        '',
+        '신고 내용:',
+        report_details || '(내용 없음)',
+      ];
+      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+        console.error('[신고 등록] 관리자 알림 메일 발송 실패:', err);
+      });
+    } catch (e) {
+      console.error('[신고 등록] 관리자 알림 메일 처리 중 오류:', e);
     }
 
     res.json({

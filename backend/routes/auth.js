@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const { supabase } = require('../database');
+const { sendAdminNotificationEmail } = require('../utils/emailService');
 const router = express.Router();
 const authenticate = require('../middleware/authenticate');
 
@@ -59,15 +60,9 @@ const transporter = nodemailer.createTransport({
   }
 });
 
-// 이메일 설정 확인
+// 이메일 설정 확인 (실패/성공 로그는 사용자에게 노출하지 않기 위해 생략)
 transporter.verify(function(error, success) {
-  if (error) {
-    console.error('❌ 이메일 서버 연결 실패:', error);
-    console.error('에러 코드:', error.code);
-    console.error('에러 메시지:', error.message);
-  } else {
-    console.log('✅ 이메일 서버 연결 성공');
-  }
+  // 아무 것도 하지 않음
 });
 
 // 인증번호 생성
@@ -124,24 +119,10 @@ async function sendVerificationEmail(email, code) {
   };
 
   try {
-    console.log('📧 이메일 발송 시도:', {
-      from: mailOptions.from,
-      to: mailOptions.to,
-      subject: mailOptions.subject,
-      sentAt: koreanTime
-    });
-    
-    const result = await transporter.sendMail(mailOptions);
-    console.log('✅ 이메일 발송 성공 결과:', result);
+    await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    console.error('❌ 이메일 발송 실패 상세:', {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      responseCode: error.responseCode,
-      response: error.response
-    });
+    // 인증 메일 발송 실패도 조용히 false만 반환
     return false;
   }
 }
@@ -255,12 +236,6 @@ router.post('/resend-verification', async (req, res) => {
       createdAt: Date.now()
     });
 
-    // 개발 모드에서 재발송된 인증번호를 콘솔에 한 번만 출력
-    console.log('\n🔐 === 이메일 인증번호 재발송 (개발 모드) ===');
-    console.log(`📧 이메일: ${email}`);
-    console.log(`🔢 인증번호: ${verificationCode}`);
-    console.log('====================================\n');
-
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
@@ -286,11 +261,16 @@ router.post('/resend-verification', async (req, res) => {
     };
 
     // 상단에서 생성한 공용 transporter 재사용
-    await transporter.sendMail(mailOptions);
-    res.json({ success: true, message: '인증번호가 재발송되었습니다.' });
+    try {
+      await transporter.sendMail(mailOptions);
+      res.json({ success: true, message: '인증번호가 재발송되었습니다.' });
+    } catch (error) {
+      // 재발송 실패 시에도 구체적인 로그는 남기지 않고 오류 응답만 전달
+      res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+    }
 
   } catch (error) {
-    console.error('이메일 재발송 오류:', error);
+    // 상위 로직 오류만 처리
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
   }
 });
@@ -894,6 +874,26 @@ router.post('/register', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    // 관리자 알림 메일 발송 (비동기) - 신규 회원 가입
+    try {
+      const adminSubject = '신규 회원 가입';
+      const adminBodyLines = [
+        '새로운 회원이 가입했습니다.',
+        '',
+        `이메일: ${email}`,
+        `닉네임: ${nickname}`,
+        `성별: ${gender}`,
+        `출생연도: ${birthYear}`,
+        '',
+        `회사(자동 인식): ${profileDataToInsert.company || '-'}`,
+      ];
+      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+        console.error('[회원가입] 관리자 알림 메일 발송 실패:', err);
+      });
+    } catch (e) {
+      console.error('[회원가입] 관리자 알림 메일 처리 중 오류:', e);
+    }
 
     res.json({
       message: '회원가입이 완료되었습니다.',

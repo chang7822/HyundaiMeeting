@@ -159,9 +159,9 @@ const SectionTitle = styled.h3`
   margin: 0 0 16px 0;
 `;
 
-const ReplyItem = styled.div<{ isAdmin?: boolean }>`
-  background: ${props => props.isAdmin ? '#f0f8ff' : 'white'};
-  border: 1px solid ${props => props.isAdmin ? '#bee3f8' : '#e5e7eb'};
+const ReplyItem = styled.div<{ $isAdmin?: boolean }>`
+  background: ${props => props.$isAdmin ? '#f0f8ff' : 'white'};
+  border: 1px solid ${props => props.$isAdmin ? '#bee3f8' : '#e5e7eb'};
   border-radius: 8px;
   padding: 16px;
   margin-bottom: 12px;
@@ -174,10 +174,10 @@ const ReplyHeader = styled.div`
   margin-bottom: 8px;
 `;
 
-const ReplyAuthor = styled.span<{ isAdmin?: boolean }>`
+const ReplyAuthor = styled.span<{ $isAdmin?: boolean }>`
   font-size: 14px;
   font-weight: 600;
-  color: ${props => props.isAdmin ? '#2563eb' : '#374151'};
+  color: ${props => props.$isAdmin ? '#2563eb' : '#374151'};
 `;
 
 const ReplyDate = styled.span`
@@ -341,9 +341,9 @@ const SupportInquiryDetailPage: React.FC<SupportInquiryDetailPageProps> = ({ sid
             <RepliesSection>
               <SectionTitle>💬 답변 내역</SectionTitle>
               {inquiry.replies.map((reply) => (
-                <ReplyItem key={reply.id} isAdmin={reply.is_admin_reply}>
+                <ReplyItem key={reply.id} $isAdmin={reply.is_admin_reply}>
                   <ReplyHeader>
-                    <ReplyAuthor isAdmin={reply.is_admin_reply}>
+                    <ReplyAuthor $isAdmin={reply.is_admin_reply}>
                       {reply.is_admin_reply ? '👨‍💼 관리자' : '👤 나'}
                     </ReplyAuthor>
                     <ReplyDate>{formatDate(reply.created_at)}</ReplyDate>
