@@ -88,12 +88,19 @@ async function sendVerificationEmail(email, code) {
     timeZone: 'Asia/Seoul'
   }).format(now);
 
+  const formatDateYMD = (date) => {
+    const yy = String(date.getFullYear()).slice(2);
+    const m = date.getMonth() + 1;
+    const d = date.getDate();
+    return `${yy}. ${m}. ${d}`;
+  };
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
     subject: '[직장인 솔로 공모] 이메일 인증',
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0;">
         <h2 style="color: #333;">[직장인 솔로 공모] 이메일 인증</h2>
         <p>안녕하세요! 직장인 맞춤 만남 서비스인 [직장인 솔로 공모]에 가입해주셔서 감사합니다.</p>
         <p>아래 인증번호를 입력하여 이메일 인증을 완료해주세요:</p>
@@ -103,21 +110,13 @@ async function sendVerificationEmail(email, code) {
         <p>이 인증번호는 30분간 유효합니다.</p>
         <div style="text-align: center; margin: 24px 0;">
           <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
-             style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+             style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
             직쏠공 (직장인 솔로 공모)<br/>바로가기
           </a>
         </div>
-        <p style="color: #666; font-size: 14px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px;">
-          <strong>송신 시각:</strong> ${koreanTime} (한국 시간)<br>
-          <strong>만료 시각:</strong> ${new Intl.DateTimeFormat('ko-KR', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            timeZone: 'Asia/Seoul'
-          }).format(new Date(now.getTime() + 30 * 60 * 1000))} (한국 시간)
+        <p style="color: #666; font-size: 16px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px;">
+          <strong>송신 시각:</strong> ${formatDateYMD(new Date())} (한국 시간)<br>
+          <strong>만료 시각:</strong> ${formatDateYMD(new Date(now.getTime() + 30 * 60 * 1000))} (한국 시간)
         </p>
         <p>감사합니다.</p>
       </div>
@@ -267,7 +266,7 @@ router.post('/resend-verification', async (req, res) => {
       to: email,
       subject: '[직장인 솔로 공모] 이메일 인증번호 재발송',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px;">
           <h2 style="color: #333; text-align: center;">이메일 인증번호</h2>
           <p>안녕하세요! 직장인 솔로 공모입니다:</p>
           <p>요청하신 이메일 인증번호입니다:</p>
@@ -277,8 +276,8 @@ router.post('/resend-verification', async (req, res) => {
           <p>이 인증번호는 30분간 유효합니다.</p>
           <div style="text-align: center; margin: 24px 0;">
             <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
-               style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
-          직쏠공 (직장인 솔로 공모)<br/>바로가기
+               style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+              직쏠공 (직장인 솔로 공모)<br/>바로가기
             </a>
           </div>
           <p>감사합니다.</p>
@@ -989,7 +988,7 @@ router.post('/forgot-password', async (req, res) => {
       to: email,
       subject: '[직장인 솔로 공모] 비밀번호 재설정 인증번호',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px;">
           <h2 style="color: #333; text-align: center;">비밀번호 재설정 인증번호</h2>
           <p>안녕하세요! 직장인 솔로 공모입니다:</p>
           <p>비밀번호 재설정을 위한 인증번호입니다:</p>
@@ -1000,8 +999,8 @@ router.post('/forgot-password', async (req, res) => {
           <p>본인이 요청하지 않았다면 이 이메일을 무시해주세요.</p>
           <div style="text-align: center; margin: 24px 0;">
             <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
-               style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
-          작쏠공 (직장인 솔로 공모)<br/>바로가기
+               style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+              직장인 솔로 공모<br/>바로가기
             </a>
           </div>
           <p>감사합니다.</p>

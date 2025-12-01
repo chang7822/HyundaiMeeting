@@ -176,6 +176,51 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
     setForm(testData);
   };
 
+  // 신청 시작일을 기준으로 자동 일정 생성
+  const handleAutoScheduleFromStart = () => {
+    if (!form.application_start) {
+      alert('먼저 "신청 시작" 날짜/시간을 입력해주세요.');
+      return;
+    }
+
+    const base = new Date(form.application_start);
+    if (isNaN(base.getTime())) {
+      alert('유효한 신청 시작일이 아닙니다.');
+      return;
+    }
+
+    // 초와 밀리초 0으로 정리
+    base.setSeconds(0, 0);
+
+    // 신청 마감: 신청 시작일 기준 6일 후 19:00
+    const applicationEnd = new Date(base);
+    applicationEnd.setDate(applicationEnd.getDate() + 6);
+    applicationEnd.setHours(19, 0, 0, 0);
+
+    // 매칭 실행: 신청 시작일 기준 6일 후 19:30
+    const matchingRun = new Date(base);
+    matchingRun.setDate(matchingRun.getDate() + 6);
+    matchingRun.setHours(19, 30, 0, 0);
+
+    // 매칭 공지: 신청 시작일 기준 7일 후 10:00
+    const matchingAnnounce = new Date(base);
+    matchingAnnounce.setDate(matchingAnnounce.getDate() + 7);
+    matchingAnnounce.setHours(10, 0, 0, 0);
+
+    // 회차 종료: 매칭 공지 3일 후 22:00
+    const finish = new Date(matchingAnnounce);
+    finish.setDate(finish.getDate() + 3);
+    finish.setHours(22, 0, 0, 0);
+
+    setForm((prev: any) => ({
+      ...prev,
+      application_end: applicationEnd.toISOString(),
+      matching_run: matchingRun.toISOString(),
+      matching_announce: matchingAnnounce.toISOString(),
+      finish: finish.toISOString(),
+    }));
+  };
+
   return (
     <Container $sidebarOpen={isSidebarOpen}>
       <Title>매칭 회차 관리</Title>
@@ -193,7 +238,7 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
                   <th>신청 시작</th>
                   <th>신청 마감</th>
                   <th>매칭 실행</th>
-                  <th>매칭 공지</th>
+                  <th>결과 발표</th>
                   <th>회차 종료</th>
                   <th>실행됨</th>
                   <th>수정/삭제</th>
@@ -263,7 +308,7 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
             />
           </div>
           <div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>매칭 공지</div>
+            <div style={{ fontSize: 13, marginBottom: 4 }}>결과 발표</div>
             <DatePicker
               selected={form.matching_announce ? new Date(form.matching_announce) : null}
               onChange={date => handleChange('matching_announce', date ? date.toISOString() : null)}
@@ -293,6 +338,16 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
           <Button onClick={handleSave} disabled={!isFormValid}>{editing ? '수정 완료' : '추가'}</Button>
           <Button style={{ background: '#888' }} onClick={() => { setModalOpen(false); setEditing(null); setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); }}>취소</Button>
           <Button style={{ background: '#27ae60' }} onClick={handleTestData}>테스트</Button>
+          <Button
+            style={{
+              background: form.application_start ? '#10b981' : '#9ca3af',
+              cursor: form.application_start ? 'pointer' : 'not-allowed',
+            }}
+            onClick={handleAutoScheduleFromStart}
+            disabled={!form.application_start}
+          >
+            자동 일정
+          </Button>
         </div>
       </Modal>
     </Container>

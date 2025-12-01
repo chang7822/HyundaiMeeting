@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
-const { sendMatchingResultEmail } = require('../utils/emailService');
+const { sendMatchingResultEmail, sendAdminBroadcastEmail } = require('../utils/emailService');
 const authenticate = require('../middleware/authenticate');
 
 // 임시 데이터 (다른 라우트와 공유)
@@ -1340,6 +1340,128 @@ router.post('/send-matching-result-emails', authenticate, async (req, res) => {
   } catch (error) {
     console.error('매칭 결과 이메일 발송 오류:', error);
     res.status(500).json({ message: '매칭 결과 이메일 발송에 실패했습니다.', error: error.message });
+  }
+});
+
+// [관리자] 전체 회원 공지 메일 발송
+router.post('/broadcast-email', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { subject, content, targets } = req.body || {};
+
+    if (!subject || !content) {
+      return res.status(400).json({
+        success: false,
+        message: '제목과 내용을 모두 입력해주세요.',
+      });
+    }
+
+    let users = [];
+
+    if (Array.isArray(targets) && targets.length > 0) {
+      // 선택된 회원만 대상으로 발송
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, is_active, is_verified')
+        .in('id', targets);
+
+      if (error) {
+        console.error('[admin][broadcast-email] 선택 대상 조회 오류:', error);
+        return res.status(500).json({
+          success: false,
+          message: '발송 대상 조회에 실패했습니다.',
+        });
+      }
+      users = data || [];
+    } else {
+      // 활성 + 이메일 인증 완료된 회원 전체 대상으로 발송
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, is_active, is_verified')
+        .eq('is_active', true)
+        .eq('is_verified', true);
+
+      if (error) {
+        console.error('[admin][broadcast-email] 사용자 목록 조회 오류:', error);
+        return res.status(500).json({
+          success: false,
+          message: '회원 목록 조회에 실패했습니다.',
+        });
+      }
+      users = data || [];
+    }
+
+    const targetUsers = users.filter(u => !!u.email && u.is_active && u.is_verified);
+
+    if (!targetUsers.length) {
+      return res.status(404).json({
+        success: false,
+        message: '발송 가능한 회원이 없습니다. (활성 + 이메일 인증 완료된 회원 없음)',
+      });
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const user of targetUsers) {
+      const ok = await sendAdminBroadcastEmail(user.email, subject, content);
+      if (ok) successCount++;
+      else failCount++;
+    }
+
+    console.log(`[admin][broadcast-email] 발송 완료 - 전체: ${targetUsers.length}, 성공: ${successCount}, 실패: ${failCount}`);
+
+    return res.json({
+      success: true,
+      total: targetUsers.length,
+      successCount,
+      failCount,
+      message: `전체 ${targetUsers.length}명 중 ${successCount}명에게 메일을 발송했습니다.`,
+    });
+  } catch (error) {
+    console.error('[admin][broadcast-email] 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '전체 메일 발송 중 오류가 발생했습니다.',
+    });
+  }
+});
+
+// [관리자] 전체 메일 발송 대상 조회
+router.get('/broadcast-recipients', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { data, error } = await supabase
+      .from('users')
+      .select(`
+        id,
+        email,
+        is_active,
+        is_verified,
+        created_at,
+        profile:user_profiles(nickname, company)
+      `)
+      .eq('is_active', true)
+      .eq('is_verified', true)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[admin][broadcast-recipients] 조회 오류:', error);
+      return res.status(500).json({
+        success: false,
+        message: '발송 대상 조회에 실패했습니다.',
+      });
+    }
+
+    return res.json(data || []);
+  } catch (error) {
+    console.error('[admin][broadcast-recipients] 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '발송 대상 조회 중 오류가 발생했습니다.',
+    });
   }
 });
 

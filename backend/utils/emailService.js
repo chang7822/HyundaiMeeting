@@ -12,18 +12,21 @@ const transporter = nodemailer.createTransport({
 // 매칭 결과 이메일 발송 함수
 async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null) {
   const now = new Date();
-  const koreanTime = new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Seoul'
-  }).format(now);
+
+  const formatDateYMD = (date) => {
+    const yy = String(date.getFullYear()).slice(2);
+    const m = date.getMonth() + 1;
+    const d = date.getDate();
+    return `${yy}. ${m}. ${d}`;
+  };
+
+  const hh = now.getHours().toString().padStart(2, '0');
+  const mm = now.getMinutes().toString().padStart(2, '0');
+  const koreanTime = `${formatDateYMD(now)} ${hh}:${mm}`;
 
   const subject = '[직장인 솔로 공모] 매칭 결과 발표';
   const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; margin-bottom: 30px;">
         <h1 style="margin: 0; font-size: 28px;">📋 매칭 결과 발표</h1>
         <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">직장인 솔로 공모 매칭 결과가 발표되었습니다</p>
@@ -59,23 +62,23 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
           <li>개인정보는 만남이 확정된 후에 서로 공유하는 걸 추천드립니다.</li>
           <li>SNS나 실명 등은 미리 교환하지 않는 것을 추천드립니다. (비매너 유저 이탈 방지)</li>
         </ul>
-        <p style="color: #4a5568; line-height: 1.6; margin: 10px 0 0 0; font-size: 14px;">
+        <p style="color: #4a5568; line-height: 1.6; margin: 10px 0 0 0; font-size: 16px;">
           서비스 내 채팅 기능을 활용하여 대면 만남을 위한 약속을 잡아보세요!
         </p>
       </div>
       
       <div style="text-align: center; margin: 24px 0;">
         <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
-           style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
+           style="display: inline-block; padding: 12px 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
           직쏠공 (직장인 솔로 공모)<br/>바로가기
         </a>
       </div>
       
       <div style="background: #f7fafc; padding: 20px; border-radius: 10px; text-align: center;">
-        <p style="color: #718096; margin: 0; font-size: 14px;">
+        <p style="color: #718096; margin: 0; font-size: 16px;">
           <strong>발표 시각:</strong> ${koreanTime} (한국 시간)
         </p>
-        <p style="color: #718096; margin: 10px 0 0 0; font-size: 14px;">
+        <p style="color: #718096; margin: 10px 0 0 0; font-size: 16px;">
           문의사항이 있으시면 고객센터를 통해 관리자에게 연락해주세요.
         </p>
       </div>
@@ -100,6 +103,75 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
   }
 }
 
+// 관리자 전체 공지 메일 발송용 공통 템플릿
+function buildAdminBroadcastEmailHtml(content) {
+  const safeContent = (content || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/(?:\r\n|\r|\n)/g, '<br/>');
+
+  return `
+    <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px; background-color: #f3f4f6;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px 28px; border-radius: 18px 18px 0 0; text-align: left;">
+        <h1 style="margin: 0; font-size: 24px;">[직장인 솔로 공모] 공지 메일</h1>
+        <p style="margin: 8px 0 0 0; font-size: 15px; opacity: 0.9;">
+          직장인 솔로 공모 서비스를 이용해주시는 회원님께 안내드립니다.
+        </p>
+      </div>
+
+      <div style="background: #ffffff; padding: 22px 24px 24px 24px; border-radius: 0 0 18px 18px; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);">
+        <div style="color: #111827; font-size: 16px; line-height: 1.7; word-break: break-word;">
+          ${safeContent}
+        </div>
+
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 14px; color: #6b7280;">
+          <p style="margin: 0 0 6px 0;">
+            이 메일은 직장인 솔로 공모 서비스 안내를 위해 발송되었습니다.
+          </p>
+          <div style="text-align: center; margin-top: 10px;">
+            <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
+               style="display: inline-block; padding: 10px 22px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 13px;">
+              직쏠공 (직장인 솔로 공모)<br/>바로가기
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 관리자 개별/전체 공지 메일 발송 함수
+async function sendAdminBroadcastEmail(toEmail, subject, content) {
+  if (!toEmail) return false;
+
+  const finalSubject = subject && subject.startsWith('[직장인 솔로 공모]')
+    ? subject
+    : `[직장인 솔로 공모] ${subject || '공지 메일'}`;
+
+  const htmlContent = buildAdminBroadcastEmailHtml(content || '');
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: toEmail,
+    subject: finalSubject,
+    html: htmlContent
+  };
+
+  try {
+    console.log(`📧 관리자 공지 메일 발송 시도: ${toEmail}, subject=${finalSubject}`);
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error(`❌ 관리자 공지 메일 발송 실패: ${toEmail}`, error);
+    return false;
+  }
+}
+
 module.exports = {
-  sendMatchingResultEmail
-}; 
+  sendMatchingResultEmail,
+  sendAdminBroadcastEmail,
+  buildAdminBroadcastEmailHtml,
+};

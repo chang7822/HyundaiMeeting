@@ -47,6 +47,7 @@ import SupportInquiryDetailPage from './pages/SupportInquiryDetailPage.tsx';
 import AdminSupportPage from './pages/admin/AdminSupportPage.tsx';
 import AdminSupportDetailPage from './pages/admin/AdminSupportDetailPage.tsx';
 import SettingsPage from './pages/admin/SettingsPage.tsx';
+import BroadcastEmailPage from './pages/admin/BroadcastEmailPage.tsx';
 
 // Components
 import Sidebar from './components/layout/Sidebar.tsx';
@@ -423,6 +424,14 @@ const AppInner: React.FC = () => {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <AdminSupportDetailPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/broadcast-email" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <BroadcastEmailPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />

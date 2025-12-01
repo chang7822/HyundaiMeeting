@@ -535,7 +535,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           <div style={{ color: '#e74c3c', fontSize: '0.95rem', marginTop: -12, marginBottom: 8 }}>{nicknameError}</div>
         )}
         {/* 회사 - 읽기 전용 */}
-        <Label>회사명</Label>
+        <Label>소속</Label>
         <Input
           value={profile.company || '회사 정보가 없습니다.'}
           disabled={true}

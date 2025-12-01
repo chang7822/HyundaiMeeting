@@ -313,6 +313,18 @@ export const adminApi = {
     const response = await api.put('/admin/system-settings/maintenance', { enabled, message });
     return response.data;
   },
+
+  // 전체 회원 공지 메일 발송
+  sendBroadcastEmail: async (payload: { subject: string; content: string; targets?: string[] }): Promise<any> => {
+    const response = await api.post('/admin/broadcast-email', payload);
+    return response.data;
+  },
+
+  // 전체 메일 발송 대상 조회
+  getBroadcastRecipients: async (): Promise<any[]> => {
+    const response = await api.get('/admin/broadcast-recipients');
+    return response.data;
+  },
 };
 
 export const getProfileCategories = async (): Promise<ProfileCategory[]> => {
