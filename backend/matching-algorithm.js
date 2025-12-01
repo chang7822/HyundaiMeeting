@@ -329,6 +329,29 @@ async function main() {
     companyIdNameMap = null;
   }
 
+  // 2-4. 매칭 가중치(weight) 조회 (users 테이블)
+  let weightMap = new Map();
+  try {
+    const { data: userWeights, error: weightError } = await supabase
+      .from('users')
+      .select('id, weight')
+      .in('id', filteredUserIds);
+
+    if (weightError) {
+      console.error('사용자 weight 조회 실패:', weightError);
+    } else if (userWeights && userWeights.length > 0) {
+      userWeights.forEach(u => {
+        // weight는 음수/양수/0 모두 허용, null/undefined면 0으로 처리
+        const w = typeof u.weight === 'number' ? u.weight : 0;
+        weightMap.set(u.id, w);
+      });
+      console.log(`[매칭 알고리즘] weight 정보 로드 완료: ${userWeights.length}명`);
+    }
+  } catch (e) {
+    console.error('weight 정보 로드 중 오류:', e);
+    weightMap = new Map();
+  }
+
   // 3. 신청자 프로필/선호도 정보 조회 (batch)
   let profiles = [];
   for (let i = 0; i < filteredUserIds.length; i += 50) {
@@ -347,14 +370,29 @@ async function main() {
     // profile_snapshot/preference_snapshot을 합쳐서 한 객체로 만듦
     profiles = profiles.concat(data.map(row => ({
       user_id: row.user_id,
+      // users.weight 값 주입 (없으면 0)
+      weight: weightMap.has(row.user_id) ? weightMap.get(row.user_id) : 0,
       ...row.profile_snapshot,
       ...row.preference_snapshot
     })));
   }
 
-  // 4. 남/여 분리
+  // 4. 남/여 분리 + weight 기반 정렬 (높은 가중치 우선, 동점자는 랜덤 순서)
+  function sortByWeightWithRandom(arr) {
+    arr.sort((a, b) => {
+      const wa = typeof a.weight === 'number' ? a.weight : 0;
+      const wb = typeof b.weight === 'number' ? b.weight : 0;
+      if (wa !== wb) return wb - wa; // weight 큰 순
+      // weight 같으면 랜덤 순서
+      return Math.random() - 0.5;
+    });
+  }
+
   const males = profiles.filter(p => p.gender === 'male');
   const females = profiles.filter(p => p.gender === 'female');
+
+  sortByWeightWithRandom(males);
+  sortByWeightWithRandom(females);
   // 5. 그래프(edge) 생성: 남-여 쌍 중 양방향 만족하는 경우만 (과거 이력 필터링 포함)
   const edges = Array(males.length).fill(0).map(() => []); // edges[i] = [여자 인덱스...]
   let totalPairs = 0;
@@ -377,6 +415,18 @@ async function main() {
         validPairs++;
       }
     }
+  }
+
+  // 5-1. 각 남자별 edge 리스트를, 여자 weight 기준으로 정렬
+  //      - weight 높은 상대 먼저 시도
+  //      - 같은 weight 내에서는 랜덤 순서
+  for (let i = 0; i < edges.length; i++) {
+    edges[i].sort((aj, bj) => {
+      const wa = typeof females[aj].weight === 'number' ? females[aj].weight : 0;
+      const wb = typeof females[bj].weight === 'number' ? females[bj].weight : 0;
+      if (wa !== wb) return wb - wa;
+      return Math.random() - 0.5;
+    });
   }
   
   console.log(`매칭 가능 쌍 분석 완료:`);
