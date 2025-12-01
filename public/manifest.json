@@ -1,6 +1,6 @@
 {
-  "short_name": "울산 사내 솔로공모",
-  "name": "울산 사내 솔로공모",
+  "short_name": "직장인 솔로 공모",
+  "name": "직장인 솔로 공모",
   "icons": [
     {
       "src": "favicon.ico",
@@ -12,7 +12,7 @@
   "display": "standalone",
   "theme_color": "#667eea",
   "background_color": "#ffffff",
-  "description": "울산 사내 솔로공모 - 현대자동차 사내 만남 서비스",
+  "description": "직장인 솔로 공모 - 직장인을 위한 맞춤 소개팅/만남 서비스",
   "orientation": "portrait",
   "scope": "/",
   "lang": "ko"

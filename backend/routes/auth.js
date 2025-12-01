@@ -91,11 +91,11 @@ async function sendVerificationEmail(email, code) {
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to: email,
-    subject: '울산 사내 솔로공모 이메일 인증',
+    subject: '[직장인 솔로 공모] 이메일 인증',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">[울산 사내 솔로공모] 이메일 인증</h2>
-        <p>안녕하세요! 현대자동차 사내 만남 서비스인 [울산 사내 솔로공모]에 가입해주셔서 감사합니다.</p>
+        <h2 style="color: #333;">[직장인 솔로 공모] 이메일 인증</h2>
+        <p>안녕하세요! 직장인 맞춤 만남 서비스인 [직장인 솔로 공모]에 가입해주셔서 감사합니다.</p>
         <p>아래 인증번호를 입력하여 이메일 인증을 완료해주세요:</p>
         <div style="background-color: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0;">
           <h1 style="color: #667eea; font-size: 32px; margin: 0;">${code}</h1>
@@ -104,7 +104,7 @@ async function sendVerificationEmail(email, code) {
         <div style="text-align: center; margin: 24px 0;">
           <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
              style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
-            사쏠공 (사내 솔로공모)<br/>바로가기
+            직쏠공 (직장인 솔로 공모)<br/>바로가기
           </a>
         </div>
         <p style="color: #666; font-size: 14px; margin-top: 30px; border-top: 1px solid #eee; padding-top: 15px;">
@@ -265,11 +265,11 @@ router.post('/resend-verification', async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: '현대자동차(울산) 사내 매칭 - 이메일 인증번호 재발송',
+      subject: '[직장인 솔로 공모] 이메일 인증번호 재발송',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #333; text-align: center;">이메일 인증번호</h2>
-          <p>안녕하세요! 현대자동차(울산) 사내 매칭 플랫폼입니다.</p>
+          <p>안녕하세요! 직장인 솔로 공모입니다:</p>
           <p>요청하신 이메일 인증번호입니다:</p>
           <div style="background: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
             <h1 style="color: #007bff; margin: 0; font-size: 32px; letter-spacing: 4px;">${verificationCode}</h1>
@@ -278,7 +278,7 @@ router.post('/resend-verification', async (req, res) => {
           <div style="text-align: center; margin: 24px 0;">
             <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
                style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
-              사쏠공 (사내 솔로공모)<br/>바로가기
+          직쏠공 (직장인 솔로 공모)<br/>바로가기
             </a>
           </div>
           <p>감사합니다.</p>
@@ -987,11 +987,11 @@ router.post('/forgot-password', async (req, res) => {
     const mailOptions = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: '현대자동차(울산) 사내 매칭 - 비밀번호 재설정 인증번호',
+      subject: '[직장인 솔로 공모] 비밀번호 재설정 인증번호',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h2 style="color: #333; text-align: center;">비밀번호 재설정 인증번호</h2>
-          <p>안녕하세요! 현대자동차(울산) 사내 매칭 플랫폼입니다.</p>
+          <p>안녕하세요! 직장인 솔로 공모입니다:</p>
           <p>비밀번호 재설정을 위한 인증번호입니다:</p>
           <div style="background: #f5f5f5; padding: 20px; text-align: center; margin: 20px 0; border-radius: 8px;">
             <h1 style="color: #e74c3c; margin: 0; font-size: 32px; letter-spacing: 4px;">${resetCode}</h1>
@@ -1001,7 +1001,7 @@ router.post('/forgot-password', async (req, res) => {
           <div style="text-align: center; margin: 24px 0;">
             <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
                style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
-              사쏠공 (사내 솔로공모)<br/>바로가기
+          작쏠공 (직장인 솔로 공모)<br/>바로가기
             </a>
           </div>
           <p>감사합니다.</p>

@@ -21,12 +21,12 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
     timeZone: 'Asia/Seoul'
   }).format(now);
 
-  const subject = '[울산 사내 솔로공모] 매칭 결과 발표';
+  const subject = '[직장인 솔로 공모] 매칭 결과 발표';
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 15px; text-align: center; margin-bottom: 30px;">
         <h1 style="margin: 0; font-size: 28px;">📋 매칭 결과 발표</h1>
-        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">울산 사내 솔로공모 매칭 결과가 발표되었습니다</p>
+        <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">직장인 솔로 공모 매칭 결과가 발표되었습니다</p>
       </div>
       
       <div style="background: #f8f9fa; padding: 25px; border-radius: 12px; margin-bottom: 25px;">
@@ -57,7 +57,7 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
         <ul style="color: #4a5568; line-height: 1.6; margin: 0; padding-left: 20px;">
           <li>대면 만남 전까지는 서비스 내 채팅을 통해 대화를 나누어보세요</li>
           <li>개인정보는 만남이 확정된 후에 서로 공유하는 걸 추천드립니다.</li>
-          <li>소속 조직이나 실명 등은 미리 공개하지 않는 것을 추천드립니다.</li>
+          <li>SNS나 실명 등은 미리 교환하지 않는 것을 추천드립니다. (비매너 유저 이탈 방지)</li>
         </ul>
         <p style="color: #4a5568; line-height: 1.6; margin: 10px 0 0 0; font-size: 14px;">
           서비스 내 채팅 기능을 활용하여 대면 만남을 위한 약속을 잡아보세요!
@@ -67,7 +67,7 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
       <div style="text-align: center; margin: 24px 0;">
         <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
            style="display: inline-block; padding: 12px 24px; background-color: #4F46E5; color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 14px;">
-          사쏠공 (사내 솔로공모)<br/>바로가기
+          직쏠공 (직장인 솔로 공모)<br/>바로가기
         </a>
       </div>
       

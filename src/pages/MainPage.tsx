@@ -1393,7 +1393,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </NicknameSpan>
             님!
           </WelcomeTitle>
-          <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
+          <WelcomeSubtitle>직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
           
           {/* 이메일 인증 알림 */}
           {user?.is_verified === false && (
@@ -1532,7 +1532,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </NicknameSpan>
           님!
         </WelcomeTitle>
-        <WelcomeSubtitle>현대자동차(울산) 사내 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
+        <WelcomeSubtitle>직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
         
         {/* 이메일 인증 알림 */}
         {user?.is_verified === false && (

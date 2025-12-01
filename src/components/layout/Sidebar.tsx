@@ -343,7 +343,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
             } else {
               navigate('/main');
             }
-          }}>울산 사내 솔로공모</Logo>
+          }}>직장인 솔로 공모</Logo>
           {/* user가 null이면 로딩 중 메시지, 아니면 이메일 */}
           {isUserLoading ? (
             <div style={{ color: '#fff', fontWeight: 600, fontSize: '1.08rem', marginTop: 12, textAlign: 'center' }}>
