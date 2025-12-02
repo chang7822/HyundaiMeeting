@@ -346,7 +346,7 @@ const LandingPage = () => {
             <IntroModalHeader>
               <IntroTitle>
                 직쏠공이란?
-                <IntroBadge>울산 사내 솔로 공모</IntroBadge>
+                <IntroBadge>울산 직장인 솔로 공모</IntroBadge>
               </IntroTitle>
               <IntroCloseButton onClick={() => setShowIntro(false)}>×</IntroCloseButton>
             </IntroModalHeader>
@@ -458,9 +458,22 @@ const LandingPage = () => {
                     >
                       <span style={{ fontWeight: 600, color: '#111827' }}>{c.name}</span>
                       {c.emailDomains && c.emailDomains.length > 0 && (
-                        <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>
-                          {c.emailDomains[0]}
-                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
+                          {c.emailDomains.map((domain) => (
+                            <span
+                              key={domain}
+                              style={{
+                                fontSize: '0.8rem',
+                                color: '#4b5563',
+                                backgroundColor: '#e5e7eb',
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                              }}
+                            >
+                              {domain}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </li>
                   ))}
