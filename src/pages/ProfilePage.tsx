@@ -285,7 +285,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         return [...prev, bodyType];
       } else {
         if (!bodyTypeLimitWarned) {
-          toast('최대 3개까지만 선택할 수 있습니다.');
+        toast('최대 3개까지만 선택할 수 있습니다.');
           setBodyTypeLimitWarned(true);
         }
         return prev;
