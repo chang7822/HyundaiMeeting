@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi } from '../services/api.ts';
+import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn } from 'react-icons/fa';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -101,6 +101,54 @@ const WelcomeTitle = styled.h1`
   }
 `;
 
+const TopWelcomeTitle = styled.h1`
+  color: #ffffff;
+  margin-bottom: 0.4rem;
+  font-size: 2.4rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+
+  @media (max-width: 1024px) {
+    font-size: 2.1rem;
+  }
+
+  @media (max-width: 768px) {
+    font-size: 1.9rem;
+    margin-bottom: 0.35rem;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 1.7rem;
+    margin-bottom: 0.3rem;
+  }
+`;
+
+const TopWelcomeSubtitle = styled.p`
+  color: #e5e7ff;
+  font-size: 1.05rem;
+  margin-bottom: 1.4rem;
+  line-height: 1.5;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+
+  @media (max-width: 768px) {
+    font-size: 0.98rem;
+    margin-bottom: 1.2rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.92rem;
+    margin-bottom: 1rem;
+  }
+`;
+
+const StatusChatWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: stretch;
+`;
+
 const WelcomeSubtitle = styled.p`
   color: #666;
   font-size: 1.15rem;
@@ -115,6 +163,95 @@ const WelcomeSubtitle = styled.p`
   @media (max-width: 480px) {
     font-size: 1rem;
     margin-bottom: 1.5rem;
+  }
+`;
+
+const LatestNoticeCard = styled.div`
+  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+  border-radius: 16px;
+  padding: 1.1rem 1.4rem;
+  margin-bottom: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  border: 1px solid rgba(102, 126, 234, 0.18);
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.15);
+  transition: all 0.2s ease;
+  gap: 1rem;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
+    border-color: rgba(102, 126, 234, 0.45);
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem 1.2rem;
+    margin-bottom: 1.4rem;
+    border-radius: 14px;
+  }
+
+  @media (max-width: 480px) {
+    padding: 0.9rem 1rem;
+    margin-bottom: 1.2rem;
+    border-radius: 12px;
+  }
+`;
+
+const LatestNoticeLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+`;
+
+const LatestNoticeTextGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+`;
+
+const LatestNoticeLabel = styled.span`
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 0.18rem 0.6rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+`;
+
+const LatestNoticeTitle = styled.span`
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #1f2933;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  @media (max-width: 768px) {
+    font-size: 0.92rem;
+  }
+
+  @media (max-width: 480px) {
+    font-size: 0.9rem;
+  }
+`;
+
+const LatestNoticeRight = styled.span`
+  font-size: 0.85rem;
+  color: #4f46e5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+
+  @media (max-width: 480px) {
+    font-size: 0.8rem;
   }
 `;
 
@@ -557,6 +694,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [countdown, setCountdown] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
+  const [isLoadingNotice, setIsLoadingNotice] = useState(false);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -612,6 +751,28 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       });
     }, 1000); // 1초마다 갱신
     return () => window.clearInterval(timer);
+  }, []);
+
+  // 최신 공지사항 1건 조회
+  useEffect(() => {
+    const fetchLatestNotice = async () => {
+      try {
+        setIsLoadingNotice(true);
+        const data = await noticeApi.getNotices();
+        if (Array.isArray(data) && data.length > 0) {
+          const first = data[0];
+          if (first && typeof first.id === 'number' && typeof first.title === 'string') {
+            setLatestNotice({ id: first.id, title: first.title });
+          }
+        }
+      } catch (e) {
+        console.error('[MainPage] 최신 공지사항 조회 오류:', e);
+      } finally {
+        setIsLoadingNotice(false);
+      }
+    };
+
+    fetchLatestNotice();
   }, []);
 
   // 선호 회사 이름 매핑용 회사 목록 로드
@@ -989,7 +1150,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       if (!isApplied || isCancelled) {
         return {
           status: '매칭 미신청',
-          period: '',
+          period: '매칭 신청기간이 아닙니다.\n다음 회차에 이용해주세요.',
           color: '#888',
         };
       }
@@ -1141,16 +1302,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       description: '',
       action: () => {},
       disabled: false,
-    },
-    {
-      icon: <FaComments />,
-      title: '상대방과 약속잡기',
-      description: '매칭 성공 시 약속잡기 버튼이 활성화됩니다.',
-      action: () => {
-        if (canChat) navigate(`/chat/${partnerUserId}`);
-      },
-      disabled: !canChat,
-      custom: true,
     },
   ];
 
@@ -1385,16 +1536,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     
     return (
       <MainContainer $sidebarOpen={sidebarOpen}>
+        <TopWelcomeTitle>
+          환영합니다,{' '}
+          <NicknameSpan
+            onClick={() => setShowProfileModal(true)}
+            style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+          >
+            {displayName}
+          </NicknameSpan>
+          님!
+        </TopWelcomeTitle>
+        <TopWelcomeSubtitle>
+          직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
+        </TopWelcomeSubtitle>
         <WelcomeSection>
-          <WelcomeTitle>
-            환영합니다,{' '}
-            <NicknameSpan onClick={() => setShowProfileModal(true)}>
-              {displayName}
-            </NicknameSpan>
-            님!
-          </WelcomeTitle>
-          <WelcomeSubtitle>직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
-          
           {/* 이메일 인증 알림 */}
           {user?.is_verified === false && (
             <div style={{
@@ -1524,15 +1679,42 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
+      <TopWelcomeTitle>
+        환영합니다,{' '}
+        <NicknameSpan
+          onClick={handleOpenProfileModal}
+          style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+        >
+          {displayName}
+        </NicknameSpan>
+        님!
+      </TopWelcomeTitle>
+      <TopWelcomeSubtitle>
+        직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
+      </TopWelcomeSubtitle>
       <WelcomeSection>
-        <WelcomeTitle>
-          환영합니다,{' '}
-          <NicknameSpan onClick={handleOpenProfileModal}>
-            {displayName}
-          </NicknameSpan>
-          님!
-        </WelcomeTitle>
-        <WelcomeSubtitle>직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.</WelcomeSubtitle>
+        {/* 최신 공지사항 카드 */}
+        {latestNotice && (
+          <LatestNoticeCard
+            onClick={() => navigate(`/notice/${latestNotice.id}`)}
+          >
+            <LatestNoticeLeft>
+              <FaBullhorn size={20} color="#4F46E5" />
+              <LatestNoticeTextGroup>
+                <LatestNoticeLabel>
+                  <span>공지사항</span>
+                </LatestNoticeLabel>
+                <LatestNoticeTitle>
+                  {latestNotice.title}
+                </LatestNoticeTitle>
+              </LatestNoticeTextGroup>
+            </LatestNoticeLeft>
+            <LatestNoticeRight>
+              <span>자세히 보기</span>
+              <FaChevronRight size={14} />
+            </LatestNoticeRight>
+          </LatestNoticeCard>
+        )}
         
         {/* 이메일 인증 알림 */}
         {user?.is_verified === false && (
@@ -2014,84 +2196,266 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 <ActionIcon>{baseAction.icon}</ActionIcon>
                 <ActionTitle>{baseAction.title}</ActionTitle>
               </ActionHeader>
-              {baseAction.title === '매칭 현황' ? (() => {
-                const { status, period, color } = getMatchingStatusDisplay();
-                return (
-                  <div style={{
-                    marginTop: 20,
-                    background: 'linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%)',
-                    borderRadius: 16,
-                    padding: '22px 18px',
-                    minHeight: 60,
-                    boxShadow: '0 4px 12px rgba(102,126,234,0.08)',
-                    textAlign: 'center',
-                    letterSpacing: '-0.01em',
-                    border: '1px solid rgba(102,126,234,0.1)'
-                  }}>
-                    <div style={{ fontWeight: 700, fontSize: '1.2rem', color, marginBottom: period ? 10 : 0, lineHeight: 1.3 }}>{status}</div>
-                    {period && <div style={{ fontSize: '0.95rem', color: '#555', fontWeight: 500, whiteSpace: 'pre-line', lineHeight: 1.4 }}>{period}</div>}
-                    {/* 매칭 성공 시 상대방 프로필 박스 */}
-                    {status === '매칭 성공' && partnerUserId && canChat && (
-                      <div
-                        style={{
-                          background: 'linear-gradient(135deg, #f0f4ff 0%, #e6f0ff 100%)',
-                          borderRadius: 12,
-                          padding: '8px 16px 8px 12px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 8,
-                          boxShadow: '0 3px 10px rgba(102,126,234,0.12)',
-                          minWidth: 100,
-                          cursor: partnerProfileError ? 'not-allowed' : 'pointer',
-                          border: '1.5px solid #dbeafe',
-                          transition: 'all 0.2s ease',
-                          marginTop: 16,
-                          justifyContent: 'center',
-                          pointerEvents: partnerProfileError ? 'none' : 'auto',
-                          opacity: partnerProfileError ? 0.6 : 1,
-                        }}
-                        onClick={async (e) => {
-                          if (partnerProfileError) return;
-                          e.stopPropagation();
-                          await fetchPartnerProfile(partnerUserId!);
-                          setShowPartnerModal(true);
-                        }}
-                        onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 5px 18px rgba(102,126,234,0.18)', e.currentTarget.style.transform = 'translateY(-2px)')}
-                        onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 3px 10px rgba(102,126,234,0.12)', e.currentTarget.style.transform = 'translateY(0)')}
-                      >
-                        <FaChevronRight size={18} color="#7C3AED" style={{ marginRight: 2 }} />
-                        <ProfileIcon gender={partnerProfile?.gender || ''} size={28} />
-                        <span style={{
-                          fontWeight: 700,
-                          color:
-                            partnerProfile?.gender === 'male' || partnerProfile?.gender === '남성'
-                              ? '#7C3AED'
-                              : partnerProfile?.gender === 'female' || partnerProfile?.gender === '여성'
-                              ? '#F472B6'
-                              : '#bbb',
-                          fontSize: '1.01rem',
-                          whiteSpace: 'nowrap',
-                        }}>
-                          {(() => {
-                            if (partnerProfileError) {
-                              return '프로필 없음';
-                            }
-                            if (partnerProfileLoading) {
-                              return '로딩 중...';
-                            }
-                            if (!partnerProfile?.nickname) {
-                              return '상대방';
-                            }
-                            return partnerProfile.nickname;
-                          })()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })() : (
-              <ActionDescription>{baseAction.description}</ActionDescription>
-              )}
+              {baseAction.title === '매칭 현황'
+                ? (() => {
+                    const { status, period, color } = getMatchingStatusDisplay();
+                    return (
+                      <StatusChatWrapper>
+                        {/* 버튼: 회색 박스 위, 우측 정렬 */}
+                        <div
+                          style={{
+                            marginTop: 4,
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                          }}
+                        >
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            {/* 안읽은 메시지 뱃지 */}
+                            {unreadCount > 0 && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: '-8px',
+                                  right: '-8px',
+                                  background:
+                                    'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                                  color: 'white',
+                                  borderRadius: '50%',
+                                  width: '20px',
+                                  height: '20px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.7rem',
+                                  fontWeight: '700',
+                                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.4)',
+                                  zIndex: 10,
+                                  border: '2px solid white',
+                                }}
+                              >
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                              </div>
+                            )}
+                            <button
+                              style={{
+                                background:
+                                  'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
+                                color: '#fff',
+                                border: 'none',
+                                borderRadius: 20,
+                                padding: '8px 18px',
+                                fontWeight: 600,
+                                fontSize: '0.95rem',
+                                cursor: canChat ? 'pointer' : 'not-allowed',
+                                opacity: canChat ? 1 : 0.5,
+                                transition: 'all 0.2s ease',
+                                boxShadow: canChat
+                                  ? '0 3px 10px rgba(124,58,237,0.3)'
+                                  : '0 2px 6px rgba(0,0,0,0.1)',
+                                whiteSpace: 'nowrap',
+                              }}
+                              disabled={!canChat}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (canChat) navigate(`/chat/${partnerUserId}`);
+                              }}
+                              onMouseEnter={(e) => {
+                                if (canChat) {
+                                  e.currentTarget.style.transform = 'translateY(-2px)';
+                                  e.currentTarget.style.boxShadow =
+                                    '0 5px 15px rgba(124,58,237,0.4)';
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (canChat) {
+                                  e.currentTarget.style.transform = 'translateY(0)';
+                                  e.currentTarget.style.boxShadow =
+                                    '0 3px 10px rgba(124,58,237,0.3)';
+                                }
+                              }}
+                            >
+                              상대방과 연락하기
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* 회색 박스 */}
+                        <div
+                          style={{
+                            marginTop: 0,
+                            background:
+                              'linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%)',
+                            borderRadius: 16,
+                            padding: '18px 18px 20px',
+                            boxShadow: '0 4px 12px rgba(102,126,234,0.08)',
+                            letterSpacing: '-0.01em',
+                            border: '1px solid rgba(102,126,234,0.1)',
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontWeight: 700,
+                              fontSize: '1.2rem',
+                              color,
+                              marginBottom: period ? 8 : 0,
+                              lineHeight: 1.3,
+                              textAlign: 'center',
+                            }}
+                          >
+                            {status}
+                          </div>
+                          {period && (
+                            <div
+                              style={{
+                                fontSize: '0.95rem',
+                                color: '#555',
+                                fontWeight: 500,
+                                whiteSpace: 'pre-line',
+                                lineHeight: 1.4,
+                                textAlign: 'center',
+                              }}
+                            >
+                              {period}
+                            </div>
+                          )}
+
+                          {/* 매칭 성공 시 상대방 프로필 박스 */}
+                          {status === '매칭 성공' && partnerUserId && canChat && (
+                            <div
+                              style={{
+                                background:
+                                  'linear-gradient(135deg, #f0f4ff 0%, #e6f0ff 100%)',
+                                borderRadius: 12,
+                                padding: '8px 16px 8px 12px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                boxShadow: '0 3px 10px rgba(102,126,234,0.12)',
+                                minWidth: 100,
+                                cursor: partnerProfileError ? 'not-allowed' : 'pointer',
+                                border: '1.5px solid #dbeafe',
+                                transition: 'all 0.2s ease',
+                                marginTop: 16,
+                                justifyContent: 'center',
+                                pointerEvents: partnerProfileError ? 'none' : 'auto',
+                                opacity: partnerProfileError ? 0.6 : 1,
+                              }}
+                              onClick={async (e) => {
+                                if (partnerProfileError) return;
+                                e.stopPropagation();
+                                await fetchPartnerProfile(partnerUserId!);
+                                setShowPartnerModal(true);
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.boxShadow =
+                                  '0 5px 18px rgba(102,126,234,0.18)';
+                                e.currentTarget.style.transform = 'translateY(-2px)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.boxShadow =
+                                  '0 3px 10px rgba(102,126,234,0.12)';
+                                e.currentTarget.style.transform = 'translateY(0)';
+                              }}
+                            >
+                              <FaChevronRight
+                                size={18}
+                                color="#7C3AED"
+                                style={{ marginRight: 2 }}
+                              />
+                              <ProfileIcon gender={partnerProfile?.gender || ''} size={28} />
+                              <span
+                                style={{
+                                  fontWeight: 700,
+                                  color:
+                                    partnerProfile?.gender === 'male' ||
+                                    partnerProfile?.gender === '남성'
+                                      ? '#7C3AED'
+                                      : partnerProfile?.gender === 'female' ||
+                                        partnerProfile?.gender === '여성'
+                                      ? '#F472B6'
+                                      : '#bbb',
+                                  fontSize: '1.01rem',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {(() => {
+                                  if (partnerProfileError) {
+                                    return '프로필 없음';
+                                  }
+                                  if (partnerProfileLoading) {
+                                    return '로딩 중...';
+                                  }
+                                  if (!partnerProfile?.nickname) {
+                                    return '상대방';
+                                  }
+                                  return partnerProfile.nickname;
+                                })()}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* 카운트다운 (매칭 성공 + 채팅 가능일 때, 박스 안 하단에) */}
+                          {canChat && countdown && (
+                            <div
+                              style={{
+                                marginTop: 12,
+                                padding: '12px 16px',
+                                background:
+                                  'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%)',
+                                borderRadius: 12,
+                                border: '1px solid rgba(124, 58, 237, 0.2)',
+                                textAlign: 'center',
+                              }}
+                            >
+                              <div
+                                style={{
+                                  color: '#7C3AED',
+                                  fontSize: '0.85rem',
+                                  fontWeight: 600,
+                                  marginBottom: 4,
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 6,
+                                }}
+                              >
+                                <FaRegClock size={14} />
+                                <span>채팅 가능 시간</span>
+                              </div>
+                              <div
+                                style={{
+                                  color: '#111827',
+                                  fontSize: '1rem',
+                                  fontWeight: 700,
+                                  letterSpacing: '0.03em',
+                                  textShadow: '0 1px 2px rgba(124, 58, 237, 0.2)',
+                                }}
+                              >
+                                {countdown}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 박스 아래 안내 문구 (항상 세로로 아래에 쌓임) */}
+                        {!canChat && (
+                          <div
+                            style={{
+                              color: '#aaa',
+                              fontSize: '0.95rem',
+                              marginTop: 6,
+                              textAlign: 'center',
+                            }}
+                          >
+                            매칭이 성공하면 <br />
+                            상대방과 연락하기 버튼이 활성화됩니다.
+                          </div>
+                        )}
+                      </StatusChatWrapper>
+                    );
+                  })() : (
+                    <ActionDescription>{baseAction.description}</ActionDescription>
+                  )}
               {/* 채팅하기 카드만 커스텀 안내문구/버튼 */}
               {baseAction.title === '상대방과 약속잡기' ? (
                 <>

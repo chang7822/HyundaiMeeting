@@ -269,17 +269,25 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [loading, setLoading] = React.useState(true);
   // [1] 체형 선택 상태를 배열로 변경 (정확히 3개 선택)
   const [bodyTypes, setBodyTypes] = useState<string[]>(Array.isArray(profile.body_type) ? profile.body_type : (profile.body_type ? JSON.parse(profile.body_type) : []));
+  const [bodyTypeLimitWarned, setBodyTypeLimitWarned] = useState(false);
   // [2] 체형 MultiSelect 팝업
   // [삭제] bodyTypePopup 관련 상태/컴포넌트 제거
   // [추가] handleBodyTypeToggle 함수
   const handleBodyTypeToggle = (bodyType: string) => {
     setBodyTypes(prev => {
       if (prev.includes(bodyType)) {
-        return prev.filter(type => type !== bodyType);
+        const next = prev.filter(type => type !== bodyType);
+        if (next.length < 3) {
+          setBodyTypeLimitWarned(false);
+        }
+        return next;
       } else if (prev.length < 3) {
         return [...prev, bodyType];
       } else {
-        toast('최대 3개까지만 선택할 수 있습니다.');
+        if (!bodyTypeLimitWarned) {
+          toast('최대 3개까지만 선택할 수 있습니다.');
+          setBodyTypeLimitWarned(true);
+        }
         return prev;
       }
     });

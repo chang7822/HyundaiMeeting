@@ -90,7 +90,7 @@ const ChatWindowWrapper = styled.div`
   width: 100vw;
   max-width: 1200px;
   margin: 0 auto;
-  margin-top: 64px;
+  margin-top: 100px;
   margin-bottom: 72px;
   overflow-y: auto;
   overflow-x: hidden;

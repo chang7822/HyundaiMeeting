@@ -36,17 +36,17 @@ const labelStyle: React.CSSProperties = {
   color: '#4F46E5',
   fontSize: '0.98rem',
   minWidth: 80,
-  flex: 1,
+  flex: 0,
   textAlign: 'left',
 };
 const valueStyle: React.CSSProperties = {
   color: '#222',
   fontSize: '1rem',
-  wordBreak: 'break-all',
   flex: 1,
   textAlign: 'right',
-  maxWidth: '95%',
-  overflowWrap: 'break-word',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 };
 const sectionStyle: React.CSSProperties = {
   marginBottom: 10,
@@ -114,7 +114,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
     <div style={{
       border: 'none',
       borderRadius: '18px',
-      padding: '28px 24px 20px 24px',
+      padding: '20px 10px 20px 10px',
       width: '95%',
       maxWidth: '100%',
       minWidth: '220px',
@@ -133,12 +133,13 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         <div>
           <div style={{fontWeight:700,fontSize:'1.25rem',color:'#4F46E5',marginBottom:2}}>{nickname}</div>
           <div style={{fontSize:'0.98rem',color:'#666'}}>
-            {birthYear}년생 · {gender}
-            {company ? ` · ${company}` : ''}
+            {birthYear}년생 · {gender}<br/>
+            {company ? ` ${company}` : ''}
             {job ? ` · ${job}` : ''}
           </div>
         </div>
       </div>
+      <div style={{borderTop:'1px solid #e0e0e0', margin:'10px 0 14px 0'}} />
       <div style={sectionStyle}>
         <span style={labelStyle}>키</span>
         <span style={valueStyle}>{height ? `${height}cm` : '-'}</span>
