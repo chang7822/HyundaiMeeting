@@ -49,6 +49,9 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   transition: margin-left 0.3s;
+  max-width: 100vw;
+  box-sizing: border-box;
+  overflow-x: hidden;
   
   @media (max-width: 768px) {
     margin-left: 0;
@@ -179,6 +182,7 @@ const LatestNoticeCard = styled.div`
   box-shadow: 0 4px 14px rgba(102, 126, 234, 0.15);
   transition: all 0.2s ease;
   gap: 1rem;
+  overflow: hidden; /* 내부 내용이 카드 밖으로 나가도 전체 페이지에 스크롤이 생기지 않도록 */
 
   &:hover {
     transform: translateY(-2px);
@@ -204,6 +208,7 @@ const LatestNoticeLeft = styled.div`
   align-items: center;
   gap: 0.75rem;
   min-width: 0;
+  flex: 1; /* 제목 영역이 오른쪽 영역과 함께 줄어들 수 있게 함 */
 `;
 
 const LatestNoticeTextGroup = styled.div`
@@ -211,6 +216,7 @@ const LatestNoticeTextGroup = styled.div`
   flex-direction: column;
   gap: 0.3rem;
   min-width: 0;
+  flex: 1; /* 내부 텍스트 그룹도 줄어들 수 있게 */
 `;
 
 const LatestNoticeLabel = styled.span`
@@ -232,6 +238,10 @@ const LatestNoticeTitle = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: block; /* 블록 요소로 만들어 ellipsis 적용 보장 */
+  max-width: 100%;
+  flex: 1;
+  min-width: 0;
 
   @media (max-width: 768px) {
     font-size: 0.92rem;

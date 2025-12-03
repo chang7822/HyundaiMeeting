@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
+const { sendAdminNotificationEmail } = require('../utils/emailService');
 
 // 임시 매칭 데이터
 const matches = [];
@@ -44,7 +45,7 @@ router.post('/request', async (req, res) => {
     // 정지 상태 확인
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('is_banned, banned_until')
+      .select('is_banned, banned_until, email')
       .eq('id', userId)
       .single();
     
@@ -148,6 +149,25 @@ router.post('/request', async (req, res) => {
       .from('users')
       .update({ is_applied: true, is_matched: null })
       .eq('id', userId);
+
+    // 관리자 알림 메일 발송 (비동기)
+    try {
+      const adminSubject = '매칭 신청';
+      const adminBodyLines = [
+        '새로운 매칭 신청이 접수되었습니다.',
+        '',
+        `사용자 ID: ${userId}`,
+        `이메일: ${user?.email || '알 수 없음'}`,
+        `닉네임: ${profile.nickname || '알 수 없음'}`,
+        `성별: ${profile.gender || '알 수 없음'}`,
+        `회차 ID: ${periodId}`,
+      ];
+      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+        console.error('[매칭 신청] 관리자 알림 메일 발송 실패:', err);
+      });
+    } catch (e) {
+      console.error('[매칭 신청] 관리자 알림 메일 처리 중 오류:', e);
+    }
 
     res.json({
       success: true,
@@ -290,7 +310,7 @@ router.post('/cancel', async (req, res) => {
     // 정지 상태 확인
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('is_banned, banned_until')
+      .select('is_banned, banned_until, email')
       .eq('id', userId)
       .single();
     
@@ -351,6 +371,43 @@ router.post('/cancel', async (req, res) => {
       .from('users')
       .update({ is_applied: false })
       .eq('id', application.user_id);
+
+    // 5. 관리자 알림 메일 발송 (비동기)
+    try {
+      // 프로필 정보 조회 (닉네임, 성별)
+      let nickname = '';
+      let gender = '';
+      try {
+        const { data: profileRow, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('nickname, gender')
+          .eq('user_id', userId)
+          .single();
+        if (!profileError && profileRow) {
+          nickname = profileRow.nickname || '';
+          gender = profileRow.gender || '';
+        }
+      } catch (infoErr) {
+        console.error('[매칭 신청 취소] 프로필 정보 조회 오류:', infoErr);
+      }
+
+      const adminSubject = '매칭 신청 취소';
+      const adminBodyLines = [
+        '매칭 신청이 취소되었습니다.',
+        '',
+        `사용자 ID: ${userId}`,
+        `이메일: ${user?.email || '알 수 없음'}`,
+        `닉네임: ${nickname || '알 수 없음'}`,
+        `성별: ${gender || '알 수 없음'}`,
+        `회차 ID: ${periodId}`,
+        `신청 ID: ${application.id}`,
+      ];
+      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+        console.error('[매칭 신청 취소] 관리자 알림 메일 발송 실패:', err);
+      });
+    } catch (e) {
+      console.error('[매칭 신청 취소] 관리자 알림 메일 처리 중 오류:', e);
+    }
 
     res.json({ success: true, message: '매칭 신청이 취소되었습니다.', application: updated });
   } catch (error) {
