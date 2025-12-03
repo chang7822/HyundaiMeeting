@@ -107,6 +107,24 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
+    // 신고자 프로필 정보 조회 (닉네임, 성별)
+    let reporterNickname = '';
+    let reporterGender = '';
+    try {
+      const { data: reporterProfile, error: reporterProfileError } = await supabase
+        .from('user_profiles')
+        .select('nickname, gender')
+        .eq('user_id', reporter_id)
+        .single();
+
+      if (!reporterProfileError && reporterProfile) {
+        reporterNickname = reporterProfile.nickname || '';
+        reporterGender = reporterProfile.gender || '';
+      }
+    } catch (e) {
+      console.error('신고자 프로필 정보 조회 오류:', e);
+    }
+
     // 신고받은 사용자의 이메일 조회 (활성 사용자인 경우만)
     let reportedUserEmail = reported_user_email; // 이미 제공된 이메일 사용
     
@@ -187,6 +205,8 @@ router.post('/', authenticate, async (req, res) => {
         `회차 ID: ${data.period_id}`,
         `신고 유형: ${data.report_type}`,
         `신고자 이메일: ${reporterUser.email}`,
+        `신고자 닉네임: ${reporterNickname || '알 수 없음'}`,
+        `신고자 성별: ${reporterGender || '알 수 없음'}`,
         `신고 대상자 이메일: ${reportedUserEmail || '알 수 없음'}`,
         '',
         '신고 내용:',

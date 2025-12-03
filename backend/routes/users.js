@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database');
 const bcrypt = require('bcrypt');
 const authenticate = require('../middleware/authenticate');
+const { sendAdminNotificationEmail } = require('../utils/emailService');
 
 // 임시 사용자 데이터 (auth.js와 공유)
 const users = [];
@@ -372,6 +373,24 @@ router.delete('/me', authenticate, async (req, res) => {
     
     const userEmail = userData.email;
     console.log(`[회원탈퇴] 탈퇴 시작: ${userEmail} (ID: ${userId})`);
+
+    // 0-0. 프로필 정보 조회 (닉네임, 성별)
+    let nickname = '';
+    let gender = '';
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('nickname, gender')
+        .eq('user_id', userId)
+        .single();
+
+      if (!profileError && profileData) {
+        nickname = profileData.nickname || '';
+        gender = profileData.gender || '';
+      }
+    } catch (e) {
+      console.error('[회원탈퇴] 프로필 정보 조회 오류:', e);
+    }
     
     // 0-1. 탈퇴 사용자 정보 로깅 (블랙리스트 시스템 제거)
     if (userData.is_banned || (userData.report_count && userData.report_count > 0)) {
@@ -438,6 +457,23 @@ router.delete('/me', authenticate, async (req, res) => {
     
     // 5. reports는 보존 (신고 이력 및 정지 관리용)
     // matching_log도 보존 (시스템 통계용)
+
+    // 6. 관리자 알림 메일 발송 (비동기)
+    try {
+      const adminSubject = '회원 탈퇴';
+      const adminBodyLines = [
+        '회원이 탈퇴했습니다.',
+        '',
+        `이메일: ${userEmail}`,
+        `닉네임: ${nickname || '알 수 없음'}`,
+        `성별: ${gender || '알 수 없음'}`,
+      ];
+      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+        console.error('[회원탈퇴] 관리자 알림 메일 발송 실패:', err);
+      });
+    } catch (e) {
+      console.error('[회원탈퇴] 관리자 알림 메일 처리 중 오류:', e);
+    }
     
     res.json({ success: true });
   } catch (err) {

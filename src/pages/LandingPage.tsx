@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
+import { toast } from 'react-toastify';
 import { companyApi } from '../services/api.ts';
 import type { Company } from '../types/index.ts';
 
@@ -268,11 +269,159 @@ const IntroList = styled.ol`
   }
 `;
 
+const CompanyFooter = styled.div`
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.85rem;
+  color: #6b7280;
+  display: flex;
+  justify-content: flex-end;
+`;
+
+const TextLinkButton = styled.button`
+  border: 1px solid rgba(129, 140, 248, 0.7);
+  background: rgba(79, 70, 229, 0.06);
+  padding: 6px 12px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #4f46e5;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s ease;
+
+  &::before {
+    content: '+';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 999px;
+    background: #4f46e5;
+    color: #f9fafb;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  &:hover {
+    background: rgba(79, 70, 229, 0.12);
+    box-shadow: 0 4px 10px rgba(79, 70, 229, 0.18);
+    transform: translateY(-0.5px);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.15);
+  }
+`;
+
+const FormField = styled.div`
+  margin-bottom: 12px;
+`;
+
+const FormLabel = styled.label`
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+`;
+
+const FormInput = styled.input`
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 1px #4f46e5;
+  }
+`;
+
+const FormTextarea = styled.textarea`
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.9rem;
+  resize: vertical;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 1px #4f46e5;
+  }
+`;
+
+const FormActions = styled.div`
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const SecondaryButton = styled.button`
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
+const PrimaryActionButton = styled.button`
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f9fafb;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.95;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
 const LandingPage = () => {
   const navigate = useNavigate();
   const [showIntro, setShowIntro] = useState(false);
   const [showCompanies, setShowCompanies] = useState(false);
   const [activeCompanies, setActiveCompanies] = useState<Company[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyDomain, setNewCompanyDomain] = useState('');
+  const [newCompanyMessage, setNewCompanyMessage] = useState('');
+  const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
 
   useEffect(() => {
     if (!showCompanies) return;
@@ -294,6 +443,40 @@ const LandingPage = () => {
       cancelled = true;
     };
   }, [showCompanies]);
+
+  const handleSubmitNewCompany = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const name = newCompanyName.trim();
+    const domain = newCompanyDomain.trim();
+    const message = newCompanyMessage.trim();
+
+    if (!name || !domain) {
+      toast.error('회사명과 이메일 도메인 주소를 입력해주세요.');
+      return;
+    }
+
+    setIsSubmittingCompanyRequest(true);
+    try {
+      await companyApi.requestNewCompany({
+        companyName: name,
+        emailDomain: domain,
+        message,
+      });
+      toast.success('관리자에게 요청이 전송되었습니다.');
+      setShowAddCompanyModal(false);
+      setNewCompanyName('');
+      setNewCompanyDomain('');
+      setNewCompanyMessage('');
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        '요청 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      toast.error(msg);
+    } finally {
+      setIsSubmittingCompanyRequest(false);
+    }
+  };
 
   return (
     <LandingContainer>
@@ -454,12 +637,18 @@ const LandingPage = () => {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
+                        cursor: c.emailDomains && c.emailDomains.length > 0 ? 'pointer' : 'default',
+                      }}
+                      onClick={() => {
+                        if (c.emailDomains && c.emailDomains.length > 0) {
+                          setSelectedCompany(c);
+                        }
                       }}
                     >
                       <span style={{ fontWeight: 600, color: '#111827' }}>{c.name}</span>
                       {c.emailDomains && c.emailDomains.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end' }}>
-                          {c.emailDomains.map((domain) => (
+                          {c.emailDomains.slice(0, 2).map((domain) => (
                             <span
                               key={domain}
                               style={{
@@ -473,12 +662,157 @@ const LandingPage = () => {
                               {domain}
                             </span>
                           ))}
+                          {c.emailDomains.length > 2 && (
+                            <span
+                              style={{
+                                fontSize: '0.8rem',
+                                color: '#4b5563',
+                                backgroundColor: '#e5e7eb',
+                                padding: '2px 8px',
+                                borderRadius: 999,
+                              }}
+                            >
+                              +{c.emailDomains.length - 2}
+                            </span>
+                          )}
                         </div>
                       )}
                     </li>
                   ))}
                 </ul>
               )}
+
+              <CompanyFooter>
+                <TextLinkButton
+                  type="button"
+                  onClick={() => {
+                    setShowCompanies(false);
+                    setShowAddCompanyModal(true);
+                  }}
+                >
+                  내 회사 추가하기
+                </TextLinkButton>
+              </CompanyFooter>
+            </IntroBody>
+          </IntroModalContent>
+        </IntroModalOverlay>
+      )}
+
+      {selectedCompany && (
+        <IntroModalOverlay onClick={() => setSelectedCompany(null)}>
+          <IntroModalContent onClick={e => e.stopPropagation()}>
+            <IntroModalHeader>
+              <IntroTitle>
+                {selectedCompany.name} 도메인 목록
+              </IntroTitle>
+              <IntroCloseButton onClick={() => setSelectedCompany(null)}>×</IntroCloseButton>
+            </IntroModalHeader>
+            <IntroBody>
+              {selectedCompany.emailDomains && selectedCompany.emailDomains.length > 0 ? (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {[...selectedCompany.emailDomains]
+                    .sort((a, b) => a.localeCompare(b))
+                    .map((domain) => (
+                      <li
+                        key={domain}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #e5e7eb',
+                          background: '#f9fafb',
+                          marginBottom: 6,
+                          fontSize: '0.9rem',
+                          color: '#111827',
+                        }}
+                      >
+                        {domain}
+                      </li>
+                    ))}
+                </ul>
+              ) : (
+                <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>
+                  등록된 도메인 정보가 없습니다.
+                </p>
+              )}
+            </IntroBody>
+          </IntroModalContent>
+        </IntroModalOverlay>
+      )}
+
+      {showAddCompanyModal && (
+        <IntroModalOverlay
+          onClick={() => {
+            if (!isSubmittingCompanyRequest) {
+              setShowAddCompanyModal(false);
+            }
+          }}
+        >
+          <IntroModalContent onClick={e => e.stopPropagation()}>
+            <IntroModalHeader>
+              <IntroTitle>
+                내 회사 추가 요청
+              </IntroTitle>
+              <IntroCloseButton
+                onClick={() => {
+                  if (!isSubmittingCompanyRequest) {
+                    setShowAddCompanyModal(false);
+                  }
+                }}
+              >
+                ×
+              </IntroCloseButton>
+            </IntroModalHeader>
+            <IntroBody>
+              <form onSubmit={handleSubmitNewCompany}>
+                <FormField>
+                  <FormLabel>회사명</FormLabel>
+                  <FormInput
+                    type="text"
+                    value={newCompanyName}
+                    onChange={(e) => setNewCompanyName(e.target.value)}
+                    placeholder="예: 현대자동차, S-OIL 등"
+                    disabled={isSubmittingCompanyRequest}
+                  />
+                </FormField>
+                <FormField>
+                  <FormLabel>이메일 도메인 주소</FormLabel>
+                  <FormInput
+                    type="text"
+                    value={newCompanyDomain}
+                    onChange={(e) => setNewCompanyDomain(e.target.value)}
+                    placeholder="예: hyundai.com"
+                    disabled={isSubmittingCompanyRequest}
+                  />
+                </FormField>
+                <FormField>
+                  <FormLabel>기타 요청사항 (선택)</FormLabel>
+                  <FormTextarea
+                    value={newCompanyMessage}
+                    onChange={(e) => setNewCompanyMessage(e.target.value)}
+                    placeholder="예 : 기존 메일주소가 잘못됐어요, 다른 도메인주소가 더 필요해요 등"
+                    disabled={isSubmittingCompanyRequest}
+                  />
+                </FormField>
+                <FormActions>
+                  <SecondaryButton
+                    type="button"
+                    onClick={() => {
+                      if (!isSubmittingCompanyRequest) {
+                        setShowAddCompanyModal(false);
+                      }
+                    }}
+                    disabled={isSubmittingCompanyRequest}
+                  >
+                    취소
+                  </SecondaryButton>
+                  <PrimaryActionButton
+                    type="submit"
+                    disabled={isSubmittingCompanyRequest}
+                  >
+                    {isSubmittingCompanyRequest ? '전송 중...' : '관리자에게 전송'}
+                  </PrimaryActionButton>
+                </FormActions>
+              </form>
             </IntroBody>
           </IntroModalContent>
         </IntroModalOverlay>

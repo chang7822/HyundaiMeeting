@@ -10,8 +10,6 @@ dotenv.config({ path: path.join(__dirname, 'config.env') });
 
 const { supabase } = require('./database');
 
-let lastPeriodStartReset = null; // 회차 시작 초기화 중복 실행 방지용
-
 // 환경변수로 실행 주기 설정 (기본값: 10초마다)
 const scheduleInterval = process.env.SCHEDULER_INTERVAL || '*/10 * * * * *';
 console.log(`[스케줄러] 실행 주기: ${scheduleInterval}`);
@@ -56,22 +54,53 @@ cron.schedule(scheduleInterval, async () => {
     if (data.application_start) {
       const startTime = new Date(data.application_start);
       const resetExecutionTime = new Date(startTime.getTime() - 10 * 1000); // 10초 전 실행으로 변경
-      
-      if (now >= resetExecutionTime && lastPeriodStartReset !== data.id) {
-        console.log(`[스케줄러] 회차 ${data.id} users 테이블 초기화 실행`);
-        const { data: resetResult, error: resetError } = await supabase
-          .from('users')
-          .update({ is_applied: false, is_matched: null })
-          .not('id', 'is', null)
-          .select('id');
-        
-        if (resetError) {
-          console.error(`[스케줄러] users 테이블 초기화 실패:`, resetError);
-        } else {
-          console.log(`[스케줄러] users 테이블 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋`);
+
+      if (now >= resetExecutionTime) {
+        // DB에서 마지막으로 초기화된 회차 ID 조회
+        let lastPeriodStartResetId = null;
+        try {
+          const { data: settingRow, error: settingError } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'last_period_start_reset_id')
+            .maybeSingle();
+
+          if (!settingError && settingRow && settingRow.value && typeof settingRow.value.periodId === 'number') {
+            lastPeriodStartResetId = settingRow.value.periodId;
+          }
+        } catch (infoErr) {
+          console.error('[스케줄러] last_period_start_reset_id 조회 오류:', infoErr);
         }
-        
-        lastPeriodStartReset = data.id; // 초기화 완료 표시
+
+        if (lastPeriodStartResetId !== data.id) {
+          console.log(`[스케줄러] 회차 ${data.id} users 테이블 초기화 실행`);
+          const { data: resetResult, error: resetError } = await supabase
+            .from('users')
+            .update({ is_applied: false, is_matched: null })
+            .not('id', 'is', null)
+            .select('id');
+
+          if (resetError) {
+            console.error(`[스케줄러] users 테이블 초기화 실패:`, resetError);
+          } else {
+            console.log(`[스케줄러] users 테이블 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋`);
+            // 초기화 완료 후 app_settings에 기록
+            try {
+              const value = { periodId: data.id };
+              await supabase
+                .from('app_settings')
+                .upsert(
+                  {
+                    key: 'last_period_start_reset_id',
+                    value,
+                  },
+                  { onConflict: 'key' }
+                );
+            } catch (upsertErr) {
+              console.error('[스케줄러] last_period_start_reset_id 업데이트 오류:', upsertErr);
+            }
+          }
+        }
       }
     }
     

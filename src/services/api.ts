@@ -163,6 +163,12 @@ export const companyApi = {
     const response = await api.get(`/companies/domain/${domain}`);
     return response.data;
   },
+
+  // 랜딩 페이지에서 관리자에게 회사 추가 요청 보내기
+  requestNewCompany: async (payload: { companyName: string; emailDomain: string; message?: string }) => {
+    const response = await api.post('/companies/request', payload);
+    return response.data;
+  },
 };
 
 // User API

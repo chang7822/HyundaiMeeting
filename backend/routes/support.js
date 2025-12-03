@@ -53,12 +53,43 @@ router.post('/inquiries', authenticate, async (req, res) => {
 
     // 관리자 알림 메일 발송 (비동기)
     try {
+      // 문의자 정보 조회 (이메일, 닉네임, 성별)
+      let userEmail = '';
+      let nickname = '';
+      let gender = '';
+
+      try {
+        const { data: userRow, error: userError } = await supabase
+          .from('users')
+          .select('email')
+          .eq('id', user_id)
+          .single();
+        if (!userError && userRow) {
+          userEmail = userRow.email || '';
+        }
+
+        const { data: profileRow, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('nickname, gender')
+          .eq('user_id', user_id)
+          .single();
+        if (!profileError && profileRow) {
+          nickname = profileRow.nickname || '';
+          gender = profileRow.gender || '';
+        }
+      } catch (infoErr) {
+        console.error('[문의 등록] 문의자 정보 조회 오류:', infoErr);
+      }
+
       const adminSubject = '신규 고객센터 문의 접수';
       const adminBodyLines = [
         '새로운 고객센터 문의가 등록되었습니다.',
         '',
         `문의 ID: ${data.id}`,
         `작성자 ID: ${user_id}`,
+        `이메일: ${userEmail || '알 수 없음'}`,
+        `닉네임: ${nickname || '알 수 없음'}`,
+        `성별: ${gender || '알 수 없음'}`,
         `카테고리: ${category}`,
         `제목: ${title.trim()}`,
         '',
