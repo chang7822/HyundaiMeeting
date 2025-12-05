@@ -126,7 +126,8 @@ cron.schedule(scheduleInterval, async () => {
     // 30초 여유를 두어 정확한 시각에 실행되도록 함
     if (!current.executed && now >= executionTime) {
       console.log(`[스케줄러] 매칭 회차 ${current.id} 실행 (예정: ${runTime.toISOString()}, 실제: ${now.toISOString()})`);
-      exec('node matching-algorithm.js', async (err, stdout, stderr) => {
+      // current.id를 인자로 넘겨서 해당 회차만 대상으로 매칭 알고리즘 실행
+      exec(`node matching-algorithm.js ${current.id}`, async (err, stdout, stderr) => {
         if (err) {
           console.error('매칭 알고리즘 실행 오류:', err);
         } else {
@@ -139,7 +140,7 @@ cron.schedule(scheduleInterval, async () => {
           if (updateError) {
             console.error(`[스케줄러] executed 업데이트 오류:`, updateError);
           } else {
-            console.log(`[스케줄러] 매칭 회차 ${data.id} 실행 완료 표시`);
+            console.log(`[스케줄러] 매칭 회차 ${current.id} 실행 완료 표시`);
           }
         }
       });
@@ -238,7 +239,8 @@ cron.schedule(scheduleInterval, async () => {
         // 매칭 결과 이메일 발송 함수 실행
         const { sendMatchingResultEmails } = require('./matching-algorithm');
         try {
-          await sendMatchingResultEmails();
+          // current.id 기준으로 결과 메일 발송
+          await sendMatchingResultEmails(current.id);
           console.log('[스케줄러] 매칭 결과 이메일 발송 완료');
           
           // 이메일 발송 완료 후 email_sent true로 업데이트

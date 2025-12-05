@@ -171,19 +171,24 @@ function isMutualMatch(a, b, previousMatches = null) {
 
 
 // 매칭 결과 이메일 발송 함수 (스케줄러에서 호출)
-async function sendMatchingResultEmails() {
+// periodIdOverride가 주어지면 해당 회차 기준, 없으면 최신 회차 기준
+async function sendMatchingResultEmails(periodIdOverride) {
   try {
-    // 1. 최신 회차 id 조회
-    const { data: logRows, error: logError } = await supabase
-      .from('matching_log')
-      .select('id')
-      .order('id', { ascending: false })
-      .limit(1);
-    if (logError || !logRows || logRows.length === 0) {
-      console.error('매칭 회차 조회 실패:', logError);
-      return;
+    let periodId = periodIdOverride;
+
+    // 특정 회차가 지정되지 않은 경우 → 최신 회차 사용 (기존 동작 유지)
+    if (!periodId) {
+      const { data: logRows, error: logError } = await supabase
+        .from('matching_log')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1);
+      if (logError || !logRows || logRows.length === 0) {
+        console.error('매칭 회차 조회 실패:', logError);
+        return;
+      }
+      periodId = logRows[0].id;
     }
-    const periodId = logRows[0].id;
 
     // 2. 해당 회차의 매칭 신청자들 조회
     const { data: applications, error: appError } = await supabase
@@ -238,17 +243,26 @@ async function sendMatchingResultEmails() {
 }
 
 async function main() {
-  // 1. 최신 회차 id 조회
-  const { data: logRows, error: logError } = await supabase
-    .from('matching_log')
-    .select('id')
-    .order('id', { ascending: false })
-    .limit(1);
-  if (logError || !logRows || logRows.length === 0) {
-    console.error('매칭 회차 조회 실패:', logError);
-    return;
+  // 1. CLI 인자로 periodId가 넘어온 경우 우선 사용
+  let periodId = null;
+  const argPeriod = process.argv[2];
+  if (argPeriod && !Number.isNaN(Number(argPeriod))) {
+    periodId = Number(argPeriod);
   }
-  const periodId = logRows[0].id;
+
+  // 1-b. 인자가 없으면 기존처럼 최신 회차 id 조회
+  if (!periodId) {
+    const { data: logRows, error: logError } = await supabase
+      .from('matching_log')
+      .select('id')
+      .order('id', { ascending: false })
+      .limit(1);
+    if (logError || !logRows || logRows.length === 0) {
+      console.error('매칭 회차 조회 실패:', logError);
+      return;
+    }
+    periodId = logRows[0].id;
+  }
 
   // 2. 해당 회차에 신청 && 취소 안한 유저만 추출
   const { data: applicants, error: appError } = await supabase
