@@ -228,11 +228,11 @@ cron.schedule(scheduleInterval, async () => {
     }
 
     // [추가] 매칭 결과 이메일 발송 (matching_announce 시각)
-    if (data.matching_announce) {
-      const announceTime = new Date(data.matching_announce);
+    if (current.matching_announce) {
+      const announceTime = new Date(current.matching_announce);
       const emailExecutionTime = new Date(announceTime.getTime() + 30 * 1000); // 30초 후 실행
       
-      if (!data.email_sent && now >= emailExecutionTime) {
+      if (!current.email_sent && now >= emailExecutionTime) {
         console.log(`[스케줄러] 매칭 결과 이메일 발송 시작 (예정: ${announceTime.toISOString()}, 실제: ${now.toISOString()})`);
         
         // 매칭 결과 이메일 발송 함수 실행
@@ -249,7 +249,7 @@ cron.schedule(scheduleInterval, async () => {
           if (updateError) {
             console.error(`[스케줄러] email_sent 업데이트 오류:`, updateError);
           } else {
-            console.log(`[스케줄러] 매칭 회차 ${data.id} 이메일 발송 완료 표시`);
+            console.log(`[스케줄러] 매칭 회차 ${current.id} 이메일 발송 완료 표시`);
           }
         } catch (err) {
           console.error('[스케줄러] 매칭 결과 이메일 발송 오류:', err);
