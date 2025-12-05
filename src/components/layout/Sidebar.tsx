@@ -236,7 +236,8 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         if (res.status && res.status.matched === true && res.status.partner_user_id) {
           setPartnerUserId(res.status.partner_user_id);
           // 회차 마감 전인지 추가 체크
-          matchingApi.getMatchingPeriod().then(periodData => {
+          matchingApi.getMatchingPeriod().then(periodResp => {
+            const periodData = periodResp?.current || periodResp;
             setPeriod(periodData);
             const now = new Date();
             const finish = periodData.finish ? new Date(periodData.finish) : null;

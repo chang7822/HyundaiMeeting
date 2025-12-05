@@ -265,20 +265,48 @@ const LatestNoticeRight = styled.span`
   }
 `;
 
+// 다음 회차 예정 배지용 래퍼: 데스크탑에서는 버튼/문구와 같은 row의 우측 끝, 모바일에서는 전체 폭
+const NextPeriodWrapper = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  margin-left: auto; /* 데스크탑: 같은 row에서 오른쪽 끝으로 밀기 */
+
+  @media (max-width: 600px) {
+    width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+`;
+
+// 다음 회차 예정 배지: 모바일에서는 좌우 전체 폭을 채우도록 설정
+const NextPeriodBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(124, 58, 237, 0.08) 100%);
+  border: 1px solid rgba(79, 70, 229, 0.25);
+
+  @media (max-width: 600px) {
+    width: 100%;
+    justify-content: space-between;
+  }
+`;
+
 const QuickActions = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 2rem;
   margin-bottom: 2rem;
   
   @media (max-width: 768px) {
-    grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
     margin-bottom: 1.5rem;
   }
   
   @media (max-width: 480px) {
-    grid-template-columns: 1fr;
     gap: 1rem;
     margin-bottom: 1rem;
   }
@@ -688,7 +716,8 @@ const cancelTime = 1;
 const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
   const { user, profile, isLoading, isAuthenticated, fetchUser, setProfile } = useAuth() as any;
-  const [period, setPeriod] = useState<any>(null);
+  const [period, setPeriod] = useState<any>(null);        // 현재 회차
+  const [nextPeriod, setNextPeriod] = useState<any>(null); // NEXT 회차(예고용)
   const [loadingPeriod, setLoadingPeriod] = useState(true);
   const [now, setNow] = useState<Date>(new Date());
   const [matchingStatus, setMatchingStatus] = useState<any>(null);
@@ -743,7 +772,18 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   useEffect(() => {
     matchingApi.getMatchingPeriod().then(data => {
-      setPeriod(data); // data가 null이면 매칭 로그가 없는 상황
+      if (!data) {
+        setPeriod(null);
+        setNextPeriod(null);
+      } else if (data.current || data.next) {
+        // 백엔드가 { current, next } 형태로 내려주는 경우
+        setPeriod(data.current || null);
+        setNextPeriod(data.next || null);
+      } else {
+        // 과거 호환: 단일 회차 객체만 내려오는 경우
+        setPeriod(data);
+        setNextPeriod(null);
+      }
       setLoadingPeriod(false);
     }).catch((err) => {
       setLoadingPeriod(false);
@@ -1179,9 +1219,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         };
       }
       if (isMatched === false) {
+        const finishLabel = period.finish ? formatKST(period.finish) : '-';
         return {
           status: '매칭 실패',
-          period: '아쉽지만 다음기회를 기약할게요.',
+          period: `아쉽지만 다음기회를 기약할게요.\n매칭 종료 : ${finishLabel}`,
           color: '#e74c3c',
         };
       }
@@ -1300,6 +1341,30 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         buttonLabel = '매칭 신청 불가';
         showCancel = false;
       }
+    }
+  }
+
+  // NEXT 회차 예고 문구 (현재 회차가 발표완료 상태이고, NEXT 회차가 있을 때만 노출)
+  let nextPeriodLabel: string | null = null;
+  if (period && nextPeriod && period.matching_announce) {
+    const announceTime = new Date(period.matching_announce);
+    const finishTime = period.finish ? new Date(period.finish) : null;
+    const nowTime = now.getTime();
+
+    const isAfterAnnounce = nowTime >= announceTime.getTime();
+    const isBeforeFinish = !finishTime || nowTime < finishTime.getTime();
+
+    if (isAfterAnnounce && isBeforeFinish) {
+      // 현재 회차: 발표완료~마감 전 구간 → NEXT 회차 예고
+      const nextStart = nextPeriod.application_start
+        ? formatKST(nextPeriod.application_start)
+        : '-';
+      const nextEnd = nextPeriod.application_end
+        ? formatKST(nextPeriod.application_end)
+        : '-';
+      // "YYYY-MM-DD HH시 mm분 ~ YYYY-MM-DD HH시 mm분" 형식만 담아두고,
+      // 문구는 렌더링 쪽에서 조합
+      nextPeriodLabel = `${nextStart} ~`;
     }
   }
 
@@ -1799,6 +1864,35 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
         {reapplyMessage && (
           <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
+        )}
+        {nextPeriodLabel && (
+          <NextPeriodWrapper>
+            <NextPeriodBadge>
+              <span
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: '#4F46E5',
+                  background: 'rgba(79, 70, 229, 0.1)',
+                  padding: '3px 8px',
+                  borderRadius: 999,
+                }}
+              >
+                다음 회차 신청
+              </span>
+              <span
+                style={{
+                  fontSize: '0.9rem',
+                  color: '#111827',
+                  fontWeight: 600,
+                  textAlign: 'left',
+                  flex: 1,
+                }}
+              >
+                {nextPeriodLabel}
+              </span>
+            </NextPeriodBadge>
+          </NextPeriodWrapper>
         )}
       </ButtonRow>
       {/* 프로필 카드 모달 */}

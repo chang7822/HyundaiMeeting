@@ -7,6 +7,47 @@ const authenticate = require('../middleware/authenticate');
 // 임시 데이터 (다른 라우트와 공유)
 const users = [];
 const matches = [];
+// matching_log 날짜/시간 유효성 검사 헬퍼
+function validateMatchingLogDates(log) {
+  const { application_start, application_end, matching_run, matching_announce, finish } = log || {};
+
+  if (!application_start || !application_end || !matching_run || !matching_announce || !finish) {
+    return { ok: false, message: '신청 시작/마감, 매칭 실행, 결과 발표, 회차 종료 시간을 모두 입력해주세요.' };
+  }
+
+  const start = new Date(application_start);
+  const end = new Date(application_end);
+  const run = new Date(matching_run);
+  const announce = new Date(matching_announce);
+  const fin = new Date(finish);
+
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    Number.isNaN(run.getTime()) ||
+    Number.isNaN(announce.getTime()) ||
+    Number.isNaN(fin.getTime())
+  ) {
+    return { ok: false, message: '유효하지 않은 날짜/시간 형식이 포함되어 있습니다.' };
+  }
+
+  // 단계별 시간 역전 방지: 신청 시작 < 신청 마감 ≤ 매칭 실행 ≤ 결과 발표 ≤ 회차 종료
+  if (!(start.getTime() < end.getTime())) {
+    return { ok: false, message: '신청 마감 시간은 신청 시작 시간보다 늦어야 합니다.' };
+  }
+  if (run.getTime() < end.getTime()) {
+    return { ok: false, message: '매칭 실행 시간은 신청 마감 시간 이후여야 합니다.' };
+  }
+  if (announce.getTime() < run.getTime()) {
+    return { ok: false, message: '결과 발표 시간은 매칭 실행 시간 이후여야 합니다.' };
+  }
+  if (fin.getTime() < announce.getTime()) {
+    return { ok: false, message: '회차 종료 시간은 결과 발표 시간 이후여야 합니다.' };
+  }
+
+  return { ok: true };
+}
+
 
 // 공통: 관리자 권한 체크 유틸
 function ensureAdmin(req, res) {
@@ -234,12 +275,47 @@ router.get('/matching-log', authenticate, async (req, res) => {
 // matching_log 생성
 router.post('/matching-log', authenticate, async (req, res) => {
   try {
-    const insertData = req.body;
+    const insertData = req.body || {};
+
+    // 0. 단일 회차 내부 날짜/시간 유효성 검사
+    const validation = validateMatchingLogDates(insertData);
+    if (!validation.ok) {
+      return res.status(400).json({ message: validation.message });
+    }
+
+    // 1. 마지막 회차와의 시간 겹침 방지:
+    //    새 회차의 신청 시작 시간은 마지막 생성된 회차의 종료 시간보다 늦어야 한다.
+    const { data: lastLog, error: lastError } = await supabase
+      .from('matching_log')
+      .select('id, finish')
+      .order('id', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastError) {
+      console.error('[admin][matching-log] 마지막 회차 조회 오류:', lastError);
+      return res.status(500).json({ message: '기존 회차 정보를 조회하는 중 오류가 발생했습니다.' });
+    }
+
+    if (lastLog && lastLog.finish) {
+      const lastFinish = new Date(lastLog.finish);
+      const newStart = new Date(insertData.application_start);
+      if (!Number.isNaN(lastFinish.getTime()) && !Number.isNaN(newStart.getTime())) {
+        // 새 회차의 신청 시작 시간이 마지막 회차 종료 시간보다 같거나 빠르면 안 됨
+        if (newStart.getTime() <= lastFinish.getTime()) {
+          return res.status(400).json({
+            message: '새 회차의 신청 시작 시간은 이전 회차의 종료 시간보다 늦어야 합니다.',
+          });
+        }
+      }
+    }
     
-    // 1. 새로운 회차 생성 (email_sent 초기값 설정)
+    // 2. 새로운 회차 생성 (email_sent 초기값 설정)
     const insertDataWithDefaults = {
       ...insertData,
-      email_sent: false
+      email_sent: false,
+      // status 컬럼이 있는 경우 기본값을 명시적으로 '준비중'으로 설정
+      status: insertData.status || '준비중',
     };
     
     const { data, error } = await supabase
@@ -248,28 +324,7 @@ router.post('/matching-log', authenticate, async (req, res) => {
       .select()
       .single();
     if (error) throw error;
-    
-    // 2. [추가] users 테이블 매칭 상태 초기화
-    console.log(`[관리자] 새로운 회차 ${data.id} 생성, users 테이블 매칭 상태 초기화`);
-    
-    // 더 강력한 초기화: 모든 사용자의 매칭 상태를 완전히 리셋
-    const { data: resetResult, error: resetError } = await supabase
-      .from('users')
-      .update({ 
-        is_applied: false, 
-        is_matched: null 
-      })
-      .not('id', 'is', null)
-      .select('id, email, is_applied, is_matched');
-    
-    if (resetError) {
-      console.error(`[관리자] users 테이블 초기화 오류:`, resetError);
-      // 초기화 실패해도 회차 생성은 성공으로 처리
-    } else {
-      console.log(`[관리자] users 테이블 매칭 상태 초기화 완료 - ${resetResult?.length || 0}명의 사용자 상태 리셋`);
-      console.log(`[관리자] 초기화된 사용자 샘플:`, resetResult?.slice(0, 3));
-    }
-    
+
     // 엔티티 자체에는 존재하지 않는 message 필드를 섞지 않고, 순수 row만 반환
     res.json(data);
   } catch (error) {
@@ -302,6 +357,28 @@ router.put('/matching-log/:id', authenticate, async (req, res) => {
       if (Object.prototype.hasOwnProperty.call(rawBody, key)) {
         updateData[key] = rawBody[key];
       }
+    }
+
+    // 기존 값 조회 후, 업데이트 적용 값을 합쳐서 유효성 검사
+    const { data: existing, error: fetchError } = await supabase
+      .from('matching_log')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('matching_log 수정 전 조회 오류:', fetchError);
+      return res.status(500).json({ message: '매칭 회차 조회에 실패했습니다.', error: fetchError.message || fetchError });
+    }
+
+    if (!existing) {
+      return res.status(404).json({ message: `ID ${id} 회차를 찾을 수 없습니다.` });
+    }
+
+    const mergedLog = { ...existing, ...updateData };
+    const validation = validateMatchingLogDates(mergedLog);
+    if (!validation.ok) {
+      return res.status(400).json({ message: validation.message });
     }
 
     const { data, error } = await supabase
@@ -372,23 +449,10 @@ router.delete('/matching-log/:id', authenticate, async (req, res) => {
       .maybeSingle();
     if (logError) throw logError;
 
-    // 6. [추가] users 테이블 매칭 상태 초기화
-    console.log(`[관리자] users 테이블 매칭 상태 초기화 시작`);
-    const { error: resetError } = await supabase
-      .from('users')
-      .update({ is_applied: false, is_matched: null })
-      .not('id', 'is', null);
-    if (resetError) {
-      console.error(`[관리자] users 테이블 초기화 오류:`, resetError);
-      // 초기화 실패해도 삭제는 성공으로 처리
-    } else {
-      console.log(`[관리자] users 테이블 매칭 상태 초기화 완료`);
-    }
-
     res.json({ 
       success: true, 
       deleted: data,
-      message: '회차 및 관련 데이터(매칭 신청, 이력, 신고, 채팅 기록)가 삭제되었고, 모든 사용자의 매칭 상태가 초기화되었습니다.'
+      message: '회차 및 관련 데이터(매칭 신청, 이력, 신고, 채팅 기록)가 삭제되었습니다.'
     });
   } catch (error) {
     console.error('matching_log 및 연관 데이터 삭제 오류:', error);

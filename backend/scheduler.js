@@ -10,27 +10,122 @@ dotenv.config({ path: path.join(__dirname, 'config.env') });
 
 const { supabase } = require('./database');
 
+// status 기반으로 현재 회차/다음 회차를 계산하는 내부 헬퍼 (matching.js와 동일 로직)
+function computeCurrentAndNextFromLogs(logs) {
+  if (!logs || logs.length === 0) {
+    return { current: null, next: null };
+  }
+
+  let current = null;
+  let next = null;
+
+  // logs는 id 내림차순(가장 큰 id가 0번 인덱스)으로 정렬되어 있음
+  const readyLogs = logs.filter(log => log.status === '준비중');
+  const activeLogs = logs.filter(log => log.status === '진행중' || log.status === '발표완료');
+  const finishedLogs = logs.filter(log => log.status === '종료');
+
+  if (activeLogs.length > 0) {
+    // 진행중/발표완료 회차가 하나 이상 있으면, 가장 최신 회차를 현재 회차로 사용
+    current = activeLogs[0];
+  } else if (finishedLogs.length > 0 && readyLogs.length > 0) {
+    // 종료된 회차가 있고, 그 이후에 준비중인 회차들이 있다면,
+    // "마지막으로 종료된 회차" 이후의 준비중 회차들 중 가장 가까운(가장 오래된) 회차를 현재 회차로 선택
+    const latestFinished = finishedLogs[0]; // logs가 id DESC이므로 0번째가 가장 최근 종료
+    let candidate = null;
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const log = logs[i];
+      if (log.status === '준비중' && log.id > latestFinished.id) {
+        candidate = log; // 뒤에서 앞으로 오므로 마지막으로 대입되는 것이 id가 가장 작은 준비중 회차
+      }
+    }
+    current = candidate || latestFinished;
+  } else if (readyLogs.length > 0) {
+    // 전부 준비중인 경우: 가장 오래된 준비중 회차를 현재 회차로 간주
+    current = readyLogs[readyLogs.length - 1];
+  } else {
+    // 모든 회차가 종료되었거나, 정의되지 않은 status만 있는 경우: 가장 최신 회차를 현재 회차로 사용
+    current = logs[0];
+  }
+
+  // 현재 회차가 발표완료 상태인 경우에만 NEXT(다음 회차) 후보 탐색
+  if (current && current.status === '발표완료') {
+    let candidate = null;
+    for (const log of logs) {
+      if (log.status === '준비중' && log.id > current.id) {
+        // current.id보다 큰(미래) 준비중 회차 중에서 가장 id가 작은 회차를 NEXT로 선택
+        if (!candidate || log.id < candidate.id) {
+          candidate = log;
+        }
+      }
+    }
+    next = candidate;
+  }
+
+  return { current, next };
+}
+
 // 환경변수로 실행 주기 설정 (기본값: 10초마다)
 const scheduleInterval = process.env.SCHEDULER_INTERVAL || '*/10 * * * * *';
 console.log(`[스케줄러] 실행 주기: ${scheduleInterval}`);
 
 cron.schedule(scheduleInterval, async () => {
   try {
-    const { data, error } = await supabase
-      .from('matching_log')
-      .select('id, matching_run, matching_announce, executed, email_sent, finish, application_start')
-      .order('id', { ascending: false })
-      .limit(1)
-      .single();
-    if (error || !data) return;
-
+    // 0. status 자동 갱신 (준비중 → 진행중 → 발표완료 → 종료)
     const now = new Date();
-    const runTime = new Date(data.matching_run);
+    const nowIso = now.toISOString();
+
+    try {
+      // 0-1) 종료 처리: finish 시각이 지난 진행중/발표완료 회차는 종료
+      const { error: finishUpdateError } = await supabase
+        .from('matching_log')
+        .update({ status: '종료' })
+        .neq('status', '종료')
+        .not('finish', 'is', null)
+        .lte('finish', nowIso);
+      if (finishUpdateError) {
+        console.error('[스케줄러] matching_log status 종료 업데이트 오류:', finishUpdateError);
+      }
+
+      // 0-2) 발표완료 처리: matching_announce 시각이 지난 진행중 회차
+      const { error: announceUpdateError } = await supabase
+        .from('matching_log')
+        .update({ status: '발표완료' })
+        .eq('status', '진행중')
+        .not('matching_announce', 'is', null)
+        .lte('matching_announce', nowIso);
+      if (announceUpdateError) {
+        console.error('[스케줄러] matching_log status 발표완료 업데이트 오류:', announceUpdateError);
+      }
+
+      // 0-3) 진행중 처리: 신청 시작~마감 사이의 준비중 회차
+      const { error: runningUpdateError } = await supabase
+        .from('matching_log')
+        .update({ status: '진행중' })
+        .eq('status', '준비중')
+        .not('application_start', 'is', null)
+        .lte('application_start', nowIso);
+      if (runningUpdateError) {
+        console.error('[스케줄러] matching_log status 진행중 업데이트 오류:', runningUpdateError);
+      }
+    } catch (statusErr) {
+      console.error('[스케줄러] matching_log status 자동 갱신 중 오류:', statusErr);
+    }
+
+    const { data: logs, error } = await supabase
+      .from('matching_log')
+      .select('*')
+      .order('id', { ascending: false });
+    if (error || !logs || logs.length === 0) return;
+
+    const { current } = computeCurrentAndNextFromLogs(logs);
+    if (!current) return;
+
+    const runTime = new Date(current.matching_run);
     const executionTime = new Date(runTime.getTime()); // 정시에 실행
     // executed가 false이고, matching_run 시각이 지났고, 아직 실행하지 않은 경우에만 실행
     // 30초 여유를 두어 정확한 시각에 실행되도록 함
-    if (!data.executed && now >= executionTime) {
-      console.log(`[스케줄러] 매칭 회차 ${data.id} 실행 (예정: ${runTime.toISOString()}, 실제: ${now.toISOString()})`);
+    if (!current.executed && now >= executionTime) {
+      console.log(`[스케줄러] 매칭 회차 ${current.id} 실행 (예정: ${runTime.toISOString()}, 실제: ${now.toISOString()})`);
       exec('node matching-algorithm.js', async (err, stdout, stderr) => {
         if (err) {
           console.error('매칭 알고리즘 실행 오류:', err);
@@ -40,7 +135,7 @@ cron.schedule(scheduleInterval, async () => {
           const { error: updateError } = await supabase
             .from('matching_log')
             .update({ executed: true })
-            .eq('id', data.id);
+            .eq('id', current.id);
           if (updateError) {
             console.error(`[스케줄러] executed 업데이트 오류:`, updateError);
           } else {
@@ -51,8 +146,8 @@ cron.schedule(scheduleInterval, async () => {
     }
     
     // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 시점)
-    if (data.application_start) {
-      const startTime = new Date(data.application_start);
+    if (current.application_start) {
+      const startTime = new Date(current.application_start);
       const resetExecutionTime = new Date(startTime.getTime() - 10 * 1000); // 10초 전 실행으로 변경
 
       if (now >= resetExecutionTime) {
@@ -72,8 +167,8 @@ cron.schedule(scheduleInterval, async () => {
           console.error('[스케줄러] last_period_start_reset_id 조회 오류:', infoErr);
         }
 
-        if (lastPeriodStartResetId !== data.id) {
-          console.log(`[스케줄러] 회차 ${data.id} users 테이블 초기화 실행`);
+        if (lastPeriodStartResetId !== current.id) {
+          console.log(`[스케줄러] 회차 ${current.id} users 테이블 초기화 실행`);
           const { data: resetResult, error: resetError } = await supabase
             .from('users')
             .update({ is_applied: false, is_matched: null })
@@ -86,7 +181,7 @@ cron.schedule(scheduleInterval, async () => {
             console.log(`[스케줄러] users 테이블 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋`);
             // 초기화 완료 후 app_settings에 기록
             try {
-              const value = { periodId: data.id };
+              const value = { periodId: current.id };
               await supabase
                 .from('app_settings')
                 .upsert(
@@ -105,15 +200,15 @@ cron.schedule(scheduleInterval, async () => {
     }
     
     // [추가] 회차 종료(마감) 시 users 테이블 초기화
-    if (data.finish) {
-      const finishTime = new Date(data.finish);
+    if (current.finish) {
+      const finishTime = new Date(current.finish);
       // 회차 종료 시각이 지났고, 다음 회차가 아직 생성되지 않은 경우
       if (now > finishTime) {
         // matching_log에 finish가 더 큰 row가 있는지 확인(다음 회차)
         const { data: nextLog, error: nextLogError } = await supabase
           .from('matching_log')
           .select('id')
-          .gt('id', data.id)
+          .gt('id', current.id)
           .limit(1)
           .maybeSingle();
         if (!nextLog) {
@@ -150,7 +245,7 @@ cron.schedule(scheduleInterval, async () => {
           const { error: updateError } = await supabase
             .from('matching_log')
             .update({ email_sent: true })
-            .eq('id', data.id);
+            .eq('id', current.id);
           if (updateError) {
             console.error(`[스케줄러] email_sent 업데이트 오류:`, updateError);
           } else {

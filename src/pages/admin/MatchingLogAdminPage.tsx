@@ -145,16 +145,49 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
       alert('모든 날짜/시간 항목을 입력해 주세요.');
       return;
     }
-    if (editing) {
-      await updateMatchingLog(editing, form);
-      setLogs(logs.map(l => l.id === editing ? { ...form, id: editing } : l));
-    } else {
-      const newLog = await createMatchingLog(form);
-      setLogs([...logs, newLog]);
+
+    try {
+      const start = new Date(form.application_start);
+      const end = new Date(form.application_end);
+      const run = new Date(form.matching_run);
+      const announce = new Date(form.matching_announce);
+      const fin = new Date(form.finish);
+
+      if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || Number.isNaN(run.getTime()) || Number.isNaN(announce.getTime()) || Number.isNaN(fin.getTime())) {
+        alert('유효하지 않은 날짜/시간 형식이 있습니다.');
+        return;
+      }
+
+      if (!(start.getTime() < end.getTime())) {
+        alert('신청 마감 시간은 신청 시작 시간보다 늦어야 합니다.');
+        return;
+      }
+      if (run.getTime() < end.getTime()) {
+        alert('매칭 실행 시간은 신청 마감 시간 이후여야 합니다.');
+        return;
+      }
+      if (announce.getTime() < run.getTime()) {
+        alert('결과 발표 시간은 매칭 실행 시간 이후여야 합니다.');
+        return;
+      }
+      if (fin.getTime() < announce.getTime()) {
+        alert('회차 종료 시간은 결과 발표 시간 이후여야 합니다.');
+        return;
+      }
+
+      if (editing) {
+        await updateMatchingLog(editing, form);
+        setLogs(logs.map(l => l.id === editing ? { ...form, id: editing } : l));
+      } else {
+        const newLog = await createMatchingLog(form);
+        setLogs([...logs, newLog]);
+      }
+      setEditing(null);
+      setModalOpen(false);
+      setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false });
+    } catch (e) {
+      alert('회차 저장 중 오류가 발생했습니다.');
     }
-    setEditing(null);
-    setModalOpen(false);
-    setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false });
   };
   const handleChange = (field: string, value: any) => {
     setForm({ ...form, [field]: value });

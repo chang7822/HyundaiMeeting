@@ -154,7 +154,8 @@ const ChatPage: React.FC = () => {
   useEffect(() => {
     if (!user?.id || !partnerUserId) return;
     setLoading(true);
-    matchingApi.getMatchingPeriod().then(period => {
+    matchingApi.getMatchingPeriod().then(periodResp => {
+      const period = periodResp?.current || periodResp;
       if (!period || !period.id) {
         toast.error('매칭 회차 정보가 없습니다.');
         setLoading(false);
