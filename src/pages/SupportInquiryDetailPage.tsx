@@ -89,14 +89,14 @@ const InquiryMeta = styled.div`
   flex-wrap: wrap;
 `;
 
-const StatusBadge = styled.span<{ status: string }>`
+const StatusBadge = styled.span<{ $status: string }>`
   padding: 6px 12px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
   
   ${props => {
-    switch (props.status) {
+    switch (props.$status) {
       case 'pending':
         return `
           background: #fef3cd;
@@ -328,7 +328,7 @@ const SupportInquiryDetailPage: React.FC<SupportInquiryDetailPageProps> = ({ sid
               <InquiryTitle>{inquiry.title}</InquiryTitle>
               <InquiryMeta>
                 <CategoryBadge>{inquiry.category}</CategoryBadge>
-                <StatusBadge status={inquiry.status}>
+                <StatusBadge $status={inquiry.status}>
                   {getStatusText(inquiry.status)}
                 </StatusBadge>
                 <InquiryDate>{formatDate(inquiry.created_at)}</InquiryDate>

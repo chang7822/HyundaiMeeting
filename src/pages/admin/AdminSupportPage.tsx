@@ -158,14 +158,14 @@ const CategoryBadge = styled.span`
   font-weight: 500;
 `;
 
-const StatusBadge = styled.span<{ status: string }>`
+const StatusBadge = styled.span<{ $status: string }>`
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
   
   ${props => {
-    switch (props.status) {
+    switch (props.$status) {
       case 'pending':
         return `
           background: #fef3c7;
@@ -464,7 +464,7 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
                         <InquiryTitle>{inquiry.title}</InquiryTitle>
                         <InquiryMeta>
                           <CategoryBadge>{inquiry.category}</CategoryBadge>
-                          <StatusBadge status={inquiry.status}>
+                          <StatusBadge $status={inquiry.status}>
                             {getStatusText(inquiry.status)}
                           </StatusBadge>
                           <UserInfo>

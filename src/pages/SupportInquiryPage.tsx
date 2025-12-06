@@ -142,7 +142,7 @@ const ButtonGroup = styled.div`
   margin-top: 30px;
 `;
 
-const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
+const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   padding: 12px 24px;
   border-radius: 8px;
   font-size: 16px;
@@ -151,7 +151,7 @@ const Button = styled.button<{ variant?: 'primary' | 'secondary' }>`
   transition: all 0.2s ease;
   border: none;
   
-  ${props => props.variant === 'primary' ? `
+  ${props => props.$variant === 'primary' ? `
     background: #667eea;
     color: white;
     
@@ -333,12 +333,12 @@ const SupportInquiryPage: React.FC<SupportInquiryPageProps> = ({ sidebarOpen = t
         </FormGroup>
 
         <ButtonGroup>
-          <Button type="button" variant="secondary" onClick={handleCancel}>
+          <Button type="button" $variant="secondary" onClick={handleCancel}>
             취소
           </Button>
           <Button 
             type="submit" 
-            variant="primary" 
+            $variant="primary" 
             disabled={isSubmitting}
           >
             {isSubmitting ? '등록 중...' : '문의 등록'}

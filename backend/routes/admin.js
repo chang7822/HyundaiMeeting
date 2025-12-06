@@ -485,7 +485,7 @@ async function loadAdminCompanyMap() {
         adminCompanyIdNameMap.set(c.id, c.name);
       }
     });
-    // console.log(`[admin matching] 활성 회사 ${companies.length}개 로드 (호환성 계산용)`);
+    
     return adminCompanyIdNameMap;
   } catch (e) {
     console.error('[admin matching] 회사 목록 로드 중 예외:', e);
