@@ -98,19 +98,98 @@ const io = new Server(httpServer, {
   }
 });
 
-// chat.js의 messages 배열을 이 파일에서도 사용
+// chat.js의 messages 배열을 이 파일에서도 사용 (현재는 미사용, 호환성 유지용)
 const chatMessages = require('./routes/chat').messages || [];
 
+// roomId에서 userId 두 개를 추출하고 "닉네임(이메일)" 라벨 생성
+async function getRoomLabel(roomId) {
+  try {
+    const parts = String(roomId).split('_');
+    if (parts.length !== 3) return String(roomId);
+    const [, userId1, userId2] = parts;
+
+    // 프로필(닉네임)과 이메일을 각각 조회
+    const [profileRes, userRes] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('user_id, nickname')
+        .in('user_id', [userId1, userId2]),
+      supabase
+        .from('users')
+        .select('id, email')
+        .in('id', [userId1, userId2]),
+    ]);
+
+    if (profileRes.error || userRes.error) {
+      return `${userId1}, ${userId2}`;
+    }
+
+    const profiles = profileRes.data || [];
+    const users = userRes.data || [];
+
+    function buildLabel(targetId) {
+      const profile = profiles.find((p) => String(p.user_id) === String(targetId));
+      const user = users.find((u) => String(u.id) === String(targetId));
+      const nick = profile?.nickname || targetId;
+      const email = user?.email;
+      return email ? `${nick}(${email})` : nick;
+    }
+
+    const label1 = buildLabel(userId1);
+    const label2 = buildLabel(userId2);
+
+    return `${label1}, ${label2}`;
+  } catch {
+    return String(roomId);
+  }
+}
+
 io.on('connection', (socket) => {
-  console.log('[SOCKET][server] 새 연결:', socket.id);
-  socket.on('join', (roomId) => {
+  socket.on('join', async (payload) => {
+    const roomId = typeof payload === 'string' ? payload : payload.roomId;
+    const actorUserId = typeof payload === 'string' ? null : payload.userId;
+    const actorEmail = typeof payload === 'string' ? null : payload.email;
+    const actorNickname = typeof payload === 'string' ? null : payload.nickname;
+
+    if (!roomId) return;
+
     socket.join(roomId);
-    console.log('[SOCKET][server] join:', roomId, 'socket:', socket.id);
+    socket.data = socket.data || {};
+    socket.data.roomId = roomId;
+    socket.data.userId = actorUserId;
+    socket.data.userEmail = actorEmail;
+    socket.data.userNickname = actorNickname;
+
+    let roomLabel = roomId;
+    try {
+      roomLabel = await getRoomLabel(roomId);
+      socket.data.roomLabel = roomLabel;
+    } catch {
+      // ignore
+    }
+
+    // 입장 주체자 라벨 (닉네임+이메일 우선)
+    let actorLabel =
+      (actorNickname && actorEmail && `${actorNickname}(${actorEmail})`) ||
+      actorNickname ||
+      actorEmail ||
+      actorUserId ||
+      null;
+
+    if (!actorLabel) {
+      // 페이로드에 정보가 없으면 방 라벨만 출력 (구버전 클라이언트 호환)
+      console.log(`[CHAT] 방 입장: ${roomLabel}`);
+    } else {
+      console.log(`[CHAT] 방 입장: ${actorLabel}`);
+    }
+
     // join 완료 알림
     socket.emit('joined', roomId);
   });
   socket.on('chat message', async (data) => {
-    console.log('[SOCKET][server] chat message 수신:', data);
+    let senderLabel = data.sender_nickname || data.sender_id || 'unknown';
+    let receiverLabel = data.receiver_nickname || data.receiver_id || 'unknown';
+    const content = data.content || '';
     if (!data.period_id || !data.sender_id || !data.receiver_id || !data.content) return;
     
     // 상대방의 정지 상태 확인
@@ -141,11 +220,37 @@ io.on('connection', (socket) => {
       console.error('[SOCKET][server] 정지 상태 확인 중 오류:', e);
       return;
     }
+
+    // 닉네임 보강 (payload에 닉네임이 없으면 프로필에서 조회)
+    try {
+      if ((!data.sender_nickname || !data.receiver_nickname) && data.sender_id && data.receiver_id) {
+        const { data: profiles } = await supabase
+          .from('user_profiles')
+          .select('user_id, nickname')
+          .in('user_id', [data.sender_id, data.receiver_id]);
+
+        if (profiles && Array.isArray(profiles)) {
+          const senderProfile = profiles.find((p) => p.user_id === data.sender_id);
+          const receiverProfile = profiles.find((p) => p.user_id === data.receiver_id);
+
+          if (!data.sender_nickname && senderProfile?.nickname) {
+            senderLabel = senderProfile.nickname;
+          }
+          if (!data.receiver_nickname && receiverProfile?.nickname) {
+            receiverLabel = receiverProfile.nickname;
+          }
+        }
+      }
+    } catch (e) {
+      // 닉네임 조회 실패 시에는 그냥 기존 라벨(sender_id/receiver_id) 사용
+    }
+
+    // 6. 채팅 메시지 로그: "보낸사람 → 받는사람 : 전체내용"
+    console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : ${content}`);
     
     // 방 이름: period_id_정렬된userId1_userId2
     const sortedIds = [data.sender_id, data.receiver_id].sort();
     const roomId = `${data.period_id}_${sortedIds[0]}_${sortedIds[1]}`;
-    console.log('[SOCKET][server] roomId 생성:', roomId);
     let encryptedContent;
     try {
       encryptedContent = encrypt(data.content);
@@ -167,7 +272,6 @@ io.on('connection', (socket) => {
       if (error) {
         console.error('[SOCKET][server] [채팅 DB 저장 오류]', error);
       } else {
-        console.log('[SOCKET][server] [채팅 DB 저장 성공] period_id=', newMessage.period_id, ', sender_id=', newMessage.sender_id, ', receiver_id=', newMessage.receiver_id, ', content=', newMessage.content);
         // DB에 저장된 row(id 포함)를 emit
         let plainContent = '';
         try {
@@ -176,7 +280,6 @@ io.on('connection', (socket) => {
           plainContent = '[복호화 실패]';
         }
         io.to(roomId).emit('chat message', { ...dbData, content: plainContent });
-        console.log('[SOCKET][server] chat message 브로드캐스트:', roomId, { ...dbData, content: plainContent });
       }
     } catch (e) {
       console.error('[SOCKET][server] [채팅 DB 저장 예외]', e);
@@ -189,13 +292,24 @@ io.on('connection', (socket) => {
       const sortedIds = [String(data.reader_id), String(data.partner_id)].sort();
       const roomId = `${data.period_id}_${sortedIds[0]}_${sortedIds[1]}`;
       io.to(roomId).emit('read', data);
-      console.log('[SOCKET][server] read 이벤트 브로드캐스트:', roomId, data);
+      console.log(`[CHAT] 읽음: room=${roomId}, reader=${data.reader_id}, partner=${data.partner_id}`);
     } catch (e) {
       console.error('[SOCKET][server] read 이벤트 처리 오류:', e);
     }
   });
   socket.on('disconnect', () => {
-    console.log('[SOCKET][server] disconnect:', socket.id);
+    // 5. 채팅방 퇴장 로그 (나간 사용자 기준 라벨)
+    const data = socket.data || {};
+    const actorLabel =
+      (data.userNickname && data.userEmail && `${data.userNickname}(${data.userEmail})`) ||
+      data.userNickname ||
+      data.userEmail ||
+      data.userId ||
+      data.roomLabel ||
+      data.roomId ||
+      'unknown';
+
+    console.log(`[CHAT] 방 퇴장: ${actorLabel}`);
   });
 });
 

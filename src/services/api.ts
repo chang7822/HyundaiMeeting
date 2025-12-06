@@ -20,6 +20,9 @@ const api = axios.create({
   },
 });
 
+// 수동 로그아웃 이후에는 401 토스트를 막기 위한 플래그
+let suppressAuth401Toast = false;
+
 // Add token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
@@ -42,13 +45,13 @@ api.interceptors.response.use(
     // Handle token expiration
     const isLoginRequest = error.config && error.config.url && error.config.url.includes('/auth/login');
     if (error.response?.status === 401) {
-      if (!isLoginRequest) {
+      if (!isLoginRequest && !suppressAuth401Toast) {
         toast.error('로그인 인증이 만료되었습니다. 다시 로그인해 주세요.');
-        localStorage.removeItem('token');
-        // console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
-        // 이동 없이 에러도 반환하지 않음(페이지 멈춤)
-        return;
       }
+      localStorage.removeItem('token');
+      // console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
+      // 이동 없이 에러도 반환하지 않음(페이지 멈춤)
+      return;
       // /auth/login 요청이면 아무 토스트도 띄우지 않음 (실패 안내는 LoginPage에서 따로 처리)
     }
     
@@ -62,6 +65,17 @@ export const authApi = {
     const response = await axios.post(apiUrl('/auth/login'), credentials);
     // console.log('[api] /auth/login 응답:', response.data);
     return response.data;
+  },
+
+  logout: async (email?: string) => {
+    // 토큰은 프론트에서 지우고, 서버에는 로그를 남기기 위한 용도
+    // 수동 로그아웃 이후에는 인증 만료 토스트를 막는다.
+    suppressAuth401Toast = true;
+    try {
+      await api.post('/auth/logout', { email });
+    } catch {
+      // 로그용이므로 실패해도 무시
+    }
   },
 
   register: async (userData: RegisterFormData): Promise<{ user: User; token: string }> => {
@@ -248,7 +262,23 @@ export const matchingApi = {
   // 매칭 기간 정보 조회
   getMatchingPeriod: async () => {
     const response = await api.get('/matching/period');
-    return response.data;
+    const data = response.data;
+
+    // 백엔드가 { success, current, next, message } 형태로 내려주는 경우
+    if (data && typeof data === 'object' && ('current' in data || 'next' in data)) {
+      const current = data.current || null;
+      const next = data.next || null;
+
+      // current/next 둘 다 없으면 "매칭 회차 없음"으로 간주 -> 프론트에 null 반환
+      if (!current && !next) {
+        return null;
+      }
+
+      return { current, next };
+    }
+
+    // 과거 호환: 단일 회차 객체만 내려오는 경우 그대로 반환
+    return data;
   },
 };
 

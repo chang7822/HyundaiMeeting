@@ -34,7 +34,7 @@ router.get('/my-history', authenticate, async (req, res) => {
       .from('matching_history')
       .select(`
         *,
-        period:matching_log(id, application_start, application_end, finish)
+        period:matching_log(id, application_start, application_end, finish, matching_announce, status)
       `)
       .or(`male_user_id.eq.${user_id},female_user_id.eq.${user_id}`)
       .order('matched_at', { ascending: false });
@@ -47,8 +47,35 @@ router.get('/my-history', authenticate, async (req, res) => {
       });
     }
 
+    // 🔒 매칭 결과 공지(matching_announce) 이전 회차는 이력에서 제외
+    const now = new Date();
+    const visibleData = (data || []).filter(match => {
+      const period = match.period;
+      if (!period) return false;
+
+      // 1순위: status 기준 (스케줄러에서 발표완료/종료로 관리)
+      if (period.status === '발표완료' || period.status === '종료') {
+        return true;
+      }
+
+      // 2순위: matching_announce 시간이 현재 시각을 지났는지 확인
+      if (period.matching_announce) {
+        try {
+          const announceTime = new Date(period.matching_announce);
+          if (!isNaN(announceTime.getTime()) && announceTime <= now) {
+            return true;
+          }
+        } catch (e) {
+          console.error('matching_announce 파싱 오류:', e);
+        }
+      }
+
+      // 그 외(발표 전/시간 정보 없음)는 노출하지 않음
+      return false;
+    });
+
     // 각 매칭에 대한 신고 정보 조회
-    const processedData = await Promise.all(data.map(async (match) => {
+    const processedData = await Promise.all(visibleData.map(async (match) => {
       const isMale = match.male_user_id === user_id;
       const partnerUserId = isMale ? match.female_user_id : match.male_user_id;
       const partnerNickname = isMale ? match.female_nickname : match.male_nickname;
@@ -154,7 +181,7 @@ router.get('/:id', authenticate, async (req, res) => {
       .from('matching_history')
       .select(`
         *,
-        period:matching_log(id, application_start, application_end, finish)
+        period:matching_log(id, application_start, application_end, finish, matching_announce, status)
       `)
       .eq('id', id)
       .or(`male_user_id.eq.${user_id},female_user_id.eq.${user_id}`)
@@ -172,6 +199,33 @@ router.get('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ 
         success: false, 
         message: '매칭 이력을 찾을 수 없습니다.' 
+      });
+    }
+
+    // 🔒 매칭 결과 공지 이전에는 상세 조회도 불가
+    const period = data.period;
+    const now = new Date();
+    let canView = false;
+
+    if (period) {
+      if (period.status === '발표완료' || period.status === '종료') {
+        canView = true;
+      } else if (period.matching_announce) {
+        try {
+          const announceTime = new Date(period.matching_announce);
+          if (!isNaN(announceTime.getTime()) && announceTime <= now) {
+            canView = true;
+          }
+        } catch (e) {
+          console.error('matching_announce 파싱 오류(상세):', e);
+        }
+      }
+    }
+
+    if (!canView) {
+      return res.status(403).json({
+        success: false,
+        message: '매칭 결과 발표 전에는 매칭 이력을 조회할 수 없습니다.'
       });
     }
 

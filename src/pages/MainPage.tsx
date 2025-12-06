@@ -998,36 +998,39 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const calculateCountdown = useCallback(() => {
     if (!period || !user || !profile || loadingPeriod || statusLoading) return;
     
-    // getMatchingStatusDisplay 로직을 인라인으로 구현
     let status = '';
+
     if (period && !(period.finish && new Date(period.finish) < now)) {
-      const start = new Date(period.application_start);
-      const end = new Date(period.application_end);
-      const finish = period.finish ? new Date(period.finish) : null;
       const announce = period.matching_announce ? new Date(period.matching_announce) : null;
       const nowTime = now.getTime();
-      
-      // 🔧 user 객체 대신 matchingStatus에서 매칭 상태 확인
-      let isApplied = user?.is_applied === true;
-      let isMatched = typeof user?.is_matched !== 'undefined' ? user?.is_matched : null;
-      
-      // user 객체에 매칭 정보가 없으면 matchingStatus에서 가져오기
-      if (user?.is_applied === undefined && matchingStatus) {
+
+      // 🔧 getUserMatchingState 와 동일하게, 매칭 결과는 matchingStatus만 신뢰
+      let isApplied = false;
+      let isMatched: boolean | null = null;
+
+      if (matchingStatus) {
         isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
+
+        if (typeof matchingStatus.is_matched === 'boolean') {
+          isMatched = matchingStatus.is_matched;
+        } else if (typeof matchingStatus.matched === 'boolean') {
+          isMatched = matchingStatus.matched;
+        } else {
+          isMatched = null;
+        }
+      } else if (user) {
+        // matchingStatus가 아직 없으면, 신청 여부만 user에서 보완
+        isApplied = user.is_applied === true;
+        isMatched = null;
       }
-      if (user?.is_matched === undefined && matchingStatus) {
-        isMatched = typeof matchingStatus.is_matched !== 'undefined' ? matchingStatus.is_matched : 
-                    typeof matchingStatus.matched !== 'undefined' ? matchingStatus.matched : null;
-      }
-      
-      if (announce && nowTime >= announce.getTime() && isMatched === true) {
+
+      if (announce && nowTime >= announce.getTime() && isApplied && isMatched === true) {
         status = '매칭 성공';
       }
     }
     
     const canChat = status === '매칭 성공' && partnerUserId;
-    
-    
+
     if (!period?.finish || !canChat) {
       setCountdown('');
       return;
@@ -1055,7 +1058,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
     // 카운트다운이 실제로 변경된 경우에만 업데이트 (깜빡임 방지)
     setCountdown(prev => prev !== countdownText ? countdownText : prev);
-  }, [period, user, profile, loadingPeriod, statusLoading, now, partnerUserId, matchingStatus]); // matchingStatus 의존성 추가
+  }, [period, user, profile, loadingPeriod, statusLoading, now, partnerUserId, matchingStatus]);
 
   // 카운트다운 업데이트 (깜빡임 방지)
   useEffect(() => {

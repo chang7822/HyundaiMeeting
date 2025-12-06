@@ -485,7 +485,7 @@ async function loadAdminCompanyMap() {
         adminCompanyIdNameMap.set(c.id, c.name);
       }
     });
-    console.log(`[admin matching] 활성 회사 ${companies.length}개 로드 (호환성 계산용)`);
+    // console.log(`[admin matching] 활성 회사 ${companies.length}개 로드 (호환성 계산용)`);
     return adminCompanyIdNameMap;
   } catch (e) {
     console.error('[admin matching] 회사 목록 로드 중 예외:', e);
@@ -800,19 +800,22 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
       .maybeSingle();
 
     if (subjectError) {
-      throw subjectError;
+      console.error('[admin][matching-compatibility] 기준 사용자 조회 오류:', subjectError);
+      return res.status(500).json({ message: '호환성 정보를 불러오지 못했습니다.' });
     }
 
+    // 해당 회차에 신청 내역이 없으면 "데이터 없음"으로 간주하고 빈 결과 반환
     if (!subjectRow) {
-      return res.status(404).json({ message: '해당 회차의 신청 내역이 없습니다.' });
+      return res.json({ iPrefer: [], preferMe: [] });
     }
 
     const { profileSnapshot: subjectProfileSnapshot, preferenceSnapshot: subjectPreferenceSnapshot } =
       normalizeProfileSnapshots(subjectRow.profile_snapshot, subjectRow.preference_snapshot, subjectRow.profile);
     const subjectProfile = composeProfileForMatching(subjectProfileSnapshot, subjectPreferenceSnapshot);
 
+    // 프로필 스냅샷이 없으면 역시 빈 결과로 처리 (에러 대신 데이터 없음)
     if (!subjectProfile) {
-      return res.status(404).json({ message: '신청자의 프로필 스냅샷이 없습니다.' });
+      return res.json({ iPrefer: [], preferMe: [] });
     }
 
     const { data: applicantRows, error: applicantError } = await supabase

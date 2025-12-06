@@ -96,8 +96,14 @@ router.get('/period', async (req, res) => {
   try {
     const { current, next } = await getCurrentAndNextPeriod();
 
-    if (!current) {
-      return res.status(404).json({ message: '아직 생성된 매칭 회차가 없습니다.' });
+    // 매칭 로그가 하나도 없을 때도 에러 대신 "빈 상태"를 200으로 반환
+    if (!current && !next) {
+      return res.json({
+        success: true,
+        current: null,
+        next: null,
+        message: '아직 생성된 매칭 회차가 없습니다.',
+      });
     }
 
     // app_settings에 현재 회차/다음 회차 캐시 저장 (선택적, 실패해도 무시)
@@ -247,6 +253,31 @@ router.post('/request', async (req, res) => {
       .from('users')
       .update({ is_applied: true, is_matched: null })
       .eq('id', userId);
+
+    // [로그] 매칭 신청 완료: "닉네임(이메일) N회차 매칭 신청완료"
+    try {
+      // 전체 매칭 로그에서 현재 periodId의 회차 번호 계산 (application_start 기준 정렬)
+      const { data: allLogs } = await supabase
+        .from('matching_log')
+        .select('id')
+        .order('application_start', { ascending: true });
+
+      let roundNumber = null;
+      if (allLogs && Array.isArray(allLogs)) {
+        const idx = allLogs.findIndex((log) => log.id === periodId);
+        if (idx !== -1) {
+          roundNumber = idx + 1;
+        }
+      }
+
+      const nickname = profile.nickname || '알 수 없음';
+      const email = user?.email || '알 수 없음';
+      const roundLabel = roundNumber ? `${roundNumber}회차` : `period_id=${periodId}`;
+
+      console.log(`[MATCHING] 매칭 신청 완료: ${nickname}(${email}) ${roundLabel} 매칭 신청완료`);
+    } catch (e) {
+      console.error('[MATCHING] 매칭 신청 로그 처리 중 오류:', e);
+    }
 
     // 관리자 알림 메일 발송 (비동기)
     try {

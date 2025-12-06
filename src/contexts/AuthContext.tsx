@@ -79,6 +79,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const logout = () => {
+    // 서버 쪽에도 간단한 로그를 남기기 위해 호출 (실패해도 무시)
+    try {
+      authApi.logout(authState.user?.email);
+    } catch {
+      // ignore
+    }
     localStorage.removeItem('token');
     sessionStorage.clear();
     setAuthState({ user: null, profile: null });

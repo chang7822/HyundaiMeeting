@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { companyApi } from '../services/api.ts';
 import type { Company } from '../types/index.ts';
+import { useAuth } from '../contexts/AuthContext.tsx';
 
 const LandingContainer = styled.div`
   min-height: 100vh;
@@ -413,6 +414,7 @@ const PrimaryActionButton = styled.button`
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { isAuthenticated, isLoading } = useAuth() as any;
   const [showIntro, setShowIntro] = useState(false);
   const [showCompanies, setShowCompanies] = useState(false);
   const [activeCompanies, setActiveCompanies] = useState<Company[]>([]);
@@ -422,6 +424,13 @@ const LandingPage = () => {
   const [newCompanyDomain, setNewCompanyDomain] = useState('');
   const [newCompanyMessage, setNewCompanyMessage] = useState('');
   const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
+
+  // 이미 로그인된 상태에서 랜딩( "/" )로 진입하면 메인으로 보내기
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      navigate('/main');
+    }
+  }, [isLoading, isAuthenticated, navigate]);
 
   useEffect(() => {
     if (!showCompanies) return;

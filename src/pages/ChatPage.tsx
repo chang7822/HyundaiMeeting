@@ -230,8 +230,13 @@ const ChatPage: React.FC = () => {
     // console.log('[ChatPage][SOCKET] 연결 시도:', SOCKET_URL);
     socket.on('connect', () => {
       // console.log('[ChatPage][SOCKET] connect 성공:', socket.id);
-      socket.emit('join', roomId);
-      // console.log('[ChatPage][SOCKET] join emit:', roomId);
+      socket.emit('join', {
+        roomId,
+        userId: user.id,
+        email: user.email,
+        nickname: profile?.nickname,
+      });
+      // console.log('[ChatPage][SOCKET] join emit:', { roomId, userId: user.id });
     });
     socket.on('joined', (joinedRoomId) => {
       if (joinedRoomId === roomId) {
