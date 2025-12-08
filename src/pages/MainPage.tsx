@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, extraMatchingApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -660,6 +660,116 @@ const ButtonRow = styled.div`
   }
 `;
 
+const ExtraMatchingMainCard = styled.div`
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 22px;
+  padding: 18px 20px 16px;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.12), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.12), transparent 55%),
+    #f9fafb;
+  border: 2px solid rgba(79, 70, 229, 0.4);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+`;
+
+const ExtraMatchingCardHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+`;
+
+const ExtraMatchingTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #111827;
+`;
+
+const ExtraMatchingTag = styled.span`
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #f9fafb;
+  font-weight: 600;
+`;
+
+const ExtraMatchingStarInfo = styled.div`
+  font-size: 0.8rem;
+  color: #4b5563;
+`;
+
+const ExtraMatchingBody = styled.div`
+  font-size: 0.9rem;
+  color: #4b5563;
+  margin-top: 4px;
+`;
+
+const ExtraMatchingActions = styled.div`
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+`;
+
+const ExtraMatchingPrimaryButton = styled.button`
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  color: #f9fafb;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: default;
+  }
+`;
+
+const ExtraMatchingMiniCards = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+`;
+
+const ExtraMiniCard = styled.div`
+  position: relative;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  min-width: 0;
+  flex: 1 1 140px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 14px rgba(148, 163, 184, 0.5);
+    transform: translateY(-1px);
+  }
+`;
+
+const ExtraSoldOutBadge = styled.div`
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(248, 113, 113, 0.98);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  box-shadow: 0 3px 10px rgba(248, 113, 113, 0.8);
+`;
+
 const NicknameSpan = styled.span`
   color: #4F46E5;
   font-weight: 700;
@@ -735,6 +845,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
+  const [extraStatus, setExtraStatus] = useState<any | null>(null);
+  const [extraLoading, setExtraLoading] = useState(false);
+  const [extraActionLoading, setExtraActionLoading] = useState(false);
+  const [extraEntries, setExtraEntries] = useState<any[]>([]);
+  const [extraEntriesLoading, setExtraEntriesLoading] = useState(false);
+  const [extraReceived, setExtraReceived] = useState<{ entry: any; applies: any[] } | null>(null);
+  const [showExtraEntryConfirmModal, setShowExtraEntryConfirmModal] = useState(false);
+  const [showExtraEntryAppealModal, setShowExtraEntryAppealModal] = useState(false);
+  const [extraEntryAppealText, setExtraEntryAppealText] = useState('');
+  const [currentExtraEntryId, setCurrentExtraEntryId] = useState<number | null>(null);
+  const [selectedExtraEntry, setSelectedExtraEntry] = useState<any | null>(null);
+  const [showExtraViewerProfileModal, setShowExtraViewerProfileModal] = useState(false);
+  const [showExtraApplyConfirmModal, setShowExtraApplyConfirmModal] = useState(false);
+  const [pendingApplyEntryId, setPendingApplyEntryId] = useState<number | null>(null);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -992,6 +1116,41 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }, 5000); // 5초마다 업데이트
 
     return () => window.clearInterval(interval);
+  }, [user?.id]);
+
+  // 추가 매칭 도전 상태 조회
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    setExtraLoading(true);
+    Promise.all([
+      extraMatchingApi.getStatus(),
+      extraMatchingApi.listEntries(),
+      extraMatchingApi.getMyReceivedApplies(),
+    ])
+      .then(([statusData, entriesData, receivedData]) => {
+        if (cancelled) return;
+        setExtraStatus(statusData);
+        setExtraEntries(entriesData?.entries || []);
+        setExtraReceived(receivedData);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        console.error('[MainPage] 추가 매칭 도전 상태/리스트 조회 오류:', err);
+        setExtraStatus(null);
+        setExtraEntries([]);
+        setExtraReceived(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setExtraLoading(false);
+          setExtraEntriesLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
 
   // 카운트다운 계산 함수 (조건부 렌더링 이전에 선언)
@@ -1755,6 +1914,73 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   };
 
+  const handleCreateExtraEntryFromMain = () => {
+    // 프로필 확인 모달 오픈 (기존 매칭 신청 모달과 유사한 흐름)
+    setShowExtraEntryConfirmModal(true);
+  };
+
+  const handleConfirmExtraEntry = async () => {
+    try {
+      setExtraActionLoading(true);
+      const res = await extraMatchingApi.createEntry();
+      toast.success(res.message || '추가 매칭 도전이 등록되었습니다.');
+      const entryId = res?.entry?.id;
+      const newBalance = res?.newBalance;
+      if (typeof newBalance === 'number') {
+        window.dispatchEvent(
+          new CustomEvent('stars-updated', { detail: { balance: newBalance } }),
+        );
+      }
+      // 상태/리스트 갱신
+      const [statusData, entriesData, receivedData] = await Promise.all([
+        extraMatchingApi.getStatus(),
+        extraMatchingApi.listEntries(),
+        extraMatchingApi.getMyReceivedApplies(),
+      ]);
+      setExtraStatus(statusData);
+      setExtraEntries(entriesData?.entries || []);
+      setExtraReceived(receivedData);
+      setShowExtraEntryConfirmModal(false);
+      if (entryId) {
+        setCurrentExtraEntryId(entryId);
+        setExtraEntryAppealText('');
+        setShowExtraEntryAppealModal(true);
+      }
+    } catch (error: any) {
+      console.error('[MainPage] 추가 매칭 도전 생성 오류:', error);
+      const msg =
+        error?.response?.data?.message ||
+        '추가 매칭 도전을 등록하는 중 오류가 발생했습니다.';
+      toast.error(msg);
+    } finally {
+      setExtraActionLoading(false);
+    }
+  };
+
+  const handleSaveExtraEntryAppeal = async () => {
+    if (!currentExtraEntryId) {
+      setShowExtraEntryAppealModal(false);
+      return;
+    }
+    try {
+      setExtraActionLoading(true);
+      await extraMatchingApi.saveEntryAppeal(currentExtraEntryId, extraEntryAppealText.trim());
+      toast.success('어필 문구가 저장되었습니다.');
+      // 리스트 새로 고침 (스냅샷에 반영)
+      const entriesData = await extraMatchingApi.listEntries();
+      setExtraEntries(entriesData?.entries || []);
+      setShowExtraEntryAppealModal(false);
+    } catch (error: any) {
+      console.error('[MainPage] 추가 어필 저장 오류:', error);
+      const msg =
+        error?.response?.data?.message ||
+        '어필 문구를 저장하는 중 오류가 발생했습니다.';
+      toast.error(msg);
+    } finally {
+      setExtraActionLoading(false);
+    }
+  };
+
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
       <TopWelcomeTitle>
@@ -1855,49 +2081,136 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </div>
         )}
         
+        {/* 추가 매칭 도전 메인 카드 */}
+        {extraLoading ? (
+          <ExtraMatchingMainCard>
+            <ExtraMatchingCardHeader>
+              <ExtraMatchingTitle>
+                <FaRegStar color="#facc15" />
+                <span>추가 매칭 도전</span>
+              </ExtraMatchingTitle>
+              <ExtraMatchingStarInfo>정보 불러오는 중...</ExtraMatchingStarInfo>
+            </ExtraMatchingCardHeader>
+          </ExtraMatchingMainCard>
+        ) : (
+          <ExtraMatchingMainCard>
+            <ExtraMatchingCardHeader>
+              <ExtraMatchingTitle>
+                <FaRegStar color="#facc15" />
+                <span>추가 매칭 도전</span>
+                <ExtraMatchingTag>이번 회차 한정</ExtraMatchingTag>
+              </ExtraMatchingTitle>
+              {extraStatus && typeof extraStatus.starBalance === 'number' && (
+                <ExtraMatchingStarInfo>
+                  내 별 <strong>{extraStatus.starBalance}</strong>개
+                </ExtraMatchingStarInfo>
+              )}
+            </ExtraMatchingCardHeader>
+            <ExtraMatchingBody>
+              이번 회차에서 매칭이 아쉬웠다면, 별을 사용해 한 번 더 인연을 찾아보세요.
+              매칭 실패자만 직접 참여할 수 있고, 다른 회원들은 자유롭게 구경만 할 수 있어요.
+            </ExtraMatchingBody>
+            <ExtraMatchingActions>
+              {extraStatus && extraStatus.canParticipate && !extraStatus.myExtraEntry && (
+                <ExtraMatchingPrimaryButton
+                  type="button"
+                  onClick={handleCreateExtraEntryFromMain}
+                  disabled={extraActionLoading}
+                >
+                  {extraActionLoading ? '등록 중...' : '추가 매칭 도전 시작하기 (⭐10)'}
+                </ExtraMatchingPrimaryButton>
+              )}
+              {extraStatus && extraStatus.myExtraEntry && (
+                <span style={{ fontSize: '0.86rem', color: '#166534' }}>
+                  이번 회차에 등록한 <strong>추가 매칭 도전</strong>이 있습니다.&nbsp;
+                  {extraStatus.myExtraEntry.status === 'sold_out' ? (
+                    <strong style={{ color: '#b91c1c' }}>품절 상태 · 이미 한 분과 연결되었어요.</strong>
+                  ) : (
+                    <span>이성 회원들이 회원님의 프로필을 보고 "저는 어때요"를 보낼 수 있어요.</span>
+                  )}
+                </span>
+              )}
+            </ExtraMatchingActions>
+            {extraEntries && extraEntries.length > 0 && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: '0.82rem', color: '#6b7280', marginBottom: 4 }}>
+                  지금 참여 중인 이성들의 추가 매칭 도전
+                </div>
+                <ExtraMatchingMiniCards>
+                  {extraEntries.slice(0, 3).map((entry) => (
+                    <ExtraMiniCard
+                      key={entry.id}
+                      onClick={() => {
+                        setSelectedExtraEntry(entry);
+                        setShowExtraViewerProfileModal(true);
+                      }}
+                    >
+                      {entry.status === 'sold_out' && <ExtraSoldOutBadge>품절!</ExtraSoldOutBadge>}
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#111827', marginBottom: 2 }}>
+                        {entry.gender === 'male' ? '남성' : entry.gender === 'female' ? '여성' : '회원'}
+                        {entry.age ? ` · ${entry.age}년생` : ''}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', color: '#6b7280', lineHeight: 1.4 }}>
+                        {entry.company && <span>{entry.company}</span>}
+                        {entry.job_type && <span>{entry.company ? ' · ' : ''}{entry.job_type}</span>}
+                        {entry.residence && <div>{entry.residence}</div>}
+                      </div>
+                    </ExtraMiniCard>
+                  ))}
+                  {extraEntries.length > 3 && (
+                    <div style={{ fontSize: '0.8rem', color: '#6b7280', alignSelf: 'center' }}>
+                      외 {extraEntries.length - 3}명 +
+                    </div>
+                  )}
+                </ExtraMatchingMiniCards>
+              </div>
+            )}
+          </ExtraMatchingMainCard>
+        )}
+
         <ButtonRow>
-        <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
-          {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
-        </MatchingButton>
-        {showCancel && (
-          <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
-            {actionLoading ? '처리 중...' : '신청 취소하기'}
+          <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
+            {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
           </MatchingButton>
-        )}
-        <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
-        {reapplyMessage && (
-          <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
-        )}
-        {nextPeriodLabel && (
-          <NextPeriodWrapper>
-            <NextPeriodBadge>
-              <span
-                style={{
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  color: '#4F46E5',
-                  background: 'rgba(79, 70, 229, 0.1)',
-                  padding: '3px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                다음 회차 신청
-              </span>
-              <span
-                style={{
-                  fontSize: '0.9rem',
-                  color: '#111827',
-                  fontWeight: 600,
-                  textAlign: 'left',
-                  flex: 1,
-                }}
-              >
-                {nextPeriodLabel}
-              </span>
-            </NextPeriodBadge>
-          </NextPeriodWrapper>
-        )}
-      </ButtonRow>
+          {showCancel && (
+            <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
+              {actionLoading ? '처리 중...' : '신청 취소하기'}
+            </MatchingButton>
+          )}
+          <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
+          {reapplyMessage && (
+            <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
+          )}
+          {nextPeriodLabel && (
+            <NextPeriodWrapper>
+              <NextPeriodBadge>
+                <span
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: '#4F46E5',
+                    background: 'rgba(79, 70, 229, 0.1)',
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                  }}
+                >
+                  다음 회차 신청
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.9rem',
+                    color: '#111827',
+                    fontWeight: 600,
+                    textAlign: 'left',
+                    flex: 1,
+                  }}
+                >
+                  {nextPeriodLabel}
+                </span>
+              </NextPeriodBadge>
+            </NextPeriodWrapper>
+          )}
+        </ButtonRow>
       {/* 프로필 카드 모달 */}
       {showProfileModal && (
         <ModalOverlay onClick={() => setShowProfileModal(false)}>
@@ -1923,6 +2236,96 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             />
             <div style={{ textAlign: 'right', marginTop: 16 }}>
               <button onClick={() => setShowProfileModal(false)} style={{ padding: '6px 18px', borderRadius: 6, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>닫기</button>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+      {/* 추가 매칭 도전 - 내 프로필로 추천 확인 모달 */}
+      {showExtraEntryConfirmModal && (
+        <ModalOverlay onClick={() => setShowExtraEntryConfirmModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 12 }}>추가 매칭 도전</h2>
+            <p style={{ fontSize: '0.95rem', color: '#374151', marginBottom: 12 }}>
+              아래 프로필 스냅샷으로 <strong>추가 매칭 도전</strong>에 나를 추천할까요?
+            </p>
+            <ProfileCard
+              nickname={profile?.nickname || displayName}
+              birthYear={profile?.birth_year || 0}
+              gender={profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
+              job={profile?.job_type || '-'}
+              company={profile?.company || undefined}
+              mbti={profile?.mbti}
+              maritalStatus={profile?.marital_status}
+              appeal={profile?.appeal}
+              interests={profile?.interests}
+              appearance={profile?.appearance}
+              personality={profile?.personality}
+              height={profile?.height}
+              body_type={profile?.body_type}
+              residence={profile?.residence}
+              drinking={profile?.drinking}
+              smoking={profile?.smoking}
+              religion={profile?.religion}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setShowExtraEntryConfirmModal(false)}
+                style={{ padding: '8px 14px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: '0.85rem', cursor: 'pointer' }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExtraEntry}
+                disabled={extraActionLoading}
+                style={{ padding: '8px 16px', borderRadius: 6, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 600, fontSize: '0.9rem', cursor: extraActionLoading ? 'default' : 'pointer' }}
+              >
+                {extraActionLoading ? '등록 중...' : '이 프로필로 추천하기 (⭐10)'}
+              </button>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+      {/* 추가 매칭 도전 - 추가 어필 텍스트 모달 */}
+      {showExtraEntryAppealModal && (
+        <ModalOverlay onClick={() => setShowExtraEntryAppealModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: 10 }}>조금 더 나를 어필해보세요</h2>
+            <p style={{ fontSize: '0.9rem', color: '#4b5563', marginBottom: 10 }}>
+              추가 매칭 도전을 보는 이성에게 보여줄 한 줄 소개나 어필 문구를 적어주세요.
+            </p>
+            <textarea
+              rows={4}
+              value={extraEntryAppealText}
+              onChange={(e) => setExtraEntryAppealText(e.target.value)}
+              placeholder="예) 주 1~2회 저녁에 가볍게 술 한잔하며 이야기 나누는 걸 좋아해요 :)"
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                padding: '10px 12px',
+                borderRadius: 8,
+                border: '1px solid #e5e7eb',
+                fontSize: '0.9rem',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 14 }}>
+              <button
+                type="button"
+                onClick={() => setShowExtraEntryAppealModal(false)}
+                style={{ padding: '7px 13px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: '0.85rem', cursor: 'pointer' }}
+              >
+                나중에 할래요
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveExtraEntryAppeal}
+                disabled={extraActionLoading}
+                style={{ padding: '7px 15px', borderRadius: 6, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 600, fontSize: '0.9rem', cursor: extraActionLoading ? 'default' : 'pointer' }}
+              >
+                {extraActionLoading ? '저장 중...' : '저장하기'}
+              </button>
             </div>
           </ModalContent>
         </ModalOverlay>
