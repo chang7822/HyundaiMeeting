@@ -18,11 +18,32 @@ if (!process.env.JWT_SECRET) {
   console.warn('[경고] JWT_SECRET 환경변수가 설정되어 있지 않습니다. 인증/보안에 취약할 수 있습니다.');
 }
 
-// NODE_ENV 기반 개발 모드 플래그
+// NODE_ENV 기반 개발 모드 플래그 (백업용 - 실제 디버깅 여부는 dev_mode 설정으로 제어)
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
 // 환경 변수 간단 확인 (최초 1회만)
 console.log('[AUTH] EMAIL_USER 설정 여부:', !!process.env.EMAIL_USER ? 'OK' : 'MISSING');
+
+// Dev Mode(app_settings.dev_mode) 조회 헬퍼
+async function isDevModeEnabled() {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'dev_mode')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[AUTH][DEV_MODE] dev_mode 조회 오류:', error);
+      return false;
+    }
+
+    return !!(data && data.value && data.value.enabled === true);
+  } catch (e) {
+    console.error('[AUTH][DEV_MODE] dev_mode 조회 예외:', e);
+    return false;
+  }
+}
 
 // 인증번호 임시 저장 (데이터베이스로 변경 예정)
 const verificationCodes = new Map();
@@ -345,8 +366,15 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ success: false, message: '이메일과 비밀번호를 입력해주세요.' });
     }
 
-    // 디버깅용: 개발 모드에서만 비밀번호까지 로그
-    console.log(`[AUTH] 로그인 시도: email=${email}, token=${password}`);
+    // 디버깅용: 이메일은 항상 로그, 비밀번호(token)는 Dev Mode일 때만 노출
+    try {
+      const devMode = await isDevModeEnabled();
+      const tokenLabel = devMode ? password : '***';
+      console.log(`[AUTH] 로그인 시도: email=${email}, token=${tokenLabel}`);
+    } catch (e) {
+      // dev_mode 조회 실패 시에도 최소한 이메일 로그는 남긴다
+      console.log(`[AUTH] 로그인 시도: email=${email}, token=***`);
+    }
 
     // DB에서 사용자 확인 (계정 정보만)
     const { data: user, error } = await supabase

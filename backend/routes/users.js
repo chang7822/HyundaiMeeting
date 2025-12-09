@@ -411,11 +411,10 @@ router.delete('/me', authenticate, async (req, res) => {
       throw error2;
     }
     
-    // 2. 매칭 데이터 익명화 (삭제하지 않고 user_id를 null로 설정)
-    // matching_applications 익명화
+    // 2. 매칭 데이터 삭제 (matching_applications 행 자체 삭제)
     const { error: error3 } = await supabase
       .from('matching_applications')
-      .update({ user_id: null })
+      .delete()
       .eq('user_id', userId);
     if (error3) {
       console.error('[회원탈퇴] matching_applications 익명화 오류:', error3);

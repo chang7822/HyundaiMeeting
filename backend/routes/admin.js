@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const { sendMatchingResultEmail, sendAdminBroadcastEmail } = require('../utils/emailService');
+const { computeMatchesForPeriod, computeMatchesForAllUsers } = require('../matching-algorithm');
 const authenticate = require('../middleware/authenticate');
 
 // 임시 데이터 (다른 라우트와 공유)
@@ -94,11 +95,12 @@ router.get('/users', authenticate, async (req, res) => {
   }
 });
 
-// 시스템 설정 조회 (현재는 유지보수 모드만)
+// 시스템 설정 조회 (현재는 유지보수 모드 + Dev Mode)
 router.get('/system-settings', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
+    // 유지보수 모드 설정 조회
     const { data, error } = await supabase
       .from('app_settings')
       .select('value')
@@ -114,12 +116,32 @@ router.get('/system-settings', authenticate, async (req, res) => {
     const message = (data && data.value && typeof data.value.message === 'string')
       ? data.value.message
       : '';
+
+    // Dev Mode 설정 조회 (없으면 false로 간주, value.enabled 사용)
+    let devModeEnabled = false;
+    try {
+      const { data: devRow, error: devError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'dev_mode')
+        .maybeSingle();
+
+      if (!devError && devRow && devRow.value && devRow.value.enabled === true) {
+        devModeEnabled = true;
+      }
+    } catch (devErr) {
+      console.error('[admin][system-settings] dev_mode 조회 오류:', devErr);
+    }
+
     res.json({
       success: true,
       maintenance: {
         enabled,
         message,
       },
+      devMode: {
+        enabled: devModeEnabled,
+      }
     });
   } catch (error) {
     console.error('[admin][system-settings] 조회 오류:', error);
@@ -162,6 +184,45 @@ router.put('/system-settings/maintenance', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[admin][system-settings] 유지보수 모드 업데이트 오류:', error);
     res.status(500).json({ success: false, message: '유지보수 모드 변경에 실패했습니다.' });
+  }
+});
+
+// Dev Mode 토글 (관리자 모드 on/off)
+router.put('/system-settings/dev-mode', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { enabled } = req.body || {};
+
+    const devEnabled = !!enabled;
+    const value = { enabled: devEnabled };
+
+    const { data, error } = await supabase
+      .from('app_settings')
+      .upsert(
+        {
+          key: 'dev_mode',
+          value,
+          updated_by: req.user.userId,
+        },
+        { onConflict: 'key' }
+      )
+      .select('value')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[admin][system-settings] Dev Mode 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: 'Dev Mode 변경에 실패했습니다.' });
+    }
+
+    res.json({
+      success: true,
+      devMode: {
+        enabled: !!(data && data.value && data.value.enabled === true),
+      },
+    });
+  } catch (error) {
+    console.error('[admin][system-settings] Dev Mode 업데이트 오류:', error);
+    res.status(500).json({ success: false, message: 'Dev Mode 변경에 실패했습니다.' });
   }
 });
 
@@ -457,6 +518,62 @@ router.delete('/matching-log/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('matching_log 및 연관 데이터 삭제 오류:', error);
     res.status(500).json({ message: 'matching_log 및 연관 데이터 삭제 실패' });
+  }
+});
+
+// 가상 매칭 시뮬레이션 (DB 변경 없음)
+router.post('/matching-simulate', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { periodId } = req.body || {};
+
+    let numericPeriodId = null;
+    if (periodId && periodId !== 'all') {
+      const n = Number(periodId);
+      if (!Number.isNaN(n)) {
+        numericPeriodId = n;
+      }
+    }
+
+    const result = await computeMatchesForPeriod(numericPeriodId);
+
+    return res.json({
+      success: true,
+      periodId: result.periodId,
+      totalApplicants: result.totalApplicants,
+      eligibleApplicants: result.eligibleApplicants,
+      matchCount: result.matchCount,
+      couples: result.couples || [],
+    });
+  } catch (error) {
+    console.error('[admin][matching-simulate] 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '가상 매칭 중 오류가 발생했습니다.',
+    });
+  }
+});
+
+// 가상 매칭 시뮬레이션 (전체 회원 기준, 관리자/정지 제외, DB 변경 없음)
+router.post('/matching-simulate-live', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const result = await computeMatchesForAllUsers();
+
+    return res.json({
+      success: true,
+      totalUsers: result.totalUsers,
+      eligibleUsers: result.eligibleUsers,
+      matchCount: result.matchCount,
+      couples: result.couples || [],
+    });
+  } catch (error) {
+    console.error('[admin][matching-simulate-live] 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '전체 회원 가상 매칭 중 오류가 발생했습니다.',
+    });
   }
 });
 

@@ -169,6 +169,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [maintenance, setMaintenance] = useState(false);
   const [saving, setSaving] = useState(false);
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
+  const [devMode, setDevMode] = useState(false);
+  const [devSaving, setDevSaving] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -177,6 +179,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         const res = await adminApi.getSystemSettings();
         setMaintenance(!!res?.maintenance?.enabled);
         setMaintenanceMessage(res?.maintenance?.message || '');
+        setDevMode(!!res?.devMode?.enabled);
       } catch (e) {
         console.error('[SettingsPage] 시스템 설정 조회 오류:', e);
         toast.error('시스템 설정을 불러오지 못했습니다.');
@@ -216,6 +219,22 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
     }
   };
 
+  const handleToggleDevMode = async () => {
+    const next = !devMode;
+    setDevMode(next);
+    setDevSaving(true);
+    try {
+      await adminApi.updateDevMode(next);
+      toast.success(next ? '관리자 모드(Dev Mode)가 활성화되었습니다.' : '관리자 모드(Dev Mode)가 비활성화되었습니다.');
+    } catch (e) {
+      console.error('[SettingsPage] Dev Mode 업데이트 오류:', e);
+      setDevMode(!next); // 롤백
+      toast.error('관리자 모드를 변경하지 못했습니다.');
+    } finally {
+      setDevSaving(false);
+    }
+  };
+
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
       <ContentWrapper>
@@ -223,7 +242,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
           <Title>설정</Title>
           <Subtitle>
             서비스 전역에 영향을 주는 설정들을 관리합니다.
-            {'\n'}현재는 서버 점검 모드만 제공되며, 추후 각종 전역 변수들이 이곳에 추가될 예정입니다.
           </Subtitle>
         </Header>
         <Body>
@@ -281,15 +299,27 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
           </Section>
 
           <Section>
-            <SectionTitle>전역 설정 (예약 공간)</SectionTitle>
-            <SectionDescription>
-              향후 회차별 기본값, 전역 제한 시간, 실험 모드 플래그 등
-              {'\n'}추가적인 전역 변수를 이 영역에 순차적으로 배치할 예정입니다.
-            </SectionDescription>
-            <PlaceholderArea>
-              추후 전역 변수가 추가될 영역입니다.
-              {'\n'}필요한 설정 항목을 정리해두시면 이곳에 하나씩 배치해 드릴게요.
-            </PlaceholderArea>
+            <SectionTitle>관리자 모드</SectionTitle>
+            <ToggleRow>
+              <ToggleLabel>
+                <span>관리자 모드 (Dev Mode)</span>
+                <ToggleDescription>
+                  {devMode
+                    ? '관리자/운영용 기능이 활성화된 상태입니다. (실험적인 UI/기능 노출 가능)'
+                    : '관리자 모드가 비활성화된 상태입니다. 일반 운영 모드로 동작합니다.'}
+                </ToggleDescription>
+              </ToggleLabel>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={devMode}
+                  onChange={handleToggleDevMode}
+                  disabled={loading || devSaving}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </ToggleRow>
+
           </Section>
         </Body>
       </ContentWrapper>

@@ -101,6 +101,27 @@ const io = new Server(httpServer, {
 // chat.js의 messages 배열을 이 파일에서도 사용 (현재는 미사용, 호환성 유지용)
 const chatMessages = require('./routes/chat').messages || [];
 
+// Dev Mode(app_settings.dev_mode) 조회 헬퍼
+async function isDevModeEnabled() {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'dev_mode')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[SOCKET][DEV_MODE] dev_mode 조회 오류:', error);
+      return false;
+    }
+
+    return !!(data && data.value && data.value.enabled === true);
+  } catch (e) {
+    console.error('[SOCKET][DEV_MODE] dev_mode 조회 예외:', e);
+    return false;
+  }
+}
+
 // roomId에서 userId 두 개를 추출하고 "닉네임(이메일)" 라벨 생성
 async function getRoomLabel(roomId) {
   try {
@@ -245,8 +266,20 @@ io.on('connection', (socket) => {
       // 닉네임 조회 실패 시에는 그냥 기존 라벨(sender_id/receiver_id) 사용
     }
 
-    // 6. 채팅 메시지 로그: "보낸사람 → 받는사람 : 전체내용"
-    console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : ${content}`);
+    // 6. 채팅 메시지 로그
+    // - 항상 "누가 → 누구"는 찍고
+    // - Dev Mode가 true일 때만 실제 내용을 노출, 아닐 때는 내용 마스킹
+    try {
+      const devMode = await isDevModeEnabled();
+      if (devMode) {
+        console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : ${content}`);
+      } else {
+        console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : [내용 숨김]`);
+      }
+    } catch (e) {
+      // dev_mode 조회 실패 시에도 최소한 방향 정보는 남김
+      console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : [내용 숨김]`);
+    }
     
     // 방 이름: period_id_정렬된userId1_userId2
     const sortedIds = [data.sender_id, data.receiver_id].sort();

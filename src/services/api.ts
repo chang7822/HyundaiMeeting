@@ -339,7 +339,11 @@ export const adminApi = {
   },
 
   // 시스템 설정 조회 (유지보수 모드 등)
-  getSystemSettings: async (): Promise<{ success: boolean; maintenance: { enabled: boolean; message?: string } }> => {
+  getSystemSettings: async (): Promise<{
+    success: boolean;
+    maintenance: { enabled: boolean; message?: string };
+    devMode?: { enabled: boolean };
+  }> => {
     const response = await api.get('/admin/system-settings');
     return response.data;
   },
@@ -347,6 +351,12 @@ export const adminApi = {
   // 유지보수 모드 토글
   updateMaintenance: async (enabled: boolean, message?: string): Promise<any> => {
     const response = await api.put('/admin/system-settings/maintenance', { enabled, message });
+    return response.data;
+  },
+
+  // 관리자 모드(Dev Mode) 토글
+  updateDevMode: async (enabled: boolean): Promise<any> => {
+    const response = await api.put('/admin/system-settings/dev-mode', { enabled });
     return response.data;
   },
 
@@ -708,6 +718,35 @@ export const adminMatchingApi = {
     preferMe: any[];
   }> => {
     const response = await api.get(`/admin/matching-compatibility-live/${userId}`);
+    return response.data;
+  },
+
+  // 가상 매칭 (DB 변경 없이 예상 커플 계산)
+  virtualMatch: async (periodId?: string | null): Promise<{
+    success: boolean;
+    periodId: number | null;
+    totalApplicants: number;
+    eligibleApplicants: number;
+    matchCount: number;
+    couples: any[];
+  }> => {
+    const payload: any = {};
+    if (periodId && periodId !== 'all') {
+      payload.periodId = periodId;
+    }
+    const response = await api.post('/admin/matching-simulate', payload);
+    return response.data;
+  },
+
+  // 가상 매칭 (전체 회원 기준, 관리자/정지/비활성 제외)
+  virtualMatchLive: async (): Promise<{
+    success: boolean;
+    totalUsers: number;
+    eligibleUsers: number;
+    matchCount: number;
+    couples: any[];
+  }> => {
+    const response = await api.post('/admin/matching-simulate-live', {});
     return response.data;
   },
 };

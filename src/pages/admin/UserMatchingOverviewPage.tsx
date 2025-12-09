@@ -4,7 +4,7 @@ import Modal from 'react-modal';
 import { FaSort } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
-import { adminApi, adminMatchingApi } from '../../services/api.ts';
+import { adminApi, adminMatchingApi, matchingApi } from '../../services/api.ts';
 import InlineSpinner from '../../components/InlineSpinner.tsx';
 
 const Container = styled.div<{ $sidebarOpen: boolean }>`
@@ -24,6 +24,42 @@ const Title = styled.h2`
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 24px;
+`;
+
+const SummaryRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+`;
+
+const SummaryCard = styled.div`
+  flex: 1;
+  min-width: 220px;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border-radius: 16px;
+  padding: 14px 18px;
+  box-shadow: 0 4px 10px rgba(79,70,229,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const SummaryLabel = styled.div`
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4b5563;
+`;
+
+const SummaryValue = styled.div`
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111827;
+`;
+
+const SummarySub = styled.div`
+  font-size: 0.85rem;
+  color: #6b7280;
 `;
 
 const TableWrapper = styled.div`
@@ -155,6 +191,14 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     item: null,
   });
 
+  const [currentPeriodStats, setCurrentPeriodStats] = useState<{
+    total: number;
+    male: number;
+    female: number;
+    unknown: number;
+  } | null>(null);
+  const [currentPeriodLoading, setCurrentPeriodLoading] = useState(false);
+
   useEffect(() => {
     const loadUsers = async () => {
       setLoading(true);
@@ -171,6 +215,86 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     };
     loadUsers();
   }, []);
+
+  // 현재 회차 기준 신청 인원(성별) 요약
+  useEffect(() => {
+    const loadCurrentPeriodStats = async () => {
+      setCurrentPeriodLoading(true);
+      try {
+        const period = await matchingApi.getMatchingPeriod();
+        const current = period && period.current ? period.current : null;
+        if (!current || !current.id) {
+          setCurrentPeriodStats(null);
+          return;
+        }
+        const applications = await adminMatchingApi.getMatchingApplications(String(current.id));
+        const appsArray = Array.isArray(applications) ? applications : [];
+        const activeApps = appsArray.filter((app: any) => app.applied && !app.cancelled);
+        let male = 0;
+        let female = 0;
+        let unknown = 0;
+        activeApps.forEach((app: any) => {
+          const profile = app.profile || app.profile_snapshot || null;
+          const g = profile?.gender;
+          if (g === 'male') male += 1;
+          else if (g === 'female') female += 1;
+          else unknown += 1;
+        });
+        setCurrentPeriodStats({
+          total: activeApps.length,
+          male,
+          female,
+          unknown,
+        });
+      } catch (error) {
+        console.error('[UserMatchingOverview] 현재 회차 신청 현황 조회 오류:', error);
+        setCurrentPeriodStats(null);
+      } finally {
+        setCurrentPeriodLoading(false);
+      }
+    };
+    loadCurrentPeriodStats();
+  }, []);
+
+  const genderSummary = React.useMemo(() => {
+    let male = 0;
+    let female = 0;
+    let unknown = 0;
+    users.forEach(u => {
+      if (u.gender === 'male') male += 1;
+      else if (u.gender === 'female') female += 1;
+      else unknown += 1;
+    });
+    return {
+      total: users.length,
+      male,
+      female,
+      unknown,
+    };
+  }, [users]);
+
+  const [virtualModal, setVirtualModal] = useState<{
+    open: boolean;
+    loading: boolean;
+    data: any | null;
+  }>({
+    open: false,
+    loading: false,
+    data: null,
+  });
+
+  const handleVirtualMatchCurrent = async () => {
+    setVirtualModal({ open: true, loading: true, data: null });
+    try {
+      // 전체 회원(관리자/정지/비활성 제외)을 대상으로 현재 프로필/선호 기준 가상 매칭
+      const res = await adminMatchingApi.virtualMatchLive();
+      setVirtualModal({ open: true, loading: false, data: res });
+    } catch (error) {
+      console.error('[UserMatchingOverview] 가상 매칭 오류:', error);
+      toast.error('가상 매칭 실행 중 오류가 발생했습니다.');
+      setVirtualModal({ open: false, loading: false, data: null });
+    }
+  };
 
   // 페이지 진입 시 각 회원별 호환 인원 수 미리 조회해서 캐싱
   useEffect(() => {
@@ -283,6 +407,42 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Title>회원 매칭 조회 (전체 회원 기준)</Title>
+
+      <SummaryRow>
+        <SummaryCard>
+          <SummaryLabel>전체 회원</SummaryLabel>
+          <SummaryValue>{genderSummary.total}명</SummaryValue>
+          <SummarySub>
+            남 {genderSummary.male}명 · 여 {genderSummary.female}명
+            {genderSummary.unknown > 0 && ` · 기타/미입력 ${genderSummary.unknown}명`}
+          </SummarySub>
+        </SummaryCard>
+        <SummaryCard>
+          <SummaryLabel>현재 회차 신청 현황</SummaryLabel>
+          {currentPeriodLoading ? (
+            <SummarySub>불러오는 중입니다...</SummarySub>
+          ) : currentPeriodStats ? (
+            <>
+              <SummaryValue>{currentPeriodStats.total}명</SummaryValue>
+              <SummarySub>
+                남 {currentPeriodStats.male}명 · 여 {currentPeriodStats.female}명
+                {currentPeriodStats.unknown > 0 && ` · 기타/미입력 ${currentPeriodStats.unknown}명`}
+              </SummarySub>
+            </>
+          ) : (
+            <SummarySub>진행 중인 회차가 없거나, 신청 내역이 없습니다.</SummarySub>
+          )}
+        </SummaryCard>
+      </SummaryRow>
+
+      <div style={{ marginBottom: 16, textAlign: 'right' }}>
+        <Button
+          onClick={handleVirtualMatchCurrent}
+          style={{ padding: '8px 14px', fontSize: '0.9rem', background: '#0EA5E9' }}
+        >
+          현재 회차 가상 매칭 보기
+        </Button>
+      </div>
       <TableWrapper>
         {loading ? (
           <div style={{ padding: '3rem 0', display: 'flex', justifyContent: 'center' }}>
@@ -493,6 +653,74 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
           </p>
         )}
         <Button onClick={() => setReasonModal({ open: false, item: null })} style={{ marginTop: 16, width: '100%' }}>
+          닫기
+        </Button>
+      </Modal>
+
+      {/* 가상 매칭 결과 모달 (현재 회차 기준) */}
+      <Modal
+        isOpen={virtualModal.open}
+        onRequestClose={() => setVirtualModal({ open: false, loading: false, data: null })}
+        style={{ content: { maxWidth: 520, minWidth: 320, margin: 'auto', borderRadius: 16, padding: 24, overflowY: 'auto' } }}
+        contentLabel="가상 매칭 결과 (전체 회원 기준)"
+      >
+        <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#0EA5E9' }}>전체 회원 가상 매칭 결과</h3>
+        <p style={{ marginTop: 0, marginBottom: 16, color: '#6b7280', fontSize: '0.9rem' }}>
+          실제 DB에는 반영되지 않은 시뮬레이션 결과입니다. 관리자/정지/비활성 계정을 제외한 전체 회원 기준 예상 커플 구성을 미리 확인할 수 있습니다.
+        </p>
+        {virtualModal.loading ? (
+          <div style={{ padding: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+            <InlineSpinner text="가상 매칭을 실행하는 중입니다..." />
+          </div>
+        ) : !virtualModal.data || !virtualModal.data.couples?.length ? (
+          <div style={{ padding: '1.5rem 0', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+            매칭 가능한 커플이 없습니다.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
+            {virtualModal.data.couples.map((pair: any, idx: number) => (
+              <div
+                key={`${pair.male?.user_id || 'm'}-${pair.female?.user_id || 'f'}-${idx}`}
+                style={{
+                  borderRadius: 12,
+                  border: '1px solid #e5e7eb',
+                  padding: '10px 12px',
+                  background: '#f9fafb',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 24px 1fr',
+                  alignItems: 'center',
+                  columnGap: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: 2 }}>남성</div>
+                  <div style={{ fontWeight: 700, color: '#111827' }}>{pair.male?.nickname || '(닉네임 없음)'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{pair.male?.email || '-'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                    {pair.male?.birth_year ? `${pair.male.birth_year}년생` : ''}
+                    {pair.male?.company ? ` · ${pair.male.company}` : ''}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', fontSize: '0.8rem', color: '#6b7280' }}>
+                  {idx + 1}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: 2 }}>여성</div>
+                  <div style={{ fontWeight: 700, color: '#111827' }}>{pair.female?.nickname || '(닉네임 없음)'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{pair.female?.email || '-'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                    {pair.female?.birth_year ? `${pair.female.birth_year}년생` : ''}
+                    {pair.female?.company ? ` · ${pair.female.company}` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <Button
+          onClick={() => setVirtualModal({ open: false, loading: false, data: null })}
+          style={{ marginTop: 16, width: '100%' }}
+        >
           닫기
         </Button>
       </Modal>

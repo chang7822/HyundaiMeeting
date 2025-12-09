@@ -242,6 +242,520 @@ async function sendMatchingResultEmails(periodIdOverride) {
   }
 }
 
+// 가상 매칭용: DB를 변경하지 않고, 현재 알고리즘 기준 예상 매칭 결과만 계산
+async function computeMatchesForPeriod(periodIdOverride) {
+  try {
+    let periodId = periodIdOverride;
+
+    // 1. 회차 결정 (지정 없으면 최신 회차)
+    if (!periodId) {
+      const { data: logRows, error: logError } = await supabase
+        .from('matching_log')
+        .select('id')
+        .order('id', { ascending: false })
+        .limit(1);
+      if (logError || !logRows || logRows.length === 0) {
+        console.error('매칭 회차 조회 실패(가상 매칭):', logError);
+        return { periodId: null, totalApplicants: 0, eligibleApplicants: 0, matchCount: 0, couples: [] };
+      }
+      periodId = logRows[0].id;
+    }
+
+    // 2. 해당 회차 신청자 조회 (신청 & 취소 X)
+    const { data: applicants, error: appError } = await supabase
+      .from('matching_applications')
+      .select('user_id')
+      .eq('applied', true)
+      .eq('cancelled', false)
+      .eq('period_id', periodId);
+
+    if (appError) {
+      console.error('신청자 조회 실패(가상 매칭):', appError);
+      return { periodId, totalApplicants: 0, eligibleApplicants: 0, matchCount: 0, couples: [] };
+    }
+
+    const userIds = (applicants || []).map(a => a.user_id);
+
+    if (!userIds.length) {
+      return { periodId, totalApplicants: 0, eligibleApplicants: 0, matchCount: 0, couples: [] };
+    }
+
+    // 3. 정지 사용자 필터링
+    const { data: userStatuses, error: statusError } = await supabase
+      .from('users')
+      .select('id, is_banned')
+      .in('id', userIds);
+
+    if (statusError) {
+      console.error('사용자 상태 조회 실패(가상 매칭):', statusError);
+      return { periodId, totalApplicants: userIds.length, eligibleApplicants: 0, matchCount: 0, couples: [] };
+    }
+
+    const eligibleUserIds = (userStatuses || [])
+      .filter(user => !user.is_banned)
+      .map(user => user.id);
+
+    if (eligibleUserIds.length < 2) {
+      return {
+        periodId,
+        totalApplicants: userIds.length,
+        eligibleApplicants: eligibleUserIds.length,
+        matchCount: 0,
+        couples: [],
+      };
+    }
+
+    // 4. 과거 매칭 이력 조회
+    console.log('[가상 매칭] 과거 매칭 이력 조회 시작...');
+    const previousMatches = await getPreviousMatchHistory(eligibleUserIds);
+    console.log(`[가상 매칭] 과거 매칭 이력 조회 완료: ${previousMatches.size}개의 매칭 쌍이 필터링 대상`);
+
+    // 5. 회사 id -> name 매핑 로드 (선호 회사 매칭용)
+    try {
+      const { data: companies, error: companiesError } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('is_active', true);
+
+      if (companiesError) {
+        console.error('회사 목록 조회 실패(가상 매칭):', companiesError);
+        companyIdNameMap = null;
+      } else if (companies && companies.length > 0) {
+        companyIdNameMap = new Map();
+        companies.forEach(c => {
+          if (c && c.id !== undefined && c.name) {
+            companyIdNameMap.set(c.id, c.name);
+          }
+        });
+        console.log(`[가상 매칭] 활성 회사 ${companies.length}개 로드 (선호 회사 필터에 사용)`);
+      } else {
+        companyIdNameMap = null;
+        console.log('[가상 매칭] 활성 회사가 없습니다. 선호 회사 필터는 건너뜁니다.');
+      }
+    } catch (e) {
+      console.error('회사 목록 로드 중 오류(가상 매칭):', e);
+      companyIdNameMap = null;
+    }
+
+    // 6. 매칭 가중치(weight) 조회
+    let weightMap = new Map();
+    try {
+      const { data: userWeights, error: weightError } = await supabase
+        .from('users')
+        .select('id, weight')
+        .in('id', eligibleUserIds);
+
+      if (weightError) {
+        console.error('사용자 weight 조회 실패(가상 매칭):', weightError);
+      } else if (userWeights && userWeights.length > 0) {
+        userWeights.forEach(u => {
+          const w = typeof u.weight === 'number' ? u.weight : 0;
+          weightMap.set(u.id, w);
+        });
+        console.log(`[가상 매칭] weight 정보 로드 완료: ${userWeights.length}명`);
+      }
+    } catch (e) {
+      console.error('weight 정보 로드 중 오류(가상 매칭):', e);
+      weightMap = new Map();
+    }
+
+    // 7. 신청자 프로필/선호 스냅샷 조회
+    let profiles = [];
+    for (let i = 0; i < eligibleUserIds.length; i += 50) {
+      const batchIds = eligibleUserIds.slice(i, i + 50);
+      const { data, error } = await supabase
+        .from('matching_applications')
+        .select('user_id, profile_snapshot, preference_snapshot')
+        .in('user_id', batchIds)
+        .eq('period_id', periodId)
+        .eq('applied', true)
+        .eq('cancelled', false);
+      if (error) {
+        console.error('신청 스냅샷 조회 실패(가상 매칭):', error);
+        return {
+          periodId,
+          totalApplicants: userIds.length,
+          eligibleApplicants: eligibleUserIds.length,
+          matchCount: 0,
+          couples: [],
+        };
+      }
+      profiles = profiles.concat(
+        (data || []).map(row => ({
+          user_id: row.user_id,
+          weight: weightMap.has(row.user_id) ? weightMap.get(row.user_id) : 0,
+          ...row.profile_snapshot,
+          ...row.preference_snapshot,
+        })),
+      );
+    }
+
+    if (!profiles.length) {
+      return {
+        periodId,
+        totalApplicants: userIds.length,
+        eligibleApplicants: eligibleUserIds.length,
+        matchCount: 0,
+        couples: [],
+      };
+    }
+
+    // 8. 남/여 분리 및 weight 기반 정렬
+    function sortByWeightWithRandom(arr) {
+      arr.sort((a, b) => {
+        const wa = typeof a.weight === 'number' ? a.weight : 0;
+        const wb = typeof b.weight === 'number' ? b.weight : 0;
+        if (wa !== wb) return wb - wa;
+        return Math.random() - 0.5;
+      });
+    }
+
+    const males = profiles.filter(p => p.gender === 'male');
+    const females = profiles.filter(p => p.gender === 'female');
+
+    sortByWeightWithRandom(males);
+    sortByWeightWithRandom(females);
+
+    // 9. 가능한 남-여 쌍(edge) 생성
+    const edges = Array(males.length)
+      .fill(0)
+      .map(() => []);
+    for (let i = 0; i < males.length; i++) {
+      for (let j = 0; j < females.length; j++) {
+        // 과거 매칭 이력 필터
+        if (previousMatches.has(`${males[i].user_id}-${females[j].user_id}`)) {
+          continue;
+        }
+        if (isMutualMatch(males[i], females[j], previousMatches)) {
+          edges[i].push(j);
+        }
+      }
+    }
+
+    // 10. 최대 매칭(헝가리안 DFS)
+    const matchTo = Array(females.length).fill(-1);
+    function dfs(u, visited) {
+      for (const v of edges[u]) {
+        if (visited[v]) continue;
+        visited[v] = true;
+        if (matchTo[v] === -1 || dfs(matchTo[v], visited)) {
+          matchTo[v] = u;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    for (let u = 0; u < males.length; u++) {
+      const visited = Array(females.length).fill(false);
+      dfs(u, visited);
+    }
+
+    const matches = [];
+    for (let j = 0; j < females.length; j++) {
+      if (matchTo[j] !== -1) {
+        matches.push([males[matchTo[j]].user_id, females[j].user_id]);
+      }
+    }
+
+    if (!matches.length) {
+      return {
+        periodId,
+        totalApplicants: userIds.length,
+        eligibleApplicants: eligibleUserIds.length,
+        matchCount: 0,
+        couples: [],
+      };
+    }
+
+    // 11. 매칭된 사용자들의 이메일 조회 (한 번에)
+    const matchedUserIds = Array.from(new Set(matches.flat()));
+    const { data: userRows, error: userRowsError } = await supabase
+      .from('users')
+      .select('id, email')
+      .in('id', matchedUserIds);
+
+    const emailMap = new Map();
+    if (!userRowsError && userRows) {
+      userRows.forEach(u => {
+        emailMap.set(u.id, u.email);
+      });
+    }
+
+    // 12. 프론트에서 바로 보여줄 수 있는 커플 정보로 변환
+    const couples = matches.map(([maleId, femaleId]) => {
+      const maleProfile = profiles.find(p => p.user_id === maleId) || {};
+      const femaleProfile = profiles.find(p => p.user_id === femaleId) || {};
+      return {
+        male: {
+          user_id: maleId,
+          email: emailMap.get(maleId) || null,
+          nickname: maleProfile.nickname || null,
+          gender: maleProfile.gender || null,
+          company: maleProfile.company || null,
+          birth_year: maleProfile.birth_year || null,
+        },
+        female: {
+          user_id: femaleId,
+          email: emailMap.get(femaleId) || null,
+          nickname: femaleProfile.nickname || null,
+          gender: femaleProfile.gender || null,
+          company: femaleProfile.company || null,
+          birth_year: femaleProfile.birth_year || null,
+        },
+      };
+    });
+
+    return {
+      periodId,
+      totalApplicants: userIds.length,
+      eligibleApplicants: eligibleUserIds.length,
+      matchCount: couples.length,
+      couples,
+    };
+  } catch (error) {
+    console.error('computeMatchesForPeriod(가상 매칭) 오류:', error);
+    return {
+      periodId: periodIdOverride || null,
+      totalApplicants: 0,
+      eligibleApplicants: 0,
+      matchCount: 0,
+      couples: [],
+    };
+  }
+}
+
+// 전체 회원(관리자 제외)을 대상으로 하는 가상 매칭 (현재 프로필/선호 기준)
+async function computeMatchesForAllUsers() {
+  try {
+    // 1. 전체 회원 로드 (관리자/정지/비활성 제외)
+    const { data: users, error: usersError } = await supabase
+      .from('user_profiles')
+      .select(`
+        user_id,
+        nickname,
+        gender,
+        birth_year,
+        height,
+        residence,
+        company,
+        job_type,
+        marital_status,
+        body_type,
+        preferred_age_min,
+        preferred_age_max,
+        preferred_height_min,
+        preferred_height_max,
+        preferred_body_types,
+        preferred_job_types,
+        preferred_marital_statuses,
+        prefer_company,
+        prefer_region,
+        user:users!inner(id, email, is_admin, is_active, is_banned, weight)
+      `);
+
+    if (usersError) {
+      console.error('[computeMatchesForAllUsers] 사용자 로드 실패:', usersError);
+      return { totalUsers: 0, eligibleUsers: 0, matchCount: 0, couples: [] };
+    }
+
+    const allUsers = (users || []).filter(row => {
+      const u = row.user;
+      if (!u) return false;
+      if (u.is_admin) return false;
+      if (u.is_banned) return false;
+      if (u.is_active === false) return false;
+      return true;
+    });
+
+    const totalUsers = allUsers.length;
+    if (totalUsers < 2) {
+      return { totalUsers, eligibleUsers: totalUsers, matchCount: 0, couples: [] };
+    }
+
+    const eligibleUserIds = allUsers.map(row => row.user_id);
+
+    // 2. 과거 매칭 이력 조회 (이메일 기반) - 전체 회원 기준에서도 과거에 매칭된 쌍은 제외
+    console.log('[가상 매칭(전체)] 과거 매칭 이력 조회 시작...');
+    const previousMatches = await getPreviousMatchHistory(eligibleUserIds);
+    console.log(`[가상 매칭(전체)] 과거 매칭 이력 조회 완료: ${previousMatches.size}개의 매칭 쌍이 필터링 대상`);
+
+    // 3. 회사 id -> name 매핑 로드 (선호 회사 매칭용)
+    try {
+      const { data: companies, error: companiesError } = await supabase
+        .from('companies')
+        .select('id, name')
+        .eq('is_active', true);
+
+      if (companiesError) {
+        console.error('[computeMatchesForAllUsers] 회사 목록 조회 실패:', companiesError);
+        companyIdNameMap = null;
+      } else if (companies && companies.length > 0) {
+        companyIdNameMap = new Map();
+        companies.forEach(c => {
+          if (c && c.id !== undefined && c.name) {
+            companyIdNameMap.set(c.id, c.name);
+          }
+        });
+        console.log(`[가상 매칭(전체)] 활성 회사 ${companies.length}개 로드 (선호 회사 필터에 사용)`);
+      } else {
+        companyIdNameMap = null;
+        console.log('[가상 매칭(전체)] 활성 회사가 없습니다. 선호 회사 필터는 건너뜁니다.');
+      }
+    } catch (e) {
+      console.error('[computeMatchesForAllUsers] 회사 목록 로드 중 오류:', e);
+      companyIdNameMap = null;
+    }
+
+    // 4. weight 맵 구성
+    let weightMap = new Map();
+    (allUsers || []).forEach(row => {
+      const u = row.user;
+      const w = u && typeof u.weight === 'number' ? u.weight : 0;
+      weightMap.set(row.user_id, w);
+    });
+
+    // 5. 프로필 배열 생성 (matching-algorithm의 isMutualMatch와 동일한 필드 구조)
+    const profiles = allUsers.map(row => ({
+      user_id: row.user_id,
+      nickname: row.nickname,
+      gender: row.gender,
+      birth_year: row.birth_year,
+      height: row.height,
+      residence: row.residence,
+      company: row.company,
+      job_type: row.job_type,
+      marital_status: row.marital_status,
+      body_type: row.body_type,
+      preferred_age_min: row.preferred_age_min,
+      preferred_age_max: row.preferred_age_max,
+      preferred_height_min: row.preferred_height_min,
+      preferred_height_max: row.preferred_height_max,
+      preferred_body_types: row.preferred_body_types,
+      preferred_job_types: row.preferred_job_types,
+      preferred_marital_statuses: row.preferred_marital_statuses,
+      prefer_company: row.prefer_company,
+      prefer_region: row.prefer_region,
+      weight: weightMap.get(row.user_id) || 0,
+      email: row.user?.email || null,
+    }));
+
+    if (!profiles.length) {
+      return { totalUsers, eligibleUsers: 0, matchCount: 0, couples: [] };
+    }
+
+    // 6. 남/여 분리 및 weight 기반 정렬
+    function sortByWeightWithRandom(arr) {
+      arr.sort((a, b) => {
+        const wa = typeof a.weight === 'number' ? a.weight : 0;
+        const wb = typeof b.weight === 'number' ? b.weight : 0;
+        if (wa !== wb) return wb - wa;
+        return Math.random() - 0.5;
+      });
+    }
+
+    const males = profiles.filter(p => p.gender === 'male');
+    const females = profiles.filter(p => p.gender === 'female');
+
+    sortByWeightWithRandom(males);
+    sortByWeightWithRandom(females);
+
+    if (!males.length || !females.length) {
+      return { totalUsers, eligibleUsers: profiles.length, matchCount: 0, couples: [] };
+    }
+
+    // 7. 가능한 남-여 쌍(edge) 생성
+    const edges = Array(males.length)
+      .fill(0)
+      .map(() => []);
+
+    for (let i = 0; i < males.length; i++) {
+      for (let j = 0; j < females.length; j++) {
+        // 과거에 매칭된 적 있는 쌍은 제외
+        if (previousMatches.has(`${males[i].user_id}-${females[j].user_id}`)) {
+          continue;
+        }
+        // 현재 프로필/선호 조건 + 과거 이력(중복 방지)을 함께 고려
+        if (isMutualMatch(males[i], females[j], previousMatches)) {
+          edges[i].push(j);
+        }
+      }
+    }
+
+    // 7. 최대 매칭(헝가리안 DFS)
+    const matchTo = Array(females.length).fill(-1);
+    function dfs(u, visited) {
+      for (const v of edges[u]) {
+        if (visited[v]) continue;
+        visited[v] = true;
+        if (matchTo[v] === -1 || dfs(matchTo[v], visited)) {
+          matchTo[v] = u;
+          return true;
+        }
+      }
+      return false;
+    }
+
+    for (let u = 0; u < males.length; u++) {
+      const visited = Array(females.length).fill(false);
+      dfs(u, visited);
+    }
+
+    const matches = [];
+    for (let j = 0; j < females.length; j++) {
+      if (matchTo[j] !== -1) {
+        matches.push([males[matchTo[j]].user_id, females[j].user_id]);
+      }
+    }
+
+    if (!matches.length) {
+      return { totalUsers, eligibleUsers: profiles.length, matchCount: 0, couples: [] };
+    }
+
+    // 8. 커플 정보 구성
+    const idToProfile = new Map();
+    profiles.forEach(p => idToProfile.set(p.user_id, p));
+
+    const couples = matches.map(([maleId, femaleId]) => {
+      const maleProfile = idToProfile.get(maleId) || {};
+      const femaleProfile = idToProfile.get(femaleId) || {};
+      return {
+        male: {
+          user_id: maleId,
+          email: maleProfile.email || null,
+          nickname: maleProfile.nickname || null,
+          gender: maleProfile.gender || null,
+          company: maleProfile.company || null,
+          birth_year: maleProfile.birth_year || null,
+        },
+        female: {
+          user_id: femaleId,
+          email: femaleProfile.email || null,
+          nickname: femaleProfile.nickname || null,
+          gender: femaleProfile.gender || null,
+          company: femaleProfile.company || null,
+          birth_year: femaleProfile.birth_year || null,
+        },
+      };
+    });
+
+    return {
+      totalUsers,
+      eligibleUsers: profiles.length,
+      matchCount: couples.length,
+      couples,
+    };
+  } catch (error) {
+    console.error('computeMatchesForAllUsers(가상 매칭 전체) 오류:', error);
+    return {
+      totalUsers: 0,
+      eligibleUsers: 0,
+      matchCount: 0,
+      couples: [],
+    };
+  }
+}
+
 async function main() {
   // 1. CLI 인자로 periodId가 넘어온 경우 우선 사용
   let periodId = null;
@@ -593,9 +1107,11 @@ async function main() {
 
 }
 
-// 함수 export (스케줄러에서 사용)
+// 함수 export (스케줄러/관리자에서 사용)
 module.exports = {
-  sendMatchingResultEmails
+  sendMatchingResultEmails,
+  computeMatchesForPeriod,
+  computeMatchesForAllUsers,
 };
 
 // 직접 실행 시에만 main 함수 호출

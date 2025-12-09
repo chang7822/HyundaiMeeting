@@ -30,6 +30,43 @@ const FilterRow = styled.div`
   align-items: center;
   margin-bottom: 18px;
 `;
+
+const SummaryRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 16px;
+`;
+
+const SummaryCard = styled.div`
+  flex: 1;
+  min-width: 220px;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border-radius: 16px;
+  padding: 14px 18px;
+  box-shadow: 0 4px 10px rgba(79,70,229,0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`;
+
+const SummaryLabel = styled.div`
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4b5563;
+`;
+
+const SummaryValue = styled.div`
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #111827;
+`;
+
+const SummarySub = styled.div`
+  font-size: 0.85rem;
+  color: #6b7280;
+`;
+
 const TableWrapper = styled.div`
   width: 100%;
   overflow-x: auto;
@@ -214,6 +251,37 @@ const [compatModal, setCompatModal] = useState<{
     open: false,
     item: null,
   });
+  const [virtualModal, setVirtualModal] = useState<{
+    open: boolean;
+    loading: boolean;
+    data: any | null;
+  }>({
+    open: false,
+    loading: false,
+    data: null,
+  });
+
+  // 현재 선택 회차 기준 성별 신청 인원 요약
+  const genderSummary = React.useMemo(() => {
+    if (periodId === 'all') return null;
+    const activeApps = applications.filter(app => app.applied && !app.cancelled);
+    let male = 0;
+    let female = 0;
+    let unknown = 0;
+    activeApps.forEach(app => {
+      const profile = buildSnapshotPayload(app);
+      const g = profile?.gender;
+      if (g === 'male') male += 1;
+      else if (g === 'female') female += 1;
+      else unknown += 1;
+    });
+    return {
+      total: activeApps.length,
+      male,
+      female,
+      unknown,
+    };
+  }, [applications, periodId]);
 
   // 회차 목록 불러오기
   useEffect(() => {
@@ -379,6 +447,22 @@ const closeCompatibilityModal = () => {
 const modalProfile = modalUser ? buildSnapshotPayload(modalUser) : null;
 const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) : null;
 
+  const handleVirtualMatch = async () => {
+    if (periodId === 'all') {
+      toast.warn('가상 매칭을 위해 먼저 회차를 선택해주세요.');
+      return;
+    }
+    setVirtualModal({ open: true, loading: true, data: null });
+    try {
+      const res = await adminMatchingApi.virtualMatch(periodId);
+      setVirtualModal({ open: true, loading: false, data: res });
+    } catch (error) {
+      console.error('[MatchingApplicationsPage] 가상 매칭 오류:', error);
+      toast.error('가상 매칭 실행 중 오류가 발생했습니다.');
+      setVirtualModal({ open: false, loading: false, data: null });
+    }
+  };
+
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Title>매칭 신청 현황</Title>
@@ -390,7 +474,41 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             <option key={log.id} value={log.id}>{idx+1}회차 ({formatKST(log.application_start)})</option>
           ))}
         </StyledSelect>
+        <div style={{ marginLeft: 'auto' }}>
+          <Button
+            onClick={handleVirtualMatch}
+            disabled={loading || periodId === 'all'}
+            style={{ padding: '8px 14px', fontSize: '0.9rem', background: '#0EA5E9' }}
+          >
+            가상 매칭 보기
+          </Button>
+        </div>
       </FilterRow>
+
+      {/* 성별 신청 인원 요약 */}
+      <SummaryRow>
+        {periodId === 'all' ? (
+          <SummaryCard>
+            <SummaryLabel>성별 신청 현황</SummaryLabel>
+            <SummarySub>상단에서 특정 회차를 선택하면 해당 회차의 남녀 신청 인원이 표시됩니다.</SummarySub>
+          </SummaryCard>
+        ) : genderSummary ? (
+          <SummaryCard>
+            <SummaryLabel>선택된 회차 신청 인원</SummaryLabel>
+            <SummaryValue>{genderSummary.total}명</SummaryValue>
+            <SummarySub>
+              남 {genderSummary.male}명 · 여 {genderSummary.female}명
+              {genderSummary.unknown > 0 && ` · 기타/미입력 ${genderSummary.unknown}명`}
+            </SummarySub>
+          </SummaryCard>
+        ) : (
+          <SummaryCard>
+            <SummaryLabel>선택된 회차 신청 인원</SummaryLabel>
+            <SummarySub>신청 내역이 없습니다.</SummarySub>
+          </SummaryCard>
+        )}
+      </SummaryRow>
+
       <TableWrapper>
         {loading ? (
           <div style={{ padding: '3rem 0', display: 'flex', justifyContent: 'center' }}>
@@ -464,6 +582,74 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
       </TableWrapper>
       {/* 프로필/선호 모달 */}
       <ProfileDetailModal isOpen={modalOpen} onRequestClose={closeModal} user={modalProfile ? { ...modalProfile, email: modalUser?.user?.email } : null} />
+
+      {/* 가상 매칭 결과 모달 */}
+      <Modal
+        isOpen={virtualModal.open}
+        onRequestClose={() => setVirtualModal({ open: false, loading: false, data: null })}
+        style={{ content: { maxWidth: 520, minWidth: 320, margin: 'auto', borderRadius: 16, padding: 24, overflowY: 'auto' } }}
+        contentLabel="가상 매칭 결과"
+      >
+        <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#0EA5E9' }}>가상 매칭 결과</h3>
+        <p style={{ marginTop: 0, marginBottom: 16, color: '#6b7280', fontSize: '0.9rem' }}>
+          실제 DB에는 반영되지 않은 시뮬레이션 결과입니다. 회차별 예상 커플 구성을 미리 확인할 수 있습니다.
+        </p>
+        {virtualModal.loading ? (
+          <div style={{ padding: '2rem 0', display: 'flex', justifyContent: 'center' }}>
+            <InlineSpinner text="가상 매칭을 실행하는 중입니다..." />
+          </div>
+        ) : !virtualModal.data || !virtualModal.data.couples?.length ? (
+          <div style={{ padding: '1.5rem 0', textAlign: 'center', color: '#6b7280', fontSize: '0.9rem' }}>
+            매칭 가능한 커플이 없습니다.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
+            {virtualModal.data.couples.map((pair: any, idx: number) => (
+              <div
+                key={`${pair.male?.user_id || 'm'}-${pair.female?.user_id || 'f'}-${idx}`}
+                style={{
+                  borderRadius: 12,
+                  border: '1px solid #e5e7eb',
+                  padding: '10px 12px',
+                  background: '#f9fafb',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 24px 1fr',
+                  alignItems: 'center',
+                  columnGap: 8,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: 2 }}>남성</div>
+                  <div style={{ fontWeight: 700, color: '#111827' }}>{pair.male?.nickname || '(닉네임 없음)'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{pair.male?.email || '-'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                    {pair.male?.birth_year ? `${pair.male.birth_year}년생` : ''}
+                    {pair.male?.company ? ` · ${pair.male.company}` : ''}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', fontSize: '0.8rem', color: '#6b7280' }}>
+                  {idx + 1}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280', marginBottom: 2 }}>여성</div>
+                  <div style={{ fontWeight: 700, color: '#111827' }}>{pair.female?.nickname || '(닉네임 없음)'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{pair.female?.email || '-'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                    {pair.female?.birth_year ? `${pair.female.birth_year}년생` : ''}
+                    {pair.female?.company ? ` · ${pair.female.company}` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        <Button
+          onClick={() => setVirtualModal({ open: false, loading: false, data: null })}
+          style={{ marginTop: 16, width: '100%' }}
+        >
+          닫기
+        </Button>
+      </Modal>
       <Modal
         isOpen={compatModal.open}
         onRequestClose={closeCompatibilityModal}
