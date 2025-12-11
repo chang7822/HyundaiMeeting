@@ -386,6 +386,9 @@ async function computeMatchesForPeriod(periodIdOverride) {
       );
     }
 
+    // weight가 -999인 사용자는 가상 매칭에서 제외
+    profiles = profiles.filter(p => p.weight !== -999);
+
     if (!profiles.length) {
       return {
         periodId,
@@ -612,7 +615,7 @@ async function computeMatchesForAllUsers() {
     });
 
     // 5. 프로필 배열 생성 (matching-algorithm의 isMutualMatch와 동일한 필드 구조)
-    const profiles = allUsers.map(row => ({
+    let profiles = allUsers.map(row => ({
       user_id: row.user_id,
       nickname: row.nickname,
       gender: row.gender,
@@ -635,6 +638,9 @@ async function computeMatchesForAllUsers() {
       weight: weightMap.get(row.user_id) || 0,
       email: row.user?.email || null,
     }));
+
+    // weight가 -999인 사용자는 가상 매칭(전체)에서도 제외
+    profiles = profiles.filter(p => p.weight !== -999);
 
     if (!profiles.length) {
       return { totalUsers, eligibleUsers: 0, matchCount: 0, couples: [] };
@@ -900,6 +906,9 @@ async function main() {
       ...row.preference_snapshot
     })));
   }
+
+  // weight가 -999인 사용자는 실제 매칭에서도 제외
+  profiles = profiles.filter(p => p.weight !== -999);
 
   // 4. 남/여 분리 + weight 기반 정렬 (높은 가중치 우선, 동점자는 랜덤 순서)
   function sortByWeightWithRandom(arr) {
