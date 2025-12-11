@@ -440,7 +440,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
           onClick={handleVirtualMatchCurrent}
           style={{ padding: '8px 14px', fontSize: '0.9rem', background: '#0EA5E9' }}
         >
-          현재 회차 가상 매칭 보기
+          가상 매칭
         </Button>
       </div>
       <TableWrapper>
@@ -461,6 +461,9 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                 <th onClick={() => { setSortKey('email'); setSortAsc(k => !k); }}>
                   이메일 <FaSort />
                 </th>
+                <th onClick={() => { setSortKey('created_at'); setSortAsc(k => !k); }}>
+                  가입일 <FaSort />
+                </th>
                 <th>내가 선호하는</th>
                 <th>나를 선호하는</th>
               </tr>
@@ -477,6 +480,15 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                   </td>
                   <td>{user.gender === 'male' ? '남성' : user.gender === 'female' ? '여성' : '-'}</td>
                   <td>{user.email || '-'}</td>
+                  <td>
+                    {user.created_at
+                      ? new Date(user.created_at).toLocaleDateString('ko-KR', {
+                          year: 'numeric',
+                          month: '2-digit',
+                          day: '2-digit',
+                        })
+                      : '-'}
+                  </td>
                   <td>
                     <Button
                       style={{ padding: '4px 10px', fontSize: '0.9em' }}
@@ -661,7 +673,22 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
       <Modal
         isOpen={virtualModal.open}
         onRequestClose={() => setVirtualModal({ open: false, loading: false, data: null })}
-        style={{ content: { maxWidth: 520, minWidth: 320, margin: 'auto', borderRadius: 16, padding: 24, overflowY: 'auto' } }}
+        style={{
+          content: {
+            top: '50%',
+            left: '50%',
+            right: 'auto',
+            bottom: 'auto',
+            transform: 'translate(-50%, -50%)',
+            maxWidth: 520,
+            minWidth: 320,
+            maxHeight: '80vh',
+            borderRadius: 16,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        }}
         contentLabel="가상 매칭 결과 (전체 회원 기준)"
       >
         <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#0EA5E9' }}>전체 회원 가상 매칭 결과</h3>
@@ -677,7 +704,16 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
             매칭 가능한 커플이 없습니다.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+            }}
+          >
             {virtualModal.data.couples.map((pair: any, idx: number) => (
               <div
                 key={`${pair.male?.user_id || 'm'}-${pair.female?.user_id || 'f'}-${idx}`}

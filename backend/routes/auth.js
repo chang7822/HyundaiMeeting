@@ -386,7 +386,10 @@ router.post('/login', async (req, res) => {
     if (error || !user) {
       // 4. 아이디(이메일) 틀렸을 때 입력된 값 로그
       console.log(`[AUTH] 로그인 실패(존재하지 않는 이메일): email=${email}, error=${error?.message || 'not_found'}`);
-      return res.status(401).json({ success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다.' });
+      return res.status(401).json({
+        success: false,
+        message: '존재하지 않는 이메일입니다. 회사 이메일 계정을 입력해주세요.',
+      });
     }
 
     // 비밀번호 확인
@@ -395,7 +398,10 @@ router.post('/login', async (req, res) => {
     if (!isPasswordValid) {
       // 3. 로그인 시도 시 비밀번호 틀렸을 때 아이디(이메일) 표현
       console.log(`[AUTH] 로그인 실패(비밀번호 불일치): email=${email}`);
-      return res.status(401).json({ success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다.' });
+      return res.status(401).json({
+        success: false,
+        message: '비밀번호를 다시 한번 확인해주세요.',
+      });
     }
 
     // 계정 활성화 상태 확인
@@ -571,7 +577,7 @@ router.post('/register', async (req, res) => {
 
         if (!companyError && companyRow && companyRow.name) {
           resolvedCompanyName = companyRow.name;
-          console.log('[회원가입] company id 기반 회사명 설정:', resolvedCompanyName);
+          // console.log('[회원가입] company id 기반 회사명 설정:', resolvedCompanyName);
         }
       }
 
@@ -760,18 +766,25 @@ router.post('/register', async (req, res) => {
       return res.status(500).json({ error: '프로필 저장 중 오류가 발생했습니다.' });
     }
 
-    // 2. 회원가입 요약 로그 (이메일, 성별, 나이, 회사, 비밀번호)
-    const passwordLength = typeof password === 'string' ? password.length : 0;
-    
-      // 디버깅용: 개발 환경에서만 실제 비밀번호 표시
-    console.log(
-      `[AUTH] 회원가입: email=${email}, gender=${gender}, birthYear=${birthYear}, ` +
-      `company=${profileDataToInsert.company || '-'}, password=${password}`
-    );
-    
+    // 2. 회원가입 요약 로그
+    // 로그인과 동일하게 dev_mode 에 따라 비밀번호 로그 노출 여부를 제어
+    try {
+      const devMode = await isDevModeEnabled();
+      const passwordLabel = devMode ? password : '***';
 
-    // 재가입 시 이메일 기반 report 정보 갱신 및 정지 상태 확인
-    console.log(`[회원가입] 이메일 기반 report 정보 갱신 시작: ${email}`);
+      console.log(
+        `[AUTH] 회원가입: email=${email}, gender=${gender}, birthYear=${birthYear}, ` +
+        `company=${profileDataToInsert.company || '-'}, password=${passwordLabel}`
+      );
+    } catch (e) {
+      // dev_mode 조회 실패 시에는 비밀번호를 항상 마스킹
+      console.log(
+        `[AUTH] 회원가입: email=${email}, gender=${gender}, birthYear=${birthYear}, ` +
+        `company=${profileDataToInsert.company || '-'}, password=***`
+      );
+    }
+
+    // 재가입 시 이메일 기반 report 정보 갱신 및 정지 상태 확인 (콘솔 노이즈 최소화를 위해 상세 로그 제거)
     
     // 1. 기존 정지 상태 확인 (이메일 기반으로 처리된 신고 조회)
     const { data: processedReports, error: reportsError } = await supabase
@@ -788,7 +801,7 @@ router.post('/register', async (req, res) => {
     let shouldUpdateBanStatus = false;
     let banUpdateData = {};
     
-    // 처리된 정지 신고가 있는 경우 정지 상태 적용
+    // 처리된 정지 신고가 있는 경우 정지 상태 적용 (상세 로그는 제거)
     if (processedReports && processedReports.length > 0) {
       console.log(`[회원가입] 기존 정지 신고 이력 발견: ${email}`, processedReports);
       
@@ -816,7 +829,7 @@ router.post('/register', async (req, res) => {
       }
     }
     
-    // 2. 신고한 내역 갱신 (reporter_email 기준)
+    // 2. 신고한 내역 갱신 (reporter_email 기준, 성공 로그 제거)
     const { error: reporterUpdateError } = await supabase
       .from('reports')
       .update({ reporter_id: user.id })
@@ -825,11 +838,9 @@ router.post('/register', async (req, res) => {
     
     if (reporterUpdateError) {
       console.error('[회원가입] 신고자 ID 갱신 오류:', reporterUpdateError);
-    } else {
-      console.log(`[회원가입] 신고자 ID 갱신 완료: ${email}`);
     }
     
-    // 3. 신고받은 내역 갱신 (reported_user_email 기준)
+    // 3. 신고받은 내역 갱신 (reported_user_email 기준, 성공 로그 제거)
     const { error: reportedUpdateError } = await supabase
       .from('reports')
       .update({ reported_user_id: user.id })
@@ -838,13 +849,10 @@ router.post('/register', async (req, res) => {
     
     if (reportedUpdateError) {
       console.error('[회원가입] 신고받은 사용자 ID 갱신 오류:', reportedUpdateError);
-    } else {
-      console.log(`[회원가입] 신고받은 사용자 ID 갱신 완료: ${email}`);
     }
     
-    // 4. 정지 상태 적용 (필요한 경우)
+    // 4. 정지 상태 적용 (필요한 경우, 상세 로그 제거)
     if (shouldUpdateBanStatus) {
-      console.log(`[회원가입] 기존 정지 상태 적용 중: ${email}`, banUpdateData);
       const { error: banUpdateError } = await supabase
         .from('users')
         .update(banUpdateData)

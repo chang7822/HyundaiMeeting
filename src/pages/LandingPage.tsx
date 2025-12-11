@@ -277,7 +277,7 @@ const CompanyFooter = styled.div`
   font-size: 0.85rem;
   color: #6b7280;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
 `;
 
 const TextLinkButton = styled.button`
@@ -424,6 +424,7 @@ const LandingPage = () => {
   const [newCompanyDomain, setNewCompanyDomain] = useState('');
   const [newCompanyMessage, setNewCompanyMessage] = useState('');
   const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
+  const [showCompanyGuideTooltip, setShowCompanyGuideTooltip] = useState(false);
 
   // 이미 로그인된 상태에서 랜딩( "/" )로 진입하면 메인으로 보내기
   useEffect(() => {
@@ -692,15 +693,70 @@ const LandingPage = () => {
               )}
 
               <CompanyFooter>
-                <TextLinkButton
-                  type="button"
-                  onClick={() => {
-                    setShowCompanies(false);
-                    setShowAddCompanyModal(true);
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 16,
+                    width: '100%',
+                    flexWrap: 'wrap',
                   }}
                 >
-                  내 회사 추가하기
-                </TextLinkButton>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    {/* 회사 추가 가이드 안내 아이콘 (툴팁) */}
+                    <button
+                      type="button"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '999px',
+                        border: 'none',
+                        backgroundColor: '#e5e7eb',
+                        color: '#4b5563',
+                        fontSize: '0.9rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                      }}
+                      title="회사 추가 관련 안내"
+                      aria-label="회사 추가 관련 안내"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowCompanyGuideTooltip(true);
+                      }}
+                    >
+                      i
+                    </button>
+
+                    <span
+                      style={{
+                        fontSize: '0.8rem',
+                        color: '#6b7280',
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      회사 추가 관련 안내
+                    </span>
+                  </div>
+
+                  <TextLinkButton
+                    type="button"
+                    onClick={() => {
+                      setShowCompanies(false);
+                      setShowAddCompanyModal(true);
+                    }}
+                  >
+                    내 회사 추가하기
+                  </TextLinkButton>
+                </div>
               </CompanyFooter>
             </IntroBody>
           </IntroModalContent>
@@ -798,7 +854,10 @@ const LandingPage = () => {
                   <FormTextarea
                     value={newCompanyMessage}
                     onChange={(e) => setNewCompanyMessage(e.target.value)}
-                    placeholder="예 : 기존 메일주소가 잘못됐어요, 다른 도메인주소가 더 필요해요 등"
+                    placeholder={
+                      '예 : 기존 메일주소가 잘못됐어요, 다른 도메인주소가 더 필요해요 등\n' +
+                      '회사 추가 여부에 대한 회신을 받고 싶으시면 연락 받을 이메일 주소도 함께 남겨주세요.'
+                    }
                     disabled={isSubmittingCompanyRequest}
                   />
                 </FormField>
@@ -822,6 +881,33 @@ const LandingPage = () => {
                   </PrimaryActionButton>
                 </FormActions>
               </form>
+            </IntroBody>
+          </IntroModalContent>
+        </IntroModalOverlay>
+      )}
+
+      {showCompanyGuideTooltip && (
+        <IntroModalOverlay onClick={() => setShowCompanyGuideTooltip(false)}>
+          <IntroModalContent
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: 420 }}
+          >
+            <IntroModalHeader>
+              <IntroTitle>
+                회사 추가 관련 안내
+              </IntroTitle>
+              <IntroCloseButton onClick={() => setShowCompanyGuideTooltip(false)}>
+                ×
+              </IntroCloseButton>
+            </IntroModalHeader>
+            <IntroBody>
+              <p style={{ fontSize: '0.9rem', color: '#111827', lineHeight: 1.6 }}>
+                현재 공기업·공무원·의료기관 및 일부 대기업을 중심으로 우선 운영 중입니다.
+                무분별한 확대로 관리가 어려워질 수 있어, 검토 후 순차적으로 회사 도메인을 등록하고 있습니다.
+              </p>
+              <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6, marginTop: 8 }}>
+                회사 추가를 신청하셔도 모든 요청이 바로 등록되지는 않을 수 있는 점 양해 부탁드립니다.
+              </p>
             </IntroBody>
           </IntroModalContent>
         </IntroModalOverlay>

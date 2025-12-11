@@ -68,7 +68,7 @@ router.get('/users', authenticate, async (req, res) => {
       .select('id, email, is_verified, is_active, is_admin, created_at, updated_at');
 
     if (usersError) {
-      console.error('사용자 조회 오류:', usersError);
+      console.error('사용자 조회 오류');
       return res.status(500).json({ message: '사용자 조회에 실패했습니다.' });
     }
 
@@ -90,7 +90,7 @@ router.get('/users', authenticate, async (req, res) => {
     
     res.json(usersWithProfiles);
   } catch (error) {
-    console.error('사용자 목록 조회 오류:', error);
+    console.error('사용자 목록 조회 오류');
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
@@ -108,7 +108,7 @@ router.get('/system-settings', authenticate, async (req, res) => {
       .maybeSingle();
 
     if (error) {
-      console.error('[admin][system-settings] 조회 오류:', error);
+      console.error('[admin][system-settings] 조회 오류');
       return res.status(500).json({ success: false, message: '시스템 설정 조회에 실패했습니다.' });
     }
 
@@ -130,7 +130,7 @@ router.get('/system-settings', authenticate, async (req, res) => {
         devModeEnabled = true;
       }
     } catch (devErr) {
-      console.error('[admin][system-settings] dev_mode 조회 오류:', devErr);
+      console.error('[admin][system-settings] dev_mode 조회 오류');
     }
 
     res.json({
@@ -144,7 +144,7 @@ router.get('/system-settings', authenticate, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('[admin][system-settings] 조회 오류:', error);
+    console.error('[admin][system-settings] 조회 오류');
     res.status(500).json({ success: false, message: '시스템 설정 조회에 실패했습니다.' });
   }
 });
@@ -221,7 +221,7 @@ router.put('/system-settings/dev-mode', authenticate, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[admin][system-settings] Dev Mode 업데이트 오류:', error);
+    console.error('[admin][system-settings] Dev Mode 업데이트 오류');
     res.status(500).json({ success: false, message: 'Dev Mode 변경에 실패했습니다.' });
   }
 });
@@ -232,7 +232,7 @@ router.get('/matches', authenticate, (req, res) => {
     // TODO: 매칭 테이블 구현 후 실제 데이터 조회
     res.json([]);
   } catch (error) {
-    console.error('매칭 목록 조회 오류:', error);
+    console.error('매칭 목록 조회 오류');
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
@@ -251,7 +251,7 @@ router.put('/users/:userId/status', authenticate, async (req, res) => {
       .single();
     
     if (error) {
-      console.error('사용자 상태 업데이트 오류:', error);
+      console.error('사용자 상태 업데이트 오류');
       return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
     }
     
@@ -261,7 +261,7 @@ router.put('/users/:userId/status', authenticate, async (req, res) => {
       user: data
     });
   } catch (error) {
-    console.error('사용자 상태 업데이트 오류:', error);
+    console.error('사용자 상태 업데이트 오류');
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
@@ -275,7 +275,7 @@ router.get('/stats', authenticate, async (req, res) => {
       .select('*', { count: 'exact', head: true });
 
     if (totalError) {
-      console.error('전체 사용자 수 조회 오류:', totalError);
+      console.error('전체 사용자 수 조회 오류');
       return res.status(500).json({ message: '통계 조회에 실패했습니다.' });
     }
 
@@ -286,7 +286,7 @@ router.get('/stats', authenticate, async (req, res) => {
       .eq('is_active', true);
 
     if (activeError) {
-      console.error('활성 사용자 수 조회 오류:', activeError);
+      console.error('활성 사용자 수 조회 오류');
       return res.status(500).json({ message: '통계 조회에 실패했습니다.' });
     }
 
@@ -297,7 +297,7 @@ router.get('/stats', authenticate, async (req, res) => {
       .eq('is_verified', true);
 
     if (verifiedError) {
-      console.error('인증된 사용자 수 조회 오류:', verifiedError);
+      console.error('인증된 사용자 수 조회 오류');
       return res.status(500).json({ message: '통계 조회에 실패했습니다.' });
     }
 
@@ -313,7 +313,7 @@ router.get('/stats', authenticate, async (req, res) => {
     
     res.json(stats);
   } catch (error) {
-    console.error('통계 조회 오류:', error);
+    console.error('통계 조회 오류');
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
@@ -328,7 +328,7 @@ router.get('/matching-log', authenticate, async (req, res) => {
     if (error) throw error;
     res.json(data);
   } catch (error) {
-    console.error('matching_log 조회 오류:', error);
+    console.error('matching_log 조회 오류');
     res.status(500).json({ message: 'matching_log 조회 실패' });
   }
 });
@@ -354,7 +354,7 @@ router.post('/matching-log', authenticate, async (req, res) => {
       .maybeSingle();
 
     if (lastError) {
-      console.error('[admin][matching-log] 마지막 회차 조회 오류:', lastError);
+      console.error('[admin][matching-log] 마지막 회차 조회 오류');
       return res.status(500).json({ message: '기존 회차 정보를 조회하는 중 오류가 발생했습니다.' });
     }
 
@@ -389,7 +389,7 @@ router.post('/matching-log', authenticate, async (req, res) => {
     // 엔티티 자체에는 존재하지 않는 message 필드를 섞지 않고, 순수 row만 반환
     res.json(data);
   } catch (error) {
-    console.error('matching_log 생성 오류:', error);
+    console.error('matching_log 생성 오류');
     res.status(500).json({ message: 'matching_log 생성 실패' });
   }
 });
@@ -428,7 +428,7 @@ router.put('/matching-log/:id', authenticate, async (req, res) => {
       .maybeSingle();
 
     if (fetchError) {
-      console.error('matching_log 수정 전 조회 오류:', fetchError);
+      console.error('matching_log 수정 전 조회 오류');
       return res.status(500).json({ message: '매칭 회차 조회에 실패했습니다.', error: fetchError.message || fetchError });
     }
 

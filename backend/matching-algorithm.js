@@ -306,9 +306,8 @@ async function computeMatchesForPeriod(periodIdOverride) {
     }
 
     // 4. 과거 매칭 이력 조회
-    console.log('[가상 매칭] 과거 매칭 이력 조회 시작...');
+    // 가상 매칭 실행 시 콘솔 노이즈를 줄이기 위해 상세 로그는 제거
     const previousMatches = await getPreviousMatchHistory(eligibleUserIds);
-    console.log(`[가상 매칭] 과거 매칭 이력 조회 완료: ${previousMatches.size}개의 매칭 쌍이 필터링 대상`);
 
     // 5. 회사 id -> name 매핑 로드 (선호 회사 매칭용)
     try {
@@ -327,10 +326,8 @@ async function computeMatchesForPeriod(periodIdOverride) {
             companyIdNameMap.set(c.id, c.name);
           }
         });
-        console.log(`[가상 매칭] 활성 회사 ${companies.length}개 로드 (선호 회사 필터에 사용)`);
       } else {
         companyIdNameMap = null;
-        console.log('[가상 매칭] 활성 회사가 없습니다. 선호 회사 필터는 건너뜁니다.');
       }
     } catch (e) {
       console.error('회사 목록 로드 중 오류(가상 매칭):', e);
@@ -352,7 +349,6 @@ async function computeMatchesForPeriod(periodIdOverride) {
           const w = typeof u.weight === 'number' ? u.weight : 0;
           weightMap.set(u.id, w);
         });
-        console.log(`[가상 매칭] weight 정보 로드 완료: ${userWeights.length}명`);
       }
     } catch (e) {
       console.error('weight 정보 로드 중 오류(가상 매칭):', e);

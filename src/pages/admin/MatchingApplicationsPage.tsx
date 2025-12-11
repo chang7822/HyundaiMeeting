@@ -587,7 +587,22 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
       <Modal
         isOpen={virtualModal.open}
         onRequestClose={() => setVirtualModal({ open: false, loading: false, data: null })}
-        style={{ content: { maxWidth: 520, minWidth: 320, margin: 'auto', borderRadius: 16, padding: 24, overflowY: 'auto' } }}
+        style={{
+          content: {
+            top: '50%',
+            left: '50%',
+            right: 'auto',
+            bottom: 'auto',
+            transform: 'translate(-50%, -50%)',
+            maxWidth: 520,
+            minWidth: 320,
+            maxHeight: '80vh',
+            borderRadius: 16,
+            padding: 24,
+            display: 'flex',
+            flexDirection: 'column',
+          },
+        }}
         contentLabel="가상 매칭 결과"
       >
         <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#0EA5E9' }}>가상 매칭 결과</h3>
@@ -603,7 +618,16 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             매칭 가능한 커플이 없습니다.
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '60vh', overflowY: 'auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              flex: 1,
+              minHeight: 0,
+              overflowY: 'auto',
+            }}
+          >
             {virtualModal.data.couples.map((pair: any, idx: number) => (
               <div
                 key={`${pair.male?.user_id || 'm'}-${pair.female?.user_id || 'f'}-${idx}`}
