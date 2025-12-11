@@ -52,8 +52,9 @@ api.interceptors.response.use(
       // console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
 
       // 인증 만료 시 랜딩 페이지로 이동
-      // (수동 로그아웃 suppress 플래그가 켜져 있을 때는 한 번만 토스트/리다이렉트 생략)
-      if (!suppressAuth401Toast) {
+      // (수동 로그아웃 suppress 플래그가 켜져 있거나, /auth/login 요청인 경우에는
+      //  토스트/리다이렉트를 생략하고 호출한 쪽에서 직접 처리하도록 둔다)
+      if (!isLoginRequest && !suppressAuth401Toast) {
         window.location.href = '/';
       }
 
