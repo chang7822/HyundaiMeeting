@@ -487,7 +487,7 @@ router.post('/cancel', async (req, res) => {
       .update({ is_applied: false })
       .eq('id', application.user_id);
 
-    // 5. 관리자 알림 메일 발송 (비동기)
+    // 5. 서버 로그 및 관리자 알림 메일 발송 (비동기)
     try {
       // 프로필 정보 조회 (닉네임, 성별)
       let nickname = '';
@@ -504,6 +504,32 @@ router.post('/cancel', async (req, res) => {
         }
       } catch (infoErr) {
         console.error('[매칭 신청 취소] 프로필 정보 조회 오류:', infoErr);
+      }
+
+      // [로그] 매칭 신청 취소: "닉네임(이메일) N회차 매칭 신청 취소"
+      try {
+        const { data: allLogs } = await supabase
+          .from('matching_log')
+          .select('id, application_start')
+          .order('application_start', { ascending: true });
+
+        let roundNumber = null;
+        if (allLogs && Array.isArray(allLogs)) {
+          const idx = allLogs.findIndex((log) => log.id === periodId);
+          if (idx !== -1) {
+            roundNumber = idx + 1;
+          }
+        }
+
+        const nicknameForLog = nickname || '알 수 없음';
+        const emailForLog = user?.email || '알 수 없음';
+        const roundLabel = roundNumber ? `${roundNumber}회차` : `period_id=${periodId}`;
+
+        console.log(
+          `[MATCHING] 매칭 신청 취소: ${nicknameForLog}(${emailForLog}) ${roundLabel} 매칭 신청 취소 (application_id=${application.id})`
+        );
+      } catch (e) {
+        console.error('[MATCHING] 매칭 신청 취소 로그 처리 중 오류:', e);
       }
 
       const adminSubject = '매칭 신청 취소';

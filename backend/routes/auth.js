@@ -386,10 +386,7 @@ router.post('/login', async (req, res) => {
     if (error || !user) {
       // 4. 아이디(이메일) 틀렸을 때 입력된 값 로그
       console.log(`[AUTH] 로그인 실패(존재하지 않는 이메일): email=${email}, error=${error?.message || 'not_found'}`);
-      return res.status(401).json({
-        success: false,
-        message: '존재하지 않는 이메일입니다. 회사 이메일 계정을 입력해주세요.',
-      });
+      return res.status(401).json({ success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다. 인증한 회사 이메일을 입력해주세요' });
     }
 
     // 비밀번호 확인
@@ -398,10 +395,7 @@ router.post('/login', async (req, res) => {
     if (!isPasswordValid) {
       // 3. 로그인 시도 시 비밀번호 틀렸을 때 아이디(이메일) 표현
       console.log(`[AUTH] 로그인 실패(비밀번호 불일치): email=${email}`);
-      return res.status(401).json({
-        success: false,
-        message: '비밀번호를 다시 한번 확인해주세요.',
-      });
+      return res.status(401).json({ success: false, message: '이메일 또는 비밀번호가 올바르지 않습니다. 인증한 회사 이메일을 입력해주세요' });
     }
 
     // 계정 활성화 상태 확인
@@ -431,6 +425,7 @@ router.post('/login', async (req, res) => {
       user: {
         id: user.id,
         email: user.email,
+        nickname: profile?.nickname || null,
         gender: profile?.gender || null,
         birthYear: profile?.birth_year || null,
         company: profile?.company || null,

@@ -51,13 +51,19 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       // console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
 
-      // 인증 만료 시 랜딩 페이지로 이동 (수동 로그아웃 suppress 플래그가 켜져 있을 때는 리다이렉트 생략)
+      // 인증 만료 시 랜딩 페이지로 이동
+      // (수동 로그아웃 suppress 플래그가 켜져 있을 때는 한 번만 토스트/리다이렉트 생략)
       if (!suppressAuth401Toast) {
         window.location.href = '/';
       }
 
-      // 이동 없이 에러도 반환하지 않음(페이지 멈춤)
-      return;
+      // 한 번 401을 처리한 이후에는 suppress 플래그를 항상 초기화
+      // -> 수동 로그아웃 직후 발생하는 401에만 토스트/리다이렉트가 생략되고,
+      //    이후 401부터는 다시 정상적으로 동작하도록 보장
+      suppressAuth401Toast = false;
+
+      // 여기서 반드시 reject를 반환해야 호출측에서 오류로 인식하고 적절히 처리할 수 있다.
+      return Promise.reject(error);
       // /auth/login 요청이면 아무 토스트도 띄우지 않음 (실패 안내는 LoginPage에서 따로 처리)
     }
     

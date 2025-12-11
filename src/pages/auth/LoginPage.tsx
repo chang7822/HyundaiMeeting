@@ -161,8 +161,13 @@ const LoginPage = () => {
   const onSubmit = async (data: LoginCredentials) => {
     setIsLoading(true);
     try {
-      await login(data);
-      toast.success('로그인되었습니다!');
+      const result = await login(data);
+      const nickname = result?.profile?.nickname || result?.user?.nickname;
+      if (nickname) {
+        toast.success(`${nickname}님, 환영합니다!`);
+      } else {
+        toast.success('로그인되었습니다!');
+      }
       navigate('/main');
     } catch (error: any) {
       toast.error(error.response?.data?.message || '로그인에 실패했습니다.');

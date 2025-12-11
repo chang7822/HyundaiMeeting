@@ -68,6 +68,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // console.log('[AuthContext] getUserProfile 성공:', profileData);
       // console.log('[AuthContext] setAuthState 직전 (login)', { user: userWithCamel, profile: profileData });
       setAuthState({ user: userWithCamel, profile: profileData });
+      return { user: userWithCamel, profile: profileData };
     } catch (error) {
       console.error('[AuthContext] 로그인 실패:', error);
       setAuthState({ user: null, profile: null });

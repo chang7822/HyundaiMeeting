@@ -3,6 +3,8 @@ export interface User {
   id: string;
   email: string;
   password?: string;
+  // 로그인 응답에서 닉네임을 함께 내려줄 수 있으므로 선택 필드로 추가
+  nickname?: string;
   is_verified: boolean;
   is_active: boolean;
   isAdmin: boolean;
@@ -187,7 +189,7 @@ export interface LoginCredentials {
 export interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<{ user: User; profile: UserProfile }>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
