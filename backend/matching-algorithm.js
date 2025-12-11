@@ -575,9 +575,7 @@ async function computeMatchesForAllUsers() {
     const eligibleUserIds = allUsers.map(row => row.user_id);
 
     // 2. 과거 매칭 이력 조회 (이메일 기반) - 전체 회원 기준에서도 과거에 매칭된 쌍은 제외
-    console.log('[가상 매칭(전체)] 과거 매칭 이력 조회 시작...');
     const previousMatches = await getPreviousMatchHistory(eligibleUserIds);
-    console.log(`[가상 매칭(전체)] 과거 매칭 이력 조회 완료: ${previousMatches.size}개의 매칭 쌍이 필터링 대상`);
 
     // 3. 회사 id -> name 매핑 로드 (선호 회사 매칭용)
     try {
@@ -596,10 +594,8 @@ async function computeMatchesForAllUsers() {
             companyIdNameMap.set(c.id, c.name);
           }
         });
-        console.log(`[가상 매칭(전체)] 활성 회사 ${companies.length}개 로드 (선호 회사 필터에 사용)`);
       } else {
         companyIdNameMap = null;
-        console.log('[가상 매칭(전체)] 활성 회사가 없습니다. 선호 회사 필터는 건너뜁니다.');
       }
     } catch (e) {
       console.error('[computeMatchesForAllUsers] 회사 목록 로드 중 오류:', e);
