@@ -660,6 +660,24 @@ const ButtonRow = styled.div`
   }
 `;
 
+const ExtraMatchingNoticeCard = styled.div`
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 18px;
+  padding: 16px 18px;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.12), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.12), transparent 55%),
+    #f9fafb;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+`;
+
 const NicknameSpan = styled.span`
   color: #4F46E5;
   font-weight: 700;
@@ -990,7 +1008,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         // 에러 시 조용히 무시 (깜빡임 방지)
       }
     }, 5000); // 5초마다 업데이트
-
+    
     return () => window.clearInterval(interval);
   }, [user?.id]);
 
@@ -1793,7 +1811,34 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </LatestNoticeRight>
           </LatestNoticeCard>
         )}
-        
+
+        {/* 추가 매칭 도전 안내 배너 */}
+        <ExtraMatchingNoticeCard>
+          <div style={{ fontSize: '0.9rem', color: '#111827', fontWeight: 600 }}>
+            추가 매칭 도전 기회가 열렸습니다.
+            <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 400, marginTop: 4 }}>
+              이번 회차에서 매칭이 아쉬웠다면, 별을 사용해 한 번 더 인연을 찾아보세요.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/extra-matching')}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 999,
+              border: 'none',
+              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+              color: '#fff',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            추가 매칭 도전하러 가기
+          </button>
+        </ExtraMatchingNoticeCard>
+
         {/* 이메일 인증 알림 */}
         {user?.is_verified === false && (
           <div style={{
@@ -1856,48 +1901,48 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         )}
         
         <ButtonRow>
-        <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
-          {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
-        </MatchingButton>
-        {showCancel && (
-          <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
-            {actionLoading ? '처리 중...' : '신청 취소하기'}
+          <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
+            {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
           </MatchingButton>
-        )}
-        <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
-        {reapplyMessage && (
-          <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
-        )}
-        {nextPeriodLabel && (
-          <NextPeriodWrapper>
-            <NextPeriodBadge>
-              <span
-                style={{
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  color: '#4F46E5',
-                  background: 'rgba(79, 70, 229, 0.1)',
-                  padding: '3px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                다음 회차 신청
-              </span>
-              <span
-                style={{
-                  fontSize: '0.9rem',
-                  color: '#111827',
-                  fontWeight: 600,
-                  textAlign: 'left',
-                  flex: 1,
-                }}
-              >
-                {nextPeriodLabel}
-              </span>
-            </NextPeriodBadge>
-          </NextPeriodWrapper>
-        )}
-      </ButtonRow>
+          {showCancel && (
+            <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
+              {actionLoading ? '처리 중...' : '신청 취소하기'}
+            </MatchingButton>
+          )}
+          <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
+          {reapplyMessage && (
+            <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
+          )}
+          {nextPeriodLabel && (
+            <NextPeriodWrapper>
+              <NextPeriodBadge>
+                <span
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: '#4F46E5',
+                    background: 'rgba(79, 70, 229, 0.1)',
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                  }}
+                >
+                  다음 회차 신청
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.9rem',
+                    color: '#111827',
+                    fontWeight: 600,
+                    textAlign: 'left',
+                    flex: 1,
+                  }}
+                >
+                  {nextPeriodLabel}
+                </span>
+              </NextPeriodBadge>
+            </NextPeriodWrapper>
+          )}
+        </ButtonRow>
       {/* 프로필 카드 모달 */}
       {showProfileModal && (
         <ModalOverlay onClick={() => setShowProfileModal(false)}>

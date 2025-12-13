@@ -20,6 +20,8 @@ const reportRoutes = require('./routes/reports');
 const matchingHistoryRoutes = require('./routes/matching-history');
 const supportRoutes = require('./routes/support');
 const systemRoutes = require('./routes/system');
+const starRoutes = require('./routes/stars');
+const extraMatchingRoutes = require('./routes/extra-matching');
 const { supabase } = require('./database');
 const { encrypt, decrypt } = require('./utils/encryption');
 
@@ -75,6 +77,8 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/matching-history', matchingHistoryRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/stars', starRoutes);
+app.use('/api/extra-matching', extraMatchingRoutes);
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, '../public')));

@@ -1,0 +1,1407 @@
+const express = require('express');
+const router = express.Router();
+const { supabase } = require('../database');
+const authenticate = require('../middleware/authenticate');
+
+// 모든 /api/extra-matching/* 요청은 인증 필요
+router.use(authenticate);
+
+// ---- 공통 유틸 함수들 ----
+
+// matching_log에서 현재 회차(및 필요 시 다음 회차)를 계산하는 헬퍼
+function computeCurrentAndNextFromLogs(logs) {
+  if (!logs || logs.length === 0) {
+    return { current: null, next: null };
+  }
+
+  let current = null;
+  let next = null;
+
+  const readyLogs = logs.filter((log) => log.status === '준비중');
+  const activeLogs = logs.filter((log) => log.status === '진행중' || log.status === '발표완료');
+  const finishedLogs = logs.filter((log) => log.status === '종료');
+
+  if (activeLogs.length > 0) {
+    current = activeLogs[0];
+  } else if (finishedLogs.length > 0 && readyLogs.length > 0) {
+    const latestFinished = finishedLogs[0];
+    let candidate = null;
+    for (let i = logs.length - 1; i >= 0; i--) {
+      const log = logs[i];
+      if (log.status === '준비중' && log.id > latestFinished.id) {
+        candidate = log;
+      }
+    }
+    current = candidate || latestFinished;
+  } else if (readyLogs.length > 0) {
+    current = readyLogs[readyLogs.length - 1];
+  } else {
+    current = logs[0];
+  }
+
+  if (current && current.status === '발표완료') {
+    let candidate = null;
+    for (const log of logs) {
+      if (log.status === '준비중' && log.id > current.id) {
+        if (!candidate || log.id < candidate.id) {
+          candidate = log;
+        }
+      }
+    }
+    next = candidate;
+  }
+
+  return { current, next };
+}
+
+async function getCurrentPeriod() {
+  const { data: logs, error } = await supabase
+    .from('matching_log')
+    .select('*')
+    .order('id', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const { current } = computeCurrentAndNextFromLogs(logs);
+  return current;
+}
+
+// 현재 시각과 회차의 공지/종료 시간으로 "추가 매칭 도전 가능 기간"인지 판단
+function isInExtraMatchingWindow(period) {
+  if (!period || !period.matching_announce || !period.finish) return false;
+  const now = Date.now();
+  const announce = new Date(period.matching_announce).getTime();
+  const finish = new Date(period.finish).getTime();
+  if (Number.isNaN(announce) || Number.isNaN(finish)) return false;
+  return now >= announce && now <= finish;
+}
+
+// 사용자의 현재 회차 매칭 상태 조회 (기존 /matching/status 와 동일한 로직을 간략화)
+async function getUserMatchingState(userId, periodId) {
+  // 1. users 테이블에서 is_applied, is_matched 조회
+  const { data: userData, error: userError } = await supabase
+    .from('users')
+    .select('is_applied, is_matched')
+    .eq('id', userId)
+    .single();
+
+  if (userError) {
+    throw userError;
+  }
+
+  // 2. matching_applications 에서 해당 회차 row 조회
+  const { data: appData, error: appError } = await supabase
+    .from('matching_applications')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('period_id', periodId)
+    .order('applied_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (appError && appError.code !== 'PGRST116') {
+    throw appError;
+  }
+
+  const resolvedMatchState =
+    typeof userData.is_matched === 'boolean'
+      ? userData.is_matched
+      : typeof appData?.matched === 'boolean'
+      ? appData.matched
+      : null;
+
+  const resolvedAppliedState =
+    typeof userData.is_applied === 'boolean'
+      ? userData.is_applied
+      : typeof appData?.applied === 'boolean'
+      ? appData.applied
+      : false;
+
+  return {
+    applied: resolvedAppliedState,
+    matched: resolvedMatchState,
+    applicationRow: appData || null,
+  };
+}
+
+// 이번 회차에서 사용자의 추가 매칭/호감 보내기 사용 상태 조회
+async function getUserExtraUsageState(userId, periodId) {
+  // 1) 이번 회차에 내가 등록한 추가 매칭 도전 엔트리 여부
+  const { data: entries, error: entryError } = await supabase
+    .from('extra_matching_entries')
+    .select('id, status')
+    .eq('period_id', periodId)
+    .eq('user_id', userId)
+    .limit(1);
+
+  if (entryError) {
+    throw entryError;
+  }
+
+  const hasEntryThisPeriod = !!(entries && entries.length > 0);
+
+  // 2) 이번 회차에 내가 보낸 "호감 보내기" 중 아직 진행 중인 것(pending/accepted) 여부
+  const { data: myApplies, error: appliesError } = await supabase
+    .from('extra_matching_applies')
+    .select('id, status, entry_id')
+    .eq('sender_user_id', userId)
+    .in('status', ['pending', 'accepted']);
+
+  if (appliesError) {
+    throw appliesError;
+  }
+
+  let hasActiveApplyThisPeriod = false;
+
+  if (myApplies && myApplies.length > 0) {
+    const entryIds = myApplies.map((a) => a.entry_id);
+
+    const { data: applyEntries, error: applyEntriesError } = await supabase
+      .from('extra_matching_entries')
+      .select('id, period_id')
+      .in('id', entryIds);
+
+    if (applyEntriesError) {
+      throw applyEntriesError;
+    }
+
+    const currentPeriodEntryIds = new Set(
+      (applyEntries || [])
+        .filter((e) => e.period_id === periodId)
+        .map((e) => e.id)
+    );
+
+    hasActiveApplyThisPeriod = myApplies.some((a) =>
+      currentPeriodEntryIds.has(a.entry_id),
+    );
+  }
+
+  return {
+    hasEntryThisPeriod,
+    hasActiveApplyThisPeriod,
+  };
+}
+
+// 별 차감 공통 함수
+async function spendStars(userId, amount, reason, meta) {
+  if (!userId || typeof amount !== 'number' || amount <= 0) {
+    throw new Error('spendStars: 잘못된 인자');
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('star_balance')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user) {
+    throw userError || new Error('사용자를 찾을 수 없습니다.');
+  }
+
+  const currentBalance = typeof user.star_balance === 'number' ? user.star_balance : 0;
+
+  if (currentBalance < amount) {
+    return {
+      ok: false,
+      code: 'INSUFFICIENT_STARS',
+      balance: currentBalance,
+    };
+  }
+
+  const newBalance = currentBalance - amount;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ star_balance: newBalance })
+    .eq('id', userId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: txError } = await supabase
+    .from('star_transactions')
+    .insert({
+      user_id: userId,
+      amount: -amount,
+      reason,
+      meta: meta || null,
+    });
+
+  if (txError) {
+    throw txError;
+  }
+
+  return {
+    ok: true,
+    balance: newBalance,
+  };
+}
+
+// 별 지급 공통 함수 (환불 등)
+async function awardStars(userId, amount, reason, meta) {
+  if (!userId || typeof amount !== 'number' || amount <= 0) {
+    throw new Error('awardStars: 잘못된 인자');
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('star_balance')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user) {
+    throw userError || new Error('사용자를 찾을 수 없습니다.');
+  }
+
+  const currentBalance = typeof user.star_balance === 'number' ? user.star_balance : 0;
+  const newBalance = currentBalance + amount;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ star_balance: newBalance })
+    .eq('id', userId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: txError } = await supabase
+    .from('star_transactions')
+    .insert({
+      user_id: userId,
+      amount,
+      reason,
+      meta: meta || null,
+    });
+
+  if (txError) {
+    throw txError;
+  }
+
+  return newBalance;
+}
+
+// 특정 회차의 추가 매칭 도전을 정산 (호감이 전혀 없었던 엔트리에 대해 별 5개 환불)
+async function settleExtraMatchingForPeriod(periodId) {
+  if (!periodId) throw new Error('periodId가 필요합니다.');
+
+  const now = new Date();
+
+  // 해당 회차 조회
+  const { data: period, error: periodError } = await supabase
+    .from('matching_periods')
+    .select('*')
+    .eq('id', periodId)
+    .single();
+
+  if (periodError || !period) {
+    throw periodError || new Error('해당 회차를 찾을 수 없습니다.');
+  }
+
+  if (!period.finish || new Date(period.finish) > now) {
+    throw new Error('아직 종료되지 않은 회차입니다.');
+  }
+
+  // 아직 정산되지 않은 open 상태 엔트리들만 대상
+  const { data: openEntries, error: entriesError } = await supabase
+    .from('extra_matching_entries')
+    .select('*')
+    .eq('period_id', periodId)
+    .eq('status', 'open');
+
+  if (entriesError) {
+    throw entriesError;
+  }
+
+  if (!openEntries || openEntries.length === 0) {
+    return { processed: 0, refundedCount: 0 };
+  }
+
+  let processed = 0;
+  let refundedCount = 0;
+
+  for (const entry of openEntries) {
+    // 이 엔트리에 들어온 모든 apply 조회
+    const { data: applies, error: appliesError } = await supabase
+      .from('extra_matching_applies')
+      .select('id')
+      .eq('entry_id', entry.id);
+
+    if (appliesError) {
+      console.error('[extra-matching] settleExtraMatchingForPeriod apply 조회 오류:', appliesError);
+      continue;
+    }
+
+    if (!applies || applies.length === 0) {
+      // 한 번도 호감을 받지 못한 엔트리 → 별 5개 환불 + 상태 변경
+      try {
+        await awardStars(entry.user_id, 5, 'extra_match_no_likes_refund', {
+          period_id: periodId,
+          entry_id: entry.id,
+        });
+        refundedCount++;
+      } catch (refundErr) {
+        console.error('[extra-matching] settleExtraMatchingForPeriod 환불 오류:', refundErr);
+        // 환불 실패 시에도 상태는 닫아두자
+      }
+
+      const { error: updateError } = await supabase
+        .from('extra_matching_entries')
+        .update({
+          status: 'closed_no_likes',
+          closed_at: new Date().toISOString(),
+        })
+        .eq('id', entry.id);
+
+      if (updateError) {
+        console.error('[extra-matching] settleExtraMatchingForPeriod 엔트리 상태 업데이트 오류:', updateError);
+        continue;
+      }
+    } else {
+      // 호감이 한 번이라도 온 엔트리 → 환불 없이 상태만 closed
+      const { error: updateError } = await supabase
+        .from('extra_matching_entries')
+        .update({
+          status: 'closed',
+          closed_at: new Date().toISOString(),
+        })
+        .eq('id', entry.id);
+
+      if (updateError) {
+        console.error('[extra-matching] settleExtraMatchingForPeriod 엔트리 상태 업데이트 오류:', updateError);
+        continue;
+      }
+    }
+
+    processed++;
+  }
+
+  return { processed, refundedCount };
+}
+
+// ---- 라우트 구현 ----
+
+// 상태 조회: 현재 회차, 참가 가능 여부, 내 엔트리, 받은 어필 개수, 별 잔액
+router.get('/status', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const currentPeriod = await getCurrentPeriod();
+
+    if (!currentPeriod) {
+      return res.json({
+        currentPeriod: null,
+        canParticipate: false,
+        myExtraEntry: null,
+        myReceivedApplyCount: 0,
+        starBalance: 0,
+      });
+    }
+
+    const inWindow = isInExtraMatchingWindow(currentPeriod);
+
+    const { matched } = await getUserMatchingState(userId, currentPeriod.id);
+
+    // 매칭에 "성공하지 않은" 모든 사용자(매칭 실패자 + 신청 안 한 사람)는 참여 가능
+    const canParticipate = inWindow && matched !== true;
+
+    // 내 별 잔액
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('star_balance')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('[extra-matching] /status users 조회 오류:', userError);
+    }
+
+    const starBalance = user && typeof user.star_balance === 'number' ? user.star_balance : 0;
+
+    // 내 엔트리
+    const { data: myEntries, error: entryError } = await supabase
+      .from('extra_matching_entries')
+      .select('id, status')
+      .eq('period_id', currentPeriod.id)
+      .eq('user_id', userId)
+      .limit(1);
+
+    if (entryError) {
+      console.error('[extra-matching] /status entries 조회 오류:', entryError);
+    }
+
+    const myExtraEntry = myEntries && myEntries.length > 0 ? myEntries[0] : null;
+
+    // 이번 회차에서 내 추가 매칭/호감보내기 사용 상태 (UI 안내용)
+    let usageState = null;
+    try {
+      usageState = await getUserExtraUsageState(userId, currentPeriod.id);
+    } catch (e) {
+      console.error('[extra-matching] /status getUserExtraUsageState 오류:', e);
+    }
+
+    // 내가 받은 어필 개수 (pending + 처리된 것 모두 count)
+    let myReceivedApplyCount = 0;
+    if (myExtraEntry) {
+      const { data: applies, error: appliesError } = await supabase
+        .from('extra_matching_applies')
+        .select('id')
+        .eq('entry_id', myExtraEntry.id);
+
+      if (appliesError) {
+        console.error('[extra-matching] /status applies 조회 오류:', appliesError);
+      } else {
+        myReceivedApplyCount = applies ? applies.length : 0;
+      }
+    }
+
+    return res.json({
+      currentPeriod: {
+        id: currentPeriod.id,
+        application_start: currentPeriod.application_start,
+        application_end: currentPeriod.application_end,
+        matching_announce: currentPeriod.matching_announce,
+        finish: currentPeriod.finish,
+      },
+      canParticipate,
+      isMatchedSuccess: matched === true,
+      myExtraEntry,
+      myReceivedApplyCount,
+      starBalance,
+      hasExtraEntryThisPeriod: !!(usageState && usageState.hasEntryThisPeriod),
+      hasActiveExtraApply: !!(usageState && usageState.hasActiveApplyThisPeriod),
+    });
+  } catch (error) {
+    console.error('[extra-matching] /status 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// "추가 매칭 도전" 등록 (저를 추천합니다) - 별 10개 사용
+router.post('/entries', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { extraAppealText } = req.body || {};
+
+    const currentPeriod = await getCurrentPeriod();
+    if (!currentPeriod) {
+      return res.status(400).json({ message: '현재 진행 중인 매칭 회차가 없습니다.' });
+    }
+
+    const inWindow = isInExtraMatchingWindow(currentPeriod);
+    if (!inWindow) {
+      return res.status(400).json({ message: '지금은 추가 매칭 도전을 신청할 수 있는 기간이 아닙니다.' });
+    }
+
+    const { matched } = await getUserMatchingState(userId, currentPeriod.id);
+
+    // 매칭에 이미 성공한 사용자는 추가 매칭 도전에 참여할 수 없음
+    if (matched === true) {
+      return res
+        .status(400)
+        .json({ message: '이번 회차에서 매칭에 성공한 사용자는 추가 매칭 도전에 참여할 수 없습니다.' });
+    }
+
+    // 이번 회차 추가 매칭 / "호감 보내기" 사용 상태 조회
+    let usageState;
+    try {
+      usageState = await getUserExtraUsageState(userId, currentPeriod.id);
+    } catch (e) {
+      console.error('[extra-matching] /entries getUserExtraUsageState 오류:', e);
+      return res.status(500).json({ message: '추가 매칭 도전 상태를 확인하는 중 오류가 발생했습니다.' });
+    }
+
+    if (usageState.hasEntryThisPeriod) {
+      return res
+        .status(400)
+        .json({ message: '이미 이번 회차에 추가 매칭 도전 엔트리가 등록되어 있습니다.' });
+    }
+
+    if (usageState.hasActiveApplyThisPeriod) {
+      return res.status(400).json({
+        message:
+          '이번 회차에서 이미 호감을 보내셨습니다. 상대가 거절하여 신청이 종료되면 다시 추가 매칭 도전을 등록하실 수 있습니다.',
+      });
+    }
+
+    // 프로필 스냅샷
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (profileError || !profile) {
+      console.error('[extra-matching] /entries 프로필 조회 오류:', profileError);
+      return res.status(400).json({ message: '프로필 정보를 찾을 수 없습니다.' });
+    }
+
+    // 별 10개 차감
+    const spendResult = await spendStars(userId, 10, 'extra_match_entry', {
+      period_id: currentPeriod.id,
+    });
+
+    if (!spendResult.ok && spendResult.code === 'INSUFFICIENT_STARS') {
+      return res.status(400).json({ message: '별이 부족합니다. 출석체크나 광고 보상을 통해 별을 모아주세요.' });
+    }
+
+    if (!spendResult.ok) {
+      return res.status(500).json({ message: '별을 차감하는 중 오류가 발생했습니다.' });
+    }
+
+    // 프로필 스냅샷에 자기소개(appeal)를 모달에서 입력한 값으로 반영
+    const snapshot = {
+      ...profile,
+      appeal:
+        typeof extraAppealText === 'string' && extraAppealText.trim().length > 0
+          ? extraAppealText.trim()
+          : profile.appeal,
+    };
+
+    // 엔트리 생성
+    const { data: inserted, error: insertError } = await supabase
+      .from('extra_matching_entries')
+      .insert({
+        period_id: currentPeriod.id,
+        user_id: userId,
+        profile_snapshot: snapshot,
+        gender: profile.gender || null,
+        status: 'open',
+      })
+      .select('id, status')
+      .single();
+
+    if (insertError) {
+      console.error('[extra-matching] /entries 엔트리 생성 오류:', insertError);
+      // 가능하면 별 환불 처리
+      try {
+        await awardStars(userId, 10, 'extra_match_entry_rollback', {
+          period_id: currentPeriod.id,
+        });
+      } catch (e) {
+        console.error('[extra-matching] /entries 롤백 별 지급 오류:', e);
+      }
+      return res.status(500).json({ message: '추가 매칭 도전 엔트리를 생성하는 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      entry: inserted,
+      newBalance: spendResult.balance,
+    });
+  } catch (error) {
+    console.error('[extra-matching] /entries 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 엔트리 추가 어필 텍스트 저장
+router.post('/entries/:entryId/extra-appeal', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { entryId } = req.params;
+    const { extraAppealText } = req.body || {};
+    const { text } = req.body || {};
+
+    const { data: entry, error: entryError } = await supabase
+      .from('extra_matching_entries')
+      .select('id, user_id, profile_snapshot')
+      .eq('id', entryId)
+      .single();
+
+    if (entryError || !entry) {
+      console.error('[extra-matching] /entries/:entryId/extra-appeal 엔트리 조회 오류:', entryError);
+      return res.status(404).json({ message: '엔트리를 찾을 수 없습니다.' });
+    }
+
+    if (entry.user_id !== userId) {
+      return res.status(403).json({ message: '본인 엔트리에만 어필 문구를 등록할 수 있습니다.' });
+    }
+
+    const snapshot = entry.profile_snapshot || {};
+    const updatedSnapshot = {
+      ...snapshot,
+      extra_appeal_text: typeof text === 'string' ? text : null,
+    };
+
+    const { error: updateError } = await supabase
+      .from('extra_matching_entries')
+      .update({ profile_snapshot: updatedSnapshot })
+      .eq('id', entry.id);
+
+    if (updateError) {
+      console.error('[extra-matching] /entries/:entryId/extra-appeal 업데이트 오류:', updateError);
+      return res.status(500).json({ message: '어필 문구를 저장하는 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      message: '어필 문구가 저장되었습니다.',
+      extraAppealText: updatedSnapshot.extra_appeal_text || null,
+    });
+  } catch (error) {
+    console.error('[extra-matching] POST /entries/:entryId/extra-appeal 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 내 "추가 매칭 도전" 엔트리 취소 (호감 표현이 오기 전까지만 가능, 별 환불 없음)
+router.post('/entries/:entryId/cancel', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { entryId } = req.params;
+
+    const currentPeriod = await getCurrentPeriod();
+    if (!currentPeriod) {
+      return res.status(400).json({ message: '현재 진행 중인 매칭 회차가 없습니다.' });
+    }
+
+    const { data: entry, error: entryError } = await supabase
+      .from('extra_matching_entries')
+      .select('id, user_id, period_id, status')
+      .eq('id', entryId)
+      .single();
+
+    if (entryError || !entry) {
+      console.error('[extra-matching] /entries/:entryId/cancel 엔트리 조회 오류:', entryError);
+      return res.status(404).json({ message: '엔트리를 찾을 수 없습니다.' });
+    }
+
+    if (entry.user_id !== userId) {
+      return res.status(403).json({ message: '본인 엔트리만 취소할 수 있습니다.' });
+    }
+
+    if (entry.period_id !== currentPeriod.id) {
+      return res.status(400).json({ message: '현재 회차의 엔트리만 취소할 수 있습니다.' });
+    }
+
+    if (entry.status !== 'open') {
+      return res.status(400).json({ message: '이미 마감되었거나 취소된 추가 매칭 도전입니다.' });
+    }
+
+    // 이미 이성의 호감 표현(extra_matching_applies)이 있는 경우 취소 불가
+    const { data: applies, error: appliesError } = await supabase
+      .from('extra_matching_applies')
+      .select('id')
+      .eq('entry_id', entry.id);
+
+    if (appliesError) {
+      console.error('[extra-matching] /entries/:entryId/cancel applies 조회 오류:', appliesError);
+      return res.status(500).json({ message: '엔트리 상태를 확인하는 중 오류가 발생했습니다.' });
+    }
+
+    if (applies && applies.length > 0) {
+      return res.status(400).json({
+        message: '이미 이성의 호감 표현이 있어 취소할 수 없습니다.',
+      });
+    }
+
+    const nowIso = new Date().toISOString();
+
+    const { error: updateError } = await supabase
+      .from('extra_matching_entries')
+      .update({
+        status: 'cancelled',
+        closed_at: nowIso,
+      })
+      .eq('id', entry.id);
+
+    if (updateError) {
+      console.error('[extra-matching] /entries/:entryId/cancel 엔트리 상태 업데이트 오류:', updateError);
+      return res.status(500).json({ message: '엔트리를 취소하는 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      message:
+        '추가 매칭 도전 등록을 취소했습니다. 이미 사용된 별은 환불되지 않으며, 이번 회차에는 다시 등록할 수 없습니다.',
+    });
+  } catch (error) {
+    console.error('[extra-matching] POST /entries/:entryId/cancel 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 이성의 추가 매칭 도전 엔트리 리스트 조회
+router.get('/entries', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const currentPeriod = await getCurrentPeriod();
+    if (!currentPeriod || !isInExtraMatchingWindow(currentPeriod)) {
+      return res.json({ entries: [] });
+    }
+
+    // 내 성별 조회
+    const { data: myProfile, error: myProfileError } = await supabase
+      .from('user_profiles')
+      .select('gender')
+      .eq('user_id', userId)
+      .single();
+
+    if (myProfileError) {
+      console.error('[extra-matching] /entries 내 프로필 조회 오류:', myProfileError);
+    }
+
+    const myGender = myProfile ? myProfile.gender : null;
+    let oppositeGender = null;
+    if (myGender === 'male') oppositeGender = 'female';
+    else if (myGender === 'female') oppositeGender = 'male';
+
+    let query = supabase
+      .from('extra_matching_entries')
+      .select('id, period_id, user_id, profile_snapshot, gender, status')
+      .eq('period_id', currentPeriod.id)
+      // 사용자가 볼 수 있는 것은 open / sold_out 만 (cancelled, closed 등은 제외)
+      .in('status', ['open', 'sold_out'])
+      .neq('user_id', userId);
+
+    if (oppositeGender) {
+      query = query.eq('gender', oppositeGender);
+    }
+
+    const { data: entries, error: entriesError } = await query;
+
+    if (entriesError) {
+      console.error('[extra-matching] /entries 엔트리 조회 오류:', entriesError);
+      return res.status(500).json({ message: '추가 매칭 도전 엔트리를 불러오는 중 오류가 발생했습니다.' });
+    }
+
+    // 과거 매칭된 상대는 목록에서 제외
+    const { data: history, error: historyError } = await supabase
+      .from('matching_history')
+      .select('male_user_id, female_user_id')
+      .or(`male_user_id.eq.${userId},female_user_id.eq.${userId}`);
+
+    if (historyError) {
+      console.error('[extra-matching] /entries matching_history 조회 오류:', historyError);
+    }
+
+    const previouslyMatchedIds = new Set();
+    if (history && Array.isArray(history)) {
+      for (const row of history) {
+        if (row.male_user_id === userId) {
+          previouslyMatchedIds.add(row.female_user_id);
+        } else if (row.female_user_id === userId) {
+          previouslyMatchedIds.add(row.male_user_id);
+        }
+      }
+    }
+
+    const filteredEntries = (entries || []).filter(
+      (entry) => !previouslyMatchedIds.has(entry.user_id)
+    );
+
+    // 이번 회차에서 내가 각 엔트리에 보낸 호감의 상태 조회 (pending/accepted/rejected)
+    let myApplyStatusByEntryId = {};
+    if (filteredEntries.length > 0) {
+      const entryIds = filteredEntries.map((e) => e.id);
+
+      const { data: myApplies, error: myAppliesError } = await supabase
+        .from('extra_matching_applies')
+        .select('entry_id, status')
+        .eq('sender_user_id', userId)
+        .in('entry_id', entryIds);
+
+      if (myAppliesError) {
+        console.error('[extra-matching] /entries 내 호감 신청 조회 오류:', myAppliesError);
+      } else if (myApplies && myApplies.length > 0) {
+        myApplyStatusByEntryId = myApplies.reduce((acc, row) => {
+          // 동일 엔트리에 여러 줄이 있을 가능성은 없지만, 가장 최신 상태만 남도록 덮어씀
+          acc[row.entry_id] = row.status;
+          return acc;
+        }, {});
+      }
+    }
+
+    // 클라이언트에 필요한 정보만 가공
+    const mapped = filteredEntries.map((entry) => {
+      const p = entry.profile_snapshot || {};
+      return {
+        id: entry.id,
+        period_id: entry.period_id,
+        gender: entry.gender,
+        status: entry.status,
+        my_apply_status: myApplyStatusByEntryId[entry.id] || null,
+        age: p.birth_year || null,
+        job_type: p.job_type || null,
+        company: p.company || null,
+        height: p.height || null,
+        residence: p.residence || null,
+        mbti: p.mbti || null,
+        interests: p.interests || null,
+        appearance: p.appearance || null,
+        personality: p.personality || null,
+        profile: {
+          nickname: p.nickname || null,
+          birth_year: p.birth_year || null,
+          gender: p.gender || null,
+          job_type: p.job_type || null,
+          company: p.company || null,
+          height: p.height || null,
+          residence: p.residence || null,
+          mbti: p.mbti || null,
+          marital_status: p.marital_status || null,
+          appeal: p.appeal || null,
+          interests: p.interests || null,
+          appearance: p.appearance || null,
+          personality: p.personality || null,
+          body_type: p.body_type || null,
+          drinking: p.drinking || null,
+          smoking: p.smoking || null,
+          religion: p.religion || null,
+          extra_appeal_text: p.extra_appeal_text || null,
+        },
+      };
+    });
+
+    return res.json({ entries: mapped });
+  } catch (error) {
+    console.error('[extra-matching] GET /entries 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// "호감 보내기" 신청 (별 10개)
+router.post('/entries/:entryId/apply', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { entryId } = req.params;
+
+    const currentPeriod = await getCurrentPeriod();
+    if (!currentPeriod || !isInExtraMatchingWindow(currentPeriod)) {
+      return res.status(400).json({ message: '지금은 추가 매칭 도전을 신청할 수 있는 기간이 아닙니다.' });
+    }
+
+    // 대상 엔트리 조회
+    const { data: entry, error: entryError } = await supabase
+      .from('extra_matching_entries')
+      .select('*')
+      .eq('id', entryId)
+      .single();
+
+    if (entryError || !entry) {
+      console.error('[extra-matching] /entries/:entryId/apply 엔트리 조회 오류:', entryError);
+      return res.status(404).json({ message: '대상 추가 매칭 도전 엔트리를 찾을 수 없습니다.' });
+    }
+
+    if (entry.period_id !== currentPeriod.id) {
+      return res.status(400).json({ message: '현재 회차의 엔트리에만 신청할 수 있습니다.' });
+    }
+
+    if (entry.status !== 'open') {
+      // 취소된 엔트리에 대한 호감 신청은 별도의 안내 메시지로 처리
+      if (entry.status === 'cancelled') {
+        return res.status(400).json({
+          message: '상대방 프로필을 찾을 수 없습니다. 추가 매칭 도전을 취소한 상대입니다.',
+        });
+      }
+      return res.status(400).json({ message: '이미 마감된 추가 매칭 도전입니다.' });
+    }
+
+    if (entry.user_id === userId) {
+      return res.status(400).json({ message: '본인 추가 매칭 도전에 신청할 수 없습니다.' });
+    }
+
+    // 신청자는 이번 회차에 "매칭 성공"하지 않은 사용자여야 함
+    const { matched } = await getUserMatchingState(userId, currentPeriod.id);
+    if (matched === true) {
+      return res
+        .status(400)
+        .json({ message: '이번 회차에서 매칭에 성공한 사용자는 추가 매칭 도전에 참여할 수 없습니다.' });
+    }
+
+    // 이번 회차 추가 매칭 / "호감 보내기" 사용 상태 조회
+    let usageState;
+    try {
+      usageState = await getUserExtraUsageState(userId, currentPeriod.id);
+    } catch (e) {
+      console.error('[extra-matching] /entries/:entryId/apply getUserExtraUsageState 오류:', e);
+      return res.status(500).json({ message: '추가 매칭 도전 상태를 확인하는 중 오류가 발생했습니다.' });
+    }
+
+    if (usageState.hasEntryThisPeriod) {
+      return res.status(400).json({
+        message:
+          '이번 회차에서 이미 추가 매칭 도전에 등록하셔서 호감 보내기를 사용할 수 없습니다.',
+      });
+    }
+
+    if (usageState.hasActiveApplyThisPeriod) {
+      return res.status(400).json({
+        message:
+          '이번 회차에서 이미 다른 회원에게 호감을 보내셨습니다. 상대가 거절하여 신청이 종료되면 다시 시도하실 수 있습니다.',
+      });
+    }
+
+    // 기존에 같은 엔트리에 신청한 적이 있는지 확인
+    const { data: existingApply, error: existingError } = await supabase
+      .from('extra_matching_applies')
+      .select('id')
+      .eq('entry_id', entry.id)
+      .eq('sender_user_id', userId)
+      .maybeSingle();
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      console.error('[extra-matching] /entries/:entryId/apply 기존 신청 조회 오류:', existingError);
+      return res.status(500).json({ message: '신청 이력을 확인하는 중 오류가 발생했습니다.' });
+    }
+
+    if (existingApply) {
+      return res.status(400).json({ message: '이미 이 추가 매칭 도전에 신청하셨습니다.' });
+    }
+
+    // 별 10개 차감
+    const spendResult = await spendStars(userId, 10, 'extra_match_apply', {
+      period_id: currentPeriod.id,
+      entry_id: entry.id,
+      entry_owner_id: entry.user_id,
+    });
+
+    if (!spendResult.ok && spendResult.code === 'INSUFFICIENT_STARS') {
+      return res.status(400).json({ message: '별이 부족합니다. 출석체크나 광고 보상을 통해 별을 모아주세요.' });
+    }
+    if (!spendResult.ok) {
+      return res.status(500).json({ message: '별을 차감하는 중 오류가 발생했습니다.' });
+    }
+
+    // apply row 생성
+    const { data: apply, error: applyError } = await supabase
+      .from('extra_matching_applies')
+      .insert({
+        entry_id: entry.id,
+        sender_user_id: userId,
+        status: 'pending',
+        used_star_amount: 10,
+        refunded_star_amount: 0,
+        // extraAppealText 는 현재 테이블에 별도 컬럼이 없으므로,
+        // 프로필의 appeal 을 갱신하는 방식으로 처리 (프론트에서 /users/me 업데이트 후 스냅샷 사용)
+      })
+      .select('id, status')
+      .single();
+
+    if (applyError) {
+      console.error('[extra-matching] /entries/:entryId/apply 생성 오류:', applyError);
+      // 가능하면 환불 처리
+      try {
+        await awardStars(userId, 10, 'extra_match_apply_rollback', {
+          period_id: currentPeriod.id,
+          entry_id: entry.id,
+        });
+      } catch (e) {
+        console.error('[extra-matching] /entries/:entryId/apply 롤백 별 지급 오류:', e);
+      }
+      return res.status(500).json({ message: '신청을 생성하는 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      apply,
+      newBalance: spendResult.balance,
+    });
+  } catch (error) {
+    console.error('[extra-matching] POST /entries/:entryId/apply 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 내가 받은 "호감 보내기" 목록
+router.get('/my-received-applies', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    const currentPeriod = await getCurrentPeriod();
+    if (!currentPeriod) {
+      return res.json({
+        entry: null,
+        applies: [],
+      });
+    }
+
+    // 내 엔트리 찾기
+    const { data: myEntries, error: entryError } = await supabase
+      .from('extra_matching_entries')
+      .select('id, period_id, status')
+      .eq('period_id', currentPeriod.id)
+      .eq('user_id', userId)
+      .limit(1);
+
+    if (entryError) {
+      console.error('[extra-matching] /my-received-applies 엔트리 조회 오류:', entryError);
+      return res.status(500).json({ message: '추가 매칭 도전 상태를 불러오는 중 오류가 발생했습니다.' });
+    }
+
+    const entry = myEntries && myEntries.length > 0 ? myEntries[0] : null;
+
+    if (!entry) {
+      return res.json({
+        entry: null,
+        applies: [],
+      });
+    }
+
+    // 이 엔트리에 들어온 모든 apply 조회
+    const { data: applies, error: appliesError } = await supabase
+      .from('extra_matching_applies')
+      .select('id, sender_user_id, status, created_at')
+      .eq('entry_id', entry.id)
+      .order('created_at', { ascending: false });
+
+    if (appliesError) {
+      console.error('[extra-matching] /my-received-applies apply 조회 오류:', appliesError);
+      return res.status(500).json({ message: '신청 내역을 불러오는 중 오류가 발생했습니다.' });
+    }
+
+    const senderIds = Array.from(new Set((applies || []).map((a) => a.sender_user_id)));
+
+    let profilesByUserId = {};
+    if (senderIds.length > 0) {
+      const { data: profiles, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .in('user_id', senderIds);
+
+      if (profileError) {
+        console.error('[extra-matching] /my-received-applies 프로필 조회 오류:', profileError);
+      } else {
+        profilesByUserId = (profiles || []).reduce((acc, p) => {
+          acc[p.user_id] = p;
+          return acc;
+        }, {});
+      }
+    }
+
+    const mappedApplies = (applies || []).map((a) => {
+      const p = profilesByUserId[a.sender_user_id] || {};
+      return {
+        id: a.id,
+        sender_user_id: a.sender_user_id,
+        status: a.status,
+        created_at: a.created_at,
+        profile: {
+          nickname: p.nickname || null,
+          birth_year: p.birth_year || null,
+          gender: p.gender || null,
+          job_type: p.job_type || null,
+          company: p.company || null,
+          height: p.height || null,
+          residence: p.residence || null,
+          mbti: p.mbti || null,
+          marital_status: p.marital_status || null,
+          appeal: p.appeal || null,
+          interests: p.interests || null,
+          appearance: p.appearance || null,
+          personality: p.personality || null,
+          body_type: p.body_type || null,
+          drinking: p.drinking || null,
+          smoking: p.smoking || null,
+          religion: p.religion || null,
+        },
+      };
+    });
+
+    return res.json({
+      entry,
+      applies: mappedApplies,
+    });
+  } catch (error) {
+    console.error('[extra-matching] GET /my-received-applies 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// "호감 보내기" 수락
+router.post('/applies/:applyId/accept', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { applyId } = req.params;
+
+    // apply + entry 함께 조회
+    const { data: apply, error: applyError } = await supabase
+      .from('extra_matching_applies')
+      .select('id, entry_id, sender_user_id, status, used_star_amount, refunded_star_amount')
+      .eq('id', applyId)
+      .single();
+
+    if (applyError || !apply) {
+      console.error('[extra-matching] /applies/:applyId/accept apply 조회 오류:', applyError);
+      return res.status(404).json({ message: '신청 내역을 찾을 수 없습니다.' });
+    }
+
+    if (apply.status !== 'pending') {
+      return res.status(400).json({ message: '이미 처리된 신청입니다.' });
+    }
+
+    const { data: entry, error: entryError } = await supabase
+      .from('extra_matching_entries')
+      .select('*')
+      .eq('id', apply.entry_id)
+      .single();
+
+    if (entryError || !entry) {
+      console.error('[extra-matching] /applies/:applyId/accept 엔트리 조회 오류:', entryError);
+      return res.status(404).json({ message: '엔트리를 찾을 수 없습니다.' });
+    }
+
+    if (entry.user_id !== userId) {
+      return res.status(403).json({ message: '본인 엔트리에 대한 신청만 처리할 수 있습니다.' });
+    }
+
+    if (entry.status !== 'open') {
+      return res.status(400).json({ message: '이미 마감된 추가 매칭 도전입니다.' });
+    }
+
+    // apply 수락 처리
+    const nowIso = new Date().toISOString();
+
+    const { error: updateApplyError } = await supabase
+      .from('extra_matching_applies')
+      .update({
+        status: 'accepted',
+        decided_at: nowIso,
+      })
+      .eq('id', apply.id);
+
+    if (updateApplyError) {
+      console.error('[extra-matching] /applies/:applyId/accept apply 업데이트 오류:', updateApplyError);
+      return res.status(500).json({ message: '신청을 처리하는 중 오류가 발생했습니다.' });
+    }
+
+    const { error: updateEntryError } = await supabase
+      .from('extra_matching_entries')
+      .update({
+        status: 'sold_out',
+        closed_at: nowIso,
+      })
+      .eq('id', entry.id);
+
+    if (updateEntryError) {
+      console.error('[extra-matching] /applies/:applyId/accept entry 업데이트 오류:', updateEntryError);
+      return res.status(500).json({ message: '엔트리 상태를 갱신하는 중 오류가 발생했습니다.' });
+    }
+
+    // 같은 엔트리에 대기 중이던 다른 호감들은 자동 거절 + 별 5개 환불
+    try {
+      const { data: otherPending, error: otherError } = await supabase
+        .from('extra_matching_applies')
+        .select('*')
+        .eq('entry_id', entry.id)
+        .eq('status', 'pending');
+
+      if (otherError) {
+        console.error('[extra-matching] /applies/:applyId/accept 다른 신청 조회 오류:', otherError);
+      } else if (otherPending && otherPending.length > 0) {
+        for (const other of otherPending) {
+          const { error: updErr } = await supabase
+            .from('extra_matching_applies')
+            .update({
+              status: 'rejected',
+              decided_at: nowIso,
+              refunded_star_amount: 5,
+            })
+            .eq('id', other.id);
+
+          if (updErr) {
+            console.error('[extra-matching] /applies/:applyId/accept 자동 거절 업데이트 오류:', updErr);
+            continue;
+          }
+
+          try {
+            await awardStars(other.sender_user_id, 5, 'extra_match_auto_reject', {
+              entry_id: entry.id,
+              apply_id: other.id,
+            });
+          } catch (refundErr) {
+            console.error('[extra-matching] /applies/:applyId/accept 자동 거절 환불 오류:', refundErr);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[extra-matching] /applies/:applyId/accept 자동 거절 처리 중 예외:', e);
+    }
+
+    // 매칭 이력 기록 (정규 매칭과 동일한 방식으로 matching_history에 추가)
+    try {
+      const { data: profiles, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('user_id, nickname, gender')
+        .in('user_id', [entry.user_id, apply.sender_user_id]);
+
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, email')
+        .in('id', [entry.user_id, apply.sender_user_id]);
+
+      if (profileError || usersError) {
+        console.error('[extra-matching] 매칭 이력용 프로필/유저 조회 오류:', profileError || usersError);
+      } else {
+        const getProfile = (id) => profiles.find((p) => p.user_id === id) || {};
+        const getUser = (id) => users.find((u) => u.id === id) || {};
+
+        const entryProfile = getProfile(entry.user_id);
+        const senderProfile = getProfile(apply.sender_user_id);
+        const entryUser = getUser(entry.user_id);
+        const senderUser = getUser(apply.sender_user_id);
+
+        let maleId = entry.user_id;
+        let femaleId = apply.sender_user_id;
+
+        if (entryProfile.gender === 'female' && senderProfile.gender === 'male') {
+          maleId = apply.sender_user_id;
+          femaleId = entry.user_id;
+        } else if (entryProfile.gender === 'male' && senderProfile.gender !== 'female') {
+          maleId = entry.user_id;
+          femaleId = apply.sender_user_id;
+        }
+
+        const maleProfile = getProfile(maleId);
+        const femaleProfile = getProfile(femaleId);
+        const maleUser = getUser(maleId);
+        const femaleUser = getUser(femaleId);
+
+        const matchedAt = new Date().toISOString();
+
+        const { error: insertHistoryError } = await supabase
+          .from('matching_history')
+          .insert({
+            period_id: entry.period_id,
+            male_user_id: maleId,
+            female_user_id: femaleId,
+            male_nickname: maleProfile.nickname || null,
+            female_nickname: femaleProfile.nickname || null,
+            male_gender: maleProfile.gender || null,
+            female_gender: femaleProfile.gender || null,
+            male_user_email: maleUser.email || null,
+            female_user_email: femaleUser.email || null,
+            created_at: matchedAt,
+            matched: true,
+            matched_at: matchedAt,
+          });
+
+        if (insertHistoryError) {
+          console.error('[extra-matching] matching_history 기록 오류:', insertHistoryError);
+        }
+      }
+    } catch (e) {
+      console.error('[extra-matching] matching_history 기록 중 예외:', e);
+    }
+
+    // 채팅방 생성은 기존 채팅 시스템이 period_id + 두 user_id 로 방을 구분하므로
+    // 별도 room 테이블 필요 없음. 클라이언트에서 period_id=entry.period_id, 상대 userId=apply.sender_user_id 로 접속하면 됨.
+
+    return res.json({
+      success: true,
+      message: '신청을 수락했습니다. 상대방과의 채팅을 시작해보세요.',
+      partnerUserId: apply.sender_user_id,
+      periodId: entry.period_id,
+    });
+  } catch (error) {
+    console.error('[extra-matching] POST /applies/:applyId/accept 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// "호감 보내기" 거절 (별 5개 환불)
+router.post('/applies/:applyId/reject', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { applyId } = req.params;
+
+    const { data: apply, error: applyError } = await supabase
+      .from('extra_matching_applies')
+      .select('*')
+      .eq('id', applyId)
+      .single();
+
+    if (applyError || !apply) {
+      console.error('[extra-matching] /applies/:applyId/reject apply 조회 오류:', applyError);
+      return res.status(404).json({ message: '신청 내역을 찾을 수 없습니다.' });
+    }
+
+    if (apply.status !== 'pending') {
+      return res.status(400).json({ message: '이미 처리된 신청입니다.' });
+    }
+
+    const { data: entry, error: entryError } = await supabase
+      .from('extra_matching_entries')
+      .select('*')
+      .eq('id', apply.entry_id)
+      .single();
+
+    if (entryError || !entry) {
+      console.error('[extra-matching] /applies/:applyId/reject 엔트리 조회 오류:', entryError);
+      return res.status(404).json({ message: '엔트리를 찾을 수 없습니다.' });
+    }
+
+    if (entry.user_id !== userId) {
+      return res.status(403).json({ message: '본인 엔트리에 대한 신청만 처리할 수 있습니다.' });
+    }
+
+    // 거절 처리 + 환불
+    const nowIso = new Date().toISOString();
+
+    const { error: updateApplyError } = await supabase
+      .from('extra_matching_applies')
+      .update({
+        status: 'rejected',
+        decided_at: nowIso,
+        refunded_star_amount: 5,
+      })
+      .eq('id', apply.id);
+
+    if (updateApplyError) {
+      console.error('[extra-matching] /applies/:applyId/reject apply 업데이트 오류:', updateApplyError);
+      return res.status(500).json({ message: '신청을 처리하는 중 오류가 발생했습니다.' });
+    }
+
+    let newBalance;
+    try {
+      newBalance = await awardStars(apply.sender_user_id, 5, 'extra_match_refund_reject', {
+        entry_id: entry.id,
+        apply_id: apply.id,
+      });
+    } catch (e) {
+      console.error('[extra-matching] /applies/:applyId/reject 별 환불 오류:', e);
+      return res.status(500).json({ message: '별 환불 처리 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      message: '신청을 거절하고 상대방에게 일부 별을 환불했습니다.',
+      refundedToUserId: apply.sender_user_id,
+      newPartnerBalance: newBalance,
+    });
+  } catch (error) {
+    console.error('[extra-matching] POST /applies/:applyId/reject 처리 오류:', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// (관리용) 특정 회차의 추가 매칭 도전 정산 API
+// - 아직 open 상태인 엔트리만 대상으로, 호감이 한 번도 오지 않은 경우 별 5개 환불
+router.post('/settle/:periodId', async (req, res) => {
+  try {
+    const { periodId } = req.params;
+    const numericId = Number(periodId);
+    if (!numericId || Number.isNaN(numericId)) {
+      return res.status(400).json({ message: '유효한 periodId가 필요합니다.' });
+    }
+
+    const result = await settleExtraMatchingForPeriod(numericId);
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('[extra-matching] POST /settle/:periodId 처리 오류:', error);
+    return res.status(500).json({ message: '정산 처리 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+module.exports = router;
+
+
+

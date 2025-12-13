@@ -329,6 +329,90 @@ export const systemApi = {
   },
 };
 
+// 별 / 출석 API
+export const starApi = {
+  // 내 별 잔액 및 최근 내역 조회
+  getMyStars: async (): Promise<any> => {
+    const response = await api.get('/stars/me');
+    return response.data;
+  },
+
+  // 일일 출석 체크 (별 1개)
+  dailyAttendance: async (): Promise<{ success: boolean; message?: string; newBalance?: number }> => {
+    const response = await api.post('/stars/attendance/daily');
+    return response.data;
+  },
+
+  // 광고 보기 보상 (별 2개)
+  adReward: async (): Promise<{ success: boolean; message?: string; newBalance?: number }> => {
+    const response = await api.post('/stars/attendance/ad');
+    return response.data;
+  },
+};
+
+// 추가 매칭 도전(패자부활전) API
+export const extraMatchingApi = {
+  // 상태 조회 (현재 회차, 참가 가능 여부, 내 엔트리, 받은 어필 개수, 별 잔액)
+  getStatus: async (): Promise<any> => {
+    const response = await api.get('/extra-matching/status');
+    return response.data;
+  },
+
+      // "추가 매칭 도전" 엔트리 생성 (별 10개 사용)
+  createEntry: async (extraAppealText?: string): Promise<any> => {
+    const payload = extraAppealText && extraAppealText.trim().length > 0
+      ? { extraAppealText: extraAppealText.trim() }
+      : {};
+    const response = await api.post('/extra-matching/entries', payload);
+    return response.data;
+  },
+
+      // 내 추가 매칭 도전 엔트리 취소 (호감 표현이 오기 전까지만, 별 환불 없음)
+      cancelEntry: async (entryId: number): Promise<any> => {
+        const response = await api.post(`/extra-matching/entries/${entryId}/cancel`);
+        return response.data;
+      },
+
+  // 엔트리 추가 어필 텍스트 저장
+  saveEntryAppeal: async (entryId: number, text: string): Promise<any> => {
+    const response = await api.post(`/extra-matching/entries/${entryId}/extra-appeal`, { text });
+    return response.data;
+  },
+
+  // 이성들의 추가 매칭 도전 엔트리 목록 조회
+  listEntries: async (): Promise<{ entries: any[] }> => {
+    const response = await api.get('/extra-matching/entries');
+    return response.data;
+  },
+
+  // 특정 엔트리에 "호감 보내기" 신청 (별 10개 사용)
+  applyEntry: async (entryId: number, extraAppealText?: string): Promise<any> => {
+    const payload = extraAppealText && extraAppealText.trim().length > 0
+      ? { extraAppealText: extraAppealText.trim() }
+      : {};
+    const response = await api.post(`/extra-matching/entries/${entryId}/apply`, payload);
+    return response.data;
+  },
+
+  // 내가 받은 "호감 보내기" 목록 조회
+  getMyReceivedApplies: async (): Promise<{ entry: any; applies: any[] }> => {
+    const response = await api.get('/extra-matching/my-received-applies');
+    return response.data;
+  },
+
+  // "호감 보내기" 수락
+  acceptApply: async (applyId: number): Promise<any> => {
+    const response = await api.post(`/extra-matching/applies/${applyId}/accept`);
+    return response.data;
+  },
+
+  // "호감 보내기" 거절 (별 5개 환불)
+  rejectApply: async (applyId: number): Promise<any> => {
+    const response = await api.post(`/extra-matching/applies/${applyId}/reject`);
+    return response.data;
+  },
+};
+
 // Admin API
 export const adminApi = {
   getAllUsers: async (): Promise<(User & UserProfile)[]> => {
