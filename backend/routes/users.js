@@ -248,69 +248,24 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
   const targetId = String(req.params.userId);
 
   // 매칭 정보(상대 프로필 스냅샷용) 보관용 변수
-  // period_id + type(main/extra)을 함께 보관해서 어떤 스냅샷을 볼지 결정
   let matchRowForSnapshot = null;
 
   if (requesterId !== targetId) {
-    let isMatchedWithTarget = false;
-
-    // 1) 정규 매칭(matching_applications, type='main') 기준으로 먼저 확인
-    try {
+    // 매칭 성공 여부 확인
     const { data: matchRow, error: matchError } = await supabase
       .from('matching_applications')
-        .select('matched, partner_user_id, period_id, type')
+      .select('matched, partner_user_id, period_id')
       .eq('user_id', requesterId)
-        .eq('type', 'main')
       .order('applied_at', { ascending: false })
       .limit(1)
-        .maybeSingle();
+      .single();
 
-      if (!matchError && matchRow && matchRow.matched && matchRow.partner_user_id === targetId) {
-        isMatchedWithTarget = true;
-        matchRowForSnapshot = {
-          period_id: matchRow.period_id,
-          type: matchRow.type || 'main',
-        };
-      }
-    } catch (e) {
-      console.error('[users/:userId/profile] matching_applications 조회 오류:', e);
-    }
-
-    // 2) 정규 매칭이 아니더라도, matching_history(정규+추가 매칭 공통)에서 매칭된 적이 있으면 허용
-    if (!isMatchedWithTarget) {
-      try {
-        const { data: historyRow, error: historyError } = await supabase
-          .from('matching_history')
-          .select('period_id, male_user_id, female_user_id, matched, type')
-          .eq('matched', true)
-          .or(`male_user_id.eq.${requesterId},female_user_id.eq.${requesterId}`)
-          .order('matched_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (
-          !historyError &&
-          historyRow &&
-          (
-            (historyRow.male_user_id === requesterId && historyRow.female_user_id === targetId) ||
-            (historyRow.female_user_id === requesterId && historyRow.male_user_id === targetId)
-          )
-        ) {
-          isMatchedWithTarget = true;
-          // 정규 매칭이면 type='main', 추가 매칭이면 type='extra' 로 스냅샷 조회용 정보 보관
-          matchRowForSnapshot = {
-            period_id: historyRow.period_id,
-            type: historyRow.type || 'main',
-          };
-        }
-      } catch (e) {
-        console.error('[users/:userId/profile] matching_history 조회 오류:', e);
-      }
-    }
-
-    if (!isMatchedWithTarget) {
+    if (matchError || !matchRow || !matchRow.matched || matchRow.partner_user_id !== targetId) {
       return res.status(403).json({ error: '본인 또는 매칭된 상대방만 프로필을 조회할 수 있습니다.' });
     }
+
+    // 상대방 프로필 스냅샷 조회 시 사용할 매칭 row 저장
+    matchRowForSnapshot = matchRow;
   }
 
   try {
@@ -331,7 +286,7 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
       }
       profileData = data;
     } else {
-      // 매칭된 상대방인 경우: 매칭 당시 스냅샷을 우선 사용 (정규 main / 추가 extra 공통)
+      // 매칭된 상대방인 경우: 매칭 신청 당시 스냅샷을 우선 사용
       let snapshot = null;
       if (matchRowForSnapshot && matchRowForSnapshot.period_id) {
         const { data: appRow, error: appError } = await supabase
@@ -339,7 +294,6 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
           .select('profile_snapshot')
           .eq('user_id', targetId)
           .eq('period_id', matchRowForSnapshot.period_id)
-          .eq('type', matchRowForSnapshot.type || 'main')
           .order('applied_at', { ascending: false })
           .limit(1)
           .maybeSingle();

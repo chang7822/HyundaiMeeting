@@ -19,9 +19,6 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   transition: margin-left 0.3s;
-  max-width: 100vw;
-  box-sizing: border-box;
-  overflow-x: hidden;
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1rem;
@@ -36,11 +33,16 @@ const ContentWrapper = styled.div`
   overflow: hidden;
   min-height: calc(100vh - 4rem);
   width: 100%;
-  max-width: 1040px;
+  max-width: 95vw;
   margin: 0 auto;
-
-  @media (max-width: 768px) {
-    margin: 0 auto;
+  @media (min-width: 600px) {
+    max-width: 600px;
+  }
+  @media (min-width: 900px) {
+    max-width: 800px;
+  }
+  @media (min-width: 1200px) {
+    max-width: 1000px;
   }
 `;
 
@@ -48,7 +50,7 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 1.8rem;
+  padding: 2rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 `;
@@ -75,22 +77,22 @@ const CloseButton = styled.button`
 `;
 
 const Title = styled.h1`
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: 700;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  
-  @media (max-width: 768px) {
-    font-size: 1.3rem;
-  }
 `;
 
 
 
 const FaqList = styled.div`
-  padding: 1.5rem 1.25rem 2rem;
+  padding: 2rem;
+  
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
 `;
 
 const FaqItem = styled.div<{ $isOpen: boolean }>`
@@ -105,6 +107,10 @@ const FaqItem = styled.div<{ $isOpen: boolean }>`
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
     border-color: #667eea;
+  }
+  
+  @media (max-width: 768px) {
+    margin: 0 0.5rem 1rem 0.5rem;
   }
 `;
 
