@@ -3,6 +3,7 @@ import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { extraMatchingApi } from '../services/api.ts';
 import { userApi } from '../services/api.ts';
+import { useNavigate } from 'react-router-dom';
 
 interface ExtraMatchingPageProps {
   sidebarOpen: boolean;
@@ -295,6 +296,7 @@ const ModalPrimaryButton = styled.button`
 `;
 
 const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) => {
+  const navigate = useNavigate();
   const [status, setStatus] = useState<any | null>(null);
   const [entries, setEntries] = useState<any[]>([]);
   const [received, setReceived] = useState<{ entry: any; applies: any[] } | null>(null);
@@ -316,6 +318,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
   const [showReceivedProfileModal, setShowReceivedProfileModal] = useState(false);
   const [selectedReceivedProfile, setSelectedReceivedProfile] = useState<any | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [showExtraInfoModal, setShowExtraInfoModal] = useState(false);
 
   const loadAll = async () => {
     try {
@@ -343,7 +346,6 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
         setApplyAppealText(baseAppeal);
       }
     } catch (error: any) {
-      console.error('[ExtraMatchingPage] 데이터 로드 오류:', error);
       const msg =
         error?.response?.data?.message ||
         '추가 매칭 도전 정보를 불러오는 중 오류가 발생했습니다.';
@@ -371,7 +373,8 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
           await userApi.updateMe({ appeal: trimmedAppeal });
           setMyProfile({ ...myProfile, appeal: trimmedAppeal });
         } catch (e) {
-          console.error('[ExtraMatchingPage] updateMe 실패 (엔트리 등록 전):', e);
+          // updateMe 실패는 토스트만으로 안내하고 콘솔 출력은 생략
+          toast.error('프로필 자기소개를 업데이트하는 중 오류가 발생했습니다.');
         }
       }
 
@@ -380,7 +383,6 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
       // 상태 갱신
       await loadAll();
     } catch (error: any) {
-      console.error('[ExtraMatchingPage] 엔트리 생성 오류:', error);
       const msg =
         error?.response?.data?.message ||
         '추가 매칭 도전을 등록하는 중 오류가 발생했습니다.';
@@ -404,23 +406,25 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
           await userApi.updateMe({ appeal: trimmedAppeal });
           setMyProfile({ ...myProfile, appeal: trimmedAppeal });
         } catch (e) {
-          console.error('[ExtraMatchingPage] updateMe 실패 (호감 보내기 전):', e);
+          // updateMe 실패는 토스트만으로 안내하고 콘솔 출력은 생략
+          toast.error('프로필 자기소개를 업데이트하는 중 오류가 발생했습니다.');
         }
       }
 
       const res = await extraMatchingApi.applyEntry(entryId, trimmedAppeal);
       toast.success(
         res.message ||
-          '상대에게 호감을 보냈습니다. 이번 회차에는 한 번만 사용할 수 있어 다른 도전에는 다시 신청할 수 없습니다.'
+          '상대에게 호감을 보냈습니다. 상대가 승낙을 하면 채팅방이 개설됩니다.'
       );
       setHasUsedApply(true);
       await loadAll();
     } catch (error: any) {
-      console.error('[ExtraMatchingPage] apply 오류:', error);
       const msg =
         error?.response?.data?.message ||
         '"호감 보내기" 신청 중 오류가 발생했습니다.';
       toast.error(msg);
+      // 엔트리가 취소되었거나 상태가 바뀐 경우 UI를 최신화하기 위해 재조회
+      await loadAll();
     } finally {
       setActionLoading(false);
     }
@@ -439,8 +443,10 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
         res.message || '신청을 수락했습니다. 채팅에서 대화를 이어가 보세요.'
       );
       await loadAll();
+      // 정규 매칭과 동일하게, 수락 후에는 메인 화면으로 이동하여
+      // 매칭 성공 상태와 채팅 진입 버튼을 확인할 수 있도록 한다.
+      navigate('/main');
     } catch (error: any) {
-      console.error('[ExtraMatchingPage] accept 오류:', error);
       const msg =
         error?.response?.data?.message ||
         '신청을 수락하는 중 오류가 발생했습니다.';
@@ -464,7 +470,6 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
       );
       await loadAll();
     } catch (error: any) {
-      console.error('[ExtraMatchingPage] reject 오류:', error);
       const msg =
         error?.response?.data?.message ||
         '신청을 거절하는 중 오류가 발생했습니다.';
@@ -474,13 +479,42 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
     }
   };
 
+  const doCancelEntry = async () => {
+    if (!myEntry) return;
+    try {
+      setActionLoading(true);
+      const res = await extraMatchingApi.cancelEntry(myEntry.id);
+      toast.success(
+        res.message ||
+          '추가 매칭 도전 등록을 취소했습니다. 이미 사용된 별은 환불되지 않습니다.'
+      );
+      await loadAll();
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        '추가 매칭 도전을 취소하는 중 오류가 발생했습니다.';
+      toast.error(msg);
+      // 취소가 거절된 경우(이미 이성의 호감이 들어온 시점 등)에도
+      // 최신 상태를 반영하기 위해 다시 조회
+      await loadAll();
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const myCanParticipate = !!status?.canParticipate;
-  const myEntry = status?.myExtraEntry || null;
-  const myEntryStatus = myEntry?.status || null;
+  const rawMyEntry = status?.myExtraEntry || null;
+  const myEntryStatus = rawMyEntry?.status || null;
+  // 화면에서는 open / sold_out 상태의 엔트리만 "현재 활성 엔트리"로 취급
+  const myEntry =
+    rawMyEntry && (myEntryStatus === 'open' || myEntryStatus === 'sold_out')
+      ? rawMyEntry
+      : null;
   const currentPeriod = status?.currentPeriod || null;
   const isMatchedSuccess = status?.isMatchedSuccess === true;
   const hasActiveExtraApply = status?.hasActiveExtraApply === true;
-  const myReceivedApplyCount = typeof status?.myReceivedApplyCount === 'number' ? status.myReceivedApplyCount : 0;
+  const myReceivedApplyCount =
+    typeof status?.myReceivedApplyCount === 'number' ? status.myReceivedApplyCount : 0;
   const canCancelMyEntry =
     !!myEntry && myEntryStatus === 'open' && myReceivedApplyCount === 0;
 
@@ -532,6 +566,56 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
         <Subtitle>
           이번 회차에서 매칭이 아쉬웠다면, <strong>추가 매칭 도전</strong>으로 한 번 더 인연을 찾아보세요.
         </Subtitle>
+        <div
+          style={{
+            marginBottom: 16,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+            flexWrap: 'wrap',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowExtraInfoModal(true)}
+            style={{
+              border: 'none',
+              background: 'rgba(255,255,255,0.18)',
+              color: '#e5e7ff',
+              padding: '4px 10px',
+              borderRadius: 999,
+              fontSize: '0.8rem',
+              cursor: 'pointer',
+            }}
+          >
+            추가 매칭 도전이란?
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!actionLoading) {
+                loadAll();
+              }
+            }}
+            style={{
+              border: 'none',
+              background: 'rgba(255,255,255,0.16)',
+              color: '#e5e7ff',
+              width: 26,
+              height: 26,
+              borderRadius: '999px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '0.9rem',
+              cursor: actionLoading ? 'default' : 'pointer',
+              opacity: actionLoading ? 0.6 : 1,
+            }}
+            aria-label="추가 매칭 도전 새로고침"
+          >
+            ↻
+          </button>
+        </div>
 
         <ChipButtonRow>
           {remainingText && (
@@ -568,8 +652,6 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
               : myEntry
               ? canCancelMyEntry
                 ? '추가 매칭 도전 취소하기'
-                : myEntryStatus === 'cancelled'
-                ? '추가 매칭 도전 취소됨'
                 : '추가 매칭 도전 등록 완료'
               : isMatchedSuccess
               ? '이번 회차 매칭 성공자는 참여할 수 없습니다'
@@ -590,11 +672,66 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
             {isMatchedSuccess
               ? '이번 회차에서 매칭에 성공한 회원님은 추가 매칭 도전을 사용할 수 없습니다.'
               : hasActiveExtraApply
-              ? '이번 회차에서 이미 다른 회원에게 호감을 보내셨습니다. 상대가 거절하여 신청이 종료되면 다시 추가 매칭 도전을 등록하실 수 있습니다.'
+              ? '이미 다른 회원에게 호감을 보내셨습니다. 상대가 거절하면 추가 매칭 도전을 등록하실 수 있습니다.'
               : !myCanParticipate
               ? '이번 회차에서 매칭 실패자가 아니거나, 추가 매칭 도전 기간이 아닙니다.'
               : ''}
           </div>
+        )}
+
+        {showExtraInfoModal && (
+          <ModalOverlay
+            onClick={() => {
+              setShowExtraInfoModal(false);
+            }}
+          >
+            <ModalContent onClick={(e) => e.stopPropagation()}>
+              <ModalTitle>추가 매칭 도전이란?</ModalTitle>
+              <ModalBody>
+                <p style={{ marginBottom: 10 }}>
+                  <strong>정규 매칭에서 아쉽게 인연을 못 찾은 회원</strong>이
+                  한 번 더 상대를 만날 수 있도록 열어두는 <strong>추가 기회</strong>입니다.
+                </p>
+                <ul style={{ paddingLeft: 18, margin: '0 0 10px 0', fontSize: '0.86rem', color: '#374151' }}>
+                  <li style={{ marginBottom: 4 }}>
+                    <strong>참여 대상</strong> – 이번 회차에 매칭에 실패했거나 신청을 안 한 회원만 참여할 수 있습니다.
+                  </li>
+                  <li style={{ marginBottom: 4 }}>
+                    <strong>진행 방식</strong> – 내 프로필을 추가로 공개해두면, 이성이 나에게
+                    <strong>호감 보내기</strong>로 다시 한 번 신청을 보낼 수 있습니다.
+                  </li>
+                  <li style={{ marginBottom: 4 }}>
+                    <strong>중복 매칭 방지</strong> – 내가 추가 매칭 도전에 등록하면,
+                    이성들의 추가 매칭 도전 목록에서 <strong>호감 보내기 버튼을 사용할 수 없습니다.</strong>
+                  </li>
+                  <li style={{ marginBottom: 4 }}>
+                    <strong>재화 사용</strong> – 추가 매칭 도전 등록에는 <strong>별 10개</strong>가 사용되며,
+                    이미 사용한 별은 <strong>취소해도 환불되지 않습니다.</strong>
+                  </li>
+                  <li style={{ marginBottom: 4 }}>
+                    <strong>취소 규칙</strong> – 이성의 호감 표현이 <strong>도착하기 전까지만</strong> 직접 취소할 수 있고,
+                    취소 후에는 이번 회차에 다시 등록할 수 없습니다.
+                  </li>
+                  <li style={{ marginBottom: 4 }}>
+                    <strong>환불 규칙</strong> – 기간이 끝날 때까지 단 한 번도 호감을 받지 못한 경우에만
+                    <strong>별 5개가 자동 환불</strong>됩니다.
+                  </li>
+                </ul>
+                <p style={{ margin: 0, fontSize: '0.86rem', color: '#4b5563' }}>
+                  추가 매칭 도전에서 한 번이라도 매칭이 성사되면, 정규 매칭과 마찬가지로
+                  <strong>매칭 이력에 기록</strong>되어 다음 회차 매칭에서는 서로 다시 매칭되지 않습니다.
+                </p>
+              </ModalBody>
+              <ModalActions>
+                <ModalPrimaryButton
+                  type="button"
+                  onClick={() => setShowExtraInfoModal(false)}
+                >
+                  확인
+                </ModalPrimaryButton>
+              </ModalActions>
+            </ModalContent>
+          </ModalOverlay>
         )}
         {isMatchedSuccess && (
           <MatchedNotice>
@@ -730,8 +867,12 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 </EmptyState>
               </Card>
             ) : (
-              received.applies.map((apply) => (
-                <Card
+              received.applies.map((apply) => {
+                const isAccepted = apply.status === 'accepted';
+                const isRejected = apply.status === 'rejected';
+
+                return (
+                  <Card
                   key={apply.id}
                   onClick={() => {
                     if (apply.profile) {
@@ -743,37 +884,42 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     cursor: apply.profile ? 'pointer' : 'default',
                     position: 'relative',
                     overflow: 'hidden',
+                    background: isAccepted ? '#ecfdf3' : '#ffffff',
+                    borderColor: isAccepted ? '#bbf7d0' : '#e5e7eb',
                   }}
                 >
+                  {/* 닉네임은 숨기고, 매칭 도전 리스트와 동일하게 성별 + 연령/키만 헤더로 표시 */}
                   <div style={{ marginBottom: 6 }}>
                     <strong>
-                      {apply.profile?.nickname || '익명'} (
                       {apply.profile?.gender === 'male'
                         ? '남성'
                         : apply.profile?.gender === 'female'
                         ? '여성'
-                        : '성별 비공개'}
-                      )
+                        : '회원'}{' '}
+                      ·{' '}
+                      {apply.profile?.birth_year
+                        ? `${apply.profile.birth_year}년생`
+                        : apply.profile?.height
+                        ? `${apply.profile.height}cm`
+                        : '연령/키 비공개'}
                     </strong>
                   </div>
                   <div style={{ fontSize: '0.86rem', color: '#4b5563', marginBottom: 4 }}>
-                    {apply.profile?.birth_year && (
-                      <span style={{ marginRight: 8 }}>
-                        출생연도: {apply.profile.birth_year}
-                      </span>
+                    {apply.profile?.company && (
+                      <span style={{ marginRight: 8 }}>회사: {apply.profile.company}</span>
                     )}
                     {apply.profile?.job_type && (
                       <span style={{ marginRight: 8 }}>직군: {apply.profile.job_type}</span>
                     )}
-                    {apply.profile?.company && (
-                      <span style={{ marginRight: 8 }}>회사: {apply.profile.company}</span>
-                    )}
                     {apply.profile?.residence && (
-                      <span style={{ marginRight: 8 }}>거주지: {apply.profile.residence}</span>
+                      <>
+                        <br />
+                        <span style={{ marginRight: 8 }}>거주지: {apply.profile.residence}</span>
+                      </>
                     )}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: 6 }}>
-                    상태: {apply.status === 'pending' ? '대기중' : apply.status === 'accepted' ? '수락됨' : '거절됨'}
+                    {apply.profile?.mbti && (
+                      <span style={{ marginRight: 8 }}>MBTI: {apply.profile.mbti}</span>
+                    )}
                   </div>
                   {apply.status === 'pending' && (
                     <ButtonRow style={{ justifyContent: 'flex-end' }}>
@@ -799,14 +945,14 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                       </SecondaryButton>
                     </ButtonRow>
                   )}
-                  {apply.status === 'rejected' && (
+                  {isRejected && (
                     <ButtonRow style={{ justifyContent: 'flex-end' }}>
                       <SecondaryButton type="button" disabled>
                         거절함
                       </SecondaryButton>
                     </ButtonRow>
                   )}
-                  {apply.status === 'rejected' && (
+                  {isRejected && (
                     <div
                       style={{
                         position: 'absolute',
@@ -825,7 +971,8 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     </div>
                   )}
                 </Card>
-              ))
+              );
+            })
             )}
           </Section>
         )}
@@ -933,21 +1080,8 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
               <ModalBody>
                 <p style={{ marginBottom: 8 }}>
                   아래 프로필 내용과 자기소개로 <strong>추가 매칭 도전</strong>을 등록할까요?
-                  <br/><br/>
-                  추가 매칭을 등록을 하게 되면<br/>
-                  나의 프로필이 이성들에게 공개됩니다.<br/>
-                  나의 프로필을 보고 이성이 호감을 표현하고,<br/>
-                  회원님의 최종 승낙으로 채팅방이 개설됩니다.<br/><br/>
-                  단, 추가 매칭 도전을 하게 되면 중복 매칭 방지를 위해<br/>
-                  이성들의 프로필을 보고 호감을 보낼 수 없습니다.<br/><br/>
-                  이 작업에는 <strong>별 10개</strong>가 사용되며,<br/>
-                  등록 취소는 이성들의 호감 표현 전까지만 가능합니다.<br/>
-                  등록 취소시 사용하신 별이 환불되지 않습니다.<br/><br/>
-                  추가 매칭 도전 기간 마감시까지 이성의 호감을 받지 못한경우<br/>
-                  별 5개가 환불됩니다.<br/><br/>
-
                 </p>
-                <br/><br/>
+                <br />
                 <div
                   style={{
                     padding: '10px 12px',
@@ -1020,7 +1154,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                       marginBottom: 4,
                     }}
                   >
-                    이번 추가 매칭 도전에 사용할 자기소개
+                    이번 추가 매칭 도전에 사용할 자기소개 (프로필 자기소개 변경)
                   </label>
                   <textarea
                     rows={4}
@@ -1058,7 +1192,47 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                   }}
                   disabled={actionLoading}
                 >
-                  {actionLoading ? '등록 중...' : '추가 등록 도전(⭐10)'}
+                  {actionLoading ? '등록 중...' : '추가 매칭 도전(⭐10)'}
+                </ModalPrimaryButton>
+              </ModalActions>
+            </ModalContent>
+          </ModalOverlay>
+        )}
+
+        {showCancelConfirm && myEntry && (
+          <ModalOverlay
+            onClick={() => {
+              if (!actionLoading) setShowCancelConfirm(false);
+            }}
+          >
+            <ModalContent onClick={(e) => e.stopPropagation()}>
+              <ModalTitle>추가 매칭 도전 취소</ModalTitle>
+              <ModalBody>
+                <p style={{ margin: 0 }}>
+                  등록하신 <strong>추가 매칭 도전</strong>을 취소하시겠어요?
+                  <br />
+                  이성의 호감 표현이 오기 전까지만 취소가 가능하며,
+                  <br />
+                  <strong>취소 시 사용하신 별은 환불되지 않습니다.</strong>
+                </p>
+              </ModalBody>
+              <ModalActions>
+                <ModalSecondaryButton
+                  type="button"
+                  onClick={() => setShowCancelConfirm(false)}
+                  disabled={actionLoading}
+                >
+                  유지할게요
+                </ModalSecondaryButton>
+                <ModalPrimaryButton
+                  type="button"
+                  onClick={async () => {
+                    await doCancelEntry();
+                    setShowCancelConfirm(false);
+                  }}
+                  disabled={actionLoading}
+                >
+                  취소할게요
                 </ModalPrimaryButton>
               </ModalActions>
             </ModalContent>
@@ -1173,8 +1347,11 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                   />
                 </div>
                 <p style={{ marginTop: 8, marginBottom: 0, fontSize: '0.88rem', color: '#4b5563' }}>
-                  이 작업에는 <strong>별 10개</strong>가 사용되며, 상대가 거절할 경우 <strong>별 5개</strong>가
-                  환불됩니다.
+                  이번 호감 보내기에는 <strong>별 10개</strong>가 사용되며,<br/> 한 번 보내면 <strong>취소할 수 없습니다.</strong>
+                  <br />
+                  상대가 <strong>승낙</strong>하면 <strong>매칭이 성사</strong>되고 채팅방이 개설됩니다.
+                  <br />
+                  상대가 <strong>거절</strong>할 경우에는 <strong>별 5개</strong>가 자동으로 환불됩니다.
                 </p>
               </ModalBody>
               <ModalActions>
@@ -1212,7 +1389,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                   {hasUsedApply && hasActiveExtraApply && !myEntry
                     ? '상대방의 대답을 기다리는 중입니다.'
                     : hasUsedApply
-                    ? '이번 회차에는 이미 호감을 보냈습니다.'
+                    ? '이미 다른분에게 호감을 보냈습니다.'
                     : '추가 매칭 도전에 등록한 상태에서는 호감을 보낼 수 없습니다.'}
                 </div>
               )}

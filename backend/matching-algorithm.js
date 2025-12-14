@@ -80,9 +80,9 @@ async function getPreviousMatchHistory(userIds) {
           }
         }
       });
-      console.log(`과거 매칭 이력 조회 완료: ${matchHistory.length}건의 이메일 기반 매칭 이력 발견`);
+      // console.log(`과거 매칭 이력 조회 완료: ${matchHistory.length}건의 이메일 기반 매칭 이력 발견`);
     } else {
-      console.log('과거 매칭 이력이 없습니다.');
+      // console.log('과거 매칭 이력이 없습니다.');
     }
     
     return previousMatches;
@@ -190,7 +190,7 @@ async function sendMatchingResultEmails(periodIdOverride) {
       periodId = logRows[0].id;
     }
 
-    // 2. 해당 회차의 매칭 신청자들 조회
+    // 2. 해당 회차의 매칭 신청자들 조회 (type='main' 정규 매칭 신청만)
     const { data: applications, error: appError } = await supabase
       .from('matching_applications')
       .select(`
@@ -200,6 +200,7 @@ async function sendMatchingResultEmails(periodIdOverride) {
         user:users!inner(email)
       `)
       .eq('period_id', periodId)
+      .eq('type', 'main')
       .eq('applied', true)
       .eq('cancelled', false);
 
@@ -261,13 +262,14 @@ async function computeMatchesForPeriod(periodIdOverride) {
       periodId = logRows[0].id;
     }
 
-    // 2. 해당 회차 신청자 조회 (신청 & 취소 X)
+    // 2. 해당 회차 신청자 조회 (신청 & 취소 X, 정규 매칭만)
     const { data: applicants, error: appError } = await supabase
       .from('matching_applications')
       .select('user_id')
       .eq('applied', true)
       .eq('cancelled', false)
-      .eq('period_id', periodId);
+      .eq('period_id', periodId)
+      .eq('type', 'main');
 
     if (appError) {
       console.error('신청자 조회 실패(가상 매칭):', appError);
@@ -782,7 +784,8 @@ async function main() {
     .select('user_id')
     .eq('applied', true)
     .eq('cancelled', false)
-    .eq('period_id', periodId);
+    .eq('period_id', periodId)
+    .eq('type', 'main');
   if (appError) {
     console.error('신청자 조회 실패:', appError);
     return;
@@ -887,6 +890,7 @@ async function main() {
       .select('user_id, profile_snapshot, preference_snapshot')
       .in('user_id', batchIds)
       .eq('period_id', periodId)
+      .eq('type', 'main')
       .eq('applied', true)
       .eq('cancelled', false);
     if (error) {
@@ -987,7 +991,7 @@ async function main() {
       matches.push([males[matchTo[j]].user_id, females[j].user_id]);
     }
   }
-  // 8. 매칭 결과를 matching_history에 저장
+  // 8. 매칭 결과를 matching_history에 저장 (정규 매칭이므로 type = 'main')
   let success = 0;
   const matchedAt = new Date().toISOString();
   for (const [userA, userB] of matches) {
@@ -1021,6 +1025,7 @@ async function main() {
         female_gender: femaleProfile?.gender || null,    // 성별 스냅샷 추가
         male_user_email: maleUser?.email || null,
         female_user_email: femaleUser?.email || null,
+        type: 'main',
         created_at: getKSTISOString(),
         matched: true,
         matched_at: matchedAt,
@@ -1029,12 +1034,13 @@ async function main() {
       console.error(`매칭 저장 실패: ${userA} <-> ${userB}`, insertError);
     } else {
       success++;
-      // matching_applications에도 매칭 여부/시각/상대방 user_id 갱신 (남/여 모두)
+      // matching_applications(정규 매칭)에만 매칭 여부/시각/상대방 user_id 갱신 (남/여 모두)
       const { error: updateA } = await supabase
         .from('matching_applications')
         .update({ matched: true, matched_at: matchedAt, partner_user_id: userB })
         .eq('user_id', userA)
-        .eq('period_id', periodId);
+        .eq('period_id', periodId)
+        .eq('type', 'main');
       if (updateA) {
         console.error(`matching_applications 갱신 실패: ${userA}`, updateA);
       }
@@ -1042,7 +1048,8 @@ async function main() {
         .from('matching_applications')
         .update({ matched: true, matched_at: matchedAt, partner_user_id: userA })
         .eq('user_id', userB)
-        .eq('period_id', periodId);
+        .eq('period_id', periodId)
+        .eq('type', 'main');
       if (updateB) {
         console.error(`matching_applications 갱신 실패: ${userB}`, updateB);
       }
@@ -1057,12 +1064,13 @@ async function main() {
   const allUserIds = profiles.map(p => p.user_id);
   for (const userId of allUserIds) {
     if (!matchedUserIds.has(userId)) {
-      // 매칭 실패자: matched=false, matched_at 기록
+      // 매칭 실패자: matched=false, matched_at 기록 (정규 매칭 row만)
       const { error: updateFail } = await supabase
         .from('matching_applications')
         .update({ matched: false, matched_at: matchedAt })
         .eq('user_id', userId)
-        .eq('period_id', periodId);
+        .eq('period_id', periodId)
+        .eq('type', 'main');
       if (updateFail) {
         console.error(`matching_applications(실패) 갱신 실패: ${userId}`, updateFail);
       }

@@ -91,12 +91,13 @@ async function getUserMatchingState(userId, periodId) {
     throw userError;
   }
 
-  // 2. matching_applications 에서 해당 회차 row 조회
+  // 2. matching_applications 에서 해당 회차 "정규 매칭" row 조회
   const { data: appData, error: appError } = await supabase
     .from('matching_applications')
     .select('*')
     .eq('user_id', userId)
     .eq('period_id', periodId)
+    .eq('type', 'main')
     .order('applied_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -126,15 +127,81 @@ async function getUserMatchingState(userId, periodId) {
   };
 }
 
+// 추가 매칭 참여 시 matching_applications 에 type='extra' 스냅샷을 upsert
+async function upsertExtraApplicationSnapshot(userId, periodId, profileSnapshot) {
+  try {
+    // 선호 스냅샷은 정규 매칭과 동일하게 preferred_ prefix 기준으로 구성
+    const preferenceSnapshot = {};
+    if (profileSnapshot && typeof profileSnapshot === 'object') {
+      Object.keys(profileSnapshot).forEach((key) => {
+        if (key.startsWith('preferred_')) {
+          preferenceSnapshot[key] = profileSnapshot[key];
+        }
+      });
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from('matching_applications')
+      .select('id, type')
+      .eq('user_id', userId)
+      .eq('period_id', periodId)
+      .eq('type', 'extra')
+      .maybeSingle();
+
+    if (existingError && existingError.code !== 'PGRST116') {
+      console.error('[extra-matching] upsertExtraApplicationSnapshot 조회 오류:', existingError);
+      return;
+    }
+
+    if (existing) {
+      const { error: updateError } = await supabase
+        .from('matching_applications')
+        .update({
+          profile_snapshot: profileSnapshot,
+          preference_snapshot: preferenceSnapshot,
+          applied: true,
+          cancelled: false,
+        })
+        .eq('id', existing.id);
+
+      if (updateError) {
+        console.error('[extra-matching] upsertExtraApplicationSnapshot 업데이트 오류:', updateError);
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from('matching_applications')
+        .insert({
+          user_id: userId,
+          period_id: periodId,
+          type: 'extra',
+          applied: true,
+          cancelled: false,
+          applied_at: new Date().toISOString(),
+          matched: false,
+          profile_snapshot: profileSnapshot,
+          preference_snapshot: preferenceSnapshot,
+        });
+
+      if (insertError) {
+        console.error('[extra-matching] upsertExtraApplicationSnapshot 신규 row 생성 오류:', insertError);
+      }
+    }
+  } catch (e) {
+    console.error('[extra-matching] upsertExtraApplicationSnapshot 처리 중 예외:', e);
+  }
+}
+
 // 이번 회차에서 사용자의 추가 매칭/호감 보내기 사용 상태 조회
 async function getUserExtraUsageState(userId, periodId) {
-  // 1) 이번 회차에 내가 등록한 추가 매칭 도전 엔트리 여부
+  // 1) 이번 회차에 내가 등록한 "활성" 추가 매칭 도전 엔트리 여부
+  // - status가 open 또는 sold_out 인 경우만 유효한 엔트리로 본다.
+  // - 사용자가 직접 취소한 엔트리(현재 closed + apply 0개)는 재등록 가능해야 하므로 포함하지 않음.
   const { data: entries, error: entryError } = await supabase
     .from('extra_matching_entries')
     .select('id, status')
     .eq('period_id', periodId)
     .eq('user_id', userId)
-    .limit(1);
+    .in('status', ['open', 'sold_out']);
 
   if (entryError) {
     throw entryError;
@@ -427,13 +494,19 @@ router.get('/status', async (req, res) => {
       .select('id, status')
       .eq('period_id', currentPeriod.id)
       .eq('user_id', userId)
-      .limit(1);
+      .order('id', { ascending: false });
 
     if (entryError) {
       console.error('[extra-matching] /status entries 조회 오류:', entryError);
     }
 
-    const myExtraEntry = myEntries && myEntries.length > 0 ? myEntries[0] : null;
+    let myExtraEntry = null;
+    if (myEntries && myEntries.length > 0) {
+      // open / sold_out 상태의 가장 최근 엔트리를 우선으로 사용
+      myExtraEntry =
+        myEntries.find((e) => e.status === 'open' || e.status === 'sold_out') ||
+        myEntries[0];
+    }
 
     // 이번 회차에서 내 추가 매칭/호감보내기 사용 상태 (UI 안내용)
     let usageState = null;
@@ -587,6 +660,9 @@ router.post('/entries', async (req, res) => {
       return res.status(500).json({ message: '추가 매칭 도전 엔트리를 생성하는 중 오류가 발생했습니다.' });
     }
 
+    // 🔹 추가 매칭 도전 시점의 스냅샷을 matching_applications(type='extra') 에도 기록
+    await upsertExtraApplicationSnapshot(userId, currentPeriod.id, snapshot);
+
     return res.json({
       success: true,
       entry: inserted,
@@ -704,7 +780,8 @@ router.post('/entries/:entryId/cancel', async (req, res) => {
     const { error: updateError } = await supabase
       .from('extra_matching_entries')
       .update({
-        status: 'cancelled',
+        // DB check constraint에 맞추기 위해 status는 'closed'로 사용
+        status: 'closed',
         closed_at: nowIso,
       })
       .eq('id', entry.id);
@@ -717,7 +794,7 @@ router.post('/entries/:entryId/cancel', async (req, res) => {
     return res.json({
       success: true,
       message:
-        '추가 매칭 도전 등록을 취소했습니다. 이미 사용된 별은 환불되지 않으며, 이번 회차에는 다시 등록할 수 없습니다.',
+        '추가 매칭 도전 등록을 취소했습니다.',
     });
   } catch (error) {
     console.error('[extra-matching] POST /entries/:entryId/cancel 처리 오류:', error);
@@ -893,11 +970,19 @@ router.post('/entries/:entryId/apply', async (req, res) => {
     }
 
     if (entry.status !== 'open') {
-      // 취소된 엔트리에 대한 호감 신청은 별도의 안내 메시지로 처리
-      if (entry.status === 'cancelled') {
-        return res.status(400).json({
-          message: '상대방 프로필을 찾을 수 없습니다. 추가 매칭 도전을 취소한 상대입니다.',
-        });
+      // 수동 취소된 엔트리인지 확인: status='closed' 이면서 아무 호감도 없었던 경우
+      if (entry.status === 'closed') {
+        const { data: allApplies, error: allAppliesError } = await supabase
+          .from('extra_matching_applies')
+          .select('id')
+          .eq('entry_id', entry.id)
+          .limit(1);
+
+        if (!allAppliesError && (!allApplies || allApplies.length === 0)) {
+          return res.status(400).json({
+            message: '상대방 프로필을 찾을 수 없습니다. 추가 매칭 도전을 취소한 상대입니다.',
+          });
+        }
       }
       return res.status(400).json({ message: '이미 마감된 추가 매칭 도전입니다.' });
     }
@@ -997,6 +1082,21 @@ router.post('/entries/:entryId/apply', async (req, res) => {
       return res.status(500).json({ message: '신청을 생성하는 중 오류가 발생했습니다.' });
     }
 
+    // 🔹 호감 보내기 시점의 프로필 스냅샷을 matching_applications(type='extra') 에도 기록
+    try {
+      const { data: profile, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (!profileError && profile) {
+        await upsertExtraApplicationSnapshot(userId, currentPeriod.id, profile);
+      }
+    } catch (e) {
+      console.error('[extra-matching] /entries/:entryId/apply 스냅샷 upsert 중 예외:', e);
+    }
+
     return res.json({
       success: true,
       apply,
@@ -1021,20 +1121,26 @@ router.get('/my-received-applies', async (req, res) => {
       });
     }
 
-    // 내 엔트리 찾기
+    // 내 엔트리 찾기 (가장 최근 엔트리 기준, open / sold_out 우선)
     const { data: myEntries, error: entryError } = await supabase
       .from('extra_matching_entries')
       .select('id, period_id, status')
       .eq('period_id', currentPeriod.id)
       .eq('user_id', userId)
-      .limit(1);
+      .order('id', { ascending: false });
 
     if (entryError) {
       console.error('[extra-matching] /my-received-applies 엔트리 조회 오류:', entryError);
       return res.status(500).json({ message: '추가 매칭 도전 상태를 불러오는 중 오류가 발생했습니다.' });
     }
 
-    const entry = myEntries && myEntries.length > 0 ? myEntries[0] : null;
+    let entry = null;
+    if (myEntries && myEntries.length > 0) {
+      // open / sold_out 상태의 엔트리를 우선 사용 (없으면 가장 최근 엔트리 사용)
+      entry =
+        myEntries.find((e) => e.status === 'open' || e.status === 'sold_out') ||
+        myEntries[0];
+    }
 
     if (!entry) {
       return res.json({
@@ -1223,7 +1329,7 @@ router.post('/applies/:applyId/accept', async (req, res) => {
       console.error('[extra-matching] /applies/:applyId/accept 자동 거절 처리 중 예외:', e);
     }
 
-    // 매칭 이력 기록 (정규 매칭과 동일한 방식으로 matching_history에 추가)
+    // 매칭 이력 기록 (정규 매칭과 동일한 방식으로 matching_history에 추가하되, type='extra'로 구분)
     try {
       const { data: profiles, error: profileError } = await supabase
         .from('user_profiles')
@@ -1279,10 +1385,64 @@ router.post('/applies/:applyId/accept', async (req, res) => {
             created_at: matchedAt,
             matched: true,
             matched_at: matchedAt,
+            type: 'extra',
           });
 
         if (insertHistoryError) {
           console.error('[extra-matching] matching_history 기록 오류:', insertHistoryError);
+        }
+
+        // 정규 매칭과 동일한 권한/상태 처리 유지를 위해,
+        // matching_applications 에도 matched=true, partner_user_id 를 반영해 둔다.
+        const ensureMatchedApplication = async (userId, partnerId) => {
+          try {
+            const { data: appRow, error: appError } = await supabase
+              .from('matching_applications')
+              .select('id, matched, partner_user_id')
+              .eq('user_id', userId)
+              .eq('period_id', entry.period_id)
+              .eq('type', 'main')
+              .maybeSingle();
+
+            if (appError && appError.code !== 'PGRST116') {
+              console.error('[extra-matching] ensureMatchedApplication 조회 오류:', appError);
+              return;
+            }
+
+            if (appRow) {
+              // 기존 "정규 매칭 신청" row가 있는 경우에만 matched / partner_user_id 갱신
+              if (!appRow.matched || appRow.partner_user_id !== partnerId) {
+                const { error: updError } = await supabase
+                  .from('matching_applications')
+                  .update({ matched: true, partner_user_id: partnerId })
+                  .eq('id', appRow.id);
+
+                if (updError) {
+                  console.error('[extra-matching] ensureMatchedApplication 업데이트 오류:', updError);
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[extra-matching] ensureMatchedApplication 처리 중 예외:', e);
+          }
+        };
+
+        await ensureMatchedApplication(entry.user_id, apply.sender_user_id);
+        await ensureMatchedApplication(apply.sender_user_id, entry.user_id);
+
+        // 정규 매칭과 동일하게 /matching/status, MainPage 에서도
+        // "매칭 신청 + 매칭 성공" 상태로 인식되도록 users 테이블 플래그도 갱신
+        try {
+          const { error: userMatchUpdateError } = await supabase
+            .from('users')
+            .update({ is_applied: true, is_matched: true })
+            .in('id', [entry.user_id, apply.sender_user_id]);
+
+          if (userMatchUpdateError) {
+            console.error('[extra-matching] users is_applied/is_matched 업데이트 오류:', userMatchUpdateError);
+          }
+        } catch (e) {
+          console.error('[extra-matching] users is_applied/is_matched 업데이트 중 예외:', e);
         }
       }
     } catch (e) {

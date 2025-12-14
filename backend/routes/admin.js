@@ -912,6 +912,7 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
       `)
       .eq('user_id', userId)
       .eq('period_id', periodId)
+      .eq('type', 'main')
       .eq('applied', true)
       .eq('cancelled', false)
       .maybeSingle();
@@ -945,6 +946,7 @@ router.get('/matching-compatibility/:userId', authenticate, async (req, res) => 
         user:users(email)
       `)
       .eq('period_id', periodId)
+      .eq('type', 'main')
       .eq('applied', true)
       .eq('cancelled', false);
 
@@ -1093,6 +1095,7 @@ router.get('/matching-compatibility-live/:userId', authenticate, async (req, res
         .from('matching_applications')
         .select('user_id')
         .eq('period_id', latestLog.id)
+        .eq('type', 'main')
         .eq('applied', true)
         .eq('cancelled', false);
 
@@ -1284,6 +1287,7 @@ router.get('/matching-applications', authenticate, async (req, res) => {
         user:users(id,email),
         profile:user_profiles(*)
       `)
+      .eq('type', 'main') // 🔹 관리자 신청 현황은 정규 매칭 신청만 대상
       .order('applied_at', { ascending: false });
     if (periodId && periodId !== 'all') {
       query = query.eq('period_id', periodId);
@@ -1347,11 +1351,13 @@ router.get('/matching-history', authenticate, async (req, res) => {
   try {
     const { periodId, nickname } = req.query;
     // 1. matching_history에서 회차별로 조회 (탈퇴한 사용자도 처리 가능하도록 수정)
+    //    기존 "정규 매칭" 관리 페이지이므로 type = 'main' 인 데이터만 조회
     let query = supabase
       .from('matching_history')
       .select(`
         *
       `)
+      .eq('type', 'main')
       .order('period_id', { ascending: false });
     if (periodId && periodId !== 'all') {
       query = query.eq('period_id', periodId);
