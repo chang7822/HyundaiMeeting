@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi } from '../services/api.ts';
+import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaBell } from 'react-icons/fa';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, notificationApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -102,6 +102,13 @@ const WelcomeTitle = styled.h1`
     font-size: 1.6rem;
     margin-bottom: 0.5rem;
   }
+`;
+
+const TopWelcomeHeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 `;
 
 const TopWelcomeTitle = styled.h1`
@@ -660,6 +667,24 @@ const ButtonRow = styled.div`
   }
 `;
 
+const ExtraMatchingNoticeCard = styled.div`
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 18px;
+  padding: 16px 18px;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.12), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.12), transparent 55%),
+    #f9fafb;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+`;
+
 const NicknameSpan = styled.span`
   color: #4F46E5;
   font-weight: 700;
@@ -731,7 +756,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
-  const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [unreadCount, setUnreadCount] = useState<number>(0); // 채팅 안읽음
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0); // 알림 안읽음
   const [companies, setCompanies] = useState<Company[]>([]);
   const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
@@ -746,6 +772,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const id = (matchingStatus && matchingStatus.matched === true) ? (matchingStatus.partner_user_id || null) : null;
     return id;
   }, [matchingStatus]);
+
+  // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
+  const isExtraMatchingWindow = useMemo(() => {
+    if (!period || !period.matching_announce || !period.finish) return false;
+    const announce = new Date(period.matching_announce);
+    const finish = new Date(period.finish);
+    if (Number.isNaN(announce.getTime()) || Number.isNaN(finish.getTime())) return false;
+    const nowTime = Date.now();
+    return nowTime >= announce.getTime() && nowTime <= finish.getTime();
+  }, [period?.matching_announce, period?.finish]);
 
   // [추가] 매칭 성공 상태라면 partnerProfile을 자동으로 fetch
   useEffect(() => {
@@ -835,7 +871,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       });
   }, []);
 
-  // 안읽은 메시지 개수 조회
+  // 안읽은 메시지 개수 조회 (채팅)
   const fetchUnreadCount = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -844,6 +880,18 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } catch (error) {
       console.error('안읽은 메시지 개수 조회 실패:', error);
       setUnreadCount(0);
+    }
+  }, [user?.id]);
+
+  // 안읽은 알림 개수 조회
+  const fetchNotificationUnread = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const res = await notificationApi.getUnreadCount();
+      setNotificationUnreadCount(res.unreadCount || 0);
+    } catch (error) {
+      console.error('[MainPage] 알림 안읽음 개수 조회 실패:', error);
+      setNotificationUnreadCount(0);
     }
   }, [user?.id]);
 
@@ -914,9 +962,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       checkUserBanStatus().then(() => {
         fetchMatchingStatus(true); // 초기 로드시에만 로딩 표시
         fetchUnreadCount();
+        fetchNotificationUnread();
       });
     }
-  }, [user?.id, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount]);
+  }, [user?.id, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount, fetchNotificationUnread]);
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
@@ -990,7 +1039,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         // 에러 시 조용히 무시 (깜빡임 방지)
       }
     }, 5000); // 5초마다 업데이트
-
+    
     return () => window.clearInterval(interval);
   }, [user?.id]);
 
@@ -1614,16 +1663,66 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     
     return (
       <MainContainer $sidebarOpen={sidebarOpen}>
-        <TopWelcomeTitle>
-          환영합니다,{' '}
-          <NicknameSpan
-            onClick={() => setShowProfileModal(true)}
-            style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-          >
-            {displayName}
-          </NicknameSpan>
-          님!
-        </TopWelcomeTitle>
+        <TopWelcomeHeaderRow>
+          <TopWelcomeTitle>
+            환영합니다,{' '}
+            <NicknameSpan
+              onClick={() => setShowProfileModal(true)}
+              style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+            >
+              {displayName}
+            </NicknameSpan>
+            님!
+          </TopWelcomeTitle>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            {/* 알림 종 아이콘 버튼 */}
+            <button
+              type="button"
+              onClick={() => navigate('/notifications')}
+              style={{
+                border: 'none',
+                background: 'rgba(15,23,42,0.32)',
+                borderRadius: '999px',
+                width: 34,
+                height: 34,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                color: '#e5e7eb',
+                boxShadow: '0 4px 10px rgba(15,23,42,0.4)',
+                padding: 0,
+              }}
+            >
+              <FaBell style={{ color: '#fbbf24', fontSize: '1.1rem' }} />
+            </button>
+            {/* 새 알림 뱃지 (상단 우측 빨간 동그라미) */}
+            {notificationUnreadCount > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -6,
+                  background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                  color: 'white',
+                  borderRadius: '50%',
+                  width: 18,
+                  height: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.45)',
+                  border: '2px solid rgba(15,23,42,0.95)',
+                  zIndex: 10,
+                }}
+              >
+                {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+              </div>
+            )}
+          </div>
+        </TopWelcomeHeaderRow>
         <TopWelcomeSubtitle>
           직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
         </TopWelcomeSubtitle>
@@ -1757,16 +1856,66 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
-      <TopWelcomeTitle>
-        환영합니다,{' '}
-        <NicknameSpan
-          onClick={handleOpenProfileModal}
-          style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-        >
-          {displayName}
-        </NicknameSpan>
-        님!
-      </TopWelcomeTitle>
+      <TopWelcomeHeaderRow>
+        <TopWelcomeTitle>
+          환영합니다,{' '}
+          <NicknameSpan
+            onClick={handleOpenProfileModal}
+            style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+          >
+            {displayName}
+          </NicknameSpan>
+          님!
+        </TopWelcomeTitle>
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          {/* 알림 종 아이콘 버튼 */}
+          <button
+            type="button"
+            onClick={() => navigate('/notifications')}
+            style={{
+              border: 'none',
+              background: 'rgba(15,23,42,0.32)',
+              borderRadius: '999px',
+              width: 34,
+              height: 34,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#e5e7eb',
+              boxShadow: '0 4px 10px rgba(15,23,42,0.4)',
+              padding: 0,
+            }}
+          >
+            <FaBell style={{ color: '#fbbf24', fontSize: '1.1rem' }} />
+          </button>
+          {/* 새 알림 뱃지 */}
+          {notificationUnreadCount > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: -6,
+                right: -6,
+                background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                color: 'white',
+                borderRadius: '50%',
+                width: 18,
+                height: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.68rem',
+                fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(231, 76, 60, 0.45)',
+                border: '2px solid rgba(15,23,42,0.95)',
+                zIndex: 10,
+              }}
+            >
+              {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+            </div>
+          )}
+        </div>
+      </TopWelcomeHeaderRow>
       <TopWelcomeSubtitle>
         직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
       </TopWelcomeSubtitle>
@@ -1793,7 +1942,37 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </LatestNoticeRight>
           </LatestNoticeCard>
         )}
-        
+
+        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출) */}
+        {period && isExtraMatchingWindow && (
+          <ExtraMatchingNoticeCard>
+            <div style={{ fontSize: '0.9rem', color: '#111827', fontWeight: 600 }}>
+              추가 매칭 도전 기회가 열렸습니다.
+              <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 400, marginTop: 4 }}>
+                이번 회차에서 매칭이 아쉬웠다면, 별을 사용해 한 번 더 인연을 찾아보세요.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/extra-matching')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 999,
+                border: 'none',
+                background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+                color: '#fff',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                opacity: 1,
+              }}
+            >
+              추가 매칭 도전하러 가기
+            </button>
+          </ExtraMatchingNoticeCard>
+        )}
+
         {/* 이메일 인증 알림 */}
         {user?.is_verified === false && (
           <div style={{
@@ -1856,48 +2035,48 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         )}
         
         <ButtonRow>
-        <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
-          {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
-        </MatchingButton>
-        {showCancel && (
-          <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
-            {actionLoading ? '처리 중...' : '신청 취소하기'}
+          <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
+            {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
           </MatchingButton>
-        )}
-        <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
-        {reapplyMessage && (
-          <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
-        )}
-        {nextPeriodLabel && (
-          <NextPeriodWrapper>
-            <NextPeriodBadge>
-              <span
-                style={{
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  color: '#4F46E5',
-                  background: 'rgba(79, 70, 229, 0.1)',
-                  padding: '3px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                다음 회차 신청
-              </span>
-              <span
-                style={{
-                  fontSize: '0.9rem',
-                  color: '#111827',
-                  fontWeight: 600,
-                  textAlign: 'left',
-                  flex: 1,
-                }}
-              >
-                {nextPeriodLabel}
-              </span>
-            </NextPeriodBadge>
-          </NextPeriodWrapper>
-        )}
-      </ButtonRow>
+          {showCancel && (
+            <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
+              {actionLoading ? '처리 중...' : '신청 취소하기'}
+            </MatchingButton>
+          )}
+          <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
+          {reapplyMessage && (
+            <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
+          )}
+          {nextPeriodLabel && (
+            <NextPeriodWrapper>
+              <NextPeriodBadge>
+                <span
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: '#4F46E5',
+                    background: 'rgba(79, 70, 229, 0.1)',
+                    padding: '3px 8px',
+                    borderRadius: 999,
+                  }}
+                >
+                  다음 회차 신청
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.9rem',
+                    color: '#111827',
+                    fontWeight: 600,
+                    textAlign: 'left',
+                    flex: 1,
+                  }}
+                >
+                  {nextPeriodLabel}
+                </span>
+              </NextPeriodBadge>
+            </NextPeriodWrapper>
+          )}
+        </ButtonRow>
       {/* 프로필 카드 모달 */}
       {showProfileModal && (
         <ModalOverlay onClick={() => setShowProfileModal(false)}>

@@ -36,6 +36,8 @@ import NoticeManagerPage from './pages/admin/NoticeManagerPage.tsx';
 import FaqManagerPage from './pages/admin/FaqManagerPage.tsx';
 import ReportManagementPage from './pages/admin/ReportManagementPage.tsx';
 import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
+import ExtraMatchingPage from './pages/ExtraMatchingPage.tsx';
+import NotificationsPage from './pages/NotificationsPage.tsx';
 import UserMatchingOverviewPage from './pages/admin/UserMatchingOverviewPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
 import ChatPage from './pages/ChatPage.tsx';
@@ -298,6 +300,22 @@ const AppInner: React.FC = () => {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <MatchingHistoryPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/extra-matching" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <ExtraMatchingPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/notifications" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <NotificationsPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
               } />

@@ -19,6 +19,9 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   transition: margin-left 0.3s;
+  max-width: 100vw;
+  box-sizing: border-box;
+  overflow-x: hidden;
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1rem;
@@ -33,16 +36,11 @@ const ContentWrapper = styled.div`
   overflow: hidden;
   min-height: calc(100vh - 4rem);
   width: 100%;
-  max-width: 95vw;
+  max-width: 1040px;
   margin: 0 auto;
-  @media (min-width: 600px) {
-    max-width: 600px;
-  }
-  @media (min-width: 900px) {
-    max-width: 800px;
-  }
-  @media (min-width: 1200px) {
-    max-width: 1000px;
+
+  @media (max-width: 768px) {
+    margin: 0 auto; /* 모바일에서만 살짝 여백 추가 */
   }
 `;
 
@@ -50,7 +48,7 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2rem;
+  padding: 0.5rem 1.8rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
 `;
@@ -77,16 +75,20 @@ const CloseButton = styled.button`
 `;
 
 const Title = styled.h1`
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   font-weight: 700;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  
+  @media (max-width: 768px) {
+    font-size: 1.3rem;
+  }
 `;
 
 const NoticeList = styled.div`
-  padding: 2rem;
+  padding: 1.5rem 1.25rem 2rem;
 `;
 
 const NoticeItem = styled.div`
@@ -106,8 +108,7 @@ const NoticeItem = styled.div`
   }
   
   @media (max-width: 768px) {
-    padding: 0.75rem;
-    margin: 0 0.5rem 1rem 0.5rem;
+    padding: 0.9rem 0.85rem;
   }
 `;
 
@@ -126,6 +127,9 @@ const NoticeTitle = styled.h3`
   margin: 0;
   flex: 1;
   line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const ImportantBadge = styled.span`
@@ -289,7 +293,14 @@ const NoticePage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = true })
     try {
       setLoading(true);
       const data = await noticeApi.getNotices();
-      setNotices(data);
+      // 최신 공지(중요 공지 우선) 순으로 정렬 보장
+      const sorted = [...data].sort((a, b) => {
+        if (a.is_important !== b.is_important) {
+          return (b.is_important ? 1 : 0) - (a.is_important ? 1 : 0);
+        }
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+      setNotices(sorted);
     } catch (error) {
       console.error('공지사항 로딩 오류:', error);
       toast.error('공지사항을 불러오는데 실패했습니다.');
