@@ -4,6 +4,7 @@ const { supabase } = require('../database');
 const { sendMatchingResultEmail, sendAdminBroadcastEmail } = require('../utils/emailService');
 const { computeMatchesForPeriod, computeMatchesForAllUsers } = require('../matching-algorithm');
 const authenticate = require('../middleware/authenticate');
+const notificationRoutes = require('./notifications');
 
 // 임시 데이터 (다른 라우트와 공유)
 const users = [];
@@ -1655,6 +1656,163 @@ router.get('/broadcast-recipients', authenticate, async (req, res) => {
   }
 });
 
+// [관리자] 특정 대상에게 알림 보내기 (쪽지형 알림)
+router.post('/notifications/send', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { target, notification } = req.body || {};
+    const { title, body, linkUrl, meta } = notification || {};
+
+    if (!title || !body) {
+      return res.status(400).json({
+        success: false,
+        message: '알림 제목과 내용을 모두 입력해주세요.',
+      });
+    }
+
+    const targetType = target?.type || 'all';
+    let userIds = new Set();
+
+    // 1) 대상 사용자 집합 계산
+    if (targetType === 'user_ids' && Array.isArray(target.userIds) && target.userIds.length > 0) {
+      target.userIds.forEach((id) => {
+        if (id) userIds.add(String(id));
+      });
+    } else if (targetType === 'emails' && Array.isArray(target.emails) && target.emails.length > 0) {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, is_active, is_banned')
+        .in('email', target.emails);
+
+      if (error) {
+        console.error('[admin][notifications/send] 이메일 기반 대상 조회 오류:', error);
+        return res.status(500).json({
+          success: false,
+          message: '알림 발송 대상을 조회하는 중 오류가 발생했습니다.',
+        });
+      }
+
+      (data || []).forEach((u) => {
+        if (u.is_active !== false && u.is_banned !== true && u.id) {
+          userIds.add(String(u.id));
+        }
+      });
+    } else if (targetType === 'period_extra_participants' && target.periodId) {
+      const periodId = Number(target.periodId);
+      if (!Number.isFinite(periodId) || periodId <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: '유효한 회차 ID(periodId)가 필요합니다.',
+        });
+      }
+
+      // 해당 회차에서 추가 매칭 도전에 참여한 사용자들 (엔트리 등록자 + 호감 보낸 사람)
+      const { data: entries, error: entriesError } = await supabase
+        .from('extra_matching_entries')
+        .select('id, user_id')
+        .eq('period_id', periodId);
+
+      if (entriesError) {
+        console.error('[admin][notifications/send] extra_matching_entries 조회 오류:', entriesError);
+        return res.status(500).json({
+          success: false,
+          message: '추가 매칭 도전 정보를 조회하는 중 오류가 발생했습니다.',
+        });
+      }
+
+      const entryIds = (entries || []).map((e) => e.id);
+      (entries || []).forEach((e) => {
+        if (e.user_id) userIds.add(String(e.user_id));
+      });
+
+      if (entryIds.length > 0) {
+        const { data: applies, error: appliesError } = await supabase
+          .from('extra_matching_applies')
+          .select('sender_user_id')
+          .in('entry_id', entryIds);
+
+        if (appliesError) {
+          console.error('[admin][notifications/send] extra_matching_applies 조회 오류:', appliesError);
+          return res.status(500).json({
+            success: false,
+            message: '추가 매칭 호감 정보를 조회하는 중 오류가 발생했습니다.',
+          });
+        }
+
+        (applies || []).forEach((a) => {
+          if (a.sender_user_id) userIds.add(String(a.sender_user_id));
+        });
+      }
+    } else {
+      // 기본: 전체 활성 + 비정지 사용자
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, is_active, is_banned');
+
+      if (error) {
+        console.error('[admin][notifications/send] 전체 사용자 조회 오류:', error);
+        return res.status(500).json({
+          success: false,
+          message: '알림 대상 사용자 목록을 조회하는 중 오류가 발생했습니다.',
+        });
+      }
+
+      (data || []).forEach((u) => {
+        if (u.is_active !== false && u.is_banned !== true && u.id) {
+          userIds.add(String(u.id));
+        }
+      });
+    }
+
+    const finalIds = Array.from(userIds);
+
+    if (!finalIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: '알림을 보낼 대상 사용자가 없습니다.',
+      });
+    }
+
+    const payload = {
+      type: 'admin',
+      title,
+      body,
+      linkUrl: linkUrl || null,
+      meta: meta || null,
+    };
+
+    let successCount = 0;
+    let failCount = 0;
+
+    await Promise.all(
+      finalIds.map(async (uid) => {
+        try {
+          await notificationRoutes.createNotification(String(uid), payload);
+          successCount++;
+        } catch (e) {
+          console.error('[admin][notifications/send] 알림 생성 오류:', e);
+          failCount++;
+        }
+      }),
+    );
+
+    return res.json({
+      success: true,
+      total: finalIds.length,
+      successCount,
+      failCount,
+      message: `총 ${finalIds.length}명에게 알림을 전송했습니다.`,
+    });
+  } catch (error) {
+    console.error('[admin][notifications/send] 오류:', error);
+    return res.status(500).json({
+      success: false,
+      message: '알림 발송 중 서버 오류가 발생했습니다.',
+    });
+  }
+});
+
 // [수동] users 테이블 매칭 상태 초기화 (관리자용)
 router.post('/reset-users-matching-status', authenticate, async (req, res) => {
   try {
@@ -1678,6 +1836,252 @@ router.post('/reset-users-matching-status', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[관리자] users 테이블 초기화 오류:', error);
     res.status(500).json({ message: '초기화에 실패했습니다.', error: error.message });
+  }
+});
+
+// [관리자] 추가 매칭 도전 회차 요약 조회
+router.get('/extra-matching/periods', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { data: logs, error } = await supabase
+      .from('matching_log')
+      .select('id, status, application_start, application_end, matching_announce, finish')
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('[admin][extra-matching/periods] matching_log 조회 오류:', error);
+      return res.status(500).json({ success: false, message: '회차 정보를 불러오는데 실패했습니다.' });
+    }
+
+    if (!logs || logs.length === 0) {
+      return res.json([]);
+    }
+
+    const periods = [];
+
+    for (const log of logs) {
+      const { data: entryRows, error: entryError } = await supabase
+        .from('extra_matching_entries')
+        .select('id')
+        .eq('period_id', log.id);
+
+      if (entryError) {
+        console.error('[admin][extra-matching/periods] entries 조회 오류:', entryError);
+        return res.status(500).json({ success: false, message: '추가 매칭 도전 데이터를 불러오는데 실패했습니다.' });
+      }
+
+      const entryIds = (entryRows || []).map((e) => e.id);
+      let applyRows = [];
+
+      if (entryIds.length > 0) {
+        const { data: applies, error: appliesError } = await supabase
+          .from('extra_matching_applies')
+          .select('id, status, entry_id')
+          .in('entry_id', entryIds);
+
+        if (appliesError) {
+          console.error('[admin][extra-matching/periods] applies 조회 오류:', appliesError);
+          return res.status(500).json({ success: false, message: '추가 매칭 호감 데이터를 불러오는데 실패했습니다.' });
+        }
+        applyRows = applies || [];
+      }
+
+      const totalEntries = entryIds.length;
+      const totalApplies = applyRows.length;
+      const acceptedCount = applyRows.filter((a) => a.status === 'accepted').length;
+
+      periods.push({
+        id: log.id,
+        status: log.status,
+        application_start: log.application_start,
+        application_end: log.application_end,
+        matching_announce: log.matching_announce,
+        finish: log.finish,
+        extraEntryCount: totalEntries,
+        extraApplyCount: totalApplies,
+        extraMatchedCount: acceptedCount,
+      });
+    }
+
+    return res.json(periods);
+  } catch (error) {
+    console.error('[admin][extra-matching/periods] 오류:', error);
+    return res.status(500).json({ success: false, message: '추가 매칭 회차 요약 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// [관리자] 특정 회차의 추가 매칭 도전 엔트리 목록 + 요약
+router.get('/extra-matching/period/:periodId/entries', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const periodId = Number(req.params.periodId);
+    if (!Number.isFinite(periodId) || periodId <= 0) {
+      return res.status(400).json({ success: false, message: '유효한 회차 ID가 필요합니다.' });
+    }
+
+    const { data: entries, error: entriesError } = await supabase
+      .from('extra_matching_entries')
+      .select('id, user_id, gender, status, created_at, profile_snapshot')
+      .eq('period_id', periodId)
+      .order('created_at', { ascending: true });
+
+    if (entriesError) {
+      console.error('[admin][extra-matching/period/:periodId/entries] entries 조회 오류:', entriesError);
+      return res.status(500).json({ success: false, message: '추가 매칭 도전 엔트리를 불러오는데 실패했습니다.' });
+    }
+
+    if (!entries || entries.length === 0) {
+      return res.json([]);
+    }
+
+    const userIds = Array.from(new Set(entries.map((e) => e.user_id).filter(Boolean)));
+
+    let profilesByUserId = {};
+    if (userIds.length > 0) {
+      const { data: profiles, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('user_id, nickname, company, job_type, birth_year')
+        .in('user_id', userIds);
+
+      if (profileError) {
+        console.error('[admin][extra-matching/period/:periodId/entries] 프로필 조회 오류:', profileError);
+      } else {
+        profilesByUserId = (profiles || []).reduce((acc, p) => {
+          acc[p.user_id] = p;
+          return acc;
+        }, {});
+      }
+    }
+
+    const entryIds = entries.map((e) => e.id);
+    const { data: applies, error: appliesError } = await supabase
+      .from('extra_matching_applies')
+      .select('id, entry_id, status')
+      .in('entry_id', entryIds);
+
+    if (appliesError) {
+      console.error('[admin][extra-matching/period/:periodId/entries] applies 조회 오류:', appliesError);
+      return res.status(500).json({ success: false, message: '추가 매칭 호감 데이터를 불러오는데 실패했습니다.' });
+    }
+
+    const applyByEntryId = {};
+    (applies || []).forEach((a) => {
+      if (!applyByEntryId[a.entry_id]) {
+        applyByEntryId[a.entry_id] = [];
+      }
+      applyByEntryId[a.entry_id].push(a);
+    });
+
+    const mapped = entries.map((e) => {
+      const p = profilesByUserId[e.user_id] || {};
+      const list = applyByEntryId[e.id] || [];
+      const totalApplies = list.length;
+      const pendingApplies = list.filter((a) => a.status === 'pending').length;
+      const acceptedApplies = list.filter((a) => a.status === 'accepted').length;
+      const rejectedApplies = list.filter((a) => a.status === 'rejected').length;
+
+      return {
+        id: e.id,
+        user_id: e.user_id,
+        gender: e.gender,
+        status: e.status,
+        created_at: e.created_at,
+        profile: {
+          nickname: p.nickname || null,
+          company: p.company || null,
+          job_type: p.job_type || null,
+          birth_year: p.birth_year || null,
+        },
+        stats: {
+          totalApplies,
+          pendingApplies,
+          acceptedApplies,
+          rejectedApplies,
+        },
+      };
+    });
+
+    return res.json(mapped);
+  } catch (error) {
+    console.error('[admin][extra-matching/period/:periodId/entries] 오류:', error);
+    return res.status(500).json({ success: false, message: '추가 매칭 도전 엔트리 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// [관리자] 특정 엔트리에 대한 호감 리스트 조회
+router.get('/extra-matching/entry/:entryId/applies', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const entryId = Number(req.params.entryId);
+    if (!Number.isFinite(entryId) || entryId <= 0) {
+      return res.status(400).json({ success: false, message: '유효한 엔트리 ID가 필요합니다.' });
+    }
+
+    const { data: applies, error: appliesError } = await supabase
+      .from('extra_matching_applies')
+      .select('id, sender_user_id, status, created_at, updated_at, used_star_amount, refunded_star_amount')
+      .eq('entry_id', entryId)
+      .order('created_at', { ascending: true });
+
+    if (appliesError) {
+      console.error('[admin][extra-matching/entry/:entryId/applies] applies 조회 오류:', appliesError);
+      return res.status(500).json({ success: false, message: '호감 내역을 불러오는데 실패했습니다.' });
+    }
+
+    if (!applies || applies.length === 0) {
+      return res.json([]);
+    }
+
+    const senderIds = Array.from(new Set(applies.map((a) => a.sender_user_id).filter(Boolean)));
+
+    let profilesByUserId = {};
+    if (senderIds.length > 0) {
+      const { data: profiles, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('user_id, nickname, gender, company, job_type, birth_year')
+        .in('user_id', senderIds);
+
+      if (profileError) {
+        console.error('[admin][extra-matching/entry/:entryId/applies] 프로필 조회 오류:', profileError);
+      } else {
+        profilesByUserId = (profiles || []).reduce((acc, p) => {
+          acc[p.user_id] = p;
+          return acc;
+        }, {});
+      }
+    }
+
+    const mapped = applies.map((a) => {
+      const p = profilesByUserId[a.sender_user_id] || {};
+      const refunded =
+        typeof a.refunded_star_amount === 'number' && a.refunded_star_amount > 0;
+
+      return {
+        id: a.id,
+        sender_user_id: a.sender_user_id,
+        status: a.status,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+        used_star_amount: a.used_star_amount ?? null,
+        refunded_star_amount: a.refunded_star_amount ?? null,
+        refunded,
+        profile: {
+          nickname: p.nickname || null,
+          gender: p.gender || null,
+          company: p.company || null,
+          job_type: p.job_type || null,
+          birth_year: p.birth_year || null,
+        },
+      };
+    });
+
+    return res.json(mapped);
+  } catch (error) {
+    console.error('[admin][extra-matching/entry/:entryId/applies] 오류:', error);
+    return res.status(500).json({ success: false, message: '추가 매칭 호감 내역 조회 중 오류가 발생했습니다.' });
   }
 });
 

@@ -468,6 +468,43 @@ export const adminApi = {
     const response = await api.get('/admin/broadcast-recipients');
     return response.data;
   },
+
+  // 관리자용 알림 보내기
+  sendAdminNotification: async (payload: {
+    target: {
+      type?: 'all' | 'user_ids' | 'emails' | 'period_extra_participants';
+      userIds?: string[];
+      emails?: string[];
+      periodId?: number;
+    };
+    notification: {
+      title: string;
+      body: string;
+      linkUrl?: string | null;
+      meta?: any;
+    };
+  }): Promise<any> => {
+    const response = await api.post('/admin/notifications/send', payload);
+    return response.data;
+  },
+
+  // 추가 매칭도전 회차 요약 조회
+  getExtraMatchingPeriodsSummary: async (): Promise<any[]> => {
+    const response = await api.get('/admin/extra-matching/periods');
+    return response.data;
+  },
+
+  // 특정 회차의 추가 매칭 도전 엔트리 목록 조회
+  getExtraMatchingEntriesByPeriod: async (periodId: number): Promise<any[]> => {
+    const response = await api.get(`/admin/extra-matching/period/${periodId}/entries`);
+    return response.data;
+  },
+
+  // 특정 엔트리의 호감 리스트 조회
+  getExtraMatchingAppliesByEntry: async (entryId: number): Promise<any[]> => {
+    const response = await api.get(`/admin/extra-matching/entry/${entryId}/applies`);
+    return response.data;
+  },
 };
 
 export const getProfileCategories = async (): Promise<ProfileCategory[]> => {
