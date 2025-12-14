@@ -15,8 +15,11 @@ const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
-  background: #f8f9fa;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   transition: margin-left 0.3s;
+  max-width: 100vw;
+  box-sizing: border-box;
+  overflow-x: hidden;
   
   @media (max-width: 768px) {
     margin-left: 0;
@@ -31,10 +34,11 @@ const Content = styled.div`
 `;
 
 const Title = styled.h1`
-  color: #333;
+  color: #ffffff;
   margin-bottom: 2rem;
   font-size: 2rem;
   font-weight: 700;
+  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
 `;
 
 const HistoryCard = styled.div`
@@ -48,10 +52,13 @@ const HistoryCard = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  position: relative;
   
   @media (max-width: 768px) {
     flex-direction: column;
     align-items: flex-start;
+    padding: 1rem 1rem 1.1rem;
+    gap: 0.75rem;
   }
 `;
 
@@ -77,6 +84,8 @@ const HistoryHeader = styled.div`
   align-items: center;
   gap: 1rem;
   flex: 1;
+  width: 100%;
+  justify-content: space-between;
 `;
 
 const PartnerInfo = styled.div`
@@ -123,10 +132,12 @@ const HistoryContent = styled.div`
   flex: 1;
   
   @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-direction: row;
+    align-items: center;
     gap: 1rem;
     width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
   }
 `;
 
@@ -134,6 +145,12 @@ const InfoItem = styled.div`
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+
+  @media (max-width: 768px) {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.35rem;
+  }
 `;
 
 const InfoLabel = styled.span`
@@ -194,10 +211,18 @@ const ActionSection = styled.div`
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  
+`;
+
+const MobileActionSection = styled(ActionSection)`
+  @media (min-width: 769px) {
+    display: none;
+  }
+`;
+
+const DesktopActionSection = styled(ActionSection)`
+  margin-left: auto;
   @media (max-width: 768px) {
-    width: 100%;
-    justify-content: flex-end;
+    display: none;
   }
 `;
 
@@ -341,56 +366,101 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
         ) : (
           history.map((match) => (
             <HistoryCard key={match.id}>
-              <HistoryHeader>
-                <PartnerInfo>
-                  <PartnerAvatar $gender={match.partner_gender}>
-                    {match.partner_gender === 'male' ? '👨' : '👩'}
-                  </PartnerAvatar>
-                  <PartnerDetails>
-                    <PartnerName>{match.partner_nickname}</PartnerName>
-                    <PartnerGender>
-                      {match.partner_gender === 'male' ? '남성' : '여성'}
-                    </PartnerGender>
-                  </PartnerDetails>
-                </PartnerInfo>
-              </HistoryHeader>
-              
-              <HistoryContent>
-                <InfoItem>
-                  <InfoLabel>매칭 날짜</InfoLabel>
-                  <InfoValue>{formatDate(match.matched_at)}</InfoValue>
-                </InfoItem>
-                <InfoItem>
-                  <InfoLabel>회차</InfoLabel>
-                  <InfoValue>{match.round_number}회차</InfoValue>
-                </InfoItem>
-              </HistoryContent>
-              
+              {/** 공통 신고 버튼 JSX를 한 번 정의해서 모바일/PC에서 재사용 */}
               {match.matched && (
-                <ActionSection>
-                  {match.can_report ? (
-                    <ActionButton
-                      $variant="danger"
-                      onClick={() => handleReport(
-                        { 
-                          id: match.partner_user_id, 
-                          nickname: match.partner_nickname,
-                          email: match.partner_email 
-                        },
-                        match.period_id
-                      )}
-                    >
-                      신고하기
-                    </ActionButton>
-                  ) : match.report_info ? (
-                    <ActionButton
-                      $variant="secondary"
-                      onClick={() => handleViewReportDetail(match.report_info, match.partner_nickname)}
-                    >
-                      신고완료
-                    </ActionButton>
-                  ) : null}
-                </ActionSection>
+                (() => {
+                  const buttons = (
+                    <>
+                      {match.can_report ? (
+                        <ActionButton
+                          $variant="danger"
+                          onClick={() => handleReport(
+                            { 
+                              id: match.partner_user_id, 
+                              nickname: match.partner_nickname,
+                              email: match.partner_email 
+                            },
+                            match.period_id
+                          )}
+                        >
+                          신고하기
+                        </ActionButton>
+                      ) : match.report_info ? (
+                        <ActionButton
+                          $variant="secondary"
+                          onClick={() => handleViewReportDetail(match.report_info, match.partner_nickname)}
+                        >
+                          신고완료
+                        </ActionButton>
+                      ) : null}
+                    </>
+                  );
+
+                  return (
+                    <>
+                      <HistoryHeader>
+                        <PartnerInfo>
+                          <PartnerAvatar $gender={match.partner_gender}>
+                            {match.partner_gender === 'male' ? '👨' : '👩'}
+                          </PartnerAvatar>
+                          <PartnerDetails>
+                            <PartnerName>{match.partner_nickname}</PartnerName>
+                            <PartnerGender>
+                              {match.partner_gender === 'male' ? '남성' : '여성'}
+                            </PartnerGender>
+                          </PartnerDetails>
+                        </PartnerInfo>
+                        <MobileActionSection>
+                          {buttons}
+                        </MobileActionSection>
+                      </HistoryHeader>
+
+                      <HistoryContent>
+                        <InfoItem>
+                          <InfoLabel>매칭 날짜</InfoLabel>
+                          <InfoValue>{formatDate(match.matched_at)}</InfoValue>
+                        </InfoItem>
+                        <InfoItem>
+                          <InfoLabel>회차</InfoLabel>
+                          <InfoValue>{match.round_number}회차</InfoValue>
+                        </InfoItem>
+                      </HistoryContent>
+
+                      <DesktopActionSection>
+                        {buttons}
+                      </DesktopActionSection>
+                    </>
+                  );
+                })()
+              )}
+
+              {!match.matched && (
+                <>
+                  <HistoryHeader>
+                    <PartnerInfo>
+                      <PartnerAvatar $gender={match.partner_gender}>
+                        {match.partner_gender === 'male' ? '👨' : '👩'}
+                      </PartnerAvatar>
+                      <PartnerDetails>
+                        <PartnerName>{match.partner_nickname}</PartnerName>
+                        <PartnerGender>
+                          {match.partner_gender === 'male' ? '남성' : '여성'}
+                        </PartnerGender>
+                      </PartnerDetails>
+                    </PartnerInfo>
+                  </HistoryHeader>
+
+                  <HistoryContent>
+                    <InfoItem>
+                      <InfoLabel>매칭 날짜</InfoLabel>
+                      <InfoValue>{formatDate(match.matched_at)}</InfoValue>
+                    </InfoItem>
+                    <InfoItem>
+                      <InfoLabel>회차</InfoLabel>
+                      <InfoValue>{match.round_number}회차</InfoValue>
+                    </InfoItem>
+                  </HistoryContent>
+                </>
               )}
             </HistoryCard>
           ))

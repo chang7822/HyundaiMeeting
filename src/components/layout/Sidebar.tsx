@@ -17,8 +17,9 @@ import {
   FaExclamationTriangle,
   FaHeadset,
   FaRegStar,
+  FaBell,
 } from 'react-icons/fa';
-import { matchingApi, starApi } from '../../services/api.ts';
+import { matchingApi, starApi, notificationApi, extraMatchingApi } from '../../services/api.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -243,6 +244,52 @@ const NavText = styled.span`
   font-weight: 500;
 `;
 
+const NewChip = styled.span`
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f97316;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+`;
+
+const NotificationQuickRow = styled.button`
+  margin-top: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.28);
+  color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  gap: 8px;
+
+  &:hover {
+    background: rgba(15, 23, 42, 0.38);
+  }
+
+  span.label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  span.count {
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #f97316;
+    color: #fff7ed;
+    font-weight: 700;
+  }
+`;
+
 const LogoutSection = styled.div`
   padding: 1rem 1.5rem;
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
@@ -370,6 +417,8 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
   const [adSubmitting, setAdSubmitting] = useState(false);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
+  const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
 
   // 로딩 상태: user가 null이면 true, 아니면 false
   const isUserLoading = user === null;
@@ -424,6 +473,73 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       });
     }
   }, [user?.id, user?.is_banned, user?.banned_until]);
+
+  // 알림 안읽음 개수 로드
+  useEffect(() => {
+    if (!user?.id) {
+      setNotificationUnreadCount(0);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await notificationApi.getUnreadCount();
+        if (!cancelled) {
+          setNotificationUnreadCount(res.unreadCount || 0);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[Sidebar] 알림 unread-count 조회 오류:', e);
+          setNotificationUnreadCount(0);
+        }
+      }
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.id]);
+
+  // 추가 매칭 도전 가능 기간(inWindow) 여부 로드
+  useEffect(() => {
+    if (!user?.id) {
+      setExtraMatchingInWindow(null);
+      return;
+    }
+    let cancelled = false;
+    const loadExtraStatus = async () => {
+      try {
+        const res = await extraMatchingApi.getStatus();
+        if (cancelled) return;
+        const p = res?.currentPeriod;
+        if (!p || !p.matching_announce || !p.finish) {
+          setExtraMatchingInWindow(false);
+          return;
+        }
+        const nowTime = Date.now();
+        const announce = new Date(p.matching_announce).getTime();
+        const finish = new Date(p.finish).getTime();
+        if (Number.isNaN(announce) || Number.isNaN(finish)) {
+          setExtraMatchingInWindow(false);
+          return;
+        }
+        setExtraMatchingInWindow(nowTime >= announce && nowTime <= finish);
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[Sidebar] 추가 매칭 도전 상태 조회 오류:', e);
+          setExtraMatchingInWindow(false);
+        }
+      }
+    };
+    loadExtraStatus();
+    const timer = window.setInterval(loadExtraStatus, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.id]);
 
   // 사용자 정지 상태 확인
   const isBanned = user?.is_banned === true;
@@ -537,8 +653,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       path: '/extra-matching',
       icon: <FaRegStar />,
       text: '추가 매칭 도전',
-      // 추가 매칭 도전은 기간(inWindow)일 때만 활성화되도록 ExtraMatchingPage에서 자체적으로 안내,
-      // 사이드바에서는 항상 보이되, 필요시 disabled 플래그를 활용할 수 있음 (예: status에서 inWindow 받아와 적용).
+      disabled: extraMatchingInWindow === false,
     },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
@@ -652,6 +767,20 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
                     <span>{hasDailyToday ? '오늘 출석 완료' : '출석 체크하기'}</span>
                   </AttendanceButton>
                 </StarRow>
+                <NotificationQuickRow
+                  type="button"
+                  onClick={() => handleNavClick('/notifications')}
+                >
+                  <span className="label">
+                    <FaBell style={{ fontSize: '0.9rem' }} />
+                    <span>알림함</span>
+                  </span>
+                  {notificationUnreadCount > 0 && (
+                    <span className="count">
+                      {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+                    </span>
+                  )}
+                </NotificationQuickRow>
               </UserSummary>
             </>
           )}
@@ -670,6 +799,10 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
                   >
                     {item.icon}
                     <NavText>{item.text}</NavText>
+                    {/* 알림함 NEW 칩 */}
+                    {item.path === '/notifications' && notificationUnreadCount > 0 && (
+                      <NewChip>NEW</NewChip>
+                    )}
                   </NavItem>
                 ))}
               </MenuSection>

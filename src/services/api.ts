@@ -848,4 +848,34 @@ export const adminMatchingApi = {
   },
 };
 
+// Notification API
+export const notificationApi = {
+  // 내 알림 목록 조회
+  getNotifications: async (options?: { onlyUnread?: boolean; limit?: number }): Promise<{ notifications: any[] }> => {
+    const params: any = {};
+    if (options?.onlyUnread) params.onlyUnread = true;
+    if (options?.limit != null) params.limit = options.limit;
+    const response = await api.get('/notifications', { params });
+    return response.data;
+  },
+
+  // 읽지 않은 알림 개수 조회
+  getUnreadCount: async (): Promise<{ unreadCount: number }> => {
+    const response = await api.get('/notifications/unread-count');
+    return response.data;
+  },
+
+  // 특정 알림 읽음 처리
+  markAsRead: async (id: number | string): Promise<{ success: boolean; alreadyRead?: boolean }> => {
+    const response = await api.post(`/notifications/${id}/read`);
+    return response.data;
+  },
+
+  // 내 모든 알림 읽음 처리
+  markAllAsRead: async (): Promise<{ success: boolean }> => {
+    const response = await api.post('/notifications/read-all');
+    return response.data;
+  },
+};
+
 export default api; 

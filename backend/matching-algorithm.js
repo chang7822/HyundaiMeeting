@@ -2,6 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: __dirname + '/config.env' });
 const fs = require('fs');
 const { sendMatchingResultEmail } = require('./utils/emailService');
+const notificationRoutes = require('./routes/notifications');
 
 // Supabase 연결
 const supabase = createClient(
@@ -218,7 +219,7 @@ async function sendMatchingResultEmails(periodIdOverride) {
     let emailSuccessCount = 0;
     let emailFailCount = 0;
 
-    // 각 신청자에게 이메일 발송
+    // 각 신청자에게 이메일 + 알림 발송
     for (const app of applications) {
       try {
         const isMatched = app.matched === true;
@@ -230,6 +231,42 @@ async function sendMatchingResultEmails(periodIdOverride) {
           emailSuccessCount++;
         } else {
           emailFailCount++;
+        }
+
+        // 🔔 매칭 결과 알림 (발표 시점)
+        try {
+          if (isMatched) {
+            // 매칭 성공 알림
+            await notificationRoutes.createNotification(String(app.user_id), {
+              type: 'match',
+              title: '[매칭결과] 매칭이 성사되었습니다',
+              body:
+                '이번 회차 매칭 결과, 회원님의 매칭이 성사되었습니다.\n' +
+                '메인 페이지에서 상대방 프로필과 채팅방을 확인해 주세요.',
+              linkUrl: '/main',
+              meta: {
+                period_id: periodId,
+                result: 'success',
+                partner_user_id: app.partner_user_id || null,
+              },
+            });
+          } else {
+            // 매칭 실패 알림
+            await notificationRoutes.createNotification(String(app.user_id), {
+              type: 'match',
+              title: '[매칭결과] 이번 회차 매칭에 아쉽게도 실패했습니다',
+              body:
+                '아쉽게도 이번 회차 정규 매칭에서는 인연을 찾지 못했어요.\n' +
+                '추가 매칭 도전 이벤트에서 별 10개로 다시 한 번 도전해 보실 수 있습니다.',
+              linkUrl: '/extra-matching',
+              meta: {
+                period_id: periodId,
+                result: 'fail',
+              },
+            });
+          }
+        } catch (notifyErr) {
+          console.error('[matching-algorithm] 매칭 결과 알림 생성 오류:', notifyErr);
         }
       } catch (error) {
         console.error(`이메일 발송 오류 - 사용자: ${app.user_id}`, error);
@@ -1076,6 +1113,21 @@ async function main() {
       }
       // [추가] users 테이블 is_matched false로 업데이트 (실패)
       await supabase.from('users').update({ is_matched: false }).eq('id', userId);
+
+      // [알림] 매칭 실패자 알림 (정규 매칭)
+      try {
+        await notificationRoutes.createNotification(String(userId), {
+          type: 'match',
+          title: '[매칭결과] 이번 회차 매칭에 아쉽게도 실패했습니다',
+          body:
+            '아쉽게도 이번 회차 정규 매칭에서는 인연을 찾지 못했어요.\n' +
+            '하지만 추가 매칭 도전에서 별 10개로 다시 한 번 도전해 보실 수 있습니다.',
+          linkUrl: '/extra-matching',
+          meta: { period_id: periodId, result: 'fail' },
+        });
+      } catch (e) {
+        console.error('[matching-algorithm] 매칭 실패 알림 생성 오류:', e);
+      }
     }
   }
 

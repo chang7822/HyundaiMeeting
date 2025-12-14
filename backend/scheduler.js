@@ -195,6 +195,84 @@ cron.schedule(scheduleInterval, async () => {
             } catch (upsertErr) {
               console.error('[스케줄러] last_period_start_reset_id 업데이트 오류:', upsertErr);
             }
+
+            // 🔔 매칭 신청 기간 시작 알림 (브로드캐스트)
+            try {
+              const { data: allLogsAsc } = await supabase
+                .from('matching_log')
+                .select('id, application_start, application_end, matching_announce, finish')
+                .order('application_start', { ascending: true });
+
+              let roundNumber = null;
+              if (allLogsAsc && Array.isArray(allLogsAsc)) {
+                const idx = allLogsAsc.findIndex((log) => log.id === current.id);
+                if (idx !== -1) {
+                  roundNumber = idx + 1;
+                }
+              }
+              const roundLabel = roundNumber ? `${roundNumber}회차` : `period_id=${current.id}`;
+
+              const formatKST = (ts) => {
+                if (!ts) return '-';
+                const d = new Date(ts);
+                if (Number.isNaN(d.getTime())) return '-';
+                const yyyy = String(d.getFullYear()).slice(2);
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                const hh = String(d.getHours()).padStart(2, '0');
+                const min = String(d.getMinutes()).padStart(2, '0');
+                return `${yyyy}.${mm}.${dd} ${hh}시 ${min}분`;
+              };
+
+              const appStartLabel = formatKST(current.application_start);
+              const appEndLabel = formatKST(current.application_end);
+              const announceLabel = formatKST(current.matching_announce);
+              const finishLabel = formatKST(current.finish);
+
+              const bodyLines = [
+                `${roundLabel} 매칭 신청이 시작되었습니다.`,
+                '',
+                `매칭 신청 기간 : ${appStartLabel} ~ ${appEndLabel}`,
+                `매칭 결과 공지 : ${announceLabel}`,
+                `매칭 종료 : ${finishLabel}`,
+                '',
+                '참고: 매칭 결과 공지 후 매칭 종료 전까지 매칭 상대방과의 채팅방이 개설되며,',
+                '추가 매칭 도전 이벤트도 함께 진행됩니다.',
+              ].join('\n');
+
+              const { data: users, error: usersError } = await supabase
+                .from('users')
+                .select('id, is_active, is_banned');
+
+              if (usersError) {
+                console.error('[스케줄러] 매칭 신청 시작 알림용 사용자 조회 오류:', usersError);
+              } else if (users && users.length > 0) {
+                const targets = users.filter(
+                  (u) => u.is_active !== false && u.is_banned !== true && u.id,
+                );
+                const notificationRoutes = require('./routes/notifications');
+                await Promise.all(
+                  targets.map((u) =>
+                    notificationRoutes
+                      .createNotification(String(u.id), {
+                        type: 'match',
+                        title: `[매칭신청] ${roundLabel} 매칭 신청이 시작되었습니다`,
+                        body: bodyLines,
+                        linkUrl: '/main',
+                        meta: {
+                          period_id: current.id,
+                          round_label: roundLabel,
+                        },
+                      })
+                      .catch((e) =>
+                        console.error('[스케줄러] 매칭 신청 시작 알림 생성 오류:', e),
+                      ),
+                  ),
+                );
+              }
+            } catch (notifyErr) {
+              console.error('[스케줄러] 매칭 신청 시작 알림 처리 중 예외:', notifyErr);
+            }
           }
         }
       }

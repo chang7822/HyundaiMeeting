@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
+const notificationRoutes = require('./notifications');
 
 // 임시 매칭 데이터
 const matches = [];
@@ -259,25 +260,9 @@ router.post('/request', async (req, res) => {
 
     // [로그] 매칭 신청 완료: "닉네임(이메일) N회차 매칭 신청완료"
     try {
-      // 전체 매칭 로그에서 현재 periodId의 회차 번호 계산 (application_start 기준 정렬)
-      const { data: allLogs } = await supabase
-        .from('matching_log')
-        .select('id')
-        .order('application_start', { ascending: true });
-
-      let roundNumber = null;
-      if (allLogs && Array.isArray(allLogs)) {
-        const idx = allLogs.findIndex((log) => log.id === periodId);
-        if (idx !== -1) {
-          roundNumber = idx + 1;
-        }
-      }
-
       const nickname = profile.nickname || '알 수 없음';
       const email = user?.email || '알 수 없음';
-      const roundLabel = roundNumber ? `${roundNumber}회차` : `period_id=${periodId}`;
-
-      console.log(`[MATCHING] 매칭 신청 완료: ${nickname}(${email}) ${roundLabel} 매칭 신청완료`);
+      console.log(`[MATCHING] 매칭 신청 완료: ${nickname}(${email}) period_id=${periodId} 매칭 신청완료`);
     } catch (e) {
       console.error('[MATCHING] 매칭 신청 로그 처리 중 오류:', e);
     }

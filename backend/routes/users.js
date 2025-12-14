@@ -256,13 +256,13 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
 
     // 1) 정규 매칭(matching_applications, type='main') 기준으로 먼저 확인
     try {
-      const { data: matchRow, error: matchError } = await supabase
-        .from('matching_applications')
+    const { data: matchRow, error: matchError } = await supabase
+      .from('matching_applications')
         .select('matched, partner_user_id, period_id, type')
-        .eq('user_id', requesterId)
+      .eq('user_id', requesterId)
         .eq('type', 'main')
-        .order('applied_at', { ascending: false })
-        .limit(1)
+      .order('applied_at', { ascending: false })
+      .limit(1)
         .maybeSingle();
 
       if (!matchError && matchRow && matchRow.matched && matchRow.partner_user_id === targetId) {

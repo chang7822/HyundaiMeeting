@@ -537,6 +537,12 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
       }
       if (now >= finish) {
         setRemainingText('종료 · 다음 회차를 기다려 주세요');
+        // 매칭 종료 시간이 지나면 추가 매칭 도전 페이지에서 메인으로 이동
+        // (백엔드에서도 기간 밖의 모든 액션을 막고 있으므로, 프론트에서도 화면 자체를 차단)
+        toast.info('이번 회차 추가 매칭 도전 기간이 종료되었습니다.', {
+          autoClose: 2500,
+        });
+        navigate('/main');
         return;
       }
       const diffMs = finish.getTime() - now.getTime();

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
+const notificationRoutes = require('./notifications');
 
 // 모든 /api/extra-matching/* 요청은 인증 필요
 router.use(authenticate);
@@ -68,9 +69,21 @@ async function getCurrentPeriod() {
   return current;
 }
 
-// 현재 시각과 회차의 공지/종료 시간으로 "추가 매칭 도전 가능 기간"인지 판단
+// 현재 회차의 status/시간으로 "추가 매칭 도전 가능 기간"인지 판단
 function isInExtraMatchingWindow(period) {
-  if (!period || !period.matching_announce || !period.finish) return false;
+  if (!period) return false;
+
+  // 1순위: scheduler.js 가 관리하는 status 사용
+  // - "발표완료" 상태인 동안에만 추가 매칭 도전 가능
+  if (period.status === '발표완료') {
+    return true;
+  }
+  if (period.status === '종료') {
+    return false;
+  }
+
+  // 2순위: status 정보가 신뢰할 수 없는 경우를 대비한 시간 기반 fallback
+  if (!period.matching_announce || !period.finish) return false;
   const now = Date.now();
   const announce = new Date(period.matching_announce).getTime();
   const finish = new Date(period.finish).getTime();
@@ -1097,6 +1110,26 @@ router.post('/entries/:entryId/apply', async (req, res) => {
       console.error('[extra-matching] /entries/:entryId/apply 스냅샷 upsert 중 예외:', e);
     }
 
+    // 🔔 알림: 엔트리 주인에게 "호감 도착" 알림
+    try {
+      await notificationRoutes.createNotification(String(entry.user_id), {
+        type: 'extra_match',
+        title: '[추가매칭] 새로운 호감이 도착했어요',
+        body:
+          '추가 매칭 도전에 새로운 호감이 도착했습니다.\n' +
+          '추가 매칭 페이지의 "나에게 온 호감"에서 확인하고 수락 또는 거절을 선택해 주세요.',
+        linkUrl: '/extra-matching',
+        meta: {
+          period_id: currentPeriod.id,
+          entry_id: entry.id,
+          apply_id: apply.id,
+          sender_user_id: userId,
+        },
+      });
+    } catch (e) {
+      console.error('[extra-matching] 호감 도착 알림 생성 오류:', e);
+    }
+
     return res.json({
       success: true,
       apply,
@@ -1444,6 +1477,26 @@ router.post('/applies/:applyId/accept', async (req, res) => {
         } catch (e) {
           console.error('[extra-matching] users is_applied/is_matched 업데이트 중 예외:', e);
         }
+
+        // 🔔 알림: 내가 보낸 호감에 대한 "승낙" 안내 (보낸 사람 기준)
+        try {
+          await notificationRoutes.createNotification(String(apply.sender_user_id), {
+            type: 'extra_match',
+            title: '[추가매칭] 보낸 호감을 상대가 승낙했어요',
+            body:
+              '상대가 회원님이 보낸 호감을 승낙했습니다.\n' +
+              '이번 회차 추가 매칭을 통해 매칭이 성사되었으며, 메인 페이지에서 채팅방을 확인하실 수 있어요.',
+            linkUrl: '/main',
+            meta: {
+              period_id: entry.period_id,
+              entry_id: entry.id,
+              apply_id: apply.id,
+              result: 'accepted',
+            },
+          });
+        } catch (e) {
+          console.error('[extra-matching] 호감 승낙 알림 생성 오류:', e);
+        }
       }
     } catch (e) {
       console.error('[extra-matching] matching_history 기록 중 예외:', e);
@@ -1526,6 +1579,25 @@ router.post('/applies/:applyId/reject', async (req, res) => {
     } catch (e) {
       console.error('[extra-matching] /applies/:applyId/reject 별 환불 오류:', e);
       return res.status(500).json({ message: '별 환불 처리 중 오류가 발생했습니다.' });
+    }
+
+    // 🔔 알림: 내가 보낸 호감에 대한 "거절" 안내 (보낸 사람 기준)
+    try {
+      await notificationRoutes.createNotification(String(apply.sender_user_id), {
+        type: 'extra_match',
+        title: '[추가매칭] 보낸 호감이 거절되었습니다',
+        body:
+          '상대가 회원님이 보낸 호감을 거절했습니다.\n' +
+          '사용하신 별 10개 중 5개는 자동으로 환불되었으며, 다른 분께 다시 도전하실 수 있어요.',
+        linkUrl: '/extra-matching',
+        meta: {
+          entry_id: entry.id,
+          apply_id: apply.id,
+          result: 'rejected',
+        },
+      });
+    } catch (e) {
+      console.error('[extra-matching] 호감 거절 알림 생성 오류:', e);
     }
 
     return res.json({
