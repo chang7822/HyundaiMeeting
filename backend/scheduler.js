@@ -253,6 +253,22 @@ cron.schedule(scheduleInterval, async () => {
       const emailExecutionTime = new Date(announceTime.getTime() + 30 * 1000); // 30초 후 실행
       
       if (!current.email_sent && now >= emailExecutionTime) {
+        // ✅ executed와 동일하게, 실행 전에 먼저 email_sent 플래그를 올려서
+        //    10초 주기의 스케줄러가 같은 회차에 대해 여러 번 메일 발송을 시작하지 않도록 방지
+        try {
+          const { error: preUpdateError } = await supabase
+            .from('matching_log')
+            .update({ email_sent: true })
+            .eq('id', current.id);
+          if (preUpdateError) {
+            console.error('[스케줄러] email_sent 사전 업데이트 오류:', preUpdateError);
+          } else {
+            console.log(`[스케줄러] 매칭 회차 ${current.id} email 메일 발송 시작`);
+          }
+        } catch (flagErr) {
+          console.error('[스케줄러] email_sent 사전 업데이트 중 예외:', flagErr);
+        }
+
         console.log(`[스케줄러] 매칭 결과 이메일 발송 시작 (예정: ${announceTime.toISOString()}, 실제: ${now.toISOString()})`);
         
         // 매칭 결과 이메일 발송 함수 실행
@@ -262,7 +278,7 @@ cron.schedule(scheduleInterval, async () => {
           await sendMatchingResultEmails(current.id);
           console.log('[스케줄러] 매칭 결과 이메일 발송 완료');
           
-          // 이메일 발송 완료 후 email_sent true로 업데이트
+          // 완료 후에도 한 번 더 email_sent=true를 보강 (중복이어도 무해, 로그용)
           const { error: updateError } = await supabase
             .from('matching_log')
             .update({ email_sent: true })
