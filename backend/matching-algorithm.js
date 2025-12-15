@@ -1,7 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: __dirname + '/config.env' });
 const fs = require('fs');
-const { sendMatchingResultEmail } = require('./utils/emailService');
+const { sendMatchingResultEmail, sendAdminNotificationEmail } = require('./utils/emailService');
 
 // Supabase 연결
 const supabase = createClient(
@@ -172,11 +172,14 @@ function isMutualMatch(a, b, previousMatches = null) {
 
 // 매칭 결과 이메일 발송 함수 (스케줄러에서 호출)
 // periodIdOverride가 주어지면 해당 회차 기준, 없으면 최신 회차 기준
+// - 각 신청자당 최대 5회까지 재시도
+// - 한 번의 라운드에서 실패한 대상만 모아서 10초 후 재시도
+// - 5회 연속 실패한 대상이 남으면 관리자에게 요약 메일 전송
 async function sendMatchingResultEmails(periodIdOverride) {
   try {
     let periodId = periodIdOverride;
 
-    // 특정 회차가 지정되지 않은 경우 → 최신 회차 사용 (기존 동작 유지)
+    // 1. 회차 결정 (지정 없으면 최신 회차)
     if (!periodId) {
       const { data: logRows, error: logError } = await supabase
         .from('matching_log')
@@ -213,30 +216,89 @@ async function sendMatchingResultEmails(periodIdOverride) {
       return;
     }
 
-    console.log('\n📧 매칭 결과 이메일 발송 시작...');
-    let emailSuccessCount = 0;
-    let emailFailCount = 0;
+    console.log('\n📧 매칭 결과 이메일 발송 시작 (재시도 포함)...');
 
-    // 각 신청자에게 이메일 발송
-    for (const app of applications) {
-      try {
+    const maxAttempts = 5;
+    let pending = applications.map(app => ({
+      ...app,
+      attempts: 0,
+    }));
+
+    let totalSuccess = 0;
+    let totalFail = 0;
+
+    for (let attempt = 1; attempt <= maxAttempts && pending.length > 0; attempt++) {
+      console.log(`📧 매칭 결과 이메일 발송 시도 ${attempt} / ${maxAttempts} (대상: ${pending.length}명)`);
+
+      const nextPending = [];
+
+      for (const app of pending) {
         const isMatched = app.matched === true;
         const partnerInfo = isMatched && app.partner_user_id ? { partnerId: app.partner_user_id } : null;
-        
-        const emailSent = await sendMatchingResultEmail(app.user.email, isMatched, partnerInfo);
-        
-        if (emailSent) {
-          emailSuccessCount++;
-        } else {
-          emailFailCount++;
+
+        try {
+          const emailSent = await sendMatchingResultEmail(app.user.email, isMatched, partnerInfo);
+
+          if (emailSent) {
+            totalSuccess++;
+          } else {
+            if (attempt < maxAttempts) {
+              nextPending.push({
+                ...app,
+                attempts: app.attempts + 1,
+              });
+            } else {
+              totalFail++;
+            }
+          }
+        } catch (error) {
+          console.error(`이메일 발송 오류 - 사용자: ${app.user_id}`, error);
+          if (attempt < maxAttempts) {
+            nextPending.push({
+              ...app,
+              attempts: app.attempts + 1,
+            });
+          } else {
+            totalFail++;
+          }
         }
-      } catch (error) {
-        console.error(`이메일 발송 오류 - 사용자: ${app.user_id}`, error);
-        emailFailCount++;
       }
+
+      if (nextPending.length === 0) {
+        break;
+      }
+
+      if (attempt < maxAttempts) {
+        console.log(`📧 이번 시도에서 실패한 대상: ${nextPending.length}명, 10초 후 재시도 예정...`);
+        await new Promise(resolve => setTimeout(resolve, 10_000));
+      }
+
+      pending = nextPending;
     }
 
-    console.log(`📧 매칭 결과 이메일 발송 완료: 성공 ${emailSuccessCount}건, 실패 ${emailFailCount}건`);
+    console.log(`📧 매칭 결과 이메일 발송 완료: 성공 ${totalSuccess}건, 실패 ${totalFail}건`);
+
+    // 최종적으로 5회 시도 후에도 실패한 대상이 남았다면, 관리자에게 요약 메일 발송
+    if (pending.length > 0) {
+      const failList = pending
+        .map(app => `- user_id: ${app.user_id}, email: ${app.user?.email || '(이메일 없음)'}`)
+        .join('\n');
+
+      const subject = '[직장인 솔로 공모] 매칭 결과 이메일 일부 발송 실패 알림';
+      const content = [
+        `회차 ID: ${periodId}`,
+        `최대 ${maxAttempts}회 재시도 후에도 발송 실패한 대상이 ${pending.length}명 있습니다.`,
+        '',
+        '실패 대상 목록:',
+        failList || '(없음)',
+      ].join('\n');
+
+      try {
+        await sendAdminNotificationEmail(subject, content);
+      } catch (adminErr) {
+        console.error('[matching-algorithm] 관리자 실패 알림 메일 발송 오류:', adminErr);
+      }
+    }
   } catch (error) {
     console.error('매칭 결과 이메일 발송 오류:', error);
   }

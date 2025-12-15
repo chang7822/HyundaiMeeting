@@ -96,10 +96,10 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    // 개발 환경에서는 최소한의 로그만 남겨서 원인 파악이 가능하도록 함
-    if (process.env.NODE_ENV !== 'production') {
-      console.error('[sendMatchingResultEmail] 이메일 발송 실패:', error?.message || error);
-    }
+    // 운영/개발 모두에서 실패 원인을 남겨서, 실제 장애 원인을 추적할 수 있도록 한다.
+    const basicMsg = error?.message || String(error);
+    const smtpResponse = error?.response || error?.responseCode || null;
+    console.error('[sendMatchingResultEmail] 이메일 발송 실패:', basicMsg, smtpResponse ? `| SMTP 응답: ${smtpResponse}` : '');
     return false;
   }
 }
