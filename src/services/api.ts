@@ -465,6 +465,60 @@ export const saveAdminProfileOptions = async (options: any[]) => {
   return res.data;
 };
 
+// Admin 회사(Companies) 관리 API
+export const adminCompanyApi = {
+  // 회사 목록 조회 (활성/비활성 포함)
+  getCompanies: async (): Promise<{
+    success: boolean;
+    data: {
+      id: number;
+      name: string;
+      emailDomains: string[];
+      isActive: boolean;
+      createdAt?: string;
+    }[];
+  }> => {
+    const res = await api.get('/admin/companies');
+    return res.data;
+  },
+
+  // 회사 생성
+  createCompany: async (payload: {
+    name: string;
+    emailDomains: string[];
+    isActive: boolean;
+    createNotice?: boolean;
+  }): Promise<any> => {
+    const res = await api.post('/admin/companies', payload);
+    return res.data;
+  },
+
+  // 회사 수정
+  updateCompany: async (
+    id: number,
+    payload: {
+      name?: string;
+      emailDomains?: string[];
+      isActive?: boolean;
+    },
+  ): Promise<any> => {
+    const res = await api.put(`/admin/companies/${id}`, payload);
+    return res.data;
+  },
+
+  // 회사 삭제
+  deleteCompany: async (id: number): Promise<any> => {
+    const res = await api.delete(`/admin/companies/${id}`);
+    return res.data;
+  },
+
+  // 선택한 회사들을 모든 회원의 선호 회사(prefer_company)에 일괄 추가
+  applyPreferredToAllUsers: async (companyIds: number[]): Promise<any> => {
+    const res = await api.post('/admin/companies/apply-prefer-company', { companyIds });
+    return res.data;
+  },
+};
+
 // Notice API
 export const noticeApi = {
   getNotices: async (): Promise<any[]> => {

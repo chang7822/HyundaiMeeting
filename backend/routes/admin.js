@@ -2061,4 +2061,319 @@ router.put('/users/:userId/report-info', authenticate, async (req, res) => {
   }
 });
 
+// ==============================
+// 회사(Companies) 관리 API
+// ==============================
+
+// 회사 목록 조회 (관리자 전용, 활성/비활성 모두)
+router.get('/companies', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { data, error } = await supabase
+      .from('companies')
+      .select('id, name, email_domains, is_active, created_at')
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('[admin][companies] 목록 조회 오류:', error);
+      return res.status(500).json({ success: false, message: '회사 목록을 불러오지 못했습니다.' });
+    }
+
+    const companies = (data || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      emailDomains: Array.isArray(c.email_domains) ? c.email_domains : [],
+      isActive: !!c.is_active,
+      createdAt: c.created_at,
+    }));
+
+    return res.json({ success: true, data: companies });
+  } catch (error) {
+    console.error('[admin][companies] 목록 조회 예외:', error);
+    return res.status(500).json({ success: false, message: '회사 목록 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// 회사 생성
+router.post('/companies', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { name, emailDomains, isActive, createNotice } = req.body || {};
+
+    if (!name || !String(name).trim()) {
+      return res.status(400).json({ success: false, message: '회사명을 입력해주세요.' });
+    }
+
+    const trimmedName = String(name).trim();
+    const domains = Array.isArray(emailDomains)
+      ? emailDomains.map((d) => String(d).trim().toLowerCase()).filter((d) => d.length > 0)
+      : [];
+
+    const payload = {
+      name: trimmedName,
+      email_domains: domains,
+      is_active: !!isActive,
+    };
+
+    const { data, error } = await supabase
+      .from('companies')
+      .insert([payload])
+      .select('id, name, email_domains, is_active, created_at')
+      .single();
+
+    if (error) {
+      console.error('[admin][companies] 생성 오류:', error);
+      return res.status(500).json({ success: false, message: '회사 생성 중 오류가 발생했습니다.' });
+    }
+
+    // 회사 목록 캐시 초기화 (선호 회사 필터링용)
+    adminCompanyIdNameMap = null;
+
+    // 옵션: 회사 추가 안내 공지사항 자동 등록
+    let noticeId = null;
+    if (createNotice) {
+      try {
+        const noticeTitle = `회사추가안내 (${trimmedName})`;
+        const noticeContentLines = [
+          '안녕하세요 직쏠공입니다.',
+          '',
+          '신규 회사가 추가 확장되어 안내드립니다.',
+          '',
+          `- 회사명 : ${trimmedName}`,
+          '',
+          '신규 회사 추가 관계로 각 회원님의 선호스타일 페이지에서',
+          '선호 회사리스트에 자동으로 위 회사가 추가 됩니다.',
+          '',
+          '확인 후 매칭신청 전 개별 조정 바랍니다.',
+          '',
+          '',
+          '감사합니다 :)',
+        ];
+
+        const { data: noticeData, error: noticeError } = await supabase
+          .from('notice')
+          .insert([
+            {
+              title: noticeTitle,
+              content: noticeContentLines.join('\n'),
+              author: '관리자',
+              is_important: false,
+              view_count: 0,
+            },
+          ])
+          .select('id')
+          .single();
+
+        if (noticeError) {
+          console.error('[admin][companies] 회사 추가 공지사항 생성 오류:', noticeError);
+        } else if (noticeData && noticeData.id != null) {
+          noticeId = noticeData.id;
+        }
+      } catch (e) {
+        console.error('[admin][companies] 회사 추가 공지사항 생성 예외:', e);
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        id: data.id,
+        name: data.name,
+        emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
+        isActive: !!data.is_active,
+        createdAt: data.created_at,
+      },
+      noticeId,
+    });
+  } catch (error) {
+    console.error('[admin][companies] 생성 예외:', error);
+    return res.status(500).json({ success: false, message: '회사 생성 중 오류가 발생했습니다.' });
+  }
+});
+
+// 회사 수정
+router.put('/companies/:id', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { id } = req.params;
+    const { name, emailDomains, isActive } = req.body || {};
+
+    const update = {};
+    if (name !== undefined) {
+      const trimmedName = String(name).trim();
+      if (!trimmedName) {
+        return res.status(400).json({ success: false, message: '회사명을 입력해주세요.' });
+      }
+      update.name = trimmedName;
+    }
+    if (emailDomains !== undefined) {
+      const domains = Array.isArray(emailDomains)
+        ? emailDomains.map((d) => String(d).trim().toLowerCase()).filter((d) => d.length > 0)
+        : [];
+      update.email_domains = domains;
+    }
+    if (isActive !== undefined) {
+      update.is_active = !!isActive;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ success: false, message: '변경할 값이 없습니다.' });
+    }
+
+    const { data, error } = await supabase
+      .from('companies')
+      .update(update)
+      .eq('id', id)
+      .select('id, name, email_domains, is_active, created_at')
+      .single();
+
+    if (error) {
+      console.error('[admin][companies] 수정 오류:', error);
+      return res.status(500).json({ success: false, message: '회사 수정 중 오류가 발생했습니다.' });
+    }
+
+    adminCompanyIdNameMap = null;
+
+    return res.json({
+      success: true,
+      data: {
+        id: data.id,
+        name: data.name,
+        emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
+        isActive: !!data.is_active,
+        createdAt: data.created_at,
+      },
+    });
+  } catch (error) {
+    console.error('[admin][companies] 수정 예외:', error);
+    return res.status(500).json({ success: false, message: '회사 수정 중 오류가 발생했습니다.' });
+  }
+});
+
+// 회사 삭제
+router.delete('/companies/:id', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { id } = req.params;
+
+    const { error } = await supabase
+      .from('companies')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('[admin][companies] 삭제 오류:', error);
+      return res.status(500).json({ success: false, message: '회사 삭제 중 오류가 발생했습니다.' });
+    }
+
+    adminCompanyIdNameMap = null;
+
+    return res.json({ success: true, message: '회사가 삭제되었습니다.' });
+  } catch (error) {
+    console.error('[admin][companies] 삭제 예외:', error);
+    return res.status(500).json({ success: false, message: '회사 삭제 중 오류가 발생했습니다.' });
+  }
+});
+
+// 선택한 회사들을 모든 회원의 선호 회사(prefer_company)에 일괄 추가
+router.post('/companies/apply-prefer-company', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { companyIds } = req.body || {};
+
+    if (!Array.isArray(companyIds) || companyIds.length === 0) {
+      return res.status(400).json({ success: false, message: '적용할 회사 ID 목록을 전달해주세요.' });
+    }
+
+    const cleanIds = Array.from(
+      new Set(
+        companyIds
+          .map((id) => Number(id))
+          .filter((n) => Number.isInteger(n) && n > 0),
+      ),
+    );
+
+    if (cleanIds.length === 0) {
+      return res.status(400).json({ success: false, message: '유효한 회사 ID가 없습니다.' });
+    }
+
+    // 실제 존재하는 회사만 필터링 (선택 사항)
+    const { data: validCompanies, error: companyError } = await supabase
+      .from('companies')
+      .select('id')
+      .in('id', cleanIds);
+
+    if (companyError) {
+      console.error('[admin][companies][apply-prefer-company] 회사 검증 오류:', companyError);
+      return res.status(500).json({ success: false, message: '회사 정보 확인 중 오류가 발생했습니다.' });
+    }
+
+    const validIds = (validCompanies || []).map((c) => c.id);
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, message: '선택한 회사 ID가 유효하지 않습니다.' });
+    }
+
+    // 모든 회원의 user_profiles.prefer_company 읽어오기
+    const { data: profiles, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('user_id, prefer_company');
+
+    if (profileError) {
+      console.error('[admin][companies][apply-prefer-company] 프로필 조회 오류:', profileError);
+      return res.status(500).json({ success: false, message: '회원 프로필 조회 중 오류가 발생했습니다.' });
+    }
+
+    const updates = [];
+    for (const row of profiles || []) {
+      const existing = Array.isArray(row.prefer_company) ? row.prefer_company.filter((n) => Number.isInteger(n)) : [];
+      const mergedSet = new Set([...existing, ...validIds]);
+      const mergedArray = Array.from(mergedSet);
+
+      // 변경이 없는 경우 스킵
+      const sameLength = mergedArray.length === existing.length;
+      if (sameLength && existing.every((id) => mergedSet.has(id))) {
+        continue;
+      }
+
+      updates.push({
+        user_id: row.user_id,
+        prefer_company: mergedArray,
+      });
+    }
+
+    if (updates.length === 0) {
+      return res.json({
+        success: true,
+        message: '변경된 항목이 없습니다. 이미 모든 회원의 선호 회사에 선택한 회사가 포함되어 있습니다.',
+        targetCount: profiles ? profiles.length : 0,
+        updatedCount: 0,
+      });
+    }
+
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .upsert(updates, { onConflict: 'user_id' });
+
+    if (updateError) {
+      console.error('[admin][companies][apply-prefer-company] 일괄 적용 오류:', updateError);
+      return res.status(500).json({ success: false, message: '선호 회사 일괄 적용 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      message: `선택한 회사가 ${updates.length}명의 회원 선호 회사 목록에 추가되었습니다.`,
+      targetCount: profiles ? profiles.length : 0,
+      updatedCount: updates.length,
+    });
+  } catch (error) {
+    console.error('[admin][companies][apply-prefer-company] 예외:', error);
+    return res.status(500).json({ success: false, message: '선호 회사 일괄 적용 중 서버 오류가 발생했습니다.' });
+  }
+});
+
 module.exports = router; 
