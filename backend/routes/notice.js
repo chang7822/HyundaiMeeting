@@ -10,7 +10,6 @@ router.get('/', async (req, res) => {
     const { data, error } = await supabase
       .from('notice')
       .select('*')
-      .order('is_important', { ascending: false })
       .order('created_at', { ascending: false });
 
     if (error) {

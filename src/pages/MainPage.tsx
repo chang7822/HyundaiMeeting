@@ -1591,6 +1591,36 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return;
     }
 
+    // 선호 직군 선택 여부 확인
+    try {
+      const rawJobTypes = me?.preferred_job_types;
+      let jobTypes: string[] = [];
+
+      if (Array.isArray(rawJobTypes)) {
+        jobTypes = rawJobTypes as string[];
+      } else if (typeof rawJobTypes === 'string' && rawJobTypes.trim().length > 0) {
+        try {
+          const parsed = JSON.parse(rawJobTypes);
+          if (Array.isArray(parsed)) {
+            jobTypes = parsed;
+          } else if (parsed) {
+            jobTypes = [String(parsed)];
+          }
+        } catch {
+          // JSON 파싱이 안 되면 단일 값으로 취급
+          jobTypes = [rawJobTypes.trim()];
+        }
+      }
+
+      if (!jobTypes || jobTypes.length === 0) {
+        toast.error('선호 스타일에서 선호 직군을 선택해주세요.');
+        return;
+      }
+    } catch (e) {
+      toast.error('선호 스타일에서 선호 직군을 선택해주세요.');
+      return;
+    }
+
     if (bodyTypes.length !== 3) {
       toast.error('원활한 매칭을 위해 프로필에서 체형 3개를 선택해 주세요.');
       return;
