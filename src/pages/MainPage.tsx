@@ -861,11 +861,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     fetchLatestNotice();
   }, []);
 
-  // 선호 회사 이름 매핑용 회사 목록 로드
+  // 선호 회사 이름 매핑용 회사 목록 로드 (가나다순 정렬)
   useEffect(() => {
     companyApi
       .getCompanies()
-      .then(setCompanies)
+      .then((data) => {
+        const sorted = (data || []).slice().sort((a, b) =>
+          a.name.localeCompare(b.name, 'ko-KR'),
+        );
+        setCompanies(sorted);
+      })
       .catch(() => {
         // 회사 목록 로드 실패 시에도 페이지는 계속 동작하게 둔다.
       });

@@ -9,7 +9,7 @@ router.get('/', async (req, res) => {
     .from('companies')
     .select('*')
     .eq('is_active', true)
-    .order('id', { ascending: true });
+    .order('name', { ascending: true });
 
   if (error) {
     return res.status(500).json({ message: '회사 목록을 불러오지 못했습니다.', error });

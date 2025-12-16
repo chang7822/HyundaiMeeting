@@ -120,7 +120,10 @@ const CompanySelectionPage = () => {
     const fetchCompanies = async () => {
       try {
         const data = await companyApi.getCompanies();
-        setCompanies(data);
+        const sorted = (data || []).slice().sort((a, b) =>
+          a.name.localeCompare(b.name, 'ko-KR'),
+        );
+        setCompanies(sorted);
       } catch (error) {
         console.error('Failed to fetch companies:', error);
       } finally {

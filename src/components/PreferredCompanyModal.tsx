@@ -203,7 +203,10 @@ const PreferredCompanyModal: React.FC<PreferredCompanyModalProps> = ({
       .finally(() => setLoading(false));
   }, [isOpen, initialSelectedIds]);
 
-  const activeCompanies = companies.filter(c => c.isActive);
+  const activeCompanies = companies
+    .filter(c => c.isActive)
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
   const allSelected =
     activeCompanies.length > 0 &&
     selectedIds.length === activeCompanies.length;

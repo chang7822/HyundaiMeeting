@@ -30,6 +30,7 @@ import NoticePage from './pages/NoticePage.tsx';
 import FaqPage from './pages/FaqPage.tsx';
 import MatchingLogAdminPage from './pages/admin/MatchingLogAdminPage.tsx';
 import CategoryManagerPage from './pages/admin/CategoryManagerPage.tsx';
+import CompanyManagerPage from './pages/admin/CompanyManagerPage.tsx';
 import { MatchingApplicationsPage } from './pages/admin/MatchingApplicationsPage.tsx';
 import MatchingResultPage from './pages/admin/MatchingResultPage.tsx';
 import NoticeManagerPage from './pages/admin/NoticeManagerPage.tsx';
@@ -371,6 +372,14 @@ const AppInner: React.FC = () => {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <CategoryManagerPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/company-manager" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <CompanyManagerPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />
