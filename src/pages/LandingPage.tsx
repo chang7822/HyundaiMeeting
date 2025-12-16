@@ -441,7 +441,10 @@ const LandingPage = () => {
       .getCompanies()
       .then((list) => {
         if (cancelled) return;
-        const actives = (list || []).filter((c) => (c as any).is_active === true || (c as any).isActive === true);
+        const actives = (list || [])
+          .filter((c) => (c as any).is_active === true || (c as any).isActive === true)
+          .slice()
+          .sort((a, b) => (a as any).name.localeCompare((b as any).name, 'ko-KR'));
         setActiveCompanies(actives);
       })
       .catch(() => {

@@ -2111,7 +2111,23 @@ router.post('/companies', authenticate, async (req, res) => {
       ? emailDomains.map((d) => String(d).trim().toLowerCase()).filter((d) => d.length > 0)
       : [];
 
+    // id를 companies 테이블 전체 개수 + 1 로 설정 (넘버링 정렬용)
+    let nextId = null;
+    try {
+      const { count, error: countError } = await supabase
+        .from('companies')
+        .select('id', { count: 'exact', head: true });
+      if (countError) {
+        console.error('[admin][companies] 회사 개수 조회 오류:', countError);
+      } else if (typeof count === 'number') {
+        nextId = count + 1;
+      }
+    } catch (e) {
+      console.error('[admin][companies] 회사 개수 조회 예외:', e);
+    }
+
     const payload = {
+      ...(nextId != null ? { id: nextId } : {}),
       name: trimmedName,
       email_domains: domains,
       is_active: !!isActive,
