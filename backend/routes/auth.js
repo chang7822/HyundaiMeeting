@@ -411,7 +411,9 @@ router.post('/login', async (req, res) => {
       .single();
 
     // 1. 로그인 성공 로그 (메일계정 기준 간단히)
-    console.log(`[AUTH] 로그인 성공: email=${email}, role=${user.is_admin ? 'admin' : 'user'}`);
+    console.log(
+      `[AUTH] 로그인 성공: email=${email}, nickname=${profile?.nickname || '미설정'}, role=${user.is_admin ? 'admin' : 'user'}`,
+    );
 
     const token = jwt.sign(
       { userId: user.id, id: user.id, email: user.email, isAdmin: user.is_admin },

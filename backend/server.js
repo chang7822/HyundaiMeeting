@@ -331,7 +331,7 @@ io.on('connection', (socket) => {
       const sortedIds = [String(data.reader_id), String(data.partner_id)].sort();
       const roomId = `${data.period_id}_${sortedIds[0]}_${sortedIds[1]}`;
       io.to(roomId).emit('read', data);
-      console.log(`[CHAT] 읽음: room=${roomId}, reader=${data.reader_id}, partner=${data.partner_id}`);
+      // console.log(`[CHAT] 읽음: room=${roomId}, reader=${data.reader_id}, partner=${data.partner_id}`);
     } catch (e) {
       console.error('[SOCKET][server] read 이벤트 처리 오류:', e);
     }
