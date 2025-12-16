@@ -628,7 +628,12 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             >{opt.option_text}</OptionButton>
           ))}
         </Row>
-        <Label>직군</Label>
+        <Label>
+          직군
+          <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
+            (직군 구분이 없는 회사의 경우 일반직으로 설정 바랍니다.)
+          </span>
+        </Label>
         <Row>
           {getOptions('직군').map((opt) => (
             <OptionButton

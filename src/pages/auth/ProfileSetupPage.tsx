@@ -533,7 +533,12 @@ const ProfileSetupPage = () => {
           })()}
         </BodyTypeGrid>
         
-        <Label>직군</Label>
+        <Label>
+          직군
+          <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
+            (직군 구분이 없는 회사의 경우 일반직으로 설정 바랍니다.)
+          </span>
+        </Label>
         <Row style={{flexWrap:'wrap'}}>
           {getOptions(filteredCategories.find(c => c.name === '직군')?.id || 0).map(opt => (
             <OptionButton
