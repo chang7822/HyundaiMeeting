@@ -23,6 +23,7 @@ const systemRoutes = require('./routes/system');
 const starRoutes = require('./routes/stars');
 const extraMatchingRoutes = require('./routes/extra-matching');
 const notificationRoutes = require('./routes/notifications');
+const pushRoutes = require('./routes/push');
 const { supabase } = require('./database');
 const { encrypt, decrypt } = require('./utils/encryption');
 
@@ -81,6 +82,7 @@ app.use('/api/system', systemRoutes);
 app.use('/api/stars', starRoutes);
 app.use('/api/extra-matching', extraMatchingRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/push', pushRoutes);
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, '../public')));

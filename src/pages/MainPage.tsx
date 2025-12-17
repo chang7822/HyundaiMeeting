@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaBell } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, notificationApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, notificationApi, pushApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../firebase.ts';
 
 // 액션 타입 정의
 type ActionItem = {
@@ -109,6 +110,52 @@ const TopWelcomeHeaderRow = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+`;
+
+const PushToggleContainer = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 10px;
+
+  @media (max-width: 480px) {
+    margin-right: 6px;
+  }
+`;
+
+const PushToggleLabel = styled.span`
+  font-size: 0.8rem;
+  color: #e5e7eb;
+  white-space: nowrap;
+`;
+
+const PushToggleSwitch = styled.button<{ $enabled: boolean }>`
+  position: relative;
+  width: 38px;
+  height: 20px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: ${({ $enabled }) =>
+    $enabled
+      ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
+      : 'rgba(15,23,42,0.4)'};
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.2s ease;
+
+  &::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #f9fafb;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+    left: ${({ $enabled }) => ($enabled ? '18px' : '4px')};
+    transition: left 0.2s ease;
+  }
 `;
 
 const TopWelcomeTitle = styled.h1`
@@ -761,6 +808,143 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
+
+  // 푸시 알림 on/off 상태 (브라우저 기준, 서버 저장은 토큰 등록/해제)
+  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const stored = localStorage.getItem('pushEnabled');
+      return stored === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [isPushBusy, setIsPushBusy] = useState(false);
+
+  const handleTogglePush = useCallback(async () => {
+    if (isPushBusy) return;
+
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
+      return;
+    }
+
+    const next = !isPushEnabled;
+
+    // OFF → ON
+    if (next) {
+      try {
+        setIsPushBusy(true);
+
+        const currentPermission = Notification.permission;
+        let permission = currentPermission;
+
+        if (permission === 'default') {
+          permission = await Notification.requestPermission();
+        }
+
+        if (permission !== 'granted') {
+          toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        const messaging = await getFirebaseMessaging();
+        if (!messaging) {
+          console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다. (지원/환경/설정 문제 가능)');
+          console.error('[push] Notification.permission:', Notification.permission);
+          console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
+          toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        if (!FIREBASE_VAPID_KEY) {
+          console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
+        }
+
+        const { getToken } = await import('firebase/messaging');
+
+        // 서비스워커를 명시적으로 등록한 뒤 해당 registration을 사용해서 토큰 발급
+        let registration: ServiceWorkerRegistration | undefined;
+        try {
+          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.info('[push] service worker 등록 성공:', registration.scope);
+        } catch (swErr) {
+          console.error('[push] service worker 등록 실패:', swErr);
+          toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        const token = await getToken(messaging, {
+          vapidKey: FIREBASE_VAPID_KEY || undefined,
+          serviceWorkerRegistration: registration,
+        });
+
+        if (!token) {
+          toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        // 서버에 토큰 등록
+        await pushApi.registerToken(token);
+
+        // 테스트 푸시 알림 전송
+        try {
+          await pushApi.sendTestNotification();
+        } catch (e) {
+          console.error('[push] 테스트 푸시 전송 중 오류:', e);
+        }
+
+        try {
+          localStorage.setItem('pushEnabled', 'true');
+          localStorage.setItem('pushFcmToken', token);
+        } catch {
+          // localStorage 실패는 무시
+        }
+
+        setIsPushEnabled(true);
+        toast.success('푸시 알림이 활성화되었습니다.');
+      } catch (e) {
+        console.error('[push] 푸시 활성화 중 오류:', e);
+        toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
+      } finally {
+        setIsPushBusy(false);
+      }
+      return;
+    }
+
+    // ON → OFF
+    try {
+      setIsPushBusy(true);
+      let token: string | undefined;
+      try {
+        const storedToken = localStorage.getItem('pushFcmToken');
+        if (storedToken) token = storedToken;
+      } catch {
+        // ignore
+      }
+
+      await pushApi.unregisterToken(token);
+
+      try {
+        localStorage.setItem('pushEnabled', 'false');
+      } catch {
+        // ignore
+      }
+
+      setIsPushEnabled(false);
+      toast.success('푸시 알림이 비활성화되었습니다.');
+    } catch (e) {
+      console.error('[push] 푸시 비활성화 중 오류:', e);
+      toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
+    } finally {
+      setIsPushBusy(false);
+    }
+  }, [isPushEnabled, isPushBusy]);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -1902,53 +2086,64 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </NicknameSpan>
           님!
         </TopWelcomeTitle>
-        <div style={{ position: 'relative', display: 'inline-block' }}>
-          {/* 알림 종 아이콘 버튼 */}
-          <button
-            type="button"
-            onClick={() => navigate('/notifications')}
-            style={{
-              border: 'none',
-              background: 'rgba(15,23,42,0.32)',
-              borderRadius: '999px',
-              width: 34,
-              height: 34,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              color: '#e5e7eb',
-              boxShadow: '0 4px 10px rgba(15,23,42,0.4)',
-              padding: 0,
-            }}
-          >
-            <FaBell style={{ color: '#fbbf24', fontSize: '1.1rem' }} />
-          </button>
-          {/* 새 알림 뱃지 */}
-          {notificationUnreadCount > 0 && (
-            <div
+        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <PushToggleContainer>
+            <PushToggleLabel>푸시 알림</PushToggleLabel>
+            <PushToggleSwitch
+              type="button"
+              $enabled={isPushEnabled}
+              onClick={handleTogglePush}
+              disabled={isPushBusy}
+            />
+          </PushToggleContainer>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            {/* 알림 종 아이콘 버튼 */}
+            <button
+              type="button"
+              onClick={() => navigate('/notifications')}
               style={{
-                position: 'absolute',
-                top: -6,
-                right: -6,
-                background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-                color: 'white',
-                borderRadius: '50%',
-                width: 18,
-                height: 18,
-                display: 'flex',
+                border: 'none',
+                background: 'rgba(15,23,42,0.32)',
+                borderRadius: '999px',
+                width: 34,
+                height: 34,
+                display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '0.68rem',
-                fontWeight: 700,
-                boxShadow: '0 2px 8px rgba(231, 76, 60, 0.45)',
-                border: '2px solid rgba(15,23,42,0.95)',
-                zIndex: 10,
+                cursor: 'pointer',
+                color: '#e5e7eb',
+                boxShadow: '0 4px 10px rgba(15,23,42,0.4)',
+                padding: 0,
               }}
             >
-              {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
-            </div>
-          )}
+              <FaBell style={{ color: '#fbbf24', fontSize: '1.1rem' }} />
+            </button>
+            {/* 새 알림 뱃지 */}
+            {notificationUnreadCount > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -6,
+                  right: -6,
+                  background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                  color: 'white',
+                  borderRadius: '50%',
+                  width: 18,
+                  height: 18,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '0.68rem',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.45)',
+                  border: '2px solid rgba(15,23,42,0.95)',
+                  zIndex: 10,
+                }}
+              >
+                {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+              </div>
+            )}
+          </div>
         </div>
       </TopWelcomeHeaderRow>
       <TopWelcomeSubtitle>
