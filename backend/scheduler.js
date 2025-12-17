@@ -165,12 +165,18 @@ cron.schedule(scheduleInterval, async () => {
       });
     }
     
-    // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 시점)
+    // [추가] 회차 시작 시 users 테이블 초기화 (신청 기간 시작 직전 1회만)
     if (current.application_start) {
       const startTime = new Date(current.application_start);
-      const resetExecutionTime = new Date(startTime.getTime() - 10 * 1000); // 10초 전 실행으로 변경
+      const resetExecutionTime = new Date(startTime.getTime() - 10 * 1000); // 신청 시작 10초 전
 
-      if (now >= resetExecutionTime) {
+      // ✅ 안전장치 추가
+      // - 지금 시간이 "신청 시작 10초 전 ~ 신청 시작 직전" 구간일 때만 동작
+      // - status 가 '준비중' 인 경우에만 동작 (진행중/발표완료/종료 상태에서는 절대 다시 초기화 안 함)
+      const inResetWindow = now >= resetExecutionTime && now < startTime;
+      const canResetByStatus = current.status === '준비중';
+
+      if (inResetWindow && canResetByStatus) {
         // DB에서 마지막으로 초기화된 회차 ID 조회
         let lastPeriodStartResetId = null;
         try {
@@ -188,7 +194,19 @@ cron.schedule(scheduleInterval, async () => {
         }
 
         if (lastPeriodStartResetId !== current.id) {
-          console.log(`[스케줄러] 회차 ${current.id} users 테이블 초기화 실행`);
+          // 초기화 사유 정리 (로그용)
+          let reason = '';
+          if (lastPeriodStartResetId == null) {
+            reason = 'app_settings에 기록 없음';
+          } else {
+            reason = `last_period_start_reset_id=${lastPeriodStartResetId} → current.id=${current.id} 불일치`;
+          }
+
+          console.log(
+            `[스케줄러] 회차 ${current.id} users 테이블 초기화 실행` +
+              ` (사유: ${reason}, status=${current.status}, now=${now.toISOString()}, window=[${resetExecutionTime.toISOString()} ~ ${startTime.toISOString()}])`
+          );
+
           const { data: resetResult, error: resetError } = await supabase
             .from('users')
             .update({ is_applied: false, is_matched: null })
@@ -198,7 +216,9 @@ cron.schedule(scheduleInterval, async () => {
           if (resetError) {
             console.error(`[스케줄러] users 테이블 초기화 실패:`, resetError);
           } else {
-            console.log(`[스케줄러] users 테이블 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋`);
+            console.log(
+              `[스케줄러] users 테이블 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋 (회차 ${current.id})`
+            );
             // 초기화 완료 후 app_settings에 기록
             try {
               const value = { periodId: current.id };
@@ -208,6 +228,7 @@ cron.schedule(scheduleInterval, async () => {
                   {
                     key: 'last_period_start_reset_id',
                     value,
+                    updated_at: new Date().toISOString(),
                   },
                   { onConflict: 'key' }
                 );
@@ -215,6 +236,12 @@ cron.schedule(scheduleInterval, async () => {
               console.error('[스케줄러] last_period_start_reset_id 업데이트 오류:', upsertErr);
             }
           }
+        } else {
+          // 동일 회차에 대해 이미 초기화가 완료된 경우 스킵 로그 (디버그용)
+          console.log(
+            `[스케줄러] 회차 ${current.id} users 초기화 스킵` +
+              ` (사유: 이미 last_period_start_reset_id=${lastPeriodStartResetId}, status=${current.status})`
+          );
         }
       }
     }
@@ -233,7 +260,7 @@ cron.schedule(scheduleInterval, async () => {
           .maybeSingle();
         if (!nextLog) {
           // 다음 회차가 없으면 무조건 초기화 실행
-          // console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
+          console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
           const { error: resetError } = await supabase
             .from('users')
             .update({ is_applied: false, is_matched: null })
@@ -241,7 +268,7 @@ cron.schedule(scheduleInterval, async () => {
           if (resetError) {
             console.error('[스케줄러] users 테이블 초기화 오류:', resetError);
           } else {
-            // console.log('[스케줄러] users 테이블 초기화 완료');
+            console.log('[스케줄러] users 테이블 초기화 완료');
           }
         }
       }

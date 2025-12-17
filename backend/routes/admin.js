@@ -162,11 +162,15 @@ router.put('/system-settings/maintenance', authenticate, async (req, res) => {
 
     const { data, error } = await supabase
       .from('app_settings')
-      .upsert({
-        key: 'maintenance',
-        value,
-        updated_by: req.user.userId,
-      }, { onConflict: 'key' })
+      .upsert(
+        {
+          key: 'maintenance',
+          value,
+          updated_by: req.user.userId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      )
       .select('value')
       .maybeSingle();
 
@@ -203,6 +207,7 @@ router.put('/system-settings/dev-mode', authenticate, async (req, res) => {
           key: 'dev_mode',
           value,
           updated_by: req.user.userId,
+          updated_at: new Date().toISOString(),
         },
         { onConflict: 'key' }
       )
