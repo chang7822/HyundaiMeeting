@@ -818,4 +818,27 @@ export const adminMatchingApi = {
   },
 };
 
+// Push Notification API (Firebase FCM Web Push용 토큰 등록/해제)
+export const pushApi = {
+  // 현재 기기의 FCM 토큰을 서버에 등록
+  registerToken: async (token: string): Promise<{ success: boolean }> => {
+    const response = await api.post('/push/register-token', { token });
+    return response.data;
+  },
+
+  // 현재 기기의 FCM 토큰을 서버에서 해제
+  // token을 보내지 않으면 해당 사용자(userId)의 모든 토큰을 제거
+  unregisterToken: async (token?: string): Promise<{ success: boolean }> => {
+    const payload = token ? { token } : {};
+    const response = await api.post('/push/unregister-token', payload);
+    return response.data;
+  },
+
+  // 테스트 푸시 알림 전송 (현재 사용자 대상)
+  sendTestNotification: async (): Promise<{ success: boolean }> => {
+    const response = await api.post('/push/send-test', {});
+    return response.data;
+  },
+};
+
 export default api; 

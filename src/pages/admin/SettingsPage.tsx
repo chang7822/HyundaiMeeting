@@ -319,8 +319,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 <SwitchSlider />
               </SwitchLabel>
             </ToggleRow>
-
           </Section>
+
         </Body>
       </ContentWrapper>
     </MainContainer>
