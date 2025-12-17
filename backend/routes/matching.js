@@ -120,6 +120,7 @@ router.get('/period', async (req, res) => {
             key: 'current_period_cache',
             value: cacheValue,
             current_period_id: current ? current.id : null,
+            updated_at: new Date().toISOString(),
           },
           { onConflict: 'key' }
         );
