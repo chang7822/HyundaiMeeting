@@ -186,10 +186,11 @@ router.post('/verify-email', async (req, res) => {
     const emailSent = await sendVerificationEmail(email, verificationCode);
     
     if (emailSent) {
-      console.log(`[AUTH] 이메일 인증 코드 발송 성공: email=${email}`);
+      // 이메일 인증코드를 로그에도 남겨서 운영 중에도 확인할 수 있도록 함
+      console.log(`[AUTH] 이메일 인증 코드 발송 성공: email=${email}, code=${verificationCode}`);
       res.json({ success: true, message: '인증 메일이 발송되었습니다.' });
     } else {
-      console.log(`[AUTH] 이메일 인증 코드 발송 실패: email=${email}`);
+      console.log(`[AUTH] 이메일 인증 코드 발송 실패: email=${email}, code=${verificationCode}`);
       res.json({ 
         success: true, 
         message: '인증 메일이 발송되었습니다. (개발 모드: 콘솔에서 인증번호 확인)',
@@ -271,9 +272,12 @@ router.post('/resend-verification', async (req, res) => {
     // 상단에서 생성한 공용 transporter 재사용
     try {
       await transporter.sendMail(mailOptions);
+      // 재발송된 인증 코드도 로그에 남긴다
+      console.log(`[AUTH] 이메일 인증번호 재발송: email=${email}, code=${verificationCode}`);
       res.json({ success: true, message: '인증번호가 재발송되었습니다.' });
     } catch (error) {
       // 재발송 실패 시에도 구체적인 로그는 남기지 않고 오류 응답만 전달
+      console.error('[AUTH] 이메일 인증번호 재발송 실패:', error, `email=${email}, code=${verificationCode}`);
       res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
     }
 
