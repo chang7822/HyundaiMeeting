@@ -1290,10 +1290,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       try {
         const res = await notificationApi.getUnreadCount();
         const count = res.unreadCount || 0;
-        console.log('[MainPage] 알림 미읽음 개수:', count);
+        // console.log('[MainPage] 알림 미읽음 개수:', count);
         setNotificationUnreadCount(count);
       } catch (error) {
-        console.error('[MainPage] 알림 개수 조회 실패:', error);
+        // console.error('[MainPage] 알림 개수 조회 실패:', error);
         setNotificationUnreadCount(0);
       }
     };
