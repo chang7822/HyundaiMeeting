@@ -9,6 +9,7 @@ const dotenv = require('dotenv');
 dotenv.config({ path: path.join(__dirname, 'config.env') });
 
 const { supabase } = require('./database');
+const { sendPushToAllUsers, sendPushToUsers } = require('./pushService');
 
 // status 기반으로 현재 회차/다음 회차를 계산하는 내부 헬퍼 (matching.js와 동일 로직)
 function computeCurrentAndNextFromLogs(logs) {
@@ -274,14 +275,71 @@ cron.schedule(scheduleInterval, async () => {
       }
     }
 
-    // [추가] 매칭 결과 이메일 발송 (matching_announce 시각)
+    // [추가] 매칭 신청 시작 푸시 알림 (전 회원 대상)
+    if (current.application_start) {
+      try {
+        const startTime = new Date(current.application_start);
+        // 신청 시작 시각 이후 5분 이내인 경우에만 푸시 발송 후보
+        const pushWindowStart = startTime;
+        const pushWindowEnd = new Date(startTime.getTime() + 5 * 60 * 1000);
+        const inPushWindow = now >= pushWindowStart && now < pushWindowEnd;
+
+        if (inPushWindow) {
+          let lastStartPushPeriodId = null;
+          try {
+            const { data: settingRow, error: settingError } = await supabase
+              .from('app_settings')
+              .select('value')
+              .eq('key', 'last_application_start_push_period_id')
+              .maybeSingle();
+
+            if (!settingError && settingRow && settingRow.value && typeof settingRow.value.periodId === 'number') {
+              lastStartPushPeriodId = settingRow.value.periodId;
+            }
+          } catch (infoErr) {
+            console.error('[스케줄러] last_application_start_push_period_id 조회 오류:', infoErr);
+          }
+
+          if (lastStartPushPeriodId !== current.id) {
+            console.log(`[스케줄러] 회차 ${current.id} 매칭 신청 시작 푸시 발송`);
+
+            await sendPushToAllUsers({
+              type: 'matching_application_start',
+              periodId: String(current.id),
+              title: '[직쏠공]',
+              body: '이번 회차 매칭 신청이 시작되었어요.',
+            });
+
+            try {
+              const value = { periodId: current.id };
+              await supabase
+                .from('app_settings')
+                .upsert(
+                  {
+                    key: 'last_application_start_push_period_id',
+                    value,
+                    updated_at: new Date().toISOString(),
+                  },
+                  { onConflict: 'key' },
+                );
+            } catch (upsertErr) {
+              console.error('[스케줄러] last_application_start_push_period_id 업데이트 오류:', upsertErr);
+            }
+          }
+        }
+      } catch (pushErr) {
+        console.error('[스케줄러] 매칭 신청 시작 푸시 발송 중 오류:', pushErr);
+      }
+    }
+
+    // [추가] 매칭 결과 이메일/푸시 발송 (matching_announce 시각)
     if (current.matching_announce) {
       const announceTime = new Date(current.matching_announce);
       const emailExecutionTime = new Date(announceTime.getTime() + 30 * 1000); // 30초 후 실행
       
       if (!current.email_sent && now >= emailExecutionTime) {
         // 실행 전에 email_sent 플래그를 선반영해서, 10초 주기의 스케줄러가
-        // 동일 회차에 대해 여러 번 이메일 발송을 시작하지 않도록 방지
+        // 동일 회차에 대해 여러 번 이메일/푸시 발송을 시작하지 않도록 방지
         try {
           const { error: preUpdateError } = await supabase
             .from('matching_log')
@@ -304,6 +362,34 @@ cron.schedule(scheduleInterval, async () => {
           // current.id 기준으로 결과 메일 발송 (내부에서 최대 5회 재시도)
           await sendMatchingResultEmails(current.id);
           console.log('[스케줄러] 매칭 결과 이메일 발송 완료');
+
+          // 매칭 결과 푸시 알림 (해당 회차에 매칭을 신청한 사용자들만 대상)
+          try {
+            const { data: apps, error: appsError } = await supabase
+              .from('matching_applications')
+              .select('user_id')
+              .eq('period_id', current.id)
+              .eq('applied', true)
+              .eq('cancelled', false);
+
+            if (appsError) {
+              console.error('[스케줄러] 매칭 결과 푸시용 신청자 조회 오류:', appsError);
+            } else if (apps && apps.length > 0) {
+              const userIds = Array.from(new Set(apps.map((a) => a.user_id)));
+              console.log(`[스케줄러] 회차 ${current.id} 매칭 결과 푸시 발송 대상: ${userIds.length}명`);
+
+              await sendPushToUsers(userIds, {
+                type: 'matching_result_announce',
+                periodId: String(current.id),
+                title: '[직쏠공]',
+                body: '매칭 결과가 발표되었어요.',
+              });
+            } else {
+              console.log(`[스케줄러] 회차 ${current.id} 매칭 결과 푸시 대상 신청자가 없습니다.`);
+            }
+          } catch (pushErr) {
+            console.error('[스케줄러] 매칭 결과 푸시 발송 중 오류:', pushErr);
+          }
           
           // 완료 후에도 email_sent=true를 한 번 더 보강 (중복이어도 무해, 로그용)
           const { error: updateError } = await supabase

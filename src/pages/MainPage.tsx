@@ -2,13 +2,14 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi } from '../services/api.ts';
+import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle } from 'react-icons/fa';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../firebase.ts';
 
 // 액션 타입 정의
 type ActionItem = {
@@ -142,6 +143,59 @@ const TopWelcomeSubtitle = styled.p`
   @media (max-width: 480px) {
     font-size: 0.92rem;
     margin-bottom: 1rem;
+  }
+`;
+
+const TopHeaderRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+`;
+
+const PushToggleBlock = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+
+  @media (max-width: 768px) {
+    gap: 10px;
+  }
+
+  @media (max-width: 480px) {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+`;
+
+const PushToggleLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #e5e7ff;
+  font-weight: 500;
+`;
+
+
+
+const IosGuideButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: #c7d2fe;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: #e5e7ff;
   }
 `;
 
@@ -678,6 +732,58 @@ const NicknameSpan = styled.span`
   }
 `;
 
+const SwitchLabel = styled.label`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 18px;
+  flex-shrink: 0;
+`;
+
+const SwitchInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+
+  &:checked + span {
+    background-color: #4F46E5;
+  }
+
+  &:focus + span {
+    box-shadow: 0 0 1px #4F46E5;
+  }
+
+  &:checked + span:before {
+    transform: translateX(16px);
+  }
+`;
+
+const SwitchSlider = styled.span`
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e0;
+  transition: 0.3s;
+  border-radius: 18px;
+
+  &:before {
+    position: absolute;
+    content: "";
+    height: 15px;
+    width: 15px;
+    left: 1.5px;
+    bottom: 1.5px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+  }
+`;
+
 const ModalOverlay = styled.div`
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -735,6 +841,159 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
+  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
+  const [isPushBusy, setIsPushBusy] = useState(false);
+  const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
+  const [showIosGuideModal, setShowIosGuideModal] = useState(false);
+
+  // user.id가 변경될 때마다 해당 사용자의 푸시 상태를 localStorage에서 불러오기
+  useEffect(() => {
+    if (!user?.id) {
+      setIsPushEnabled(false);
+      return;
+    }
+    
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const stored = localStorage.getItem(`pushEnabled_${user.id}`);
+      setIsPushEnabled(stored === 'true');
+    } catch {
+      setIsPushEnabled(false);
+    }
+  }, [user?.id]);
+
+  const handleTogglePush = useCallback(async () => {
+    if (isPushBusy) return;
+
+    if (!user?.id) {
+      toast.error('로그인이 필요합니다.');
+      return;
+    }
+
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
+      return;
+    }
+
+    const next = !isPushEnabled;
+
+    // OFF → ON
+    if (next) {
+      try {
+        setIsPushBusy(true);
+
+        let permission = Notification.permission;
+        if (permission === 'default') {
+          permission = await Notification.requestPermission();
+        }
+
+        if (permission !== 'granted') {
+          toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        const messaging = await getFirebaseMessaging();
+        if (!messaging) {
+          console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
+          console.error('[push] Notification.permission:', Notification.permission);
+          console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
+          toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        if (!FIREBASE_VAPID_KEY) {
+          console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
+        }
+
+        const { getToken } = await import('firebase/messaging');
+
+        // 서비스워커를 명시적으로 등록
+        let registration: ServiceWorkerRegistration | undefined;
+        try {
+          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          // console.info('[push] service worker 등록 성공:', registration.scope);
+        } catch (swErr) {
+          console.error('[push] service worker 등록 실패:', swErr);
+          toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
+        let readyRegistration: ServiceWorkerRegistration;
+        try {
+          readyRegistration = await navigator.serviceWorker.ready;
+          // console.info('[push] service worker ready:', readyRegistration.scope);
+        } catch (readyErr) {
+          console.error('[push] service worker ready 대기 중 오류:', readyErr);
+          toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        const token = await getToken(messaging, {
+          vapidKey: FIREBASE_VAPID_KEY || undefined,
+          serviceWorkerRegistration: readyRegistration,
+        });
+
+        if (!token) {
+          toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        // 서버에 토큰 등록
+        await pushApi.registerToken(token);
+
+        try {
+          localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+          localStorage.setItem('pushFcmToken', token);
+        } catch {
+          // ignore
+        }
+
+        setIsPushEnabled(true);
+        toast.success('웹 푸시 알림이 활성화되었습니다.');
+      } catch (e) {
+        console.error('[push] 푸시 활성화 중 오류:', e);
+        toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
+      } finally {
+        setIsPushBusy(false);
+      }
+      return;
+    }
+
+    // ON → OFF
+    try {
+      setIsPushBusy(true);
+      let token: string | undefined;
+      try {
+        const storedToken = localStorage.getItem('pushFcmToken');
+        if (storedToken) token = storedToken;
+      } catch {
+        // ignore
+      }
+
+      await pushApi.unregisterToken(token);
+
+      try {
+        localStorage.setItem(`pushEnabled_${user.id}`, 'false');
+      } catch {
+        // ignore
+      }
+
+      setIsPushEnabled(false);
+      toast.success('웹 푸시 알림이 비활성화되었습니다.');
+    } catch (e) {
+      console.error('[push] 푸시 비활성화 중 오류:', e);
+      toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
+    } finally {
+      setIsPushBusy(false);
+    }
+  }, [isPushEnabled, isPushBusy, user?.id]);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -1644,19 +1903,47 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     
     return (
       <MainContainer $sidebarOpen={sidebarOpen}>
-        <TopWelcomeTitle>
-          환영합니다,{' '}
-          <NicknameSpan
-            onClick={() => setShowProfileModal(true)}
-            style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-          >
-            {displayName}
-          </NicknameSpan>
-          님!
-        </TopWelcomeTitle>
-        <TopWelcomeSubtitle>
-          직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
-        </TopWelcomeSubtitle>
+        <TopHeaderRow>
+          <div style={{ width: '100%' }}>
+            <TopWelcomeTitle>
+              환영합니다,{' '}
+              <NicknameSpan
+                onClick={() => setShowProfileModal(true)}
+                style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+              >
+                {displayName}
+              </NicknameSpan>
+              님!
+            </TopWelcomeTitle>
+            <TopWelcomeSubtitle>
+              직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
+            </TopWelcomeSubtitle>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+              <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
+                <span>아이폰 푸시알림 안내</span>
+                <FaInfoCircle size={10} />
+              </IosGuideButton>
+              <PushToggleBlock style={{ margin: 0 }}>
+                <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
+                <SwitchLabel>
+                  <SwitchInput
+                    type="checkbox"
+                    checked={isPushEnabled}
+                    onChange={() => {
+                      if (!isPushEnabled) {
+                        setShowPushConfirmModal(true);
+                      } else {
+                        handleTogglePush();
+                      }
+                    }}
+                    disabled={isLoading || isPushBusy}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+              </PushToggleBlock>
+            </div>
+          </div>
+        </TopHeaderRow>
         <WelcomeSection>
           {/* 이메일 인증 알림 */}
           {user?.is_verified === false && (
@@ -1787,19 +2074,47 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
-      <TopWelcomeTitle>
-        환영합니다,{' '}
-        <NicknameSpan
-          onClick={handleOpenProfileModal}
-          style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-        >
-          {displayName}
-        </NicknameSpan>
-        님!
-      </TopWelcomeTitle>
-      <TopWelcomeSubtitle>
-        직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
-      </TopWelcomeSubtitle>
+      <TopHeaderRow>
+        <div style={{ width: '100%' }}>
+          <TopWelcomeTitle>
+            환영합니다,{' '}
+            <NicknameSpan
+              onClick={handleOpenProfileModal}
+              style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+            >
+              {displayName}
+            </NicknameSpan>
+            님!
+          </TopWelcomeTitle>
+          <TopWelcomeSubtitle>
+            직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
+          </TopWelcomeSubtitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+            <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
+              <span>아이폰 푸시알림 안내</span>
+              <FaInfoCircle size={10} />
+            </IosGuideButton>
+            <PushToggleBlock style={{ margin: 0 }}>
+              <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={isPushEnabled}
+                  onChange={() => {
+                    if (!isPushEnabled) {
+                      setShowPushConfirmModal(true);
+                    } else {
+                      handleTogglePush();
+                    }
+                  }}
+                  disabled={isLoading || isPushBusy}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </PushToggleBlock>
+          </div>
+        </div>
+      </TopHeaderRow>
       <WelcomeSection>
         {/* 최신 공지사항 카드 */}
         {latestNotice && (
@@ -2713,10 +3028,112 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         ))}
       </CompactGrid>
 
+      {/* 푸시 알림 활성화 확인 모달 */}
+      {showPushConfirmModal && (
+        <ModalOverlay onClick={() => setShowPushConfirmModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
+            <div style={{ width: '100%', maxWidth: '420px' }}>
+              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                웹 푸시 알림을 켜시겠어요?
+              </h2>
+              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                {'푸시 알림을 켜시면 매칭 신청 시작, 매칭 결과 발표, 새로운 채팅 메시지 등을\n브라우저 알림으로 받아보실 수 있습니다.\n\n' +
+                  '이 기능을 사용하시려면, 곧 뜨는 브라우저 알림 팝업에서 반드시 "허용"을 선택해주세요.\n' +
+                  '"차단"을 선택하신 경우에는, 브라우저의 사이트 설정에서 직접 알림을 허용으로 변경해야 합니다.'}
+              </p>
+              <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                푸시 알림을 켜지 않으셔도 서비스 이용은 가능하지만,
+                {'\n'}새로운 매칭/메시지 알림을 실시간으로 받으실 수 없습니다.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPushConfirmModal(false)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: '#f9fafb',
+                    color: '#4b5563',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    minWidth: 90,
+                  }}
+                >
+                  아니요
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowPushConfirmModal(false);
+                    await handleTogglePush();
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    minWidth: 110,
+                  }}
+                >
+                  네, 켤게요
+                </button>
+              </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* 아이폰 푸시 알림 안내 모달 */}
+      {showIosGuideModal && (
+        <ModalOverlay onClick={() => setShowIosGuideModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
+            <div style={{ width: '100%', maxWidth: '420px' }}>
+              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                아이폰(iOS) 푸시 알림 안내
+              </h2>
+              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n' +
+                  '아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n' +
+                  '1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n' +
+                  '2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n' +
+                  '3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n' +
+                  '4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
+              </p>
+              <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.
+              </p>
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowIosGuideModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: '#f9fafb',
+                    color: '#4b5563',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    minWidth: 90,
+                  }}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
       {/* 이메일 인증 모달 */}
       {showEmailVerificationModal && (
         <ModalOverlay onClick={() => setShowEmailVerificationModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', height: 'auto', maxHeight: '90vh' }}>
             <div style={{ padding: '2rem' }}>
               <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center' }}>이메일 인증</h2>
               <p style={{ color: '#666', marginBottom: '1.5rem', textAlign: 'center' }}>

@@ -31,9 +31,20 @@ if (messaging) {
   messaging.onBackgroundMessage(function (payload) {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
 
-    const notificationTitle = (payload.notification && payload.notification.title) || '새 알림';
+    // 서버에서 data-only 메시지로 내려보내므로, 우선 data의 title/body를 사용하고
+    // 없을 경우 notification 필드를 fallback 으로 사용한다.
+    const notificationTitle =
+      (payload.data && payload.data.title) ||
+      (payload.notification && payload.notification.title) ||
+      '새 알림';
+
+    const notificationBody =
+      (payload.data && payload.data.body) ||
+      (payload.notification && payload.notification.body) ||
+      '';
+
     const notificationOptions = {
-      body: (payload.notification && payload.notification.body) || '',
+      body: notificationBody,
       icon: '/logo192.png',
       data: payload.data || null,
     };

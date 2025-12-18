@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { adminApi, pushApi } from '../../services/api.ts';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../../firebase.ts';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -103,9 +102,12 @@ const ToggleDescription = styled.span`
 
 const SwitchLabel = styled.label`
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 52px;
   height: 28px;
+  flex-shrink: 0;
 `;
 
 const SwitchInput = styled.input`
@@ -172,16 +174,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [devMode, setDevMode] = useState(false);
   const [devSaving, setDevSaving] = useState(false);
-  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      const stored = localStorage.getItem('pushEnabled_admin');
-      return stored === 'true';
-    } catch {
-      return false;
-    }
-  });
-  const [isPushBusy, setIsPushBusy] = useState(false);
+
+  // 푸시 알림 전송 관련 상태
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedEmail, setSelectedEmail] = useState('');
+  const [pushTitle, setPushTitle] = useState('');
+  const [pushMessage, setPushMessage] = useState('');
+  const [pushSending, setPushSending] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -199,6 +198,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       }
     };
     fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const allUsers = await adminApi.getAllUsers();
+        setUsers(allUsers);
+      } catch (e) {
+        console.error('[SettingsPage] 사용자 목록 조회 오류:', e);
+      }
+    };
+    fetchUsers();
   }, []);
 
   const handleToggleMaintenance = async () => {
@@ -246,142 +257,39 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
     }
   };
 
-  const handleTogglePush = useCallback(async () => {
-    if (isPushBusy) return;
-
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
-      toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
+  const handleSendPush = async () => {
+    if (!selectedEmail) {
+      toast.error('이메일을 선택해주세요.');
+      return;
+    }
+    if (!pushTitle.trim()) {
+      toast.error('제목을 입력해주세요.');
+      return;
+    }
+    if (!pushMessage.trim()) {
+      toast.error('내용을 입력해주세요.');
       return;
     }
 
-    const next = !isPushEnabled;
-
-    // OFF → ON
-    if (next) {
-      try {
-        setIsPushBusy(true);
-
-        const currentPermission = Notification.permission;
-        let permission = currentPermission;
-
-        if (permission === 'default') {
-          permission = await Notification.requestPermission();
-        }
-
-        if (permission !== 'granted') {
-          toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        const messaging = await getFirebaseMessaging();
-        if (!messaging) {
-          console.error('[push][admin] getFirebaseMessaging() 이 null을 반환했습니다.');
-          console.error('[push][admin] Notification.permission:', Notification.permission);
-          console.error('[push][admin] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
-          toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        if (!FIREBASE_VAPID_KEY) {
-          console.warn('[push][admin] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
-        }
-
-        const { getToken } = await import('firebase/messaging');
-
-        // 서비스워커를 명시적으로 등록
-        let registration: ServiceWorkerRegistration | undefined;
-        try {
-          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          console.info('[push][admin] service worker 등록 성공:', registration.scope);
-        } catch (swErr) {
-          console.error('[push][admin] service worker 등록 실패:', swErr);
-          toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        // 일부 환경에서는 register 직후 아직 active 상태가 아니라 PushManager.subscribe 가 실패할 수 있으므로
-        // navigator.serviceWorker.ready 로 활성화까지 기다린 뒤 사용
-        let readyRegistration: ServiceWorkerRegistration;
-        try {
-          readyRegistration = await navigator.serviceWorker.ready;
-          console.info('[push][admin] service worker ready:', readyRegistration.scope);
-        } catch (readyErr) {
-          console.error('[push][admin] service worker ready 대기 중 오류:', readyErr);
-          toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        const token = await getToken(messaging, {
-          vapidKey: FIREBASE_VAPID_KEY || undefined,
-          serviceWorkerRegistration: readyRegistration,
-        });
-
-        if (!token) {
-          toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        // 서버에 토큰 등록
-        await pushApi.registerToken(token);
-
-        // 테스트 푸시 알림 전송
-        try {
-          await pushApi.sendTestNotification();
-        } catch (e) {
-          console.error('[push][admin] 테스트 푸시 전송 중 오류:', e);
-        }
-
-        try {
-          localStorage.setItem('pushEnabled_admin', 'true');
-          localStorage.setItem('pushFcmToken_admin', token);
-        } catch {
-          // localStorage 실패는 무시
-        }
-
-        setIsPushEnabled(true);
-        toast.success('관리자 계정에 푸시 알림이 활성화되었습니다.');
-      } catch (e) {
-        console.error('[push][admin] 푸시 활성화 중 오류:', e);
-        toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
-      } finally {
-        setIsPushBusy(false);
-      }
-      return;
-    }
-
-    // ON → OFF
+    setPushSending(true);
     try {
-      setIsPushBusy(true);
-      let token: string | undefined;
-      try {
-        const storedToken = localStorage.getItem('pushFcmToken_admin');
-        if (storedToken) token = storedToken;
-      } catch {
-        // ignore
+      const result = await pushApi.sendAdminPush(selectedEmail, pushTitle, pushMessage);
+      if (result.success) {
+        toast.success(`푸시 알림이 성공적으로 전송되었습니다. (${result.sent || 0}건)`);
+        setPushTitle('');
+        setPushMessage('');
+        setSelectedEmail('');
+      } else {
+        toast.error(result.message || '푸시 알림 전송에 실패했습니다.');
       }
-
-      await pushApi.unregisterToken(token);
-
-      try {
-        localStorage.setItem('pushEnabled_admin', 'false');
-      } catch {
-        // ignore
-      }
-
-      setIsPushEnabled(false);
-      toast.success('관리자 계정 푸시 알림이 비활성화되었습니다.');
-    } catch (e) {
-      console.error('[push][admin] 푸시 비활성화 중 오류:', e);
-      toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
+    } catch (e: any) {
+      console.error('[SettingsPage] 푸시 전송 오류:', e);
+      toast.error(e?.response?.data?.message || '푸시 알림 전송 중 오류가 발생했습니다.');
     } finally {
-      setIsPushBusy(false);
+      setPushSending(false);
     }
-  }, [isPushEnabled, isPushBusy]);
+  };
+
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
@@ -470,30 +378,107 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
           </Section>
 
           <Section>
-            <SectionTitle>웹 푸시 알림 (관리자 테스트 전용)</SectionTitle>
+            <SectionTitle>알림 보내기</SectionTitle>
             <SectionDescription>
-              관리자 계정으로만 Web Push(Firebase FCM)를 테스트하기 위한 설정입니다.
-              {'\n'}일반 사용자는 이 토글을 볼 수 없으며, 실제 운영 적용 전 테스트용으로만 사용하세요.
+              특정 회원에게 관리자가 직접 푸시 알림을 전송할 수 있습니다.
+              {'\n'}푸시 토큰이 등록된 사용자에게만 알림이 전송됩니다.
             </SectionDescription>
-            <ToggleRow>
-              <ToggleLabel>
-                <span>관리자 푸시 알림 토글</span>
-                <ToggleDescription>
-                  {isPushEnabled
-                    ? '현재 이 관리자 계정에 대한 Web Push 테스트가 활성화되어 있습니다.'
-                    : '현재 이 관리자 계정에 대한 Web Push 테스트가 비활성화되어 있습니다.'}
-                </ToggleDescription>
-              </ToggleLabel>
-              <SwitchLabel>
-                <SwitchInput
-                  type="checkbox"
-                  checked={isPushEnabled}
-                  onChange={handleTogglePush}
-                  disabled={loading || isPushBusy}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  회원 이메일 선택
+                </label>
+                <select
+                  value={selectedEmail}
+                  onChange={(e) => setSelectedEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                  disabled={pushSending}
+                >
+                  <option value="">이메일을 선택하세요</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.email}>
+                      {user.email} {user.nickname ? `(${user.nickname})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  제목
+                </label>
+                <input
+                  type="text"
+                  value={pushTitle}
+                  onChange={(e) => setPushTitle(e.target.value)}
+                  placeholder="알림 제목을 입력하세요"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={pushSending}
                 />
-                <SwitchSlider />
-              </SwitchLabel>
-            </ToggleRow>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  내용
+                </label>
+                <textarea
+                  value={pushMessage}
+                  onChange={(e) => setPushMessage(e.target.value)}
+                  placeholder="알림 내용을 입력하세요"
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={pushSending}
+                />
+              </div>
+
+              <button
+                onClick={handleSendPush}
+                disabled={pushSending || !selectedEmail || !pushTitle.trim() || !pushMessage.trim()}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: pushSending || !selectedEmail || !pushTitle.trim() || !pushMessage.trim() 
+                    ? '#cbd5e0' 
+                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: pushSending || !selectedEmail || !pushTitle.trim() || !pushMessage.trim() 
+                    ? 'not-allowed' 
+                    : 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {pushSending ? '전송 중...' : '푸시 알림 전송'}
+              </button>
+            </div>
           </Section>
 
         </Body>
