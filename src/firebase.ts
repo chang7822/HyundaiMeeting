@@ -2,7 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getMessaging, type Messaging } from 'firebase/messaging';
 
 // Firebase 설정은 전부 .env 에서만 읽도록 구성
-// (값은 나중에 Firebase 콘솔에서 프로젝트 생성 후 채우면 됨)
+// (값은 Firebase 콘솔에서 발급받은 값으로 채우면 됨)
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -11,7 +11,7 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
-// VAPID Key (.env 에 REACT_APP_FIREBASE_VAPID_KEY 로 설정 예정)
+// VAPID Key (.env 에 REACT_APP_FIREBASE_VAPID_KEY 로 설정)
 export const FIREBASE_VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY || '';
 
 let messagingPromise: Promise<Messaging | null> | null = null;
@@ -21,6 +21,8 @@ let messagingPromise: Promise<Messaging | null> | null = null;
  * - 알림 미지원 환경에서는 null 반환
  * - env / 초기화 오류 시에도 null 반환 (토스트 대신 콘솔 경고)
  */
+//check
+
 export function getFirebaseMessaging(): Promise<Messaging | null> {
   if (messagingPromise) return messagingPromise;
 
@@ -30,7 +32,7 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
         return null;
       }
 
-      // Firebase isSupported() 대신 직접 환경 체크
+      // 브라우저 환경 지원 여부 체크
       const hasBasicSupport =
         typeof navigator !== 'undefined' &&
         'serviceWorker' in navigator &&
@@ -79,5 +81,6 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
 
   return messagingPromise;
 }
+
 
 

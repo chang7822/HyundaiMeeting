@@ -415,6 +415,17 @@ router.post('/login', async (req, res) => {
       `[AUTH] 로그인 성공: email=${email}, nickname=${profile?.nickname || '미설정'}, role=${user.is_admin ? 'admin' : 'user'}`,
     );
 
+    // 최근 로그인 시각 업데이트
+    try {
+      await supabase
+        .from('users')
+        .update({ last_login_at: new Date().toISOString() })
+        .eq('id', user.id);
+    } catch (updateError) {
+      console.error('[AUTH] last_login_at 업데이트 실패:', updateError);
+      // 로그인 자체는 성공이므로 에러를 반환하지 않음
+    }
+
     const token = jwt.sign(
       { userId: user.id, id: user.id, email: user.email, isAdmin: user.is_admin },
       process.env.JWT_SECRET,

@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaBell } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, notificationApi, pushApi } from '../services/api.ts';
+import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle } from 'react-icons/fa';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -105,59 +105,6 @@ const WelcomeTitle = styled.h1`
   }
 `;
 
-const TopWelcomeHeaderRow = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-`;
-
-const PushToggleContainer = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-right: 10px;
-
-  @media (max-width: 480px) {
-    margin-right: 6px;
-  }
-`;
-
-const PushToggleLabel = styled.span`
-  font-size: 0.8rem;
-  color: #e5e7eb;
-  white-space: nowrap;
-`;
-
-const PushToggleSwitch = styled.button<{ $enabled: boolean }>`
-  position: relative;
-  width: 38px;
-  height: 20px;
-  border-radius: 999px;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  background: ${({ $enabled }) =>
-    $enabled
-      ? 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)'
-      : 'rgba(15,23,42,0.4)'};
-  display: inline-flex;
-  align-items: center;
-  transition: background 0.2s ease;
-
-  &::before {
-    content: '';
-    position: absolute;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #f9fafb;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-    left: ${({ $enabled }) => ($enabled ? '18px' : '4px')};
-    transition: left 0.2s ease;
-  }
-`;
-
 const TopWelcomeTitle = styled.h1`
   color: #ffffff;
   margin-bottom: 0.4rem;
@@ -196,6 +143,59 @@ const TopWelcomeSubtitle = styled.p`
   @media (max-width: 480px) {
     font-size: 0.92rem;
     margin-bottom: 1rem;
+  }
+`;
+
+const TopHeaderRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+`;
+
+const PushToggleBlock = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+
+  @media (max-width: 768px) {
+    gap: 10px;
+  }
+
+  @media (max-width: 480px) {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+`;
+
+const PushToggleLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #e5e7ff;
+  font-weight: 500;
+`;
+
+
+
+const IosGuideButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  color: #c7d2fe;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  &:hover {
+    color: #e5e7ff;
   }
 `;
 
@@ -714,24 +714,6 @@ const ButtonRow = styled.div`
   }
 `;
 
-const ExtraMatchingNoticeCard = styled.div`
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  border-radius: 18px;
-  padding: 16px 18px;
-  background:
-    radial-gradient(circle at top left, rgba(129, 140, 248, 0.12), transparent 55%),
-    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.12), transparent 55%),
-    #f9fafb;
-  border: 1px solid rgba(79, 70, 229, 0.35);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  justify-content: space-between;
-`;
-
 const NicknameSpan = styled.span`
   color: #4F46E5;
   font-weight: 700;
@@ -747,6 +729,58 @@ const NicknameSpan = styled.span`
   
   &:active {
     transform: scale(0.98);
+  }
+`;
+
+const SwitchLabel = styled.label`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 18px;
+  flex-shrink: 0;
+`;
+
+const SwitchInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+
+  &:checked + span {
+    background-color: #4F46E5;
+  }
+
+  &:focus + span {
+    box-shadow: 0 0 1px #4F46E5;
+  }
+
+  &:checked + span:before {
+    transform: translateX(16px);
+  }
+`;
+
+const SwitchSlider = styled.span`
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e0;
+  transition: 0.3s;
+  border-radius: 18px;
+
+  &:before {
+    position: absolute;
+    content: "";
+    height: 15px;
+    width: 15px;
+    left: 1.5px;
+    bottom: 1.5px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
   }
 `;
 
@@ -803,27 +837,39 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
-  const [unreadCount, setUnreadCount] = useState<number>(0); // 채팅 안읽음
-  const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0); // 알림 안읽음
+  const [unreadCount, setUnreadCount] = useState<number>(0);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
-
-  // 푸시 알림 on/off 상태 (브라우저 기준, 서버 저장은 토큰 등록/해제)
-  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      const stored = localStorage.getItem('pushEnabled');
-      return stored === 'true';
-    } catch {
-      return false;
-    }
-  });
-
+  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
   const [isPushBusy, setIsPushBusy] = useState(false);
+  const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
+  const [showIosGuideModal, setShowIosGuideModal] = useState(false);
+
+  // user.id가 변경될 때마다 해당 사용자의 푸시 상태를 localStorage에서 불러오기
+  useEffect(() => {
+    if (!user?.id) {
+      setIsPushEnabled(false);
+      return;
+    }
+    
+    if (typeof window === 'undefined') return;
+    
+    try {
+      const stored = localStorage.getItem(`pushEnabled_${user.id}`);
+      setIsPushEnabled(stored === 'true');
+    } catch {
+      setIsPushEnabled(false);
+    }
+  }, [user?.id]);
 
   const handleTogglePush = useCallback(async () => {
     if (isPushBusy) return;
+
+    if (!user?.id) {
+      toast.error('로그인이 필요합니다.');
+      return;
+    }
 
     if (typeof window === 'undefined' || typeof Notification === 'undefined') {
       toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
@@ -837,9 +883,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       try {
         setIsPushBusy(true);
 
-        const currentPermission = Notification.permission;
-        let permission = currentPermission;
-
+        let permission = Notification.permission;
         if (permission === 'default') {
           permission = await Notification.requestPermission();
         }
@@ -852,7 +896,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
         const messaging = await getFirebaseMessaging();
         if (!messaging) {
-          console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다. (지원/환경/설정 문제 가능)');
+          console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
           console.error('[push] Notification.permission:', Notification.permission);
           console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
           toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
@@ -866,11 +910,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
         const { getToken } = await import('firebase/messaging');
 
-        // 서비스워커를 명시적으로 등록한 뒤 해당 registration을 사용해서 토큰 발급
+        // 서비스워커를 명시적으로 등록
         let registration: ServiceWorkerRegistration | undefined;
         try {
           registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          console.info('[push] service worker 등록 성공:', registration.scope);
+          // console.info('[push] service worker 등록 성공:', registration.scope);
         } catch (swErr) {
           console.error('[push] service worker 등록 실패:', swErr);
           toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
@@ -878,9 +922,21 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           return;
         }
 
+        // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
+        let readyRegistration: ServiceWorkerRegistration;
+        try {
+          readyRegistration = await navigator.serviceWorker.ready;
+          // console.info('[push] service worker ready:', readyRegistration.scope);
+        } catch (readyErr) {
+          console.error('[push] service worker ready 대기 중 오류:', readyErr);
+          toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
         const token = await getToken(messaging, {
           vapidKey: FIREBASE_VAPID_KEY || undefined,
-          serviceWorkerRegistration: registration,
+          serviceWorkerRegistration: readyRegistration,
         });
 
         if (!token) {
@@ -892,22 +948,15 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         // 서버에 토큰 등록
         await pushApi.registerToken(token);
 
-        // 테스트 푸시 알림 전송
         try {
-          await pushApi.sendTestNotification();
-        } catch (e) {
-          console.error('[push] 테스트 푸시 전송 중 오류:', e);
-        }
-
-        try {
-          localStorage.setItem('pushEnabled', 'true');
+          localStorage.setItem(`pushEnabled_${user.id}`, 'true');
           localStorage.setItem('pushFcmToken', token);
         } catch {
-          // localStorage 실패는 무시
+          // ignore
         }
 
         setIsPushEnabled(true);
-        toast.success('푸시 알림이 활성화되었습니다.');
+        toast.success('웹 푸시 알림이 활성화되었습니다.');
       } catch (e) {
         console.error('[push] 푸시 활성화 중 오류:', e);
         toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
@@ -931,20 +980,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await pushApi.unregisterToken(token);
 
       try {
-        localStorage.setItem('pushEnabled', 'false');
+        localStorage.setItem(`pushEnabled_${user.id}`, 'false');
       } catch {
         // ignore
       }
 
       setIsPushEnabled(false);
-      toast.success('푸시 알림이 비활성화되었습니다.');
+      toast.success('웹 푸시 알림이 비활성화되었습니다.');
     } catch (e) {
       console.error('[push] 푸시 비활성화 중 오류:', e);
       toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
     } finally {
       setIsPushBusy(false);
     }
-  }, [isPushEnabled, isPushBusy]);
+  }, [isPushEnabled, isPushBusy, user?.id]);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -956,16 +1005,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const id = (matchingStatus && matchingStatus.matched === true) ? (matchingStatus.partner_user_id || null) : null;
     return id;
   }, [matchingStatus]);
-
-  // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
-  const isExtraMatchingWindow = useMemo(() => {
-    if (!period || !period.matching_announce || !period.finish) return false;
-    const announce = new Date(period.matching_announce);
-    const finish = new Date(period.finish);
-    if (Number.isNaN(announce.getTime()) || Number.isNaN(finish.getTime())) return false;
-    const nowTime = Date.now();
-    return nowTime >= announce.getTime() && nowTime <= finish.getTime();
-  }, [period?.matching_announce, period?.finish]);
 
   // [추가] 매칭 성공 상태라면 partnerProfile을 자동으로 fetch
   useEffect(() => {
@@ -1045,22 +1084,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     fetchLatestNotice();
   }, []);
 
-  // 선호 회사 이름 매핑용 회사 목록 로드 (가나다순 정렬)
+  // 선호 회사 이름 매핑용 회사 목록 로드
   useEffect(() => {
     companyApi
       .getCompanies()
-      .then((data) => {
-        const sorted = (data || []).slice().sort((a, b) =>
-          a.name.localeCompare(b.name, 'ko-KR'),
-        );
-        setCompanies(sorted);
-      })
+      .then(setCompanies)
       .catch(() => {
         // 회사 목록 로드 실패 시에도 페이지는 계속 동작하게 둔다.
       });
   }, []);
 
-  // 안읽은 메시지 개수 조회 (채팅)
+  // 안읽은 메시지 개수 조회
   const fetchUnreadCount = useCallback(async () => {
     if (!user?.id) return;
     try {
@@ -1069,18 +1103,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } catch (error) {
       console.error('안읽은 메시지 개수 조회 실패:', error);
       setUnreadCount(0);
-    }
-  }, [user?.id]);
-
-  // 안읽은 알림 개수 조회
-  const fetchNotificationUnread = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const res = await notificationApi.getUnreadCount();
-      setNotificationUnreadCount(res.unreadCount || 0);
-    } catch (error) {
-      console.error('[MainPage] 알림 안읽음 개수 조회 실패:', error);
-      setNotificationUnreadCount(0);
     }
   }, [user?.id]);
 
@@ -1151,10 +1173,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       checkUserBanStatus().then(() => {
         fetchMatchingStatus(true); // 초기 로드시에만 로딩 표시
         fetchUnreadCount();
-        fetchNotificationUnread();
       });
     }
-  }, [user?.id, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount, fetchNotificationUnread]);
+  }, [user?.id, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount]);
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
@@ -1228,7 +1249,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         // 에러 시 조용히 무시 (깜빡임 방지)
       }
     }, 5000); // 5초마다 업데이트
-    
+
     return () => window.clearInterval(interval);
   }, [user?.id]);
 
@@ -1882,69 +1903,47 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     
     return (
       <MainContainer $sidebarOpen={sidebarOpen}>
-        <TopWelcomeHeaderRow>
-          <TopWelcomeTitle>
-            환영합니다,{' '}
-            <NicknameSpan
-              onClick={() => setShowProfileModal(true)}
-              style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-            >
-              {displayName}
-            </NicknameSpan>
-            님!
-          </TopWelcomeTitle>
-          <div style={{ position: 'relative', display: 'inline-block' }}>
-            {/* 알림 종 아이콘 버튼 */}
-            <button
-              type="button"
-              onClick={() => navigate('/notifications')}
-              style={{
-                border: 'none',
-                background: 'rgba(15,23,42,0.32)',
-                borderRadius: '999px',
-                width: 34,
-                height: 34,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: '#e5e7eb',
-                boxShadow: '0 4px 10px rgba(15,23,42,0.4)',
-                padding: 0,
-              }}
-            >
-              <FaBell style={{ color: '#fbbf24', fontSize: '1.1rem' }} />
-            </button>
-            {/* 새 알림 뱃지 (상단 우측 빨간 동그라미) */}
-            {notificationUnreadCount > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: -6,
-                  right: -6,
-                  background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: 18,
-                  height: 18,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.45)',
-                  border: '2px solid rgba(15,23,42,0.95)',
-                  zIndex: 10,
-                }}
+        <TopHeaderRow>
+          <div style={{ width: '100%' }}>
+            <TopWelcomeTitle>
+              환영합니다,{' '}
+              <NicknameSpan
+                onClick={() => setShowProfileModal(true)}
+                style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
               >
-                {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
-              </div>
-            )}
+                {displayName}
+              </NicknameSpan>
+              님!
+            </TopWelcomeTitle>
+            <TopWelcomeSubtitle>
+              직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
+            </TopWelcomeSubtitle>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+              <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
+                <span>아이폰 푸시알림 안내</span>
+                <FaInfoCircle size={10} />
+              </IosGuideButton>
+              <PushToggleBlock style={{ margin: 0 }}>
+                <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
+                <SwitchLabel>
+                  <SwitchInput
+                    type="checkbox"
+                    checked={isPushEnabled}
+                    onChange={() => {
+                      if (!isPushEnabled) {
+                        setShowPushConfirmModal(true);
+                      } else {
+                        handleTogglePush();
+                      }
+                    }}
+                    disabled={isLoading || isPushBusy}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+              </PushToggleBlock>
+            </div>
           </div>
-        </TopWelcomeHeaderRow>
-        <TopWelcomeSubtitle>
-          직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
-        </TopWelcomeSubtitle>
+        </TopHeaderRow>
         <WelcomeSection>
           {/* 이메일 인증 알림 */}
           {user?.is_verified === false && (
@@ -2075,80 +2074,47 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
-      <TopWelcomeHeaderRow>
-        <TopWelcomeTitle>
-          환영합니다,{' '}
-          <NicknameSpan
-            onClick={handleOpenProfileModal}
-            style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-          >
-            {displayName}
-          </NicknameSpan>
-          님!
-        </TopWelcomeTitle>
-        <div style={{ display: 'inline-flex', alignItems: 'center' }}>
-          <PushToggleContainer>
-            <PushToggleLabel>푸시 알림</PushToggleLabel>
-            <PushToggleSwitch
-              type="button"
-              $enabled={isPushEnabled}
-              onClick={handleTogglePush}
-              disabled={isPushBusy}
-            />
-          </PushToggleContainer>
-          <div style={{ position: 'relative', display: 'inline-block' }}>
-            {/* 알림 종 아이콘 버튼 */}
-            <button
-              type="button"
-              onClick={() => navigate('/notifications')}
-              style={{
-                border: 'none',
-                background: 'rgba(15,23,42,0.32)',
-                borderRadius: '999px',
-                width: 34,
-                height: 34,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                color: '#e5e7eb',
-                boxShadow: '0 4px 10px rgba(15,23,42,0.4)',
-                padding: 0,
-              }}
+      <TopHeaderRow>
+        <div style={{ width: '100%' }}>
+          <TopWelcomeTitle>
+            환영합니다,{' '}
+            <NicknameSpan
+              onClick={handleOpenProfileModal}
+              style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
             >
-              <FaBell style={{ color: '#fbbf24', fontSize: '1.1rem' }} />
-            </button>
-            {/* 새 알림 뱃지 */}
-            {notificationUnreadCount > 0 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: -6,
-                  right: -6,
-                  background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-                  color: 'white',
-                  borderRadius: '50%',
-                  width: 18,
-                  height: 18,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '0.68rem',
-                  fontWeight: 700,
-                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.45)',
-                  border: '2px solid rgba(15,23,42,0.95)',
-                  zIndex: 10,
-                }}
-              >
-                {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
-              </div>
-            )}
+              {displayName}
+            </NicknameSpan>
+            님!
+          </TopWelcomeTitle>
+          <TopWelcomeSubtitle>
+            직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
+          </TopWelcomeSubtitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+            <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
+              <span>아이폰 푸시알림 안내</span>
+              <FaInfoCircle size={10} />
+            </IosGuideButton>
+            <PushToggleBlock style={{ margin: 0 }}>
+              <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={isPushEnabled}
+                  onChange={() => {
+                    if (!isPushEnabled) {
+                      setShowPushConfirmModal(true);
+                    } else {
+                      handleTogglePush();
+                    }
+                  }}
+                  disabled={isLoading || isPushBusy}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </PushToggleBlock>
           </div>
         </div>
-      </TopWelcomeHeaderRow>
-      <TopWelcomeSubtitle>
-        직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
-      </TopWelcomeSubtitle>
+      </TopHeaderRow>
       <WelcomeSection>
         {/* 최신 공지사항 카드 */}
         {latestNotice && (
@@ -2172,37 +2138,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </LatestNoticeRight>
           </LatestNoticeCard>
         )}
-
-        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출) */}
-        {period && isExtraMatchingWindow && (
-          <ExtraMatchingNoticeCard>
-            <div style={{ fontSize: '0.9rem', color: '#111827', fontWeight: 600 }}>
-              추가 매칭 도전 기회가 열렸습니다.
-              <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 400, marginTop: 4 }}>
-                이번 회차에서 매칭이 아쉬웠다면, 별을 사용해 한 번 더 인연을 찾아보세요.
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/extra-matching')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 999,
-                border: 'none',
-                background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
-                color: '#fff',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                opacity: 1,
-              }}
-            >
-              추가 매칭 도전하러 가기
-            </button>
-          </ExtraMatchingNoticeCard>
-        )}
-
+        
         {/* 이메일 인증 알림 */}
         {user?.is_verified === false && (
           <div style={{
@@ -2265,48 +2201,48 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         )}
         
         <ButtonRow>
-          <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
-            {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
+        <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
+          {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
+        </MatchingButton>
+        {showCancel && (
+          <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
+            {actionLoading ? '처리 중...' : '신청 취소하기'}
           </MatchingButton>
-          {showCancel && (
-            <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
-              {actionLoading ? '처리 중...' : '신청 취소하기'}
-            </MatchingButton>
-          )}
-          <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
-          {reapplyMessage && (
-            <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
-          )}
-          {nextPeriodLabel && (
-            <NextPeriodWrapper>
-              <NextPeriodBadge>
-                <span
-                  style={{
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    color: '#4F46E5',
-                    background: 'rgba(79, 70, 229, 0.1)',
-                    padding: '3px 8px',
-                    borderRadius: 999,
-                  }}
-                >
-                  다음 회차 신청
-                </span>
-                <span
-                  style={{
-                    fontSize: '0.9rem',
-                    color: '#111827',
-                    fontWeight: 600,
-                    textAlign: 'left',
-                    flex: 1,
-                  }}
-                >
-                  {nextPeriodLabel}
-                </span>
-              </NextPeriodBadge>
-            </NextPeriodWrapper>
-          )}
-        </ButtonRow>
+        )}
+        <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
+        {reapplyMessage && (
+          <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
+        )}
+        {nextPeriodLabel && (
+          <NextPeriodWrapper>
+            <NextPeriodBadge>
+              <span
+                style={{
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  color: '#4F46E5',
+                  background: 'rgba(79, 70, 229, 0.1)',
+                  padding: '3px 8px',
+                  borderRadius: 999,
+                }}
+              >
+                다음 회차 신청
+              </span>
+              <span
+                style={{
+                  fontSize: '0.9rem',
+                  color: '#111827',
+                  fontWeight: 600,
+                  textAlign: 'left',
+                  flex: 1,
+                }}
+              >
+                {nextPeriodLabel}
+              </span>
+            </NextPeriodBadge>
+          </NextPeriodWrapper>
+        )}
+      </ButtonRow>
       {/* 프로필 카드 모달 */}
       {showProfileModal && (
         <ModalOverlay onClick={() => setShowProfileModal(false)}>
@@ -3092,10 +3028,112 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         ))}
       </CompactGrid>
 
+      {/* 푸시 알림 활성화 확인 모달 */}
+      {showPushConfirmModal && (
+        <ModalOverlay onClick={() => setShowPushConfirmModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
+            <div style={{ width: '100%', maxWidth: '420px' }}>
+              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                웹 푸시 알림을 켜시겠어요?
+              </h2>
+              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                {'푸시 알림을 켜시면 매칭 신청 시작, 매칭 결과 발표, 새로운 채팅 메시지 등을\n브라우저 알림으로 받아보실 수 있습니다.\n\n' +
+                  '이 기능을 사용하시려면, 곧 뜨는 브라우저 알림 팝업에서 반드시 "허용"을 선택해주세요.\n' +
+                  '"차단"을 선택하신 경우에는, 브라우저의 사이트 설정에서 직접 알림을 허용으로 변경해야 합니다.'}
+              </p>
+              <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                푸시 알림을 켜지 않으셔도 서비스 이용은 가능하지만,
+                {'\n'}새로운 매칭/메시지 알림을 실시간으로 받으실 수 없습니다.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPushConfirmModal(false)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: '#f9fafb',
+                    color: '#4b5563',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    minWidth: 90,
+                  }}
+                >
+                  아니요
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowPushConfirmModal(false);
+                    await handleTogglePush();
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    minWidth: 110,
+                  }}
+                >
+                  네, 켤게요
+                </button>
+              </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* 아이폰 푸시 알림 안내 모달 */}
+      {showIosGuideModal && (
+        <ModalOverlay onClick={() => setShowIosGuideModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
+            <div style={{ width: '100%', maxWidth: '420px' }}>
+              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                아이폰(iOS) 푸시 알림 안내
+              </h2>
+              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n' +
+                  '아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n' +
+                  '1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n' +
+                  '2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n' +
+                  '3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n' +
+                  '4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
+              </p>
+              <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.
+              </p>
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowIosGuideModal(false)}
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: '#f9fafb',
+                    color: '#4b5563',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    minWidth: 90,
+                  }}
+                >
+                  닫기
+                </button>
+              </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
       {/* 이메일 인증 모달 */}
       {showEmailVerificationModal && (
         <ModalOverlay onClick={() => setShowEmailVerificationModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', height: 'auto', maxHeight: '90vh' }}>
             <div style={{ padding: '2rem' }}>
               <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center' }}>이메일 인증</h2>
               <p style={{ color: '#666', marginBottom: '1.5rem', textAlign: 'center' }}>

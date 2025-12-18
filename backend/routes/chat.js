@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database');
 const { encrypt } = require('../utils/encryption');
 const { decrypt } = require('../utils/encryption');
+const { sendPushToUsers } = require('../pushService');
 
 // 채팅 메시지 조회 (period_id, sender_id, receiver_id)
 router.get('/:periodId/:partnerUserId/messages', async (req, res) => {
@@ -63,6 +64,46 @@ router.post('/:periodId/:partnerUserId/messages', async (req, res) => {
     };
     const { data, error } = await supabase.from('chat_messages').insert([newMessage]).select().single();
     if (error) throw error;
+
+    // 3초 후에도 읽지 않았다면 수신자에게 푸시 알림 전송
+    try {
+      const insertedId = data.id;
+      const receiverId = data.receiver_id;
+      const senderNickname = sender_nickname || '상대방';
+
+      setTimeout(async () => {
+        try {
+          const { data: msgRow, error: msgError } = await supabase
+            .from('chat_messages')
+            .select('id, is_read, receiver_id, sender_id, period_id')
+            .eq('id', insertedId)
+            .maybeSingle();
+
+          if (msgError) {
+            console.error('[chat] 안읽은 메시지 푸시 체크 중 조회 오류:', msgError);
+            return;
+          }
+
+          if (!msgRow || msgRow.is_read) {
+            // 이미 읽었거나 메시지가 없음 → 푸시 불필요
+            return;
+          }
+
+          await sendPushToUsers([receiverId], {
+            type: 'chat_unread',
+            periodId: String(msgRow.period_id),
+            senderId: String(msgRow.sender_id),
+            title: '[직쏠공]',
+            body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
+          });
+        } catch (pushErr) {
+          console.error('[chat] 안읽은 메시지 푸시 전송 중 오류:', pushErr);
+        }
+      }, 3000);
+    } catch (scheduleErr) {
+      console.error('[chat] 안읽은 메시지 푸시 스케줄링 중 오류:', scheduleErr);
+    }
+
     res.json({ success: true, message: '메시지가 전송되었습니다.', chatMessage: data });
   } catch (error) {
     console.error('메시지 전송 오류:', error);

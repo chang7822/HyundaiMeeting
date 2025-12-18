@@ -990,6 +990,12 @@ export const pushApi = {
     const response = await api.post('/push/send-test', {});
     return response.data;
   },
+
+  // 관리자용 푸시 알림 전송 (특정 사용자 대상)
+  sendAdminPush: async (email: string, title: string, message: string): Promise<{ success: boolean; sent?: number; message?: string }> => {
+    const response = await api.post('/push/send-admin', { email, title, message });
+    return response.data;
+  },
 };
 
 export default api;

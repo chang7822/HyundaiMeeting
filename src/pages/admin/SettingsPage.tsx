@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { adminApi } from '../../services/api.ts';
+import { adminApi, pushApi } from '../../services/api.ts';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -102,9 +102,12 @@ const ToggleDescription = styled.span`
 
 const SwitchLabel = styled.label`
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 52px;
   height: 28px;
+  flex-shrink: 0;
 `;
 
 const SwitchInput = styled.input`
@@ -172,6 +175,13 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [devMode, setDevMode] = useState(false);
   const [devSaving, setDevSaving] = useState(false);
 
+  // 푸시 알림 전송 관련 상태
+  const [users, setUsers] = useState<any[]>([]);
+  const [selectedEmail, setSelectedEmail] = useState('');
+  const [pushTitle, setPushTitle] = useState('');
+  const [pushMessage, setPushMessage] = useState('');
+  const [pushSending, setPushSending] = useState(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
       setLoading(true);
@@ -188,6 +198,18 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       }
     };
     fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const allUsers = await adminApi.getAllUsers();
+        setUsers(allUsers);
+      } catch (e) {
+        console.error('[SettingsPage] 사용자 목록 조회 오류:', e);
+      }
+    };
+    fetchUsers();
   }, []);
 
   const handleToggleMaintenance = async () => {
@@ -234,6 +256,40 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       setDevSaving(false);
     }
   };
+
+  const handleSendPush = async () => {
+    if (!selectedEmail) {
+      toast.error('이메일을 선택해주세요.');
+      return;
+    }
+    if (!pushTitle.trim()) {
+      toast.error('제목을 입력해주세요.');
+      return;
+    }
+    if (!pushMessage.trim()) {
+      toast.error('내용을 입력해주세요.');
+      return;
+    }
+
+    setPushSending(true);
+    try {
+      const result = await pushApi.sendAdminPush(selectedEmail, pushTitle, pushMessage);
+      if (result.success) {
+        toast.success(`푸시 알림이 성공적으로 전송되었습니다. (${result.sent || 0}건)`);
+        setPushTitle('');
+        setPushMessage('');
+        setSelectedEmail('');
+      } else {
+        toast.error(result.message || '푸시 알림 전송에 실패했습니다.');
+      }
+    } catch (e: any) {
+      console.error('[SettingsPage] 푸시 전송 오류:', e);
+      toast.error(e?.response?.data?.message || '푸시 알림 전송 중 오류가 발생했습니다.');
+    } finally {
+      setPushSending(false);
+    }
+  };
+
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
@@ -319,8 +375,112 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 <SwitchSlider />
               </SwitchLabel>
             </ToggleRow>
-
           </Section>
+
+          <Section>
+            <SectionTitle>알림 보내기</SectionTitle>
+            <SectionDescription>
+              특정 회원에게 관리자가 직접 푸시 알림을 전송할 수 있습니다.
+              {'\n'}푸시 토큰이 등록된 사용자에게만 알림이 전송됩니다.
+            </SectionDescription>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  회원 이메일 선택
+                </label>
+                <select
+                  value={selectedEmail}
+                  onChange={(e) => setSelectedEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    cursor: 'pointer',
+                  }}
+                  disabled={pushSending}
+                >
+                  <option value="">이메일을 선택하세요</option>
+                  {users.map((user) => (
+                    <option key={user.id} value={user.email}>
+                      {user.email} {user.nickname ? `(${user.nickname})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  제목
+                </label>
+                <input
+                  type="text"
+                  value={pushTitle}
+                  onChange={(e) => setPushTitle(e.target.value)}
+                  placeholder="알림 제목을 입력하세요"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={pushSending}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  내용
+                </label>
+                <textarea
+                  value={pushMessage}
+                  onChange={(e) => setPushMessage(e.target.value)}
+                  placeholder="알림 내용을 입력하세요"
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={pushSending}
+                />
+              </div>
+
+              <button
+                onClick={handleSendPush}
+                disabled={pushSending || !selectedEmail || !pushTitle.trim() || !pushMessage.trim()}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: pushSending || !selectedEmail || !pushTitle.trim() || !pushMessage.trim() 
+                    ? '#cbd5e0' 
+                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: pushSending || !selectedEmail || !pushTitle.trim() || !pushMessage.trim() 
+                    ? 'not-allowed' 
+                    : 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {pushSending ? '전송 중...' : '푸시 알림 전송'}
+              </button>
+            </div>
+          </Section>
+
         </Body>
       </ContentWrapper>
     </MainContainer>
