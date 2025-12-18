@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { adminApi } from '../../services/api.ts';
+import { adminApi, pushApi } from '../../services/api.ts';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../../firebase.ts';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -171,6 +172,16 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [devMode, setDevMode] = useState(false);
   const [devSaving, setDevSaving] = useState(false);
+  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const stored = localStorage.getItem('pushEnabled_admin');
+      return stored === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isPushBusy, setIsPushBusy] = useState(false);
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -234,6 +245,143 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       setDevSaving(false);
     }
   };
+
+  const handleTogglePush = useCallback(async () => {
+    if (isPushBusy) return;
+
+    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+      toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
+      return;
+    }
+
+    const next = !isPushEnabled;
+
+    // OFF → ON
+    if (next) {
+      try {
+        setIsPushBusy(true);
+
+        const currentPermission = Notification.permission;
+        let permission = currentPermission;
+
+        if (permission === 'default') {
+          permission = await Notification.requestPermission();
+        }
+
+        if (permission !== 'granted') {
+          toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        const messaging = await getFirebaseMessaging();
+        if (!messaging) {
+          console.error('[push][admin] getFirebaseMessaging() 이 null을 반환했습니다.');
+          console.error('[push][admin] Notification.permission:', Notification.permission);
+          console.error('[push][admin] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
+          toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        if (!FIREBASE_VAPID_KEY) {
+          console.warn('[push][admin] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
+        }
+
+        const { getToken } = await import('firebase/messaging');
+
+        // 서비스워커를 명시적으로 등록
+        let registration: ServiceWorkerRegistration | undefined;
+        try {
+          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          console.info('[push][admin] service worker 등록 성공:', registration.scope);
+        } catch (swErr) {
+          console.error('[push][admin] service worker 등록 실패:', swErr);
+          toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        // 일부 환경에서는 register 직후 아직 active 상태가 아니라 PushManager.subscribe 가 실패할 수 있으므로
+        // navigator.serviceWorker.ready 로 활성화까지 기다린 뒤 사용
+        let readyRegistration: ServiceWorkerRegistration;
+        try {
+          readyRegistration = await navigator.serviceWorker.ready;
+          console.info('[push][admin] service worker ready:', readyRegistration.scope);
+        } catch (readyErr) {
+          console.error('[push][admin] service worker ready 대기 중 오류:', readyErr);
+          toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        const token = await getToken(messaging, {
+          vapidKey: FIREBASE_VAPID_KEY || undefined,
+          serviceWorkerRegistration: readyRegistration,
+        });
+
+        if (!token) {
+          toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+          setIsPushBusy(false);
+          return;
+        }
+
+        // 서버에 토큰 등록
+        await pushApi.registerToken(token);
+
+        // 테스트 푸시 알림 전송
+        try {
+          await pushApi.sendTestNotification();
+        } catch (e) {
+          console.error('[push][admin] 테스트 푸시 전송 중 오류:', e);
+        }
+
+        try {
+          localStorage.setItem('pushEnabled_admin', 'true');
+          localStorage.setItem('pushFcmToken_admin', token);
+        } catch {
+          // localStorage 실패는 무시
+        }
+
+        setIsPushEnabled(true);
+        toast.success('관리자 계정에 푸시 알림이 활성화되었습니다.');
+      } catch (e) {
+        console.error('[push][admin] 푸시 활성화 중 오류:', e);
+        toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
+      } finally {
+        setIsPushBusy(false);
+      }
+      return;
+    }
+
+    // ON → OFF
+    try {
+      setIsPushBusy(true);
+      let token: string | undefined;
+      try {
+        const storedToken = localStorage.getItem('pushFcmToken_admin');
+        if (storedToken) token = storedToken;
+      } catch {
+        // ignore
+      }
+
+      await pushApi.unregisterToken(token);
+
+      try {
+        localStorage.setItem('pushEnabled_admin', 'false');
+      } catch {
+        // ignore
+      }
+
+      setIsPushEnabled(false);
+      toast.success('관리자 계정 푸시 알림이 비활성화되었습니다.');
+    } catch (e) {
+      console.error('[push][admin] 푸시 비활성화 중 오류:', e);
+      toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
+    } finally {
+      setIsPushBusy(false);
+    }
+  }, [isPushEnabled, isPushBusy]);
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
@@ -315,6 +463,33 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                   checked={devMode}
                   onChange={handleToggleDevMode}
                   disabled={loading || devSaving}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </ToggleRow>
+          </Section>
+
+          <Section>
+            <SectionTitle>웹 푸시 알림 (관리자 테스트 전용)</SectionTitle>
+            <SectionDescription>
+              관리자 계정으로만 Web Push(Firebase FCM)를 테스트하기 위한 설정입니다.
+              {'\n'}일반 사용자는 이 토글을 볼 수 없으며, 실제 운영 적용 전 테스트용으로만 사용하세요.
+            </SectionDescription>
+            <ToggleRow>
+              <ToggleLabel>
+                <span>관리자 푸시 알림 토글</span>
+                <ToggleDescription>
+                  {isPushEnabled
+                    ? '현재 이 관리자 계정에 대한 Web Push 테스트가 활성화되어 있습니다.'
+                    : '현재 이 관리자 계정에 대한 Web Push 테스트가 비활성화되어 있습니다.'}
+                </ToggleDescription>
+              </ToggleLabel>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={isPushEnabled}
+                  onChange={handleTogglePush}
+                  disabled={loading || isPushBusy}
                 />
                 <SwitchSlider />
               </SwitchLabel>
