@@ -264,9 +264,11 @@ io.on('connection', (socket) => {
 
           if (!data.sender_nickname && senderProfile?.nickname) {
             senderLabel = senderProfile.nickname;
+            data.sender_nickname = senderProfile.nickname; // DB 저장용으로도 반영
           }
           if (!data.receiver_nickname && receiverProfile?.nickname) {
             receiverLabel = receiverProfile.nickname;
+            data.receiver_nickname = receiverProfile.nickname; // DB 저장용으로도 반영
           }
         }
       }

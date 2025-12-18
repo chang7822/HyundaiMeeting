@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi } from '../services/api.ts';
+import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell } from 'react-icons/fa';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -856,6 +856,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
@@ -863,6 +864,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [isPushBusy, setIsPushBusy] = useState(false);
   const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
   const [showIosGuideModal, setShowIosGuideModal] = useState(false);
+
+  // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
+  const isExtraMatchingWindow = useMemo(() => {
+    if (!period || !period.matching_announce || !period.finish) return false;
+    const announce = new Date(period.matching_announce);
+    const finish = new Date(period.finish);
+    if (Number.isNaN(announce.getTime()) || Number.isNaN(finish.getTime())) return false;
+    const nowTime = Date.now();
+    return nowTime >= announce.getTime() && nowTime <= finish.getTime();
+  }, [period?.matching_announce, period?.finish]);
 
   // user.id가 변경될 때마다 해당 사용자의 푸시 상태를 localStorage에서 불러오기
   useEffect(() => {
@@ -1267,6 +1278,28 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         // 에러 시 조용히 무시 (깜빡임 방지)
       }
     }, 5000); // 5초마다 업데이트
+
+    return () => window.clearInterval(interval);
+  }, [user?.id]);
+
+  // 알림 미읽음 개수 조회 (5초마다)
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const fetchNotificationUnreadCount = async () => {
+      try {
+        const res = await notificationApi.getUnreadCount();
+        const count = res.unreadCount || 0;
+        console.log('[MainPage] 알림 미읽음 개수:', count);
+        setNotificationUnreadCount(count);
+      } catch (error) {
+        console.error('[MainPage] 알림 개수 조회 실패:', error);
+        setNotificationUnreadCount(0);
+      }
+    };
+
+    fetchNotificationUnreadCount(); // 초기 로드
+    const interval = window.setInterval(fetchNotificationUnreadCount, 5000);
 
     return () => window.clearInterval(interval);
   }, [user?.id]);
@@ -1906,16 +1939,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // 닉네임 또는 이메일로 인사 (닉네임이 있으면 닉네임, 없으면 이메일)
   const displayName = profile?.nickname || user?.email?.split('@')[0] || '사용자';
 
-  // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
-  const isExtraMatchingWindow = useMemo(() => {
-    if (!period || !period.matching_announce || !period.finish) return false;
-    const announce = new Date(period.matching_announce);
-    const finish = new Date(period.finish);
-    if (Number.isNaN(announce.getTime()) || Number.isNaN(finish.getTime())) return false;
-    const nowTime = Date.now();
-    return nowTime >= announce.getTime() && nowTime <= finish.getTime();
-  }, [period?.matching_announce, period?.finish]);
-
   // 정지 상태 체크 (최우선 필터링)
   const isBanned = user.is_banned === true;
   const bannedUntil = user.banned_until ? new Date(user.banned_until) : null;
@@ -1933,20 +1956,75 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       <MainContainer $sidebarOpen={sidebarOpen}>
         <TopHeaderRow>
           <div style={{ width: '100%' }}>
-            <TopWelcomeTitle>
-              환영합니다,{' '}
-              <NicknameSpan
-                onClick={() => setShowProfileModal(true)}
-                style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-              >
-                {displayName}
-              </NicknameSpan>
-              님!
-            </TopWelcomeTitle>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <TopWelcomeTitle>
+                환영합니다,{' '}
+                <NicknameSpan
+                  onClick={() => setShowProfileModal(true)}
+                  style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+                >
+                  {displayName}
+                </NicknameSpan>
+                님!
+              </TopWelcomeTitle>
+              {/* 알림 종 아이콘 버튼 (오른쪽 상단) */}
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('[MainPage] 알림 아이콘 클릭, 현재 미읽음:', notificationUnreadCount);
+                    navigate('/notifications');
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'rgba(15,23,42,0.4)',
+                    borderRadius: '999px',
+                    width: 40,
+                    height: 40,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#e5e7eb',
+                    boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
+                    padding: 0,
+                    position: 'relative',
+                  }}
+                >
+                  <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
+                </button>
+                {/* 새 알림 뱃지 (상단 우측 빨간 동그라미) */}
+                {notificationUnreadCount > 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      right: -4,
+                      background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                      color: 'white',
+                      borderRadius: '50%',
+                      minWidth: 22,
+                      height: 22,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)',
+                      border: '2px solid rgba(15,23,42,1)',
+                      zIndex: 10,
+                      padding: '0 4px',
+                    }}
+                  >
+                    {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+                  </div>
+                )}
+              </div>
+            </div>
             <TopWelcomeSubtitle>
               직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
             </TopWelcomeSubtitle>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
               <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
                 <span>아이폰 푸시알림 안내</span>
                 <FaInfoCircle size={10} />
@@ -2104,20 +2182,75 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     <MainContainer $sidebarOpen={sidebarOpen}>
       <TopHeaderRow>
         <div style={{ width: '100%' }}>
-          <TopWelcomeTitle>
-            환영합니다,{' '}
-            <NicknameSpan
-              onClick={handleOpenProfileModal}
-              style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-            >
-              {displayName}
-            </NicknameSpan>
-            님!
-          </TopWelcomeTitle>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <TopWelcomeTitle>
+              환영합니다,{' '}
+              <NicknameSpan
+                onClick={handleOpenProfileModal}
+                style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
+              >
+                {displayName}
+              </NicknameSpan>
+              님!
+            </TopWelcomeTitle>
+            {/* 알림 종 아이콘 버튼 (오른쪽 상단) */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('[MainPage] 알림 아이콘 클릭, 현재 미읽음:', notificationUnreadCount);
+                  navigate('/notifications');
+                }}
+                style={{
+                  border: 'none',
+                  background: 'rgba(15,23,42,0.4)',
+                  borderRadius: '999px',
+                  width: 40,
+                  height: 40,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#e5e7eb',
+                  boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
+                  padding: 0,
+                  position: 'relative',
+                }}
+              >
+                <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
+              </button>
+              {/* 새 알림 뱃지 (상단 우측 빨간 동그라미) */}
+              {notificationUnreadCount > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                    color: 'white',
+                    borderRadius: '50%',
+                    minWidth: 22,
+                    height: 22,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)',
+                    border: '2px solid rgba(15,23,42,1)',
+                    zIndex: 10,
+                    padding: '0 4px',
+                  }}
+                >
+                  {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+                </div>
+              )}
+            </div>
+          </div>
           <TopWelcomeSubtitle>
             직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
           </TopWelcomeSubtitle>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
             <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
               <span>아이폰 푸시알림 안내</span>
               <FaInfoCircle size={10} />
