@@ -33,7 +33,7 @@ router.post('/register-token', authenticate, async (req, res) => {
       .single();
 
     const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
+      .from('user_profiles')
       .select('nickname')
       .eq('user_id', userId)
       .single();

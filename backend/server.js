@@ -258,9 +258,11 @@ io.on('connection', (socket) => {
 
           if (!data.sender_nickname && senderProfile?.nickname) {
             senderLabel = senderProfile.nickname;
+            data.sender_nickname = senderProfile.nickname; // DB 저장용으로도 반영
           }
           if (!data.receiver_nickname && receiverProfile?.nickname) {
             receiverLabel = receiverProfile.nickname;
+            data.receiver_nickname = receiverProfile.nickname; // DB 저장용으로도 반영
           }
         }
       }
@@ -276,11 +278,11 @@ io.on('connection', (socket) => {
       if (devMode) {
         console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : ${content}`);
       } else {
-        console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : [내용 숨김]`);
+        console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel}`);
       }
     } catch (e) {
       // dev_mode 조회 실패 시에도 최소한 방향 정보는 남김
-      console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel} : [내용 숨김]`);
+      console.log(`[CHAT] 메시지: ${senderLabel} → ${receiverLabel}`);
     }
     
     // 방 이름: period_id_정렬된userId1_userId2
