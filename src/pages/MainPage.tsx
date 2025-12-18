@@ -714,6 +714,24 @@ const ButtonRow = styled.div`
   }
 `;
 
+const ExtraMatchingNoticeCard = styled.div`
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-radius: 18px;
+  padding: 16px 18px;
+  background:
+    radial-gradient(circle at top left, rgba(129, 140, 248, 0.12), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.12), transparent 55%),
+    #f9fafb;
+  border: 1px solid rgba(79, 70, 229, 0.35);
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+`;
+
 const NicknameSpan = styled.span`
   color: #4F46E5;
   font-weight: 700;
@@ -1888,6 +1906,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // 닉네임 또는 이메일로 인사 (닉네임이 있으면 닉네임, 없으면 이메일)
   const displayName = profile?.nickname || user?.email?.split('@')[0] || '사용자';
 
+  // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
+  const isExtraMatchingWindow = useMemo(() => {
+    if (!period || !period.matching_announce || !period.finish) return false;
+    const announce = new Date(period.matching_announce);
+    const finish = new Date(period.finish);
+    if (Number.isNaN(announce.getTime()) || Number.isNaN(finish.getTime())) return false;
+    const nowTime = Date.now();
+    return nowTime >= announce.getTime() && nowTime <= finish.getTime();
+  }, [period?.matching_announce, period?.finish]);
+
   // 정지 상태 체크 (최우선 필터링)
   const isBanned = user.is_banned === true;
   const bannedUntil = user.banned_until ? new Date(user.banned_until) : null;
@@ -2137,6 +2165,36 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               <FaChevronRight size={14} />
             </LatestNoticeRight>
           </LatestNoticeCard>
+        )}
+        
+        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출) */}
+        {period && isExtraMatchingWindow && (
+          <ExtraMatchingNoticeCard>
+            <div style={{ fontSize: '0.9rem', color: '#111827', fontWeight: 600 }}>
+              추가 매칭 도전 기회가 열렸습니다.
+              <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 400, marginTop: 4 }}>
+                이번 회차에서 매칭이 아쉬웠다면, 별을 사용해 한 번 더 인연을 찾아보세요.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/extra-matching')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 999,
+                border: 'none',
+                background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+                color: '#fff',
+                fontSize: '0.9rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                opacity: 1,
+              }}
+            >
+              추가 매칭 도전하러 가기
+            </button>
+          </ExtraMatchingNoticeCard>
         )}
         
         {/* 이메일 인증 알림 */}
