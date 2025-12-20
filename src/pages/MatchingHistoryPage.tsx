@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { toast } from 'react-toastify';
+import { FaTimes } from 'react-icons/fa';
 import { matchingHistoryApi } from '../services/api.ts';
 import ReportModal from '../components/ReportModal.tsx';
 import ReportDetailModal from '../components/ReportDetailModal.tsx';
@@ -33,12 +35,40 @@ const Content = styled.div`
   margin: 0 auto;
 `;
 
+const Header = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+`;
+
 const Title = styled.h1`
   color: #ffffff;
-  margin-bottom: 2rem;
+  margin: 0;
   font-size: 2rem;
   font-weight: 700;
   text-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+`;
+
+const CloseButton = styled.button`
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
 `;
 
 const HistoryCard = styled.div`
@@ -261,6 +291,7 @@ const formatDate = (dateString: string) => {
 };
 
 const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }) => {
+  const navigate = useNavigate();
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [reportModal, setReportModal] = useState<{
@@ -344,7 +375,12 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Content>
-        <Title>내 매칭 이력</Title>
+        <Header>
+          <Title>내 매칭 이력</Title>
+          <CloseButton onClick={() => navigate('/main')}>
+            <FaTimes />
+          </CloseButton>
+        </Header>
         
         {loading ? (
           <>

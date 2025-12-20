@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
+import { FaTimes } from 'react-icons/fa';
 import { extraMatchingApi } from '../services/api.ts';
 import { userApi } from '../services/api.ts';
 import { useNavigate } from 'react-router-dom';
@@ -37,6 +38,18 @@ const Content = styled.div`
   margin: 0 auto;
 `;
 
+const Header = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  gap: 1rem;
+`;
+
+const TitleWrapper = styled.div`
+  flex: 1;
+`;
+
 const Title = styled.h1`
   color: #ffffff;
   margin-bottom: 0.5rem;
@@ -44,14 +57,42 @@ const Title = styled.h1`
   font-weight: 800;
   line-height: 1.3;
   text-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  margin: 0;
 `;
 
 const Subtitle = styled.p`
   color: #e5e7ff;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0;
+  margin-top: 0.5rem;
   font-size: 1rem;
   line-height: 1.5;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+`;
+
+const CloseButton = styled.button`
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+`;
+
+const SubtitleWrapper = styled.div`
+  margin-bottom: 1.5rem;
 `;
 
 const TopActionBar = styled.div`
@@ -568,10 +609,18 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
   return (
     <Container $sidebarOpen={sidebarOpen}>
       <Content>
-        <Title>추가 매칭 도전</Title>
-        <Subtitle>
-          이번 회차에서 매칭이 아쉬웠다면, <strong>추가 매칭 도전</strong>으로 한 번 더 인연을 찾아보세요.
-        </Subtitle>
+        <Header>
+          <TitleWrapper>
+            <Title>추가 매칭 도전</Title>
+            <Subtitle>
+              이번 회차에서 매칭이 아쉬웠다면, <strong>추가 매칭 도전</strong>으로 한 번 더 인연을 찾아보세요.
+            </Subtitle>
+          </TitleWrapper>
+          <CloseButton onClick={() => navigate('/main')}>
+            <FaTimes />
+          </CloseButton>
+        </Header>
+        <SubtitleWrapper />
         <div
           style={{
             marginBottom: 16,

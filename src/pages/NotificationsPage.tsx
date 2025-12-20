@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { notificationApi } from '../services/api.ts';
 import InlineSpinner from '../components/InlineSpinner.tsx';
-import { FaBell, FaCheckCircle, FaInbox } from 'react-icons/fa';
+import { FaBell, FaCheckCircle, FaInbox, FaTimes } from 'react-icons/fa';
 
 const PageContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -36,22 +36,23 @@ const PageContainer = styled.div<{ $sidebarOpen: boolean }>`
 
 const HeaderRow = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   margin-bottom: 16px;
   gap: 12px;
+`;
 
-  @media (max-width: 768px) {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
+const TopRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
 `;
 
 const TitleBlock = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1;
 `;
 
 const Title = styled.h1`
@@ -90,6 +91,28 @@ const HeaderActions = styled.div`
     flex-direction: column;
     align-items: stretch;
     gap: 6px;
+  }
+`;
+
+const CloseButton = styled.button`
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 `;
 
@@ -453,12 +476,17 @@ const NotificationsPage: React.FC<{ sidebarOpen: boolean }> = ({ sidebarOpen }) 
   return (
     <PageContainer $sidebarOpen={sidebarOpen}>
       <HeaderRow>
-        <TitleBlock>
-          <Title>알림함</Title>
-          <Subtitle>
-            매칭 결과, 호감 도착, 공지사항 등 회원님께 필요한 안내를 한 곳에서 확인할 수 있습니다.
-          </Subtitle>
-        </TitleBlock>
+        <TopRow>
+          <TitleBlock>
+            <Title>알림함</Title>
+            <Subtitle>
+              매칭 결과, 호감 도착, 공지사항 등 회원님께 필요한 안내를 한 곳에서 확인할 수 있습니다.
+            </Subtitle>
+          </TitleBlock>
+          <CloseButton onClick={() => navigate('/main')}>
+            <FaTimes />
+          </CloseButton>
+        </TopRow>
         <HeaderActions>
           <FilterTabs>
             <FilterTabButton
