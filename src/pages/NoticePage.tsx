@@ -130,6 +130,10 @@ const NoticeTitle = styled.h3`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  
+  @media (max-width: 768px) {
+    font-size: 0.95rem;
+  }
 `;
 
 const ImportantBadge = styled.span`
@@ -173,6 +177,10 @@ const DetailContainer = styled.div`
   padding: 2rem;
   background: white;
   min-height: calc(100vh - 4rem);
+  
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
 `;
 
 const DetailHeader = styled.div`
@@ -183,6 +191,12 @@ const DetailHeader = styled.div`
   padding-bottom: 1.5rem;
   border-bottom: 2px solid #f7fafc;
   gap: 1rem;
+  
+  @media (max-width: 768px) {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    gap: 0.75rem;
+  }
 `;
 
 const DetailTitle = styled.h1`
@@ -195,6 +209,12 @@ const DetailTitle = styled.h1`
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
+  
+  @media (max-width: 768px) {
+    font-size: 1.1rem;
+    gap: 0.5rem;
+    line-height: 1.5;
+  }
 `;
 
 const DetailMeta = styled.div`
@@ -205,6 +225,12 @@ const DetailMeta = styled.div`
   font-size: 0.875rem;
   margin-bottom: 2rem;
   flex-wrap: wrap;
+  
+  @media (max-width: 768px) {
+    gap: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+  }
 `;
 
 const DetailContent = styled.div`
@@ -216,6 +242,14 @@ const DetailContent = styled.div`
   border-radius: 12px;
   border-left: 4px solid #667eea;
   white-space: pre-wrap;
+  word-break: break-word;
+  
+  @media (max-width: 768px) {
+    padding: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    border-radius: 8px;
+  }
 `;
 
 const DetailBackButton = styled.button`

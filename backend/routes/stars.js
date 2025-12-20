@@ -168,6 +168,16 @@ router.post('/attendance/daily', async (req, res) => {
       return res.status(500).json({ message: '별을 지급하는 중 오류가 발생했습니다.' });
     }
 
+    // 닉네임 조회 및 출석 완료 로그
+    const { data: profile } = await supabase
+      .from('user_profiles')
+      .select('nickname')
+      .eq('user_id', userId)
+      .maybeSingle();
+    
+    const nickname = profile?.nickname || '알 수 없음';
+    console.log(`✅ [출석체크] ${nickname} 출석체크 완료!`);
+
     return res.json({
       success: true,
       message: '오늘 출석 체크가 완료되었습니다. ⭐ 1개가 지급되었습니다.',

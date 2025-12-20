@@ -128,6 +128,16 @@ const FaqQuestion = styled.h3`
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  
+  @media (max-width: 768px) {
+    font-size: 0.95rem;
+  }
+  
+  svg {
+    @media (max-width: 768px) {
+      display: none;
+    }
+  }
 `;
 
 
