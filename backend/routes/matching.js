@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
+const { sendPushToAdmin } = require('../pushService');
+const notificationRoutes = require('./notifications');
 
 // 임시 매칭 데이터
 const matches = [];
@@ -168,11 +170,12 @@ router.post('/request', async (req, res) => {
       }
     }
 
-    // 최근 신청 내역(취소 포함) 조회
+    // 최근 "정규 매칭" 신청 내역(취소 포함) 조회
     const { data: lastApp, error: lastAppError } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
+      .eq('type', 'main') // 🔹 정규 매칭 신청만 대상으로 10분 재신청 제한
       .order('applied_at', { ascending: false })
       .limit(1)
       .single();
@@ -200,12 +203,13 @@ router.post('/request', async (req, res) => {
       return res.status(400).json({ message: '현재는 매칭 신청 기간이 아닙니다.' });
     }
 
-    // 이미 신청한 내역이 있는지 확인 (period_id 포함)
+    // 이미 "정규 매칭"으로 신청한 내역이 있는지 확인 (period_id 포함)
     const { data: existing, error: checkError } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
       .eq('period_id', periodId)
+      .eq('type', 'main')
       .eq('applied', true)
       .eq('cancelled', false)
       .maybeSingle();
@@ -232,12 +236,13 @@ router.post('/request', async (req, res) => {
         preferenceSnapshot[key] = profile[key];
       }
     });
-    // 2. 신청 insert
+    // 2. 신청 insert (type='main')
     const { data, error } = await supabase
       .from('matching_applications')
       .insert([{
         user_id: userId,
         period_id: periodId,
+        type: 'main',
         applied: true,
         cancelled: false,
         applied_at: new Date().toISOString(),
@@ -257,25 +262,9 @@ router.post('/request', async (req, res) => {
 
     // [로그] 매칭 신청 완료: "닉네임(이메일) N회차 매칭 신청완료"
     try {
-      // 전체 매칭 로그에서 현재 periodId의 회차 번호 계산 (application_start 기준 정렬)
-      const { data: allLogs } = await supabase
-        .from('matching_log')
-        .select('id')
-        .order('application_start', { ascending: true });
-
-      let roundNumber = null;
-      if (allLogs && Array.isArray(allLogs)) {
-        const idx = allLogs.findIndex((log) => log.id === periodId);
-        if (idx !== -1) {
-          roundNumber = idx + 1;
-        }
-      }
-
       const nickname = profile.nickname || '알 수 없음';
       const email = user?.email || '알 수 없음';
-      const roundLabel = roundNumber ? `${roundNumber}회차` : `period_id=${periodId}`;
-
-      console.log(`[MATCHING] 매칭 신청 완료: ${nickname}(${email}) ${roundLabel} 매칭 신청완료`);
+      console.log(`[MATCHING] 매칭 신청 완료: ${nickname}(${email}) period_id=${periodId} 매칭 신청완료`);
     } catch (e) {
       console.error('[MATCHING] 매칭 신청 로그 처리 중 오류:', e);
     }
@@ -294,6 +283,14 @@ router.post('/request', async (req, res) => {
       ];
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[매칭 신청] 관리자 알림 메일 발송 실패:', err);
+      });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 매칭 신청',
+        `${profile.nickname || '회원'}님이 매칭을 신청했습니다. (회차 ${periodId})`
+      ).catch(err => {
+        console.error('[매칭 신청] 관리자 푸시 알림 발송 실패:', err);
       });
     } catch (e) {
       console.error('[매칭 신청] 관리자 알림 메일 처리 중 오류:', e);
@@ -357,12 +354,13 @@ router.get('/status', async (req, res) => {
       return res.json({ status: null, message: '아직 생성된 회차가 없습니다.' });
     }
     
-    // 3. matching_applications 조회
+    // 3. matching_applications 조회 (정규 매칭 신청만 대상)
     const { data: appData, error: appError } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
       .eq('period_id', currentPeriod.id)
+      .eq('type', 'main')
       .order('applied_at', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -373,12 +371,37 @@ router.get('/status', async (req, res) => {
     }
     
     // 4. 최종 응답 구성
-    const resolvedMatchState = typeof userData.is_matched === 'boolean'
+    let resolvedMatchState = typeof userData.is_matched === 'boolean'
       ? userData.is_matched
       : (typeof appData?.matched === 'boolean' ? appData.matched : null);
     const resolvedAppliedState = typeof userData.is_applied === 'boolean'
       ? userData.is_applied
       : (typeof appData?.applied === 'boolean' ? appData.applied : false);
+
+    // 4-1. 추가 매칭(extra-matching)을 통해서라도 이미 매칭된 적이 있는지 확인
+    // matching_history 에서 현재 회차(period_id) 기준으로 이 사용자가 포함된 매칭이 있는 경우,
+    // 정규 매칭이든 추가 매칭이든 모두 "매칭 성공"으로 취급한다.
+    let partnerUserIdFromHistory = null;
+    try {
+      const { data: historyRow, error: historyError } = await supabase
+        .from('matching_history')
+        .select('male_user_id, female_user_id, matched')
+        .eq('period_id', currentPeriod.id)
+        .eq('matched', true)
+        .or(`male_user_id.eq.${userId},female_user_id.eq.${userId}`)
+        .maybeSingle();
+
+      if (!historyError && historyRow) {
+        resolvedMatchState = true;
+        const maleId = historyRow.male_user_id;
+        const femaleId = historyRow.female_user_id;
+        partnerUserIdFromHistory =
+          maleId === userId ? femaleId : femaleId === userId ? maleId : null;
+      }
+    } catch (e) {
+      console.error('[matching/status] matching_history 조회 오류:', e);
+      // history 조회 실패 시에는 기존 로직만 신뢰
+    }
     
     let finalStatus;
     
@@ -393,7 +416,7 @@ router.get('/status', async (req, res) => {
         is_cancelled: false,
         matched: resolvedMatchState,
         is_matched: resolvedMatchState,
-        partner_user_id: null,
+        partner_user_id: partnerUserIdFromHistory,
         applied_at: null,
         cancelled_at: null,
         matched_at: null
@@ -407,7 +430,8 @@ router.get('/status', async (req, res) => {
         matched: resolvedMatchState,
         is_matched: resolvedMatchState,
         cancelled: appData.cancelled || false,  // app 기준
-        is_cancelled: appData.cancelled || false
+        is_cancelled: appData.cancelled || false,
+        partner_user_id: partnerUserIdFromHistory || appData.partner_user_id || null,
       };
     }
     
@@ -459,12 +483,13 @@ router.post('/cancel', async (req, res) => {
     }
     const periodId = currentPeriod.id;
     
-    // 2. 해당 회차의 신청 row(applied=true, cancelled=false) 찾기
+    // 2. 해당 회차의 "정규 매칭" 신청 row(applied=true, cancelled=false) 찾기
     const { data: application, error: findError } = await supabase
       .from('matching_applications')
       .select('*')
       .eq('user_id', userId)
       .eq('period_id', periodId)
+      .eq('type', 'main')
       .eq('applied', true)
       .eq('cancelled', false)
       .single();
@@ -546,6 +571,14 @@ router.post('/cancel', async (req, res) => {
       ];
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[매칭 신청 취소] 관리자 알림 메일 발송 실패:', err);
+      });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 매칭 신청 취소',
+        `${nickname || '회원'}님이 매칭 신청을 취소했습니다. (회차 ${periodId})`
+      ).catch(err => {
+        console.error('[매칭 신청 취소] 관리자 푸시 알림 발송 실패:', err);
       });
     } catch (e) {
       console.error('[매칭 신청 취소] 관리자 알림 메일 처리 중 오류:', e);

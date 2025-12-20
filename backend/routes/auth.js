@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const { supabase } = require('../database');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
+const { sendPushToAdmin } = require('../pushService');
 const router = express.Router();
 const authenticate = require('../middleware/authenticate');
 
@@ -414,7 +415,7 @@ router.post('/login', async (req, res) => {
       .eq('user_id', user.id)
       .single();
 
-    // 1. 로그인 성공 로그 (메일 + 닉네임 + 권한)
+    // 1. 로그인 성공 로그 (메일계정 기준 간단히)
     console.log(
       `[AUTH] 로그인 성공: email=${email}, nickname=${profile?.nickname || '미설정'}, role=${user.is_admin ? 'admin' : 'user'}`,
     );
@@ -907,6 +908,14 @@ router.post('/register', async (req, res) => {
       ];
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[회원가입] 관리자 알림 메일 발송 실패:', err);
+      });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 신규 회원 가입',
+        `${nickname}(${email})님이 가입했습니다.`
+      ).catch(err => {
+        console.error('[회원가입] 관리자 푸시 알림 발송 실패:', err);
       });
     } catch (e) {
       console.error('[회원가입] 관리자 알림 메일 처리 중 오류:', e);

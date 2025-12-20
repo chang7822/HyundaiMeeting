@@ -318,6 +318,7 @@ const CompanyManagerPage: React.FC<CompanyManagerPageProps> = ({ sidebarOpen = t
     setEditName('');
     setEditDomains('');
     setEditActive(true);
+    setCreateNotice(false);
   };
 
   const handleSave = async () => {

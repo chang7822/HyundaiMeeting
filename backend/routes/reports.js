@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
+const { sendPushToAdmin } = require('../pushService');
 
 // 신고 등록
 router.post('/', authenticate, async (req, res) => {
@@ -214,6 +215,14 @@ router.post('/', authenticate, async (req, res) => {
       ];
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[신고 등록] 관리자 알림 메일 발송 실패:', err);
+      });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 신고 접수',
+        `${reporterNickname || '회원'}님이 신고를 접수했습니다. (${data.report_type})`
+      ).catch(err => {
+        console.error('[신고 등록] 관리자 푸시 알림 발송 실패:', err);
       });
     } catch (e) {
       console.error('[신고 등록] 관리자 알림 메일 처리 중 오류:', e);

@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
+const { sendPushToAdmin } = require('../pushService');
 
 // ===================================
 // 사용자용 API
@@ -98,6 +99,14 @@ router.post('/inquiries', authenticate, async (req, res) => {
       ];
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[문의 등록] 관리자 알림 메일 발송 실패:', err);
+      });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 고객센터 문의',
+        `${nickname || '회원'}님의 문의: ${title.trim()}`
+      ).catch(err => {
+        console.error('[문의 등록] 관리자 푸시 알림 발송 실패:', err);
       });
     } catch (e) {
       console.error('[문의 등록] 관리자 알림 메일 처리 중 오류:', e);

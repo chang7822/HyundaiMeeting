@@ -15,9 +15,11 @@ import {
   FaQuestionCircle,
   FaHistory,
   FaExclamationTriangle,
-  FaHeadset
+  FaHeadset,
+  FaRegStar,
+  FaBell,
 } from 'react-icons/fa';
-import { matchingApi } from '../../services/api.ts';
+import { matchingApi, starApi, notificationApi, extraMatchingApi } from '../../services/api.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -104,6 +106,74 @@ const UserInfo = styled.div`
   opacity: 0.8;
 `;
 
+const UserSummary = styled.div`
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`;
+
+const NicknameRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+`;
+
+const StarRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+`;
+
+const StarBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(250, 250, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: 0.8rem;
+  font-weight: 600;
+`;
+
+const AttendanceButton = styled.button`
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, rgba(250, 250, 255, 0.92) 0%, rgba(224, 231, 255, 0.95) 100%);
+  color: #4f46e5;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+  transition: all 0.18s ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(15, 23, 42, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+    box-shadow: none;
+    transform: none;
+  }
+`;
+
 const NavMenu = styled.nav`
   padding: 1rem 0;
   flex: 1;
@@ -174,6 +244,52 @@ const NavText = styled.span`
   font-weight: 500;
 `;
 
+const NewChip = styled.span`
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f97316;
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+`;
+
+const NotificationQuickRow = styled.button`
+  margin-top: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.28);
+  color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  gap: 8px;
+
+  &:hover {
+    background: rgba(15, 23, 42, 0.38);
+  }
+
+  span.label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  span.count {
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 999px;
+    background: #f97316;
+    color: #fff7ed;
+    font-weight: 700;
+  }
+`;
+
 const LogoutSection = styled.div`
   padding: 1rem 1.5rem;
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
@@ -201,16 +317,108 @@ const LogoutButton = styled.button`
   }
 `;
 
+const AttendanceModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1400;
+`;
+
+const AttendanceModalContent = styled.div`
+  background: #f9fafb;
+  border-radius: 18px;
+  padding: 20px 22px 18px;
+  width: 95vw;
+  max-width: 420px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+`;
+
+const AttendanceModalTitle = styled.h2`
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 8px;
+`;
+
+const AttendanceModalBody = styled.div`
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.5;
+  margin-bottom: 14px;
+`;
+
+const AttendanceModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+`;
+
+const AttendanceSecondaryButton = styled.button`
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
+const AttendancePrimaryButton = styled.button`
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #f9fafb;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.96;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
 const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, onToggle }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { user, profile, logout } = useAuth() as any;
 
   // 매칭 상태 및 partnerUserId 상태 관리
   const [matchingStatus, setMatchingStatus] = useState<any>(null);
   const [partnerUserId, setPartnerUserId] = useState<string | null>(null);
   const [canChat, setCanChat] = useState(false);
   const [period, setPeriod] = useState<any>(null);
+  const [starBalance, setStarBalance] = useState<number | null>(null);
+  const [starLoading, setStarLoading] = useState(false);
+  const [hasDailyToday, setHasDailyToday] = useState(false);
+  const [hasAdToday, setHasAdToday] = useState(false);
+  const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
+  const [attendanceSubmitting, setAttendanceSubmitting] = useState(false);
+  const [adSubmitting, setAdSubmitting] = useState(false);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
+  const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
 
   // 로딩 상태: user가 null이면 true, 아니면 false
   const isUserLoading = user === null;
@@ -266,16 +474,194 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     }
   }, [user?.id, user?.is_banned, user?.banned_until]);
 
+  // 알림 안읽음 개수 로드
+  useEffect(() => {
+    if (!user?.id) {
+      setNotificationUnreadCount(0);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await notificationApi.getUnreadCount();
+        if (!cancelled) {
+          setNotificationUnreadCount(res.unreadCount || 0);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[Sidebar] 알림 unread-count 조회 오류:', e);
+          setNotificationUnreadCount(0);
+        }
+      }
+    };
+    load();
+    const timer = window.setInterval(load, 15000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.id]);
+
+  // 추가 매칭 도전 가능 기간(inWindow) 여부 로드
+  useEffect(() => {
+    if (!user?.id) {
+      setExtraMatchingInWindow(null);
+      return;
+    }
+    let cancelled = false;
+    const loadExtraStatus = async () => {
+      try {
+        const res = await extraMatchingApi.getStatus();
+        if (cancelled) return;
+        
+        // 기능이 비활성화되어 있으면 false로 설정
+        if (res?.featureEnabled === false) {
+          setExtraMatchingInWindow(false);
+          return;
+        }
+        
+        const p = res?.currentPeriod;
+        if (!p || !p.matching_announce || !p.finish) {
+          setExtraMatchingInWindow(false);
+          return;
+        }
+        const nowTime = Date.now();
+        const announce = new Date(p.matching_announce).getTime();
+        const finish = new Date(p.finish).getTime();
+        if (Number.isNaN(announce) || Number.isNaN(finish)) {
+          setExtraMatchingInWindow(false);
+          return;
+        }
+        setExtraMatchingInWindow(nowTime >= announce && nowTime <= finish);
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[Sidebar] 추가 매칭 도전 상태 조회 오류:', e);
+          setExtraMatchingInWindow(false);
+        }
+      }
+    };
+    loadExtraStatus();
+    const timer = window.setInterval(loadExtraStatus, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [user?.id]);
+
   // 사용자 정지 상태 확인
   const isBanned = user?.is_banned === true;
   const bannedUntil = user?.banned_until ? new Date(user.banned_until) : null;
   const now = new Date();
   const isBanActive = isBanned && (!bannedUntil || bannedUntil > now);
 
+  const displayNickname =
+    profile?.nickname ||
+    (user?.email ? user.email.split('@')[0] : '') ||
+    '';
+
+  // 별 잔액 로드
+  useEffect(() => {
+    if (!user?.id) {
+      setStarBalance(null);
+      setHasDailyToday(false);
+      setHasAdToday(false);
+      return;
+    }
+    let cancelled = false;
+    setStarLoading(true);
+    starApi
+      .getMyStars()
+      .then((data) => {
+        if (cancelled) return;
+        setStarBalance(typeof data.balance === 'number' ? data.balance : 0);
+        const dailyDone = !!data?.today?.dailyDone;
+        const adDone = !!data?.today?.adDone;
+        // 오늘 중 하나라도 별을 획득했다면 사이드바에서는 "오늘 출석 완료"로 표시
+        setHasDailyToday(dailyDone || adDone);
+        setHasAdToday(adDone);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        console.error('[Sidebar] 별 잔액 조회 오류:', err);
+        setStarBalance(null);
+      })
+      .finally(() => {
+        if (!cancelled) setStarLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // 별 잔액 외부 업데이트 이벤트 리스너 (추가 매칭 등)
+  useEffect(() => {
+    const handler = (event: any) => {
+      const balance = event?.detail?.balance;
+      if (typeof balance === 'number') {
+        setStarBalance(balance);
+      }
+    };
+    window.addEventListener('stars-updated', handler as any);
+    return () => {
+      window.removeEventListener('stars-updated', handler as any);
+    };
+  }, []);
+
+  const handleDailyAttendance = async () => {
+    if (!user?.id) return;
+    setAttendanceSubmitting(true);
+    try {
+      const res = await starApi.dailyAttendance();
+      if (typeof res.newBalance === 'number') {
+        setStarBalance(res.newBalance);
+      }
+      toast.success(res.message || '출석 체크가 완료되었습니다.');
+      setAttendanceModalOpen(false);
+      setHasDailyToday(true);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        '출석 체크 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      toast.error(msg);
+    } finally {
+      setAttendanceSubmitting(false);
+    }
+  };
+
+  const handleAdReward = async () => {
+    if (!user?.id) return;
+    setAdSubmitting(true);
+    try {
+      const res = await starApi.adReward();
+      if (typeof res.newBalance === 'number') {
+        setStarBalance(res.newBalance);
+      }
+      toast.success(res.message || '광고 보상 별이 지급되었습니다.');
+      setAttendanceModalOpen(false);
+      // 광고로 별을 받아도 오늘은 출석 완료로 취급
+      setHasAdToday(true);
+      setHasDailyToday(true);
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        '광고 보상 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      toast.error(msg);
+    } finally {
+      setAdSubmitting(false);
+    }
+  };
+
   const userMenuItems = [
     { path: '/main', icon: <FaHome />, text: '홈' },
     { path: '/profile', icon: <FaUser />, text: '프로필' },
     { path: '/preference', icon: <FaStar />, text: '선호 스타일' },
+    {
+      path: '/extra-matching',
+      icon: <FaRegStar />,
+      text: '추가 매칭 도전',
+      disabled: extraMatchingInWindow === false,
+    },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
     { path: '/faq', icon: <FaQuestionCircle />, text: 'FAQ' },
@@ -293,6 +679,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/matching-result', icon: <span role="img" aria-label="heart">💑</span>, text: '매칭 결과' },
     { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
     { path: '/admin/user-matching-overview', icon: <span role="img" aria-label="users">👥</span>, text: '회원 매칭 조회' },
+    { path: '/admin/extra-matching-status', icon: <span role="img" aria-label="star">⭐</span>, text: '추가 매칭도전 현황' },
     { path: '/admin/report-management', icon: <FaExclamationTriangle />, text: '신고 관리' },
     { path: '/admin/support', icon: <FaHeadset />, text: '고객센터 관리' },
     { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
@@ -300,6 +687,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/notice-manager', icon: <span role="img" aria-label="notice">📢</span>, text: '공지사항 관리' },
     { path: '/admin/faq-manager', icon: <span role="img" aria-label="faq">❓</span>, text: 'FAQ 관리' },
     { path: '/admin/broadcast-email', icon: <span role="img" aria-label="mail">✉️</span>, text: '메일 공지' },
+    { path: '/admin/notifications', icon: <span role="img" aria-label="bell">🔔</span>, text: '알림 보내기' },
     { path: '/admin/settings', icon: <span role="img" aria-label="settings">⚙️</span>, text: '설정' },
   ] : [];
   // console.log('[Sidebar] adminMenuItems 배열:', adminMenuItems);
@@ -347,13 +735,64 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               navigate('/main');
             }
           }}>직장인 솔로 공모</Logo>
-          {/* user가 null이면 로딩 중 메시지, 아니면 이메일 */}
+          {/* user가 null이면 로딩 중 메시지, 아니면 이메일 + 요약 */}
           {isUserLoading ? (
-            <div style={{ color: '#fff', fontWeight: 600, fontSize: '1.08rem', marginTop: 12, textAlign: 'center' }}>
+            <div
+              style={{
+                color: '#fff',
+                fontWeight: 600,
+                fontSize: '1.08rem',
+                marginTop: 12,
+                textAlign: 'center',
+              }}
+            >
               로딩 중...
             </div>
           ) : (
-            <UserInfo>{user?.email}</UserInfo>
+            <>
+              <UserInfo>{user?.email}</UserInfo>
+              <UserSummary>
+                <NicknameRow>
+                  <span style={{ fontSize: '0.9rem' }}>
+                    <strong>{displayNickname || '회원'}</strong>
+                    <span style={{ opacity: 0.8 }}> 님</span>
+                  </span>
+                </NicknameRow>
+                <StarRow>
+                  <StarBadge>
+                    <FaStar style={{ color: '#FCD34D' }} />
+                    <span>
+                      {starLoading
+                        ? '별 확인 중...'
+                        : typeof starBalance === 'number'
+                        ? `별 ${starBalance}개`
+                        : '별 정보 없음'}
+                    </span>
+                  </StarBadge>
+                  <AttendanceButton
+                    type="button"
+                    onClick={() => setAttendanceModalOpen(true)}
+                    disabled={attendanceSubmitting || adSubmitting || hasDailyToday}
+                  >
+                    <span>{hasDailyToday ? '오늘 출석 완료' : '출석 체크하기'}</span>
+                  </AttendanceButton>
+                </StarRow>
+                <NotificationQuickRow
+                  type="button"
+                  onClick={() => handleNavClick('/notifications')}
+                >
+                  <span className="label">
+                    <FaBell style={{ fontSize: '0.9rem' }} />
+                    <span>알림함</span>
+                  </span>
+                  {notificationUnreadCount > 0 && (
+                    <span className="count">
+                      {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+                    </span>
+                  )}
+                </NotificationQuickRow>
+              </UserSummary>
+            </>
           )}
         </SidebarHeader>
         {/* user가 null이면 메뉴/로그아웃 숨김, 아니면 기존대로 */}
@@ -370,6 +809,10 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
                   >
                     {item.icon}
                     <NavText>{item.text}</NavText>
+                    {/* 알림함 NEW 칩 */}
+                    {item.path === '/notifications' && notificationUnreadCount > 0 && (
+                      <NewChip>NEW</NewChip>
+                    )}
                   </NavItem>
                 ))}
               </MenuSection>
@@ -402,6 +845,57 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           </>
         )}
       </SidebarContainer>
+      {attendanceModalOpen && (
+        <AttendanceModalOverlay
+          onClick={() => {
+            if (!attendanceSubmitting && !adSubmitting) {
+              setAttendanceModalOpen(false);
+            }
+          }}
+        >
+          <AttendanceModalContent onClick={(e) => e.stopPropagation()}>
+            <AttendanceModalTitle>출석 체크</AttendanceModalTitle>
+            <AttendanceModalBody>
+              <p style={{ marginBottom: 6 }}>
+                하루 한 번 <strong>출석 체크</strong>를 하면 별 <strong>1개</strong>를 모을 수 있어요.
+              </p>
+              {/* 광고 보기 기능 - 아직 오픈 전 */}
+              {/* <p style={{ marginBottom: 6 }}>
+                원하시면 출석 후에 <strong>광고 보기</strong>로 별 <strong>2개</strong>를 추가로 받을 수 있습니다.
+              </p> */}
+            </AttendanceModalBody>
+            <AttendanceModalActions>
+              <AttendanceSecondaryButton
+                type="button"
+                onClick={() => {
+                  if (!attendanceSubmitting && !adSubmitting) {
+                    setAttendanceModalOpen(false);
+                  }
+                }}
+                disabled={attendanceSubmitting || adSubmitting}
+              >
+                닫기
+              </AttendanceSecondaryButton>
+              <AttendancePrimaryButton
+                type="button"
+                onClick={handleDailyAttendance}
+                disabled={attendanceSubmitting}
+              >
+                {attendanceSubmitting ? '출석 처리 중...' : '출석 체크 (⭐1)'}
+              </AttendancePrimaryButton>
+              {/* 광고 보기 버튼 - 아직 오픈 전 */}
+              {/* <AttendancePrimaryButton
+                type="button"
+                onClick={handleAdReward}
+                disabled={adSubmitting}
+                style={{ background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' }}
+              >
+                {adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}
+              </AttendancePrimaryButton> */}
+            </AttendanceModalActions>
+          </AttendanceModalContent>
+        </AttendanceModalOverlay>
+      )}
     </>
   );
 };

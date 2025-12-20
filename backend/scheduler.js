@@ -10,6 +10,32 @@ dotenv.config({ path: path.join(__dirname, 'config.env') });
 
 const { supabase } = require('./database');
 const { sendPushToAllUsers, sendPushToUsers } = require('./pushService');
+const notificationRoutes = require('./routes/notifications');
+
+// 추가 매칭 도전 기능 활성화 여부 확인
+async function isExtraMatchingFeatureEnabled() {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'extra_matching_enabled')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[scheduler] extra_matching_enabled 조회 오류:', error);
+      return true; // 에러 시 기본값 true (활성화)
+    }
+
+    if (!data || !data.value) {
+      return true;
+    }
+
+    return data.value.enabled !== false;
+  } catch (e) {
+    console.error('[scheduler] extra_matching_enabled 조회 예외:', e);
+    return true;
+  }
+}
 
 // status 기반으로 현재 회차/다음 회차를 계산하는 내부 헬퍼 (matching.js와 동일 로직)
 function computeCurrentAndNextFromLogs(logs) {
@@ -301,14 +327,46 @@ cron.schedule(scheduleInterval, async () => {
           }
 
           if (lastStartPushPeriodId !== current.id) {
-            console.log(`[스케줄러] 회차 ${current.id} 매칭 신청 시작 푸시 발송`);
+            console.log(`[스케줄러] 회차 ${current.id} 매칭 신청 시작 알림/푸시 발송`);
 
+            // 1) 푸시 알림 (전체 사용자)
             await sendPushToAllUsers({
               type: 'matching_application_start',
               periodId: String(current.id),
               title: '[직쏠공]',
               body: '이번 회차 매칭 신청이 시작되었어요.',
             });
+
+            // 2) 알림 메시지 (전체 활성 사용자)
+            try {
+              const { data: activeUsers, error: usersError } = await supabase
+                .from('users')
+                .select('id, is_active, is_banned');
+
+              if (usersError) {
+                console.error('[스케줄러] 매칭 신청 시작 알림용 사용자 조회 오류:', usersError);
+              } else if (activeUsers && activeUsers.length > 0) {
+                const targets = activeUsers.filter(
+                  (u) => u.is_active !== false && u.is_banned !== true && u.id,
+                );
+
+                await Promise.all(
+                  targets.map((u) =>
+                    notificationRoutes
+                      .createNotification(String(u.id), {
+                        type: 'matching',
+                        title: '[매칭시작] 새로운 매칭 신청이 시작되었습니다',
+                        body: `새 회차의 매칭 신청이 시작되었어요.\n메인 페이지에서 매칭을 신청해 보세요!`,
+                        linkUrl: '/main',
+                        meta: { period_id: current.id },
+                      })
+                      .catch((e) => console.error('[스케줄러] 매칭 신청 시작 알림 생성 오류:', e)),
+                  ),
+                );
+              }
+            } catch (notifErr) {
+              console.error('[스케줄러] 매칭 신청 시작 알림 메시지 생성 중 오류:', notifErr);
+            }
 
             try {
               const value = { periodId: current.id };
@@ -332,14 +390,14 @@ cron.schedule(scheduleInterval, async () => {
       }
     }
 
-    // [추가] 매칭 결과 이메일/푸시 발송 (matching_announce 시각)
+    // [추가] 매칭 결과 이메일 발송 (matching_announce 시각)
     if (current.matching_announce) {
       const announceTime = new Date(current.matching_announce);
       const emailExecutionTime = new Date(announceTime.getTime() + 30 * 1000); // 30초 후 실행
       
       if (!current.email_sent && now >= emailExecutionTime) {
-        // 실행 전에 email_sent 플래그를 선반영해서, 10초 주기의 스케줄러가
-        // 동일 회차에 대해 여러 번 이메일/푸시 발송을 시작하지 않도록 방지
+        // ✅ executed와 동일하게, 실행 전에 먼저 email_sent 플래그를 올려서
+        //    10초 주기의 스케줄러가 같은 회차에 대해 여러 번 메일 발송을 시작하지 않도록 방지
         try {
           const { error: preUpdateError } = await supabase
             .from('matching_log')
@@ -348,7 +406,7 @@ cron.schedule(scheduleInterval, async () => {
           if (preUpdateError) {
             console.error('[스케줄러] email_sent 사전 업데이트 오류:', preUpdateError);
           } else {
-            console.log(`[스케줄러] 매칭 회차 ${current.id} email_sent 플래그 선반영 후 메일 발송 시작`);
+            console.log(`[스케줄러] 매칭 회차 ${current.id} email 메일 발송 시작`);
           }
         } catch (flagErr) {
           console.error('[스케줄러] email_sent 사전 업데이트 중 예외:', flagErr);
@@ -363,32 +421,85 @@ cron.schedule(scheduleInterval, async () => {
           await sendMatchingResultEmails(current.id);
           console.log('[스케줄러] 매칭 결과 이메일 발송 완료');
 
-          // 매칭 결과 푸시 알림 (해당 회차에 매칭을 신청한 사용자들만 대상)
+          // 매칭 결과 알림 및 푸시 (해당 회차에 매칭을 신청한 사용자들만 대상)
           try {
             const { data: apps, error: appsError } = await supabase
               .from('matching_applications')
-              .select('user_id')
+              .select('user_id, is_matched, partner_user_id')
               .eq('period_id', current.id)
               .eq('applied', true)
               .eq('cancelled', false);
 
             if (appsError) {
-              console.error('[스케줄러] 매칭 결과 푸시용 신청자 조회 오류:', appsError);
+              console.error('[스케줄러] 매칭 결과 신청자 조회 오류:', appsError);
             } else if (apps && apps.length > 0) {
               const userIds = Array.from(new Set(apps.map((a) => a.user_id)));
-              console.log(`[스케줄러] 회차 ${current.id} 매칭 결과 푸시 발송 대상: ${userIds.length}명`);
+              console.log(`[스케줄러] 회차 ${current.id} 매칭 결과 알림 대상: ${userIds.length}명`);
 
+              // 1) 푸시 알림 (전체 신청자)
               await sendPushToUsers(userIds, {
                 type: 'matching_result_announce',
                 periodId: String(current.id),
                 title: '[직쏠공]',
                 body: '매칭 결과가 발표되었어요.',
               });
+
+              // 2) 알림 메시지 (각 사용자별 성공/실패 개별 메시지)
+              // 추가 매칭 도전 기능 활성화 여부 확인
+              const extraMatchingEnabled = await isExtraMatchingFeatureEnabled();
+              
+              await Promise.all(
+                apps.map(async (app) => {
+                  try {
+                    const isMatched = app.is_matched === true;
+                    if (isMatched) {
+                      await notificationRoutes.createNotification(String(app.user_id), {
+                        type: 'match',
+                        title: '[매칭결과] 매칭이 성사되었습니다',
+                        body: '이번 회차 매칭 결과, 회원님의 매칭이 성사되었습니다. 메인 페이지에서 상대방 프로필과 채팅방을 확인해 주세요.\n\n💡 상대방의 메시지 알림을 실시간으로 받으시려면 꼭 메인페이지에서 푸시 알림을 켜주세요!\n 매칭된 상대방이 기다릴 수 있어요 ㅠㅠ',
+                        linkUrl: '/main',
+                        meta: {
+                          period_id: current.id,
+                          result: 'success',
+                          partner_user_id: app.partner_user_id || null,
+                        },
+                      });
+                    } else {
+                      // 추가 매칭 도전 기능 활성화 여부에 따라 다른 메시지 전송
+                      if (extraMatchingEnabled) {
+                        await notificationRoutes.createNotification(String(app.user_id), {
+                          type: 'match',
+                          title: '[매칭결과] 이번 회차 매칭에 실패했습니다',
+                          body: '아쉽게도 이번 회차 정규 매칭에서는 인연을 찾지 못했어요. 추가 매칭 도전을 통해 다시 도전해 보세요.',
+                          linkUrl: '/extra-matching',
+                          meta: {
+                            period_id: current.id,
+                            result: 'fail',
+                          },
+                        });
+                      } else {
+                        await notificationRoutes.createNotification(String(app.user_id), {
+                          type: 'match',
+                          title: '[매칭결과] 이번 회차 매칭에 실패했습니다',
+                          body: '아쉽게도 이번 회차 매칭에서는 인연을 찾지 못했어요. 다음 회차에 다시 도전해 보세요.',
+                          linkUrl: '/main',
+                          meta: {
+                            period_id: current.id,
+                            result: 'fail',
+                          },
+                        });
+                      }
+                    }
+                  } catch (notifErr) {
+                    console.error(`[스케줄러] 사용자 ${app.user_id} 알림 생성 오류:`, notifErr);
+                  }
+                })
+              );
             } else {
-              console.log(`[스케줄러] 회차 ${current.id} 매칭 결과 푸시 대상 신청자가 없습니다.`);
+              console.log(`[스케줄러] 회차 ${current.id} 매칭 결과 대상 신청자가 없습니다.`);
             }
-          } catch (pushErr) {
-            console.error('[스케줄러] 매칭 결과 푸시 발송 중 오류:', pushErr);
+          } catch (err) {
+            console.error('[스케줄러] 매칭 결과 알림/푸시 발송 중 오류:', err);
           }
           
           // 완료 후에도 email_sent=true를 한 번 더 보강 (중복이어도 무해, 로그용)

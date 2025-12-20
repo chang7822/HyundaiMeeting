@@ -71,7 +71,7 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
 
       const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig as any);
       const messaging = getMessaging(app);
-      console.info('[push] Firebase Messaging 초기화 성공');
+      // console.info('[push] Firebase Messaging 초기화 성공');
       return messaging;
     } catch (e) {
       console.error('[push] Firebase Messaging 초기화 중 오류:', e);

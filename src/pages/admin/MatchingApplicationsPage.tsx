@@ -247,6 +247,8 @@ const [compatModal, setCompatModal] = useState<{
 });
   const [loading, setLoading] = useState(true);
   const [compatCounts, setCompatCounts] = useState<Record<string, { iPrefer: number; preferMe: number }>>({});
+  const [loadingCompat, setLoadingCompat] = useState(false);
+  const [compatProgress, setCompatProgress] = useState({ current: 0, total: 0 });
   const [reasonModal, setReasonModal] = useState<{ open: boolean; item: any | null }>({
     open: false,
     item: null,
@@ -325,41 +327,54 @@ const [compatModal, setCompatModal] = useState<{
     loadApplications();
   }, [periodId]);
 
-  // 페이지 진입/회차 변경 시 각 신청자의 호환 인원 수 미리 조회해서 캐싱
-  useEffect(() => {
-    // 회차가 '전체'이면 호환 인원 수를 표시하지 않으므로 초기화만
+  // 전체 신청자 호환 인원 수 조회 (버튼 클릭 시 실행)
+  const fetchAllCompatCounts = async () => {
+    // 회차가 '전체'이면 호환 인원 수를 표시하지 않음
     if (periodId === 'all') {
-      setCompatCounts({});
+      toast.warn('회차를 선택한 후 조회해주세요.');
       return;
     }
-    if (!applications.length) return;
+    if (!applications.length) {
+      toast.warn('조회할 신청자가 없습니다.');
+      return;
+    }
 
-    const fetchAllCounts = async () => {
-      const next: Record<string, { iPrefer: number; preferMe: number }> = {};
-      await Promise.all(
-        applications.map(async (app) => {
-          if (!app?.user_id) return;
-          const key = String(app.user_id);
-          try {
-            const data = await adminMatchingApi.getMatchingCompatibility(app.user_id, periodId);
-            next[key] = {
-              iPrefer: Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0,
-              preferMe: Array.isArray(data?.preferMe) ? data.preferMe.length : 0,
-            };
-          } catch {
-            if (!next[key]) {
-              next[key] = { iPrefer: 0, preferMe: 0 };
-            }
-          }
-        })
-      );
-      if (Object.keys(next).length) {
-        setCompatCounts(prev => ({ ...prev, ...next }));
+    setLoadingCompat(true);
+    setCompatProgress({ current: 0, total: applications.length });
+    const next: Record<string, { iPrefer: number; preferMe: number }> = {};
+    
+    let completed = 0;
+    for (const app of applications) {
+      if (!app?.user_id) {
+        completed++;
+        setCompatProgress({ current: completed, total: applications.length });
+        continue;
       }
-    };
-
-    fetchAllCounts();
-  }, [applications, periodId]);
+      
+      const key = String(app.user_id);
+      try {
+        const data = await adminMatchingApi.getMatchingCompatibility(app.user_id, periodId);
+        next[key] = {
+          iPrefer: Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0,
+          preferMe: Array.isArray(data?.preferMe) ? data.preferMe.length : 0,
+        };
+      } catch {
+        if (!next[key]) {
+          next[key] = { iPrefer: 0, preferMe: 0 };
+        }
+      }
+      
+      completed++;
+      setCompatProgress({ current: completed, total: applications.length });
+    }
+    
+    if (Object.keys(next).length) {
+      setCompatCounts(prev => ({ ...prev, ...next }));
+    }
+    
+    setLoadingCompat(false);
+    toast.success('전체 신청자 매칭 호환성 조회가 완료되었습니다!');
+  };
 
   // 소팅
   const sortedApps = [...applications].sort((a, b) => {
@@ -474,7 +489,14 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             <option key={log.id} value={log.id}>{idx+1}회차 ({formatKST(log.application_start)})</option>
           ))}
         </StyledSelect>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+          <Button
+            onClick={fetchAllCompatCounts}
+            disabled={loadingCompat || loading || periodId === 'all'}
+            style={{ padding: '8px 14px', fontSize: '0.9rem', background: loadingCompat ? '#9ca3af' : '#7C3AED' }}
+          >
+            {loadingCompat ? '조회 중...' : '전체 조회'}
+          </Button>
           <Button
             onClick={handleVirtualMatch}
             disabled={loading || periodId === 'all'}
@@ -484,6 +506,25 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
           </Button>
         </div>
       </FilterRow>
+      
+      {/* 프로그레스바 */}
+      {loadingCompat && (
+        <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#f8f9fa', borderRadius: '12px' }}>
+          <div style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '8px' }}>
+            호환 인원 조회 중... ({compatProgress.current} / {compatProgress.total})
+          </div>
+          <div style={{ width: '100%', height: '8px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+            <div
+              style={{
+                width: `${compatProgress.total > 0 ? (compatProgress.current / compatProgress.total) * 100 : 0}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #7C3AED 0%, #0EA5E9 100%)',
+                transition: 'width 0.3s ease',
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 성별 신청 인원 요약 */}
       <SummaryRow>

@@ -174,6 +174,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [maintenanceMessage, setMaintenanceMessage] = useState('');
   const [devMode, setDevMode] = useState(false);
   const [devSaving, setDevSaving] = useState(false);
+  const [extraMatching, setExtraMatching] = useState(true);
+  const [extraMatchingSaving, setExtraMatchingSaving] = useState(false);
 
   // 푸시 알림 전송 관련 상태
   const [users, setUsers] = useState<any[]>([]);
@@ -190,6 +192,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         setMaintenance(!!res?.maintenance?.enabled);
         setMaintenanceMessage(res?.maintenance?.message || '');
         setDevMode(!!res?.devMode?.enabled);
+        setExtraMatching(res?.extraMatching?.enabled !== false);
       } catch (e) {
         console.error('[SettingsPage] 시스템 설정 조회 오류:', e);
         toast.error('시스템 설정을 불러오지 못했습니다.');
@@ -254,6 +257,22 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       toast.error('관리자 모드를 변경하지 못했습니다.');
     } finally {
       setDevSaving(false);
+    }
+  };
+
+  const handleToggleExtraMatching = async () => {
+    const next = !extraMatching;
+    setExtraMatching(next);
+    setExtraMatchingSaving(true);
+    try {
+      await adminApi.updateExtraMatching(next);
+      toast.success(next ? '추가 매칭 도전 기능이 활성화되었습니다.' : '추가 매칭 도전 기능이 비활성화되었습니다.');
+    } catch (e) {
+      console.error('[SettingsPage] 추가 매칭 도전 업데이트 오류:', e);
+      setExtraMatching(!next); // 롤백
+      toast.error('추가 매칭 도전 설정을 변경하지 못했습니다.');
+    } finally {
+      setExtraMatchingSaving(false);
     }
   };
 
@@ -371,6 +390,33 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                   checked={devMode}
                   onChange={handleToggleDevMode}
                   disabled={loading || devSaving}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </ToggleRow>
+          </Section>
+
+          <Section>
+            <SectionTitle>추가 매칭 도전 기능</SectionTitle>
+            <SectionDescription>
+              추가 매칭 도전 기능을 활성화/비활성화할 수 있습니다.
+              {'\n'}비활성화 시 사이드바 메뉴, 메인 페이지 배너, 알림 등 모든 관련 기능이 숨겨집니다.
+            </SectionDescription>
+            <ToggleRow>
+              <ToggleLabel>
+                <span>추가 매칭 도전 기능</span>
+                <ToggleDescription>
+                  {extraMatching
+                    ? '추가 매칭 도전 기능이 활성화되어 있습니다. (회원들이 기능을 사용할 수 있음)'
+                    : '추가 매칭 도전 기능이 비활성화되어 있습니다. (회원들에게 노출되지 않음)'}
+                </ToggleDescription>
+              </ToggleLabel>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={extraMatching}
+                  onChange={handleToggleExtraMatching}
+                  disabled={loading || extraMatchingSaving}
                 />
                 <SwitchSlider />
               </SwitchLabel>

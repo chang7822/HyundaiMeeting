@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
+const notificationRoutes = require('./notifications');
+const { sendPushToAllUsers } = require('../pushService');
 
 // 공지사항 목록 조회
 router.get('/', async (req, res) => {
@@ -82,6 +84,51 @@ router.post('/', authenticate, async (req, res) => {
     if (error) {
       console.error('공지사항 생성 오류:', error);
       return res.status(500).json({ message: '공지사항 생성에 실패했습니다.' });
+    }
+
+    // 🔔 알림: 활성 사용자들에게 새 공지 알림 발송
+    try {
+      const { data: activeUsers, error: usersError } = await supabase
+        .from('users')
+        .select('id, is_active, is_banned')
+        .order('created_at', { ascending: false });
+
+      if (usersError) {
+        console.error('[notice] 공지 알림용 사용자 조회 오류:', usersError);
+      } else if (activeUsers && activeUsers.length > 0) {
+        const targets = activeUsers.filter(
+          (u) => u.is_active !== false && u.is_banned !== true && u.id,
+        );
+        const payload = {
+          type: 'notice',
+          title: '[공지] 새 공지사항이 등록되었습니다',
+          body: `새 공지사항 "${title}" 이(가) 등록되었습니다.\n메인 페이지 또는 공지사항 메뉴에서 자세한 내용을 확인해 주세요.`,
+          linkUrl: `/notice/${data.id}`,
+          meta: { notice_id: data.id },
+        };
+        
+        // 알림 메시지 생성
+        await Promise.all(
+          targets.map((u) =>
+            notificationRoutes
+              .createNotification(String(u.id), payload)
+              .catch((e) => console.error('[notice] 공지 알림 생성 오류:', e)),
+          ),
+        );
+        
+        // 푸시 알림 (전체 사용자)
+        try {
+          await sendPushToAllUsers({
+            type: 'notice',
+            title: '[직쏠공]',
+            body: '새 공지사항이 등록되었습니다.',
+          });
+        } catch (pushErr) {
+          console.error('[notice] 공지 푸시 알림 발송 오류:', pushErr);
+        }
+      }
+    } catch (e) {
+      console.error('[notice] 공지 알림/푸시 처리 중 예외:', e);
     }
 
     res.status(201).json(data);
