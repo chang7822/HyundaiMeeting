@@ -3,11 +3,38 @@ const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
 const notificationRoutes = require('./notifications');
+const { sendPushToUsers } = require('../pushService');
 
 // 모든 /api/extra-matching/* 요청은 인증 필요
 router.use(authenticate);
 
 // ---- 공통 유틸 함수들 ----
+
+// 추가 매칭 도전 기능 활성화 여부 확인
+async function isExtraMatchingFeatureEnabled() {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'extra_matching_enabled')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[extra-matching] extra_matching_enabled 조회 오류:', error);
+      return true; // 에러 시 기본값 true (활성화)
+    }
+
+    // 데이터가 없으면 기본값 true, 있으면 value.enabled 값 사용
+    if (!data || !data.value) {
+      return true;
+    }
+
+    return data.value.enabled !== false;
+  } catch (e) {
+    console.error('[extra-matching] extra_matching_enabled 조회 예외:', e);
+    return true; // 예외 시 기본값 true
+  }
+}
 
 // matching_log에서 현재 회차(및 필요 시 다음 회차)를 계산하는 헬퍼
 function computeCurrentAndNextFromLogs(logs) {
@@ -469,10 +496,14 @@ router.get('/status', async (req, res) => {
   try {
     const userId = req.user.userId;
 
+    // 추가 매칭 도전 기능 활성화 여부 확인
+    const featureEnabled = await isExtraMatchingFeatureEnabled();
+
     const currentPeriod = await getCurrentPeriod();
 
     if (!currentPeriod) {
       return res.json({
+        featureEnabled,
         currentPeriod: null,
         canParticipate: false,
         myExtraEntry: null,
@@ -486,7 +517,8 @@ router.get('/status', async (req, res) => {
     const { matched } = await getUserMatchingState(userId, currentPeriod.id);
 
     // 매칭에 "성공하지 않은" 모든 사용자(매칭 실패자 + 신청 안 한 사람)는 참여 가능
-    const canParticipate = inWindow && matched !== true;
+    // 단, 기능이 비활성화되어 있으면 참여 불가
+    const canParticipate = featureEnabled && inWindow && matched !== true;
 
     // 내 별 잔액
     const { data: user, error: userError } = await supabase
@@ -545,6 +577,7 @@ router.get('/status', async (req, res) => {
     }
 
     return res.json({
+      featureEnabled,
       currentPeriod: {
         id: currentPeriod.id,
         application_start: currentPeriod.application_start,
@@ -571,6 +604,12 @@ router.post('/entries', async (req, res) => {
   try {
     const userId = req.user.userId;
     const { extraAppealText } = req.body || {};
+
+    // 추가 매칭 도전 기능 활성화 여부 확인
+    const featureEnabled = await isExtraMatchingFeatureEnabled();
+    if (!featureEnabled) {
+      return res.status(403).json({ message: '추가 매칭 도전 기능이 현재 비활성화되어 있습니다.' });
+    }
 
     const currentPeriod = await getCurrentPeriod();
     if (!currentPeriod) {
@@ -743,6 +782,12 @@ router.post('/entries/:entryId/cancel', async (req, res) => {
     const userId = req.user.userId;
     const { entryId } = req.params;
 
+    // 추가 매칭 도전 기능 활성화 여부 확인
+    const featureEnabled = await isExtraMatchingFeatureEnabled();
+    if (!featureEnabled) {
+      return res.status(403).json({ message: '추가 매칭 도전 기능이 현재 비활성화되어 있습니다.' });
+    }
+
     const currentPeriod = await getCurrentPeriod();
     if (!currentPeriod) {
       return res.status(400).json({ message: '현재 진행 중인 매칭 회차가 없습니다.' });
@@ -819,6 +864,12 @@ router.post('/entries/:entryId/cancel', async (req, res) => {
 router.get('/entries', async (req, res) => {
   try {
     const userId = req.user.userId;
+
+    // 추가 매칭 도전 기능 활성화 여부 확인
+    const featureEnabled = await isExtraMatchingFeatureEnabled();
+    if (!featureEnabled) {
+      return res.json({ entries: [] });
+    }
 
     const currentPeriod = await getCurrentPeriod();
     if (!currentPeriod || !isInExtraMatchingWindow(currentPeriod)) {
@@ -960,6 +1011,12 @@ router.post('/entries/:entryId/apply', async (req, res) => {
   try {
     const userId = req.user.userId;
     const { entryId } = req.params;
+
+    // 추가 매칭 도전 기능 활성화 여부 확인
+    const featureEnabled = await isExtraMatchingFeatureEnabled();
+    if (!featureEnabled) {
+      return res.status(403).json({ message: '추가 매칭 도전 기능이 현재 비활성화되어 있습니다.' });
+    }
 
     const currentPeriod = await getCurrentPeriod();
     if (!currentPeriod || !isInExtraMatchingWindow(currentPeriod)) {
@@ -1110,7 +1167,7 @@ router.post('/entries/:entryId/apply', async (req, res) => {
       console.error('[extra-matching] /entries/:entryId/apply 스냅샷 upsert 중 예외:', e);
     }
 
-    // 🔔 알림: 엔트리 주인에게 "호감 도착" 알림
+    // 🔔 알림 + 푸시: 엔트리 주인에게 "호감 도착" 알림
     try {
       await notificationRoutes.createNotification(String(entry.user_id), {
         type: 'extra_match',
@@ -1126,8 +1183,15 @@ router.post('/entries/:entryId/apply', async (req, res) => {
           sender_user_id: userId,
         },
       });
+      
+      // 푸시 알림
+      await sendPushToUsers([String(entry.user_id)], {
+        type: 'extra_match_apply',
+        title: '[직쏠공]',
+        body: '누군가 나에게 호감을 보냈어요.',
+      });
     } catch (e) {
-      console.error('[extra-matching] 호감 도착 알림 생성 오류:', e);
+      console.error('[extra-matching] 호감 도착 알림/푸시 생성 오류:', e);
     }
 
     return res.json({
@@ -1478,7 +1542,7 @@ router.post('/applies/:applyId/accept', async (req, res) => {
           console.error('[extra-matching] users is_applied/is_matched 업데이트 중 예외:', e);
         }
 
-        // 🔔 알림: 내가 보낸 호감에 대한 "승낙" 안내 (보낸 사람 기준)
+        // 🔔 알림 + 푸시: 내가 보낸 호감에 대한 "승낙" 안내 (보낸 사람 기준)
         try {
           await notificationRoutes.createNotification(String(apply.sender_user_id), {
             type: 'extra_match',
@@ -1494,8 +1558,15 @@ router.post('/applies/:applyId/accept', async (req, res) => {
               result: 'accepted',
             },
           });
+          
+          // 푸시 알림
+          await sendPushToUsers([String(apply.sender_user_id)], {
+            type: 'extra_match_accept',
+            title: '[직쏠공]',
+            body: '보낸 호감표시가 승낙되었어요. 매칭이 성사되었습니다!',
+          });
         } catch (e) {
-          console.error('[extra-matching] 호감 승낙 알림 생성 오류:', e);
+          console.error('[extra-matching] 호감 승낙 알림/푸시 생성 오류:', e);
         }
       }
     } catch (e) {
@@ -1581,7 +1652,7 @@ router.post('/applies/:applyId/reject', async (req, res) => {
       return res.status(500).json({ message: '별 환불 처리 중 오류가 발생했습니다.' });
     }
 
-    // 🔔 알림: 내가 보낸 호감에 대한 "거절" 안내 (보낸 사람 기준)
+    // 🔔 알림 + 푸시: 내가 보낸 호감에 대한 "거절" 안내 (보낸 사람 기준)
     try {
       await notificationRoutes.createNotification(String(apply.sender_user_id), {
         type: 'extra_match',
@@ -1596,8 +1667,15 @@ router.post('/applies/:applyId/reject', async (req, res) => {
           result: 'rejected',
         },
       });
+      
+      // 푸시 알림
+      await sendPushToUsers([String(apply.sender_user_id)], {
+        type: 'extra_match_reject',
+        title: '[직쏠공]',
+        body: '보낸 호감이 거절되었어요. 다른 분께 다시 도전해볼까요?',
+      });
     } catch (e) {
-      console.error('[extra-matching] 호감 거절 알림 생성 오류:', e);
+      console.error('[extra-matching] 호감 거절 알림/푸시 생성 오류:', e);
     }
 
     return res.json({

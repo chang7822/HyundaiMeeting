@@ -4,6 +4,7 @@ const { supabase } = require('../database');
 const bcrypt = require('bcrypt');
 const authenticate = require('../middleware/authenticate');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
+const { sendPushToAdmin } = require('../pushService');
 
 // 임시 사용자 데이터 (auth.js와 공유)
 const users = [];
@@ -515,6 +516,14 @@ router.delete('/me', authenticate, async (req, res) => {
       ];
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[회원탈퇴] 관리자 알림 메일 발송 실패:', err);
+      });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 회원 탈퇴',
+        `${nickname || '회원'}(${userEmail})님이 탈퇴했습니다.`
+      ).catch(err => {
+        console.error('[회원탈퇴] 관리자 푸시 알림 발송 실패:', err);
       });
     } catch (e) {
       console.error('[회원탈퇴] 관리자 알림 메일 처리 중 오류:', e);

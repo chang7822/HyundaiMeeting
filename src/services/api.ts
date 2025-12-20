@@ -440,6 +440,7 @@ export const adminApi = {
     success: boolean;
     maintenance: { enabled: boolean; message?: string };
     devMode?: { enabled: boolean };
+    extraMatching?: { enabled: boolean };
   }> => {
     const response = await api.get('/admin/system-settings');
     return response.data;
@@ -454,6 +455,12 @@ export const adminApi = {
   // 관리자 모드(Dev Mode) 토글
   updateDevMode: async (enabled: boolean): Promise<any> => {
     const response = await api.put('/admin/system-settings/dev-mode', { enabled });
+    return response.data;
+  },
+
+  // 추가 매칭 도전 기능 토글
+  updateExtraMatching: async (enabled: boolean): Promise<any> => {
+    const response = await api.put('/admin/system-settings/extra-matching', { enabled });
     return response.data;
   },
 

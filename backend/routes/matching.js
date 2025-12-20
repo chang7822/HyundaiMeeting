@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
+const { sendPushToAdmin } = require('../pushService');
 const notificationRoutes = require('./notifications');
 
 // 임시 매칭 데이터
@@ -283,6 +284,14 @@ router.post('/request', async (req, res) => {
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[매칭 신청] 관리자 알림 메일 발송 실패:', err);
       });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 매칭 신청',
+        `${profile.nickname || '회원'}님이 매칭을 신청했습니다. (회차 ${periodId})`
+      ).catch(err => {
+        console.error('[매칭 신청] 관리자 푸시 알림 발송 실패:', err);
+      });
     } catch (e) {
       console.error('[매칭 신청] 관리자 알림 메일 처리 중 오류:', e);
     }
@@ -562,6 +571,14 @@ router.post('/cancel', async (req, res) => {
       ];
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[매칭 신청 취소] 관리자 알림 메일 발송 실패:', err);
+      });
+
+      // 관리자 푸시 알림 발송
+      sendPushToAdmin(
+        '[직쏠공 관리자] 매칭 신청 취소',
+        `${nickname || '회원'}님이 매칭 신청을 취소했습니다. (회차 ${periodId})`
+      ).catch(err => {
+        console.error('[매칭 신청 취소] 관리자 푸시 알림 발송 실패:', err);
       });
     } catch (e) {
       console.error('[매칭 신청 취소] 관리자 알림 메일 처리 중 오류:', e);

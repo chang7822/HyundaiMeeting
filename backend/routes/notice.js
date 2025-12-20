@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
 const notificationRoutes = require('./notifications');
+const { sendPushToAllUsers } = require('../pushService');
 
 // 공지사항 목록 조회
 router.get('/', async (req, res) => {
@@ -105,6 +106,8 @@ router.post('/', authenticate, async (req, res) => {
           linkUrl: `/notice/${data.id}`,
           meta: { notice_id: data.id },
         };
+        
+        // 알림 메시지 생성
         await Promise.all(
           targets.map((u) =>
             notificationRoutes
@@ -112,9 +115,20 @@ router.post('/', authenticate, async (req, res) => {
               .catch((e) => console.error('[notice] 공지 알림 생성 오류:', e)),
           ),
         );
+        
+        // 푸시 알림 (전체 사용자)
+        try {
+          await sendPushToAllUsers({
+            type: 'notice',
+            title: '[직쏠공]',
+            body: '새 공지사항이 등록되었습니다.',
+          });
+        } catch (pushErr) {
+          console.error('[notice] 공지 푸시 알림 발송 오류:', pushErr);
+        }
       }
     } catch (e) {
-      console.error('[notice] 공지 알림 처리 중 예외:', e);
+      console.error('[notice] 공지 알림/푸시 처리 중 예외:', e);
     }
 
     res.status(201).json(data);

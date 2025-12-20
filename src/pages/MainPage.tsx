@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -864,16 +864,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [isPushBusy, setIsPushBusy] = useState(false);
   const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
   const [showIosGuideModal, setShowIosGuideModal] = useState(false);
+  const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(true);
 
   // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
+  // 기능이 비활성화되어 있으면 false 반환
   const isExtraMatchingWindow = useMemo(() => {
+    if (!extraMatchingFeatureEnabled) return false;
     if (!period || !period.matching_announce || !period.finish) return false;
     const announce = new Date(period.matching_announce);
     const finish = new Date(period.finish);
     if (Number.isNaN(announce.getTime()) || Number.isNaN(finish.getTime())) return false;
     const nowTime = Date.now();
     return nowTime >= announce.getTime() && nowTime <= finish.getTime();
-  }, [period?.matching_announce, period?.finish]);
+  }, [extraMatchingFeatureEnabled, period?.matching_announce, period?.finish]);
 
   // user.id가 변경될 때마다 해당 사용자의 푸시 상태를 localStorage에서 불러오기
   useEffect(() => {
@@ -1113,6 +1116,26 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     fetchLatestNotice();
   }, []);
 
+  // 추가 매칭 도전 기능 활성화 여부 조회
+  useEffect(() => {
+    if (!user?.id) return;
+    
+    const fetchExtraMatchingFeature = async () => {
+      try {
+        const res = await extraMatchingApi.getStatus();
+        setExtraMatchingFeatureEnabled(res?.featureEnabled !== false);
+      } catch (e) {
+        console.error('[MainPage] 추가 매칭 도전 기능 설정 조회 오류:', e);
+        setExtraMatchingFeatureEnabled(true); // 에러 시 기본값 true
+      }
+    };
+
+    fetchExtraMatchingFeature();
+    // 30초마다 갱신
+    const timer = window.setInterval(fetchExtraMatchingFeature, 30000);
+    return () => window.clearInterval(timer);
+  }, [user?.id]);
+
   // 선호 회사 이름 매핑용 회사 목록 로드
   useEffect(() => {
     companyApi
@@ -1236,6 +1259,22 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const interval = window.setInterval(() => {
       // 로딩 스피너 없이 조용히 상태만 갱신
       fetchMatchingStatus(false);
+      
+      // period 정보도 함께 업데이트 (추가 매칭 배너 등 실시간 반영)
+      matchingApi.getMatchingPeriod().then(data => {
+        if (!data) {
+          setPeriod(null);
+          setNextPeriod(null);
+        } else if (data.current || data.next) {
+          setPeriod(data.current || null);
+          setNextPeriod(data.next || null);
+        } else {
+          setPeriod(data);
+          setNextPeriod(null);
+        }
+      }).catch((err) => {
+        console.error('[MainPage] 매칭 기간 자동 갱신 오류:', err);
+      });
     }, 5000); // 5초마다 최신 상태 확인
     return () => window.clearInterval(interval);
   }, [user?.id, fetchMatchingStatus]);

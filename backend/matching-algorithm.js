@@ -245,39 +245,7 @@ async function sendMatchingResultEmails(periodIdOverride) {
           if (emailSent) {
             totalSuccess++;
 
-            // 🔔 매칭 결과 알림 (성공한 경우에만 한 번 생성)
-            try {
-              if (isMatched) {
-                await notificationRoutes.createNotification(String(app.user_id), {
-                  type: 'match',
-                  title: '[매칭결과] 매칭이 성사되었습니다',
-                  body:
-                    '이번 회차 매칭 결과, 회원님의 매칭이 성사되었습니다.\n' +
-                    '메인 페이지에서 상대방 프로필과 채팅방을 확인해 주세요.',
-                  linkUrl: '/main',
-                  meta: {
-                    period_id: periodId,
-                    result: 'success',
-                    partner_user_id: app.partner_user_id || null,
-                  },
-                });
-              } else {
-                await notificationRoutes.createNotification(String(app.user_id), {
-                  type: 'match',
-                  title: '[매칭결과] 이번 회차 매칭에 아쉽게도 실패했습니다',
-                  body:
-                    '아쉽게도 이번 회차 정규 매칭에서는 인연을 찾지 못했어요.\n' +
-                    '추가 매칭 도전 이벤트에서 별 10개로 다시 한 번 도전해 보실 수 있습니다.',
-                  linkUrl: '/extra-matching',
-                  meta: {
-                    period_id: periodId,
-                    result: 'fail',
-                  },
-                });
-              }
-            } catch (notifyErr) {
-              console.error('[matching-algorithm] 매칭 결과 알림 생성 오류:', notifyErr);
-            }
+            // 🔔 매칭 결과 알림은 scheduler에서 결과 공지 시점에 일괄 전송됨
           } else {
             // 실패한 경우: 최대 횟수 이내면 다음 라운드 대상으로 넘기고, 아니면 최종 실패로 집계
             if (attempt < maxAttempts) {

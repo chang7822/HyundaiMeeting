@@ -321,6 +321,7 @@ const ExtraMatchingAdminPage: React.FC<ExtraMatchingAdminPageProps> = ({ sidebar
             <tr>
               <th>엔트리 ID</th>
               <th>닉네임</th>
+              <th>이메일</th>
               <th>성별</th>
               <th>상태</th>
               <th>총 호감</th>
@@ -333,13 +334,13 @@ const ExtraMatchingAdminPage: React.FC<ExtraMatchingAdminPageProps> = ({ sidebar
           <tbody>
             {loadingEntries ? (
               <tr>
-                <td colSpan={9} style={{ padding: '24px 0', color: '#6b7280' }}>
+                <td colSpan={10} style={{ padding: '24px 0', color: '#6b7280' }}>
                   엔트리를 불러오는 중입니다...
                 </td>
               </tr>
             ) : entries.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ padding: '24px 0', color: '#6b7280' }}>
+                <td colSpan={10} style={{ padding: '24px 0', color: '#6b7280' }}>
                   선택된 회차의 추가 매칭 도전 내역이 없습니다.
                 </td>
               </tr>
@@ -348,6 +349,7 @@ const ExtraMatchingAdminPage: React.FC<ExtraMatchingAdminPageProps> = ({ sidebar
                 <tr key={e.id}>
                   <td>{e.id}</td>
                   <td>{e.profile?.nickname || '-'}</td>
+                  <td style={{ fontSize: '0.8rem' }}>{e.email || '-'}</td>
                   <td>{e.gender === 'male' ? '남성' : e.gender === 'female' ? '여성' : '-'}</td>
                   <td>{e.status}</td>
                   <td>{e.stats?.totalApplies ?? 0}</td>
@@ -374,6 +376,7 @@ const ExtraMatchingAdminPage: React.FC<ExtraMatchingAdminPageProps> = ({ sidebar
             <ModalHeader>
               <ModalTitle>
                 엔트리 #{appliesModal.entry?.id} – {appliesModal.entry?.profile?.nickname || '닉네임 없음'}
+                {appliesModal.entry?.email && <span style={{ fontSize: '0.85rem', color: '#6b7280', marginLeft: '8px' }}>({appliesModal.entry.email})</span>}
               </ModalTitle>
               <ModalCloseBtn
                 type="button"
@@ -397,6 +400,7 @@ const ExtraMatchingAdminPage: React.FC<ExtraMatchingAdminPageProps> = ({ sidebar
                     <tr>
                       <th>신청 ID</th>
                       <th>보낸 닉네임</th>
+                      <th>이메일</th>
                       <th>성별</th>
                       <th>상태</th>
                       <th>보낸 시각</th>
@@ -409,6 +413,7 @@ const ExtraMatchingAdminPage: React.FC<ExtraMatchingAdminPageProps> = ({ sidebar
                       <tr key={a.id}>
                         <td>{a.id}</td>
                         <td>{a.profile?.nickname || '-'}</td>
+                        <td style={{ fontSize: '0.8rem' }}>{a.email || '-'}</td>
                         <td>{a.profile?.gender === 'male' ? '남성' : a.profile?.gender === 'female' ? '여성' : '-'}</td>
                         <td>
                           {a.status === 'accepted' && <Badge $type="success">승낙</Badge>}

@@ -436,30 +436,30 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
 
               {!match.matched && (
                 <>
-                  <HistoryHeader>
-                    <PartnerInfo>
-                      <PartnerAvatar $gender={match.partner_gender}>
-                        {match.partner_gender === 'male' ? '👨' : '👩'}
-                      </PartnerAvatar>
-                      <PartnerDetails>
-                        <PartnerName>{match.partner_nickname}</PartnerName>
-                        <PartnerGender>
-                          {match.partner_gender === 'male' ? '남성' : '여성'}
-                        </PartnerGender>
-                      </PartnerDetails>
-                    </PartnerInfo>
-                  </HistoryHeader>
-
-                  <HistoryContent>
-                    <InfoItem>
-                      <InfoLabel>매칭 날짜</InfoLabel>
-                      <InfoValue>{formatDate(match.matched_at)}</InfoValue>
-                    </InfoItem>
-                    <InfoItem>
-                      <InfoLabel>회차</InfoLabel>
-                      <InfoValue>{match.round_number}회차</InfoValue>
-                    </InfoItem>
-                  </HistoryContent>
+              <HistoryHeader>
+                <PartnerInfo>
+                  <PartnerAvatar $gender={match.partner_gender}>
+                    {match.partner_gender === 'male' ? '👨' : '👩'}
+                  </PartnerAvatar>
+                  <PartnerDetails>
+                    <PartnerName>{match.partner_nickname}</PartnerName>
+                    <PartnerGender>
+                      {match.partner_gender === 'male' ? '남성' : '여성'}
+                    </PartnerGender>
+                  </PartnerDetails>
+                </PartnerInfo>
+              </HistoryHeader>
+              
+              <HistoryContent>
+                <InfoItem>
+                  <InfoLabel>매칭 날짜</InfoLabel>
+                  <InfoValue>{formatDate(match.matched_at)}</InfoValue>
+                </InfoItem>
+                <InfoItem>
+                  <InfoLabel>회차</InfoLabel>
+                  <InfoValue>{match.round_number}회차</InfoValue>
+                </InfoItem>
+              </HistoryContent>
                 </>
               )}
             </HistoryCard>

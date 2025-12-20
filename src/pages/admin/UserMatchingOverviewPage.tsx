@@ -186,6 +186,8 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
 
   const [loading, setLoading] = useState(true);
   const [compatCounts, setCompatCounts] = useState<Record<string, { iPrefer: number; preferMe: number }>>({});
+  const [loadingCompat, setLoadingCompat] = useState(false);
+  const [compatProgress, setCompatProgress] = useState({ current: 0, total: 0 });
   const [reasonModal, setReasonModal] = useState<{ open: boolean; item: any | null }>({
     open: false,
     item: null,
@@ -296,35 +298,50 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     }
   };
 
-  // 페이지 진입 시 각 회원별 호환 인원 수 미리 조회해서 캐싱
-  useEffect(() => {
-    if (!users.length) return;
-    const fetchAllCounts = async () => {
-      const next: Record<string, { iPrefer: number; preferMe: number }> = {};
-      await Promise.all(
-        users.map(async (u) => {
-          if (!u?.user_id) return;
-          const key = String(u.user_id);
-          try {
-            const data = await adminMatchingApi.getMatchingCompatibilityLive(key);
-            next[key] = {
-              iPrefer: Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0,
-              preferMe: Array.isArray(data?.preferMe) ? data.preferMe.length : 0,
-            };
-          } catch {
-            // 에러가 나더라도 기본값 0 유지
-            if (!next[key]) {
-              next[key] = { iPrefer: 0, preferMe: 0 };
-            }
-          }
-        })
-      );
-      if (Object.keys(next).length) {
-        setCompatCounts(prev => ({ ...prev, ...next }));
+  // 전체 회원 호환 인원 수 조회 (버튼 클릭 시 실행)
+  const fetchAllCompatCounts = async () => {
+    if (!users.length) {
+      toast.warn('조회할 회원이 없습니다.');
+      return;
+    }
+    
+    setLoadingCompat(true);
+    setCompatProgress({ current: 0, total: users.length });
+    const next: Record<string, { iPrefer: number; preferMe: number }> = {};
+    
+    let completed = 0;
+    for (const u of users) {
+      if (!u?.user_id) {
+        completed++;
+        setCompatProgress({ current: completed, total: users.length });
+        continue;
       }
-    };
-    fetchAllCounts();
-  }, [users]);
+      
+      const key = String(u.user_id);
+      try {
+        const data = await adminMatchingApi.getMatchingCompatibilityLive(key);
+        next[key] = {
+          iPrefer: Array.isArray(data?.iPrefer) ? data.iPrefer.length : 0,
+          preferMe: Array.isArray(data?.preferMe) ? data.preferMe.length : 0,
+        };
+      } catch {
+        // 에러가 나더라도 기본값 0 유지
+        if (!next[key]) {
+          next[key] = { iPrefer: 0, preferMe: 0 };
+        }
+      }
+      
+      completed++;
+      setCompatProgress({ current: completed, total: users.length });
+    }
+    
+    if (Object.keys(next).length) {
+      setCompatCounts(prev => ({ ...prev, ...next }));
+    }
+    
+    setLoadingCompat(false);
+    toast.success('전체 회원 매칭 호환성 조회가 완료되었습니다!');
+  };
 
   const sortedUsers = [...users].sort((a, b) => {
     let v1: any = a[sortKey];
@@ -435,13 +452,41 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
         </SummaryCard>
       </SummaryRow>
 
-      <div style={{ marginBottom: 16, textAlign: 'right' }}>
-        <Button
-          onClick={handleVirtualMatchCurrent}
-          style={{ padding: '8px 14px', fontSize: '0.9rem', background: '#0EA5E9' }}
-        >
-          가상 매칭
-        </Button>
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+        <div style={{ flex: 1 }}>
+          {loadingCompat && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '0.9rem', color: '#6b7280' }}>
+                호환 인원 조회 중... ({compatProgress.current} / {compatProgress.total})
+              </div>
+              <div style={{ width: '100%', height: '8px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${(compatProgress.current / compatProgress.total) * 100}%`,
+                    height: '100%',
+                    background: 'linear-gradient(90deg, #7C3AED 0%, #0EA5E9 100%)',
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button
+            onClick={fetchAllCompatCounts}
+            disabled={loadingCompat || loading}
+            style={{ padding: '8px 14px', fontSize: '0.9rem', background: loadingCompat ? '#9ca3af' : '#7C3AED' }}
+          >
+            {loadingCompat ? '조회 중...' : '전체 조회'}
+          </Button>
+          <Button
+            onClick={handleVirtualMatchCurrent}
+            style={{ padding: '8px 14px', fontSize: '0.9rem', background: '#0EA5E9' }}
+          >
+            가상 매칭
+          </Button>
+        </div>
       </div>
       <TableWrapper>
         {loading ? (

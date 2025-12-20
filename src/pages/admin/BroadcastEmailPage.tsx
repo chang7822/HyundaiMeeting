@@ -254,6 +254,40 @@ const RecipientFooter = styled.div`
   gap: 8px;
 `;
 
+const ProgressBarContainer = styled.div`
+  width: 100%;
+  height: 32px;
+  background: #f3f4f6;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  margin: 12px 0;
+  border: 1px solid #e5e7eb;
+`;
+
+const ProgressBarFill = styled.div<{ $progress: number }>`
+  height: 100%;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  width: ${props => props.$progress}%;
+  transition: width 0.3s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+
+const ProgressText = styled.div`
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  white-space: nowrap;
+  z-index: 1;
+`;
+
 interface BroadcastEmailPageProps {
   sidebarOpen?: boolean;
 }
@@ -268,6 +302,8 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
   const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [sendProgress, setSendProgress] = useState(0);
+  const [totalToSend, setTotalToSend] = useState(0);
 
   const formatKST = (dateStr: string | null | undefined) => {
     if (!dateStr) return '-';
@@ -568,6 +604,15 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
                 )}
               </RecipientList>
 
+              {isSending && totalToSend > 0 && (
+                <ProgressBarContainer>
+                  <ProgressBarFill $progress={sendProgress} />
+                  <ProgressText>
+                    {Math.round((sendProgress / 100) * totalToSend)} / {totalToSend}명 발송 중...
+                  </ProgressText>
+                </ProgressBarContainer>
+              )}
+
               <RecipientFooter>
                 <Button
                   type="button"
@@ -591,15 +636,41 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
                       return;
                     }
                     setIsSending(true);
+                    setTotalToSend(selectedIds.length);
+                    setSendProgress(0);
+                    
+                    // 진행 상황 시뮬레이션 (1명당 약 0.6초 예상)
+                    const estimatedTime = selectedIds.length * 600; // ms
+                    const updateInterval = 100; // 100ms마다 업데이트
+                    const progressStep = (100 / (estimatedTime / updateInterval)) * 0.9; // 90%까지만
+                    
+                    const progressTimer = setInterval(() => {
+                      setSendProgress(prev => {
+                        const next = prev + progressStep;
+                        return next >= 90 ? 90 : next;
+                      });
+                    }, updateInterval) as unknown as number;
+                    
                     try {
                       const res = await adminApi.sendBroadcastEmail({
                         subject,
                         content,
                         targets: selectedIds,
                       });
-                      toast.success(res?.message || '메일 발송을 완료했습니다.');
-                      setShowRecipientModal(false);
+                      clearInterval(progressTimer);
+                      setSendProgress(100);
+                      
+                      // 완료 메시지 표시
+                      setTimeout(() => {
+                        toast.success(res?.message || '메일 발송을 완료했습니다.');
+                        setShowRecipientModal(false);
+                        setSendProgress(0);
+                        setTotalToSend(0);
+                      }, 500);
                     } catch (error: any) {
+                      clearInterval(progressTimer);
+                      setSendProgress(0);
+                      setTotalToSend(0);
                       console.error('[BroadcastEmailPage] 선택 발송 오류:', error);
                       const msg =
                         error?.response?.data?.message ||

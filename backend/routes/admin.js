@@ -96,7 +96,7 @@ router.get('/users', authenticate, async (req, res) => {
   }
 });
 
-// 시스템 설정 조회 (현재는 유지보수 모드 + Dev Mode)
+// 시스템 설정 조회 (현재는 유지보수 모드 + Dev Mode + 추가 매칭 도전)
 router.get('/system-settings', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
@@ -134,6 +134,22 @@ router.get('/system-settings', authenticate, async (req, res) => {
       console.error('[admin][system-settings] dev_mode 조회 오류');
     }
 
+    // 추가 매칭 도전 설정 조회 (기본값: true)
+    let extraMatchingEnabled = true;
+    try {
+      const { data: extraRow, error: extraError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'extra_matching_enabled')
+        .maybeSingle();
+
+      if (!extraError && extraRow && extraRow.value) {
+        extraMatchingEnabled = extraRow.value.enabled !== false;
+      }
+    } catch (extraErr) {
+      console.error('[admin][system-settings] extra_matching_enabled 조회 오류');
+    }
+
     res.json({
       success: true,
       maintenance: {
@@ -142,6 +158,9 @@ router.get('/system-settings', authenticate, async (req, res) => {
       },
       devMode: {
         enabled: devModeEnabled,
+      },
+      extraMatching: {
+        enabled: extraMatchingEnabled,
       }
     });
   } catch (error) {
@@ -229,6 +248,46 @@ router.put('/system-settings/dev-mode', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[admin][system-settings] Dev Mode 업데이트 오류');
     res.status(500).json({ success: false, message: 'Dev Mode 변경에 실패했습니다.' });
+  }
+});
+
+// 추가 매칭 도전 기능 토글
+router.put('/system-settings/extra-matching', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { enabled } = req.body || {};
+
+    const extraMatchingEnabled = !!enabled;
+    const value = { enabled: extraMatchingEnabled };
+
+    const { data, error } = await supabase
+      .from('app_settings')
+      .upsert(
+        {
+          key: 'extra_matching_enabled',
+          value,
+          updated_by: req.user.userId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      )
+      .select('value')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[admin][system-settings] 추가 매칭 도전 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '추가 매칭 도전 설정 변경에 실패했습니다.' });
+    }
+
+    res.json({
+      success: true,
+      extraMatching: {
+        enabled: !!(data && data.value && data.value.enabled === true),
+      },
+    });
+  } catch (error) {
+    console.error('[admin][system-settings] 추가 매칭 도전 업데이트 오류');
+    res.status(500).json({ success: false, message: '추가 매칭 도전 설정 변경에 실패했습니다.' });
   }
 });
 
@@ -1944,6 +2003,7 @@ router.get('/extra-matching/period/:periodId/entries', authenticate, async (req,
     const userIds = Array.from(new Set(entries.map((e) => e.user_id).filter(Boolean)));
 
     let profilesByUserId = {};
+    let emailsByUserId = {};
     if (userIds.length > 0) {
       const { data: profiles, error: profileError } = await supabase
         .from('user_profiles')
@@ -1955,6 +2015,21 @@ router.get('/extra-matching/period/:periodId/entries', authenticate, async (req,
       } else {
         profilesByUserId = (profiles || []).reduce((acc, p) => {
           acc[p.user_id] = p;
+          return acc;
+        }, {});
+      }
+
+      // 이메일 조회
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, email')
+        .in('id', userIds);
+
+      if (usersError) {
+        console.error('[admin][extra-matching/period/:periodId/entries] 이메일 조회 오류:', usersError);
+      } else {
+        emailsByUserId = (users || []).reduce((acc, u) => {
+          acc[u.id] = u.email;
           return acc;
         }, {});
       }
@@ -1990,6 +2065,7 @@ router.get('/extra-matching/period/:periodId/entries', authenticate, async (req,
       return {
         id: e.id,
         user_id: e.user_id,
+        email: emailsByUserId[e.user_id] || null,
         gender: e.gender,
         status: e.status,
         created_at: e.created_at,
@@ -2021,20 +2097,26 @@ router.get('/extra-matching/entry/:entryId/applies', authenticate, async (req, r
     if (!ensureAdmin(req, res)) return;
 
     const entryId = Number(req.params.entryId);
+    console.log('[admin][extra-matching] 호감 내역 조회 시작, entryId:', entryId);
+    
     if (!Number.isFinite(entryId) || entryId <= 0) {
+      console.log('[admin][extra-matching] 유효하지 않은 entryId:', entryId);
       return res.status(400).json({ success: false, message: '유효한 엔트리 ID가 필요합니다.' });
     }
 
     const { data: applies, error: appliesError } = await supabase
       .from('extra_matching_applies')
-      .select('id, sender_user_id, status, created_at, updated_at, used_star_amount, refunded_star_amount')
+      .select('id, sender_user_id, status, created_at, used_star_amount, refunded_star_amount')
       .eq('entry_id', entryId)
       .order('created_at', { ascending: true });
 
     if (appliesError) {
       console.error('[admin][extra-matching/entry/:entryId/applies] applies 조회 오류:', appliesError);
-      return res.status(500).json({ success: false, message: '호감 내역을 불러오는데 실패했습니다.' });
+      console.error('[admin][extra-matching/entry/:entryId/applies] appliesError 상세:', JSON.stringify(appliesError));
+      return res.status(500).json({ success: false, message: '호감 내역을 불러오는데 실패했습니다.', error: appliesError.message });
     }
+    
+    console.log('[admin][extra-matching] applies 조회 성공, 개수:', applies?.length || 0);
 
     if (!applies || applies.length === 0) {
       return res.json([]);
@@ -2043,6 +2125,7 @@ router.get('/extra-matching/entry/:entryId/applies', authenticate, async (req, r
     const senderIds = Array.from(new Set(applies.map((a) => a.sender_user_id).filter(Boolean)));
 
     let profilesByUserId = {};
+    let emailsByUserId = {};
     if (senderIds.length > 0) {
       const { data: profiles, error: profileError } = await supabase
         .from('user_profiles')
@@ -2057,6 +2140,21 @@ router.get('/extra-matching/entry/:entryId/applies', authenticate, async (req, r
           return acc;
         }, {});
       }
+
+      // 이메일 조회
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('id, email')
+        .in('id', senderIds);
+
+      if (usersError) {
+        console.error('[admin][extra-matching/entry/:entryId/applies] 이메일 조회 오류:', usersError);
+      } else {
+        emailsByUserId = (users || []).reduce((acc, u) => {
+          acc[u.id] = u.email;
+          return acc;
+        }, {});
+      }
     }
 
     const mapped = applies.map((a) => {
@@ -2067,9 +2165,9 @@ router.get('/extra-matching/entry/:entryId/applies', authenticate, async (req, r
       return {
         id: a.id,
         sender_user_id: a.sender_user_id,
+        email: emailsByUserId[a.sender_user_id] || null,
         status: a.status,
         created_at: a.created_at,
-        updated_at: a.updated_at,
         used_star_amount: a.used_star_amount ?? null,
         refunded_star_amount: a.refunded_star_amount ?? null,
         refunded,
