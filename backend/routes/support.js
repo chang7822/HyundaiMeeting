@@ -3,7 +3,8 @@ const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
-const { sendPushToAdmin } = require('../pushService');
+const { sendPushToAdmin, sendPushToUsers } = require('../pushService');
+const notificationRoutes = require('./notifications');
 
 // ===================================
 // 사용자용 API
@@ -396,10 +397,10 @@ router.post('/admin/inquiries/:id/reply', authenticate, async (req, res) => {
       });
     }
 
-    // 문의 존재 확인
+    // 문의 존재 확인 및 user_id 조회
     const { data: inquiry, error: checkError } = await supabase
       .from('support_inquiries')
-      .select('id')
+      .select('id, user_id, title, category')
       .eq('id', id)
       .single();
 
@@ -438,6 +439,36 @@ router.post('/admin/inquiries/:id/reply', authenticate, async (req, res) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', id);
+
+    // 문의한 사람에게 알림 메시지 전송
+    try {
+      const inquiryUserId = inquiry.user_id;
+      const inquiryTitle = inquiry.title || '문의';
+      const categoryText = inquiry.category || '고객센터';
+
+      await notificationRoutes.createNotification(String(inquiryUserId), {
+        type: 'support',
+        title: `[${categoryText}] 답변이 등록되었습니다`,
+        body: `"${inquiryTitle}" 문의에 대한 답변이 등록되었습니다. 확인해주세요.`,
+        linkUrl: '/support',
+        meta: {
+          inquiry_id: id,
+          category: inquiry.category,
+        },
+      });
+
+      // 푸시 알림 전송
+      await sendPushToUsers([String(inquiryUserId)], {
+        type: 'support',
+        title: `[${categoryText}] 답변이 등록되었습니다`,
+        body: `"${inquiryTitle}" 문의에 대한 답변이 등록되었습니다.`,
+      });
+
+      console.log(`[고객센터] 답변 알림 전송 완료: inquiry_id=${id}, user_id=${inquiryUserId}`);
+    } catch (notifError) {
+      console.error('[고객센터] 답변 알림 전송 실패:', notifError);
+      // 알림 실패해도 답변 등록은 성공으로 처리
+    }
 
     res.json({
       success: true,
