@@ -31,9 +31,9 @@ function getApiBaseUrl(): string {
     
     // Android/iOS: 하드코딩 URL 사용
     if (platform === 'android') {
-      // Android 에뮬레이터: 10.0.2.2 (호스트 PC의 localhost를 가리킴)
-      const androidUrl = 'http://10.0.2.2:3001/api';
-      console.log('[API] 개발 환경 - Android (하드코딩):', androidUrl);
+      // Android: 개발자 PC IP 사용 (같은 WiFi 네트워크 필요)
+      const androidUrl = 'http://192.168.0.13:3001/api';
+      console.log('[API] 개발 환경 - Android (PC IP):', androidUrl);
       return androidUrl;
     } else if (platform === 'ios') {
       // iOS 시뮬레이터: localhost
@@ -58,8 +58,8 @@ function getApiBaseUrl(): string {
   }
   
   if (platform === 'android') {
-    const androidUrl = 'http://10.0.2.2:3001/api';
-    console.log('[API] 환경변수 없음 - 개발 환경 기본값 (Android):', androidUrl);
+    const androidUrl = 'http://192.168.0.13:3001/api';
+    console.log('[API] 환경변수 없음 - 개발 환경 기본값 (Android, PC IP):', androidUrl);
     return androidUrl;
   } else if (platform === 'ios') {
     const iosUrl = 'http://localhost:3001/api';
@@ -70,8 +70,7 @@ function getApiBaseUrl(): string {
   // 최종 기본값
   const defaultUrl = 'http://localhost:3001/api';
   console.log('[API] 최종 기본값:', defaultUrl);
-  return defaultUrl;
-}
+  return defaultUrl;}
 
 const API_BASE_URL = getApiBaseUrl();
 

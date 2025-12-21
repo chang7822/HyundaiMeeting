@@ -130,7 +130,7 @@ const FeatureCard = styled.div`
 
 const IntroButton = styled.button`
   position: fixed;
-  top: 70px;
+  top: 18px;
   right: 18px;
   z-index: 100;
   padding: 8px 14px;
@@ -160,7 +160,7 @@ const IntroButton = styled.button`
   }
 
   @media (max-width: 768px) {
-    top: 66px;
+    top: 18px;
     right: 12px;
     padding: 6px 12px;
     font-size: 0.8rem;
@@ -168,14 +168,14 @@ const IntroButton = styled.button`
 `;
 
 const CompanyButton = styled(IntroButton)`
-  top: 70px;
+  top: 18px;
   left: 18px;
   right: auto;
   font-size: 0.85rem;
   padding: 6px 12px;
 
   @media (max-width: 768px) {
-    top: 66px;
+    top: 18px;
     left: 12px;
     right: auto;
   }

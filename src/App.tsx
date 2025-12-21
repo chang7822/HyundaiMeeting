@@ -3,6 +3,8 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { StatusBar } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
@@ -124,6 +126,26 @@ const AppInner: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+
+  // StatusBar 설정 (Android에서 상단바와 겹치지 않도록)
+  useEffect(() => {
+    const isNative = Capacitor.isNativePlatform();
+    const platform = Capacitor.getPlatform();
+    console.log('[StatusBar] 플랫폼 확인:', { isNative, platform });
+    
+    if (isNative) {
+      console.log('[StatusBar] 네이티브 플랫폼 감지, StatusBar 설정 시도...');
+      StatusBar.setOverlaysWebView({ overlay: false })
+        .then(() => {
+          console.log('[StatusBar] ✅ setOverlaysWebView 성공: overlay=false');
+        })
+        .catch((error) => {
+          console.error('[StatusBar] ❌ setOverlaysWebView 실패:', error);
+        });
+    } else {
+      console.log('[StatusBar] 웹 플랫폼 - StatusBar 설정 건너뜀');
+    }
+  }, []);
 
   // 모바일 진입 시 사이드바 자동 닫기
   useEffect(() => {
