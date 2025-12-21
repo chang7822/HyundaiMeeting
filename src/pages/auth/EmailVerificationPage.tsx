@@ -137,9 +137,10 @@ const Select = styled.select`
 const ResponsiveRow = styled.div`
   display: flex;
   gap: 8px;
+  flex-wrap: nowrap;
+  
   @media (max-width: 600px) {
-    flex-direction: column;
-    gap: 0;
+    gap: 6px;
   }
 `;
 
