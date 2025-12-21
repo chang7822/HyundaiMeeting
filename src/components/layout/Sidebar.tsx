@@ -660,20 +660,44 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
 
   const handleAdReward = async () => {
     if (!user?.id) return;
+    if (!isNativeApp()) {
+      toast.error('광고 보기는 앱에서만 사용 가능합니다.');
+      return;
+    }
+    
     setAdSubmitting(true);
     try {
-      const res = await starApi.adReward();
-      if (typeof res.newBalance === 'number') {
-        setStarBalance(res.newBalance);
+      // AdMob 광고 표시
+      const { AdMob } = await import('@capacitor-community/admob');
+      
+      // 광고 준비
+      await AdMob.prepareRewardVideoAd({
+        adId: 'ca-app-pub-1352765336263182/YOUR_AD_UNIT_ID', // 광고 단위 ID 필요
+        isTesting: true, // 테스트 모드 (나중에 false로 변경)
+      });
+      
+      // 광고 표시
+      const result = await AdMob.showRewardVideoAd();
+      
+      // 광고 시청 완료 확인
+      if (result && result.rewarded) {
+        // 서버에 보상 요청
+        const res = await starApi.adReward();
+        if (typeof res.newBalance === 'number') {
+          setStarBalance(res.newBalance);
+        }
+        toast.success(res.message || '광고 보상 별이 지급되었습니다.');
+        setAttendanceModalOpen(false);
+        setHasAdToday(true);
+        setHasDailyToday(true);
+      } else {
+        toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있습니다.');
       }
-      toast.success(res.message || '광고 보상 별이 지급되었습니다.');
-      setAttendanceModalOpen(false);
-      // 광고로 별을 받아도 오늘은 출석 완료로 취급
-      setHasAdToday(true);
-      setHasDailyToday(true);
     } catch (error: any) {
+      console.error('[AdMob] 광고 표시 오류:', error);
       const msg =
         error?.response?.data?.message ||
+        error?.message ||
         '광고 보상 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
       toast.error(msg);
     } finally {
