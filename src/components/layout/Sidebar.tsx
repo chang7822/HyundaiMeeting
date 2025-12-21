@@ -672,8 +672,8 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       
       // 광고 준비
       await AdMob.prepareRewardVideoAd({
-        adId: 'ca-app-pub-1352765336263182/YOUR_AD_UNIT_ID', // 광고 단위 ID 필요
-        isTesting: true, // 테스트 모드 (나중에 false로 변경)
+        adId: 'ca-app-pub-1352765336263182/8702080467',
+        isTesting: true, // 테스트 모드 (배포 시 false로 변경)
       });
       
       // 광고 표시
