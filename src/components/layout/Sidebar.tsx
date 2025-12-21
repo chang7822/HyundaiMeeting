@@ -679,8 +679,8 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       // 광고 표시
       const result = await AdMob.showRewardVideoAd();
       
-      // 광고 시청 완료 확인
-      if (result && result.rewarded) {
+      // 광고 시청 완료 확인 (result 객체가 존재하면 보상 받음)
+      if (result) {
         // 서버에 보상 요청
         const res = await starApi.adReward();
         if (typeof res.newBalance === 'number') {

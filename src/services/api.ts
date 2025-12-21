@@ -1,9 +1,79 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
 import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ProfileCategory, ProfileOption } from '../types/index.ts';
 import { toast } from 'react-toastify';
 
-// API Base URL을 반드시 환경변수로만 사용하도록 강제
-const API_BASE_URL = (process.env.REACT_APP_API_URL || '').replace(/\/$/, ''); // 끝 슬래시 제거
+// API Base URL 설정
+// 개발 환경 판단: .env의 REACT_APP_API_URL에 localhost가 있으면 개발 환경
+//   - 웹: .env의 URL 그대로 사용
+//   - Android/iOS: 하드코딩 URL 사용
+// 운영 환경: localhost가 없으면 모든 플랫폼에서 환경변수 사용
+function getApiBaseUrl(): string {
+  const isNative = Capacitor.isNativePlatform();
+  const platform = Capacitor.getPlatform();
+  const envUrl = process.env.REACT_APP_API_URL;
+  
+  // 개발 환경 판단: 환경변수에 localhost, 127.0.0.1, 10.0.2.2가 포함되어 있으면 개발 환경
+  const isDevelopment = envUrl && (
+    envUrl.includes('localhost') ||
+    envUrl.includes('127.0.0.1') ||
+    envUrl.includes('10.0.2.2')
+  );
+  
+  if (isDevelopment) {
+    // 개발 환경
+    if (!isNative) {
+      // 웹 브라우저: .env의 URL 그대로 사용
+      const cleanUrl = envUrl.replace(/\/$/, '');
+      console.log('[API] 개발 환경 - 웹 브라우저 (.env 사용):', cleanUrl);
+      return cleanUrl;
+    }
+    
+    // Android/iOS: 하드코딩 URL 사용
+    if (platform === 'android') {
+      // Android 에뮬레이터: 10.0.2.2 (호스트 PC의 localhost를 가리킴)
+      const androidUrl = 'http://10.0.2.2:3001/api';
+      console.log('[API] 개발 환경 - Android (하드코딩):', androidUrl);
+      return androidUrl;
+    } else if (platform === 'ios') {
+      // iOS 시뮬레이터: localhost
+      const iosUrl = 'http://localhost:3001/api';
+      console.log('[API] 개발 환경 - iOS (하드코딩):', iosUrl);
+      return iosUrl;
+    }
+  }
+  
+  // 운영 환경: 환경변수 사용 (모든 플랫폼, localhost 계열 제외)
+  if (envUrl) {
+    const cleanUrl = envUrl.replace(/\/$/, '');
+    console.log(`[API] 운영 환경 - 환경변수 사용 (${platform || 'web'}):`, cleanUrl);
+    return cleanUrl;
+  }
+  
+  // 환경변수가 없는 경우: 개발 환경으로 간주하고 플랫폼별 하드코딩
+  if (!isNative) {
+    const webUrl = 'http://localhost:3001/api';
+    console.log('[API] 환경변수 없음 - 개발 환경 기본값 (웹):', webUrl);
+    return webUrl;
+  }
+  
+  if (platform === 'android') {
+    const androidUrl = 'http://10.0.2.2:3001/api';
+    console.log('[API] 환경변수 없음 - 개발 환경 기본값 (Android):', androidUrl);
+    return androidUrl;
+  } else if (platform === 'ios') {
+    const iosUrl = 'http://localhost:3001/api';
+    console.log('[API] 환경변수 없음 - 개발 환경 기본값 (iOS):', iosUrl);
+    return iosUrl;
+  }
+  
+  // 최종 기본값
+  const defaultUrl = 'http://localhost:3001/api';
+  console.log('[API] 최종 기본값:', defaultUrl);
+  return defaultUrl;
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 // fetch/axios 등에서 항상 API_BASE_URL을 prefix로 사용하도록 유틸 함수 제공
 export function apiUrl(path: string) {
