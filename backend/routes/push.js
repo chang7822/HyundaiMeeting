@@ -5,6 +5,90 @@ const authenticate = require('../middleware/authenticate');
 const { getMessaging } = require('../firebaseAdmin');
 
 /**
+ * User-Agent에서 상세한 기기/브라우저 정보 감지
+ * @param {string} userAgent 
+ * @returns {string} 세분화된 기기 타입
+ */
+function getDeviceTypeFromUA(userAgent) {
+  const ua = (userAgent || '').toLowerCase();
+  
+  // iOS 기기
+  if (/iphone/.test(ua)) {
+    return 'iphone';
+  } else if (/ipad/.test(ua)) {
+    return 'ipad';
+  } else if (/ipod/.test(ua)) {
+    return 'ipod';
+  }
+  
+  // Android 기기
+  else if (/android/.test(ua)) {
+    // Android 태블릿 감지
+    if (/tablet|tab/.test(ua) || (!/mobile/.test(ua) && /android/.test(ua))) {
+      return 'android_tablet';
+    }
+    return 'android_phone';
+  }
+  
+  // 데스크톱 OS
+  else if (/windows/.test(ua)) {
+    // Windows Phone (레거시)
+    if (/windows phone/.test(ua)) {
+      return 'windows_phone';
+    }
+    // 브라우저별 분류
+    if (/edg/.test(ua)) {
+      return 'windows_edge';
+    } else if (/chrome/.test(ua)) {
+      return 'windows_chrome';
+    } else if (/firefox/.test(ua)) {
+      return 'windows_firefox';
+    } else if (/safari/.test(ua) && !/chrome/.test(ua)) {
+      return 'windows_safari';
+    }
+    return 'windows_other';
+  }
+  
+  else if (/macintosh|mac os x/.test(ua)) {
+    // 브라우저별 분류
+    if (/safari/.test(ua) && !/chrome/.test(ua)) {
+      return 'mac_safari';
+    } else if (/chrome/.test(ua)) {
+      return 'mac_chrome';
+    } else if (/firefox/.test(ua)) {
+      return 'mac_firefox';
+    } else if (/edg/.test(ua)) {
+      return 'mac_edge';
+    }
+    return 'mac_other';
+  }
+  
+  else if (/linux/.test(ua)) {
+    // Chrome OS
+    if (/cros/.test(ua)) {
+      return 'chromeos';
+    }
+    // 브라우저별 분류
+    if (/chrome/.test(ua)) {
+      return 'linux_chrome';
+    } else if (/firefox/.test(ua)) {
+      return 'linux_firefox';
+    }
+    return 'linux_other';
+  }
+  
+  // 기타 모바일 OS
+  else if (/blackberry/.test(ua)) {
+    return 'blackberry';
+  } else if (/webos/.test(ua)) {
+    return 'webos';
+  }
+  
+  // 알 수 없는 기기
+  return 'unknown';
+}
+
+/**
  * 푸시 토큰 등록
  * - body: { token: string }
  * - 인증된 사용자(req.user.userId)에 대해 user_push_tokens 테이블에 upsert
@@ -40,6 +124,10 @@ router.post('/register-token', authenticate, async (req, res) => {
 
     const email = userData?.email || null;
     const nickname = profileData?.nickname || null;
+    
+    // User-Agent에서 기기 타입 감지
+    const userAgent = req.headers['user-agent'] || '';
+    const deviceType = getDeviceTypeFromUA(userAgent);
 
     const { error } = await supabase
       .from('user_push_tokens')
@@ -49,6 +137,7 @@ router.post('/register-token', authenticate, async (req, res) => {
           token: trimmedToken,
           email: email,
           nickname: nickname,
+          device_type: deviceType,
         },
         // 기본 키(또는 unique 제약조건)에 맞춰 upsert되므로 onConflict 생략 가능
       );
@@ -58,7 +147,7 @@ router.post('/register-token', authenticate, async (req, res) => {
       return res.status(500).json({ success: false, message: '푸시 토큰 저장 중 오류가 발생했습니다.' });
     }
 
-    console.log(`[push][register-token] 푸시알림 토큰 등록: user_id=${userId}, email=${email}, nickname=${nickname}`);
+    console.log(`[push]푸시알림 토큰 등록: user_id=${userId}, email=${email}, nickname=${nickname}, device=${deviceType}`);
     return res.json({ success: true });
   } catch (e) {
     console.error('[push][register-token] 예외:', e);

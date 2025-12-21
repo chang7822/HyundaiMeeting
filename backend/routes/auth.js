@@ -46,6 +46,47 @@ async function isDevModeEnabled() {
   }
 }
 
+// User-Agent에서 기기 타입 감지 함수
+function getDeviceTypeFromUA(userAgent) {
+  if (!userAgent) return 'unknown';
+  
+  const ua = userAgent.toLowerCase();
+  
+  // iOS 기기 감지
+  if (ua.includes('iphone')) return 'iphone';
+  if (ua.includes('ipad')) return 'ipad';
+  if (ua.includes('ipod')) return 'ipod';
+  
+  // Android 기기 감지
+  if (ua.includes('android')) {
+    if (ua.includes('mobile')) return 'android_phone';
+    return 'android_tablet';
+  }
+  
+  // 데스크톱 OS 감지
+  if (ua.includes('windows')) {
+    if (ua.includes('edge')) return 'windows_edge';
+    if (ua.includes('chrome')) return 'windows_chrome';
+    if (ua.includes('firefox')) return 'windows_firefox';
+    return 'windows_other';
+  }
+  
+  if (ua.includes('mac os x') || ua.includes('macintosh')) {
+    if (ua.includes('safari') && !ua.includes('chrome')) return 'mac_safari';
+    if (ua.includes('chrome')) return 'mac_chrome';
+    if (ua.includes('firefox')) return 'mac_firefox';
+    return 'mac_other';
+  }
+  
+  if (ua.includes('linux')) {
+    if (ua.includes('chrome')) return 'linux_chrome';
+    if (ua.includes('firefox')) return 'linux_firefox';
+    return 'linux_other';
+  }
+  
+  return 'unknown';
+}
+
 // 인증번호 임시 저장 (데이터베이스로 변경 예정)
 const verificationCodes = new Map();
 // 회원가입 이전에 이메일 인증을 완료한 사용자 임시 저장 (서버 재시작 시 초기화됨)
@@ -415,9 +456,13 @@ router.post('/login', async (req, res) => {
       .eq('user_id', user.id)
       .single();
 
+    // User-Agent에서 기기 타입 감지
+    const userAgent = req.headers['user-agent'] || '';
+    const deviceType = getDeviceTypeFromUA(userAgent);
+
     // 1. 로그인 성공 로그 (메일계정 기준 간단히)
     console.log(
-      `[AUTH] 로그인 성공: email=${email}, nickname=${profile?.nickname || '미설정'}, role=${user.is_admin ? 'admin' : 'user'}`,
+      `[AUTH] 로그인 성공: email=${email}, nickname=${profile?.nickname || '미설정'}, device=${deviceType}`,
     );
 
     // 최근 로그인 시각 업데이트
