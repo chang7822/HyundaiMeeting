@@ -394,13 +394,13 @@ const AttendancePrimaryButton = styled.button`
   align-items: center;
   gap: 6px;
 
-  &:hover {
+  &:hover:not(:disabled) {
     opacity: 0.96;
   }
 
   &:disabled {
-    opacity: 0.6;
-    cursor: default;
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    cursor: not-allowed;
   }
 `;
 
