@@ -20,6 +20,7 @@ import {
   FaBell,
 } from 'react-icons/fa';
 import { matchingApi, starApi, notificationApi, extraMatchingApi } from '../../services/api.ts';
+import { isNativeApp } from '../../firebase.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -389,6 +390,9 @@ const AttendancePrimaryButton = styled.button`
   font-weight: 600;
   color: #f9fafb;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 
   &:hover {
     opacity: 0.96;
@@ -398,6 +402,15 @@ const AttendancePrimaryButton = styled.button`
     opacity: 0.6;
     cursor: default;
   }
+`;
+
+const AppOnlyBadge = styled.span`
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.9);
 `;
 
 const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, onToggle }) => {
@@ -859,10 +872,10 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               <p style={{ marginBottom: 6 }}>
                 하루 한 번 <strong>출석 체크</strong>를 하면 별 <strong>1개</strong>를 모을 수 있어요.
               </p>
-              {/* 광고 보기 기능 - 아직 오픈 전 */}
-              {/* <p style={{ marginBottom: 6 }}>
+              <p style={{ marginBottom: 6 }}>
                 원하시면 출석 후에 <strong>광고 보기</strong>로 별 <strong>2개</strong>를 추가로 받을 수 있습니다.
-              </p> */}
+                {!isNativeApp() && <span style={{ fontSize: '0.75rem', color: '#6b7280' }}> (앱 전용)</span>}
+              </p>
             </AttendanceModalBody>
             <AttendanceModalActions>
               <AttendanceSecondaryButton
@@ -883,15 +896,15 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               >
                 {attendanceSubmitting ? '출석 처리 중...' : '출석 체크 (⭐1)'}
               </AttendancePrimaryButton>
-              {/* 광고 보기 버튼 - 아직 오픈 전 */}
-              {/* <AttendancePrimaryButton
+              <AttendancePrimaryButton
                 type="button"
                 onClick={handleAdReward}
-                disabled={adSubmitting}
+                disabled={adSubmitting || !isNativeApp()}
                 style={{ background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' }}
               >
-                {adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}
-              </AttendancePrimaryButton> */}
+                <span>{adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}</span>
+                {!isNativeApp() && <AppOnlyBadge>앱 전용</AppOnlyBadge>}
+              </AttendancePrimaryButton>
             </AttendanceModalActions>
           </AttendanceModalContent>
         </AttendanceModalOverlay>
