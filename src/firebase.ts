@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getMessaging, type Messaging } from 'firebase/messaging';
+import { Capacitor } from '@capacitor/core';
 
 // Firebase 설정은 전부 .env 에서만 읽도록 구성
 // (값은 Firebase 콘솔에서 발급받은 값으로 채우면 됨)
@@ -13,6 +14,13 @@ const firebaseConfig = {
 
 // VAPID Key (.env 에 REACT_APP_FIREBASE_VAPID_KEY 로 설정)
 export const FIREBASE_VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY || '';
+
+/**
+ * 네이티브 앱 환경인지 체크
+ */
+export function isNativeApp(): boolean {
+  return Capacitor.isNativePlatform();
+}
 
 let messagingPromise: Promise<Messaging | null> | null = null;
 
@@ -82,5 +90,69 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
   return messagingPromise;
 }
 
+/**
+ * 네이티브 앱에서 푸시 알림 토큰 가져오기 (Capacitor)
+ */
+export async function getNativePushToken(): Promise<string | null> {
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    
+    // 권한 요청
+    const permResult = await PushNotifications.requestPermissions();
+    
+    if (permResult.receive !== 'granted') {
+      console.warn('[push] 네이티브 푸시 알림 권한이 거부되었습니다.');
+      return null;
+    }
+    
+    // 푸시 알림 등록
+    await PushNotifications.register();
+    
+    // 토큰 받기 (Promise로 감싸기)
+    return new Promise((resolve) => {
+      PushNotifications.addListener('registration', (token) => {
+        console.log('[push] 네이티브 푸시 토큰:', token.value);
+        resolve(token.value);
+      });
+      
+      PushNotifications.addListener('registrationError', (error) => {
+        console.error('[push] 네이티브 푸시 토큰 등록 실패:', error);
+        resolve(null);
+      });
+      
+      // 타임아웃 (10초)
+      setTimeout(() => {
+        console.error('[push] 네이티브 푸시 토큰 대기 시간 초과');
+        resolve(null);
+      }, 10000);
+    });
+  } catch (error) {
+    console.error('[push] 네이티브 푸시 알림 초기화 실패:', error);
+    return null;
+  }
+}
 
-
+/**
+ * 네이티브 앱에서 푸시 알림 리스너 설정 (Capacitor)
+ */
+export async function setupNativePushListeners(onNotificationReceived?: (notification: any) => void) {
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    
+    // 푸시 알림 수신 시
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.log('[push] 네이티브 푸시 알림 수신:', notification);
+      if (onNotificationReceived) {
+        onNotificationReceived(notification);
+      }
+    });
+    
+    // 푸시 알림 클릭 시
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('[push] 네이티브 푸시 알림 클릭:', notification);
+      // 필요시 특정 페이지로 이동하는 로직 추가 가능
+    });
+  } catch (error) {
+    console.error('[push] 네이티브 푸시 리스너 설정 실패:', error);
+  }
+}

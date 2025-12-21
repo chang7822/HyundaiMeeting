@@ -9,7 +9,7 @@ import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../firebase.ts';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners } from '../firebase.ts';
 
 // 액션 타입 정의
 type ActionItem = {
@@ -903,92 +903,124 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return;
     }
 
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
-      toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
-      return;
-    }
-
     const next = !isPushEnabled;
+    const isNative = isNativeApp();
 
     // OFF → ON
     if (next) {
       try {
         setIsPushBusy(true);
 
-        let permission = Notification.permission;
-        if (permission === 'default') {
-          permission = await Notification.requestPermission();
+        let token: string | null = null;
+
+        // 네이티브 앱 환경
+        if (isNative) {
+          console.log('[push] 네이티브 앱 푸시 알림 등록 시작');
+          token = await getNativePushToken();
+          
+          if (!token) {
+            toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          // 네이티브 푸시 리스너 설정
+          await setupNativePushListeners();
+
+          // 서버에 토큰 등록
+          await pushApi.registerToken(token);
+
+          try {
+            localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+            localStorage.setItem('pushFcmToken', token);
+          } catch {
+            // ignore
+          }
+
+          setIsPushEnabled(true);
+          toast.success('푸시 알림이 활성화되었습니다.');
+        } 
+        // 웹 브라우저 환경
+        else {
+          if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+            toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          let permission = Notification.permission;
+          if (permission === 'default') {
+            permission = await Notification.requestPermission();
+          }
+
+          if (permission !== 'granted') {
+            toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          const messaging = await getFirebaseMessaging();
+          if (!messaging) {
+            console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
+            console.error('[push] Notification.permission:', Notification.permission);
+            console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
+            toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          if (!FIREBASE_VAPID_KEY) {
+            console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
+          }
+
+          const { getToken } = await import('firebase/messaging');
+
+          // 서비스워커를 명시적으로 등록
+          let registration: ServiceWorkerRegistration | undefined;
+          try {
+            registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          } catch (swErr) {
+            console.error('[push] service worker 등록 실패:', swErr);
+            toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
+          let readyRegistration: ServiceWorkerRegistration;
+          try {
+            readyRegistration = await navigator.serviceWorker.ready;
+          } catch (readyErr) {
+            console.error('[push] service worker ready 대기 중 오류:', readyErr);
+            toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          token = await getToken(messaging, {
+            vapidKey: FIREBASE_VAPID_KEY || undefined,
+            serviceWorkerRegistration: readyRegistration,
+          });
+
+          if (!token) {
+            toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          // 서버에 토큰 등록
+          await pushApi.registerToken(token);
+
+          try {
+            localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+            localStorage.setItem('pushFcmToken', token);
+          } catch {
+            // ignore
+          }
+
+          setIsPushEnabled(true);
+          toast.success('웹 푸시 알림이 활성화되었습니다.');
         }
-
-        if (permission !== 'granted') {
-          toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        const messaging = await getFirebaseMessaging();
-        if (!messaging) {
-          console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
-          console.error('[push] Notification.permission:', Notification.permission);
-          console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
-          toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        if (!FIREBASE_VAPID_KEY) {
-          console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
-        }
-
-        const { getToken } = await import('firebase/messaging');
-
-        // 서비스워커를 명시적으로 등록
-        let registration: ServiceWorkerRegistration | undefined;
-        try {
-          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          // console.info('[push] service worker 등록 성공:', registration.scope);
-        } catch (swErr) {
-          console.error('[push] service worker 등록 실패:', swErr);
-          toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
-        let readyRegistration: ServiceWorkerRegistration;
-        try {
-          readyRegistration = await navigator.serviceWorker.ready;
-          // console.info('[push] service worker ready:', readyRegistration.scope);
-        } catch (readyErr) {
-          console.error('[push] service worker ready 대기 중 오류:', readyErr);
-          toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        const token = await getToken(messaging, {
-          vapidKey: FIREBASE_VAPID_KEY || undefined,
-          serviceWorkerRegistration: readyRegistration,
-        });
-
-        if (!token) {
-          toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        // 서버에 토큰 등록
-        await pushApi.registerToken(token);
-
-        try {
-          localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-          localStorage.setItem('pushFcmToken', token);
-        } catch {
-          // ignore
-        }
-
-        setIsPushEnabled(true);
-        toast.success('웹 푸시 알림이 활성화되었습니다.');
       } catch (e) {
         console.error('[push] 푸시 활성화 중 오류:', e);
         toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
@@ -1018,7 +1050,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }
 
       setIsPushEnabled(false);
-      toast.success('웹 푸시 알림이 비활성화되었습니다.');
+      const msg = isNative ? '푸시 알림이 비활성화되었습니다.' : '웹 푸시 알림이 비활성화되었습니다.';
+      toast.success(msg);
     } catch (e) {
       console.error('[push] 푸시 비활성화 중 오류:', e);
       toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
