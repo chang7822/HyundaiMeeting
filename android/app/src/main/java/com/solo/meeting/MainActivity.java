@@ -1,4 +1,4 @@
-package com.hyundai.meeting;
+package com.solo.meeting;
 
 import com.getcapacitor.BridgeActivity;
 

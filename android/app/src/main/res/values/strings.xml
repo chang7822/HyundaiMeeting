@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Hyundai Meeting</string>
-    <string name="title_activity_main">Hyundai Meeting</string>
-    <string name="package_name">com.hyundai.meeting</string>
-    <string name="custom_url_scheme">com.hyundai.meeting</string>
+    <string name="app_name">Solo Meeting</string>
+    <string name="title_activity_main">Solo Meeting</string>
+    <string name="package_name">com.solo.meeting</string>
+    <string name="custom_url_scheme">com.solo.meeting</string>
 </resources>
