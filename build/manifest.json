@@ -1,6 +1,6 @@
 {
-  "short_name": "울산 사내 솔로공모",
-  "name": "울산 사내 솔로공모",
+  "short_name": "직쏠공",
+  "name": "직쏠공",
   "icons": [
     {
       "src": "favicon.ico",
@@ -8,15 +8,15 @@
       "type": "image/x-icon"
     },
     {
-      "src": "favicon.ico",
-      "sizes": "192x192",
+      "src": "icon-192.png",
       "type": "image/png",
+      "sizes": "192x192",
       "purpose": "any maskable"
     },
     {
-      "src": "favicon.ico",
-      "sizes": "512x512",
+      "src": "icon-512.png",
       "type": "image/png",
+      "sizes": "512x512",
       "purpose": "any maskable"
     }
   ],
@@ -24,7 +24,7 @@
   "display": "standalone",
   "theme_color": "#667eea",
   "background_color": "#ffffff",
-  "description": "울산 사내 솔로공모 - 현대자동차 사내 만남 서비스",
+  "description": "직장인 솔로 공모 - 직장인을 위한 맞춤 소개팅/만남 서비스",
   "orientation": "portrait",
   "scope": "/",
   "lang": "ko"
