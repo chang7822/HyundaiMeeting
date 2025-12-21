@@ -356,13 +356,18 @@ const AttendanceModalBody = styled.div`
 
 const AttendanceModalActions = styled.div`
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 8px;
   margin-top: 4px;
+  
+  @media (min-width: 480px) {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
 `;
 
 const AttendanceSecondaryButton = styled.button`
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid #d1d5db;
   background: #f9fafb;
@@ -370,6 +375,11 @@ const AttendanceSecondaryButton = styled.button`
   font-weight: 500;
   color: #374151;
   cursor: pointer;
+  width: 100%;
+
+  @media (min-width: 480px) {
+    width: auto;
+  }
 
   &:hover {
     background: #f3f4f6;
@@ -382,7 +392,7 @@ const AttendanceSecondaryButton = styled.button`
 `;
 
 const AttendancePrimaryButton = styled.button`
-  padding: 6px 14px;
+  padding: 8px 14px;
   border-radius: 999px;
   border: none;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -392,7 +402,13 @@ const AttendancePrimaryButton = styled.button`
   cursor: pointer;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  width: 100%;
+
+  @media (min-width: 480px) {
+    width: auto;
+  }
 
   &:hover:not(:disabled) {
     opacity: 0.96;
