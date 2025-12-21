@@ -670,10 +670,17 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       // AdMob 광고 표시
       const { AdMob } = await import('@capacitor-community/admob');
       
+      // 테스트 모드: Google 테스트 광고 단위 ID 사용
+      // 배포 시: 실제 광고 단위 ID 사용
+      const isTesting = true; // 배포 시 false로 변경
+      const adId = isTesting 
+        ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
+        : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID
+      
       // 광고 준비
       await AdMob.prepareRewardVideoAd({
-        adId: 'ca-app-pub-1352765336263182/8702080467',
-        isTesting: true, // 테스트 모드 (배포 시 false로 변경)
+        adId,
+        isTesting,
       });
       
       // 광고 표시
@@ -695,11 +702,19 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       }
     } catch (error: any) {
       console.error('[AdMob] 광고 표시 오류:', error);
-      const msg =
-        error?.response?.data?.message ||
-        error?.message ||
-        '광고 보상 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-      toast.error(msg);
+      console.error('[AdMob] 에러 상세:', JSON.stringify(error, null, 2));
+      
+      // 에러 메시지 추출
+      let errorMessage = '광고 보상 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error?.toString && error.toString() !== '[object Object]') {
+        errorMessage = error.toString();
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setAdSubmitting(false);
     }

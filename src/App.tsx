@@ -129,21 +129,10 @@ const AppInner: React.FC = () => {
 
   // StatusBar 설정 (Android에서 상단바와 겹치지 않도록)
   useEffect(() => {
-    const isNative = Capacitor.isNativePlatform();
-    const platform = Capacitor.getPlatform();
-    console.log('[StatusBar] 플랫폼 확인:', { isNative, platform });
-    
-    if (isNative) {
-      console.log('[StatusBar] 네이티브 플랫폼 감지, StatusBar 설정 시도...');
-      StatusBar.setOverlaysWebView({ overlay: false })
-        .then(() => {
-          console.log('[StatusBar] ✅ setOverlaysWebView 성공: overlay=false');
-        })
-        .catch((error) => {
-          console.error('[StatusBar] ❌ setOverlaysWebView 실패:', error);
-        });
-    } else {
-      console.log('[StatusBar] 웹 플랫폼 - StatusBar 설정 건너뜀');
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {
+        // StatusBar 플러그인이 사용 불가능한 경우 무시
+      });
     }
   }, []);
 
