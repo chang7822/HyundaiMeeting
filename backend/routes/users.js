@@ -48,6 +48,24 @@ router.put('/:id/password', authenticate, async (req, res) => {
       console.error('[비번변경] 비밀번호 업데이트 에러:', updateError);
       return res.status(500).json({ error: '비밀번호 업데이트 중 오류가 발생했습니다.' });
     }
+
+    // 비밀번호 변경 시 모든 Refresh Token 무효화 (보안)
+    try {
+      const { error: tokenError } = await supabase
+        .from('refresh_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .is('revoked_at', null);
+      if (tokenError) {
+        console.error('[비번변경] Refresh Token 무효화 오류:', tokenError);
+      } else {
+        console.log(`[비번변경] 사용자 ${userId}의 모든 Refresh Token 무효화 완료`);
+      }
+    } catch (tokenErr) {
+      console.error('[비번변경] 토큰 무효화 처리 중 오류:', tokenErr);
+      // 토큰 무효화 실패해도 비밀번호 변경은 성공했으므로 계속 진행
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('[비번변경] 서버 오류:', err);
@@ -494,7 +512,22 @@ router.delete('/me', authenticate, async (req, res) => {
       throw error6;
     }
     
-    // 4. users 삭제 (마지막에)
+    // 3-1. Refresh Token 무효화 (CASCADE로 자동 삭제되지만 명시적으로 무효화)
+    try {
+      const { error: tokenError } = await supabase
+        .from('refresh_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .is('revoked_at', null);
+      if (tokenError) {
+        console.error('[회원탈퇴] Refresh Token 무효화 오류:', tokenError);
+        // 에러가 나도 계속 진행 (CASCADE로 삭제됨)
+      }
+    } catch (tokenErr) {
+      console.error('[회원탈퇴] Refresh Token 처리 중 오류:', tokenErr);
+    }
+    
+    // 4. users 삭제 (마지막에, CASCADE로 refresh_tokens도 자동 삭제됨)
     const { error: error7 } = await supabase.from('users').delete().eq('id', userId);
     if (error7) {
       console.error('[회원탈퇴] users 삭제 오류:', error7);

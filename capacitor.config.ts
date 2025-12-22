@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.solo.meeting',
-  appName: 'Solo Meeting',
+  appName: '직쏠공',
   webDir: 'build',
   server: {
     androidScheme: 'http', // HTTP로 로드하여 Mixed Content 문제 해결

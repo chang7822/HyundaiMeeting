@@ -1,12 +1,166 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const { supabase } = require('../database');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
 const { sendPushToAdmin } = require('../pushService');
 const router = express.Router();
 const authenticate = require('../middleware/authenticate');
+
+// ==================== Refresh Token 헬퍼 함수 ====================
+
+/**
+ * Refresh Token 생성 (랜덤 문자열)
+ */
+function generateRefreshToken() {
+  return crypto.randomBytes(64).toString('hex');
+}
+
+/**
+ * 네이티브 앱인지 확인
+ */
+function isNativeApp(deviceType) {
+  return deviceType && (
+    deviceType.startsWith('android_') ||
+    deviceType.startsWith('iphone') ||
+    deviceType.startsWith('ipad') ||
+    deviceType.startsWith('ipod')
+  );
+}
+
+/**
+ * Refresh Token 만료 시간 계산
+ * - 네이티브 앱: 30일
+ * - 웹: 7일
+ */
+function getRefreshTokenExpiry(deviceType) {
+  const isNative = isNativeApp(deviceType);
+  const days = isNative ? 30 : 7;
+  const expiryDate = new Date();
+  expiryDate.setDate(expiryDate.getDate() + days);
+  return expiryDate.toISOString();
+}
+
+/**
+ * Access Token 생성
+ * - 모든 플랫폼: 1시간 만료
+ */
+function generateAccessToken(user) {
+  return jwt.sign(
+    { userId: user.id, id: user.id, email: user.email, isAdmin: user.is_admin },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+}
+
+/**
+ * Refresh Token을 DB에 저장
+ */
+async function saveRefreshToken(userId, refreshToken, deviceType) {
+  const expiresAt = getRefreshTokenExpiry(deviceType);
+  
+  const { error } = await supabase
+    .from('refresh_tokens')
+    .insert({
+      token: refreshToken,
+      user_id: userId,
+      device_type: deviceType || 'unknown',
+      expires_at: expiresAt
+    });
+
+  if (error) {
+    console.error('[RefreshToken] 저장 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * Refresh Token 검증 및 사용자 정보 반환
+ */
+async function verifyRefreshToken(refreshToken) {
+  // 1. DB에서 토큰 조회
+  const { data: tokenData, error: tokenError } = await supabase
+    .from('refresh_tokens')
+    .select('user_id, expires_at, revoked_at')
+    .eq('token', refreshToken)
+    .single();
+
+  if (tokenError || !tokenData) {
+    return { valid: false, error: '토큰을 찾을 수 없습니다.' };
+  }
+
+  // 2. 무효화된 토큰인지 확인
+  if (tokenData.revoked_at) {
+    return { valid: false, error: '이미 무효화된 토큰입니다.' };
+  }
+
+  // 3. 만료 시간 확인
+  const now = new Date();
+  const expiresAt = new Date(tokenData.expires_at);
+  if (now > expiresAt) {
+    return { valid: false, error: '토큰이 만료되었습니다.' };
+  }
+
+  // 4. 사용자 정보 조회
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('id, email, is_admin, is_active')
+    .eq('id', tokenData.user_id)
+    .single();
+
+  if (userError || !user) {
+    return { valid: false, error: '사용자를 찾을 수 없습니다.' };
+  }
+
+  // 5. 계정 활성화 확인
+  if (!user.is_active) {
+    return { valid: false, error: '비활성화된 계정입니다.' };
+  }
+
+  return { valid: true, user };
+}
+
+/**
+ * 사용자의 모든 Refresh Token 무효화 (토큰 철회)
+ */
+async function revokeAllUserTokens(userId) {
+  const { error } = await supabase
+    .from('refresh_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .is('revoked_at', null); // 아직 무효화되지 않은 토큰만
+
+  if (error) {
+    console.error('[RefreshToken] 토큰 철회 실패:', error);
+    throw error;
+  }
+
+  console.log(`[RefreshToken] 사용자 ${userId}의 모든 토큰 무효화 완료`);
+}
+
+/**
+ * 특정 Refresh Token만 무효화
+ */
+async function revokeRefreshToken(refreshToken) {
+  const { error } = await supabase
+    .from('refresh_tokens')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('token', refreshToken)
+    .is('revoked_at', null);
+
+  if (error) {
+    console.error('[RefreshToken] 토큰 무효화 실패:', error);
+    throw error;
+  }
+}
+
+// 헬퍼 함수들을 외부에서 사용할 수 있도록 export (다른 라우터에서 사용)
+module.exports.revokeAllUserTokens = revokeAllUserTokens;
+module.exports.revokeRefreshToken = revokeRefreshToken;
+
+// ==================== Refresh Token 헬퍼 함수 끝 ====================
 
 // 환경 변수 직접 설정 (config.env 로딩 문제 해결)
 if (!process.env.EMAIL_USER) {
@@ -460,6 +614,12 @@ router.post('/login', async (req, res) => {
     const userAgent = req.headers['user-agent'] || '';
     const deviceType = getDeviceTypeFromUA(userAgent);
 
+    // 네이티브 앱 감지 (Android, iOS)
+    const isNativeApp = deviceType.startsWith('android_') || 
+                        deviceType.startsWith('iphone') || 
+                        deviceType.startsWith('ipad') || 
+                        deviceType.startsWith('ipod');
+
     // 1. 로그인 성공 로그 (메일계정 기준 간단히)
     console.log(
       `[AUTH] 로그인 성공: email=${email}, nickname=${profile?.nickname || '미설정'}, device=${deviceType}`,
@@ -476,11 +636,17 @@ router.post('/login', async (req, res) => {
       // 로그인 자체는 성공이므로 에러를 반환하지 않음
     }
 
-    const token = jwt.sign(
-      { userId: user.id, id: user.id, email: user.email, isAdmin: user.is_admin },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    // Access Token 생성 (모든 플랫폼: 1시간 만료)
+    const accessToken = generateAccessToken(user);
+
+    // Refresh Token 생성 및 저장
+    const refreshToken = generateRefreshToken();
+    try {
+      await saveRefreshToken(user.id, refreshToken, deviceType);
+    } catch (error) {
+      console.error('[AUTH] Refresh Token 저장 실패:', error);
+      return res.status(500).json({ success: false, message: '토큰 생성 중 오류가 발생했습니다.' });
+    }
 
     res.json({
       success: true,
@@ -494,7 +660,8 @@ router.post('/login', async (req, res) => {
         company: profile?.company || null,
         isAdmin: user.is_admin || false
       },
-      token
+      token: accessToken, // Access Token
+      refreshToken: refreshToken // Refresh Token
     });
   } catch (error) {
     console.error('❌ 로그인 오류:', error);
@@ -842,6 +1009,14 @@ router.post('/register', async (req, res) => {
       );
     }
 
+    // User-Agent에서 기기 타입 감지 (네이티브 앱 확인용)
+    const userAgent = req.headers['user-agent'] || '';
+    const deviceType = getDeviceTypeFromUA(userAgent);
+    const isNativeApp = deviceType.startsWith('android_') || 
+                        deviceType.startsWith('iphone') || 
+                        deviceType.startsWith('ipad') || 
+                        deviceType.startsWith('ipod');
+
     // 재가입 시 이메일 기반 report 정보 갱신 및 정지 상태 확인 (콘솔 노이즈 최소화를 위해 상세 로그 제거)
     
     // 1. 기존 정지 상태 확인 (이메일 기반으로 처리된 신고 조회)
@@ -927,16 +1102,18 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    const token = jwt.sign(
-      {
-        userId: user.id, 
-        id: user.id, 
-        email: user.email,
-        role: user.is_admin ? 'admin' : 'user'
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Access Token 생성 (모든 플랫폼: 1시간 만료)
+    const accessToken = generateAccessToken(user);
+
+    // Refresh Token 생성 및 저장
+    const refreshToken = generateRefreshToken();
+    try {
+      await saveRefreshToken(user.id, refreshToken, deviceType);
+    } catch (error) {
+      console.error('[AUTH] 회원가입 - Refresh Token 저장 실패:', error);
+      // 회원가입은 성공했으므로 에러를 반환하지 않고 계속 진행
+      // (토큰 저장 실패는 나중에 재로그인으로 해결 가능)
+    }
 
     // 관리자 알림 메일 발송 (비동기) - 신규 회원 가입
     try {
@@ -976,12 +1153,53 @@ router.post('/register', async (req, res) => {
         birthYear,
         isAdmin: user.is_admin
       },
-      token
+      token: accessToken, // Access Token
+      refreshToken: refreshToken // Refresh Token
     });
 
   } catch (error) {
     console.error('통합 회원가입 오류:', error);
     res.status(500).json({ error: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// ===== Refresh Token 갱신 API =====
+
+/**
+ * POST /auth/refresh
+ * Refresh Token을 사용하여 새로운 Access Token 발급
+ */
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, error: 'Refresh Token이 필요합니다.' });
+    }
+
+    // Refresh Token 검증
+    const verificationResult = await verifyRefreshToken(refreshToken);
+
+    if (!verificationResult.valid) {
+      return res.status(401).json({ 
+        success: false, 
+        error: verificationResult.error || '유효하지 않은 Refresh Token입니다.' 
+      });
+    }
+
+    const { user } = verificationResult;
+
+    // 새로운 Access Token 생성
+    const newAccessToken = generateAccessToken(user);
+
+    res.json({
+      success: true,
+      token: newAccessToken // 새로운 Access Token
+      // Refresh Token은 그대로 유지 (재발급하지 않음)
+    });
+  } catch (error) {
+    console.error('[AUTH] Refresh Token 갱신 오류:', error);
+    res.status(500).json({ success: false, error: '토큰 갱신 중 오류가 발생했습니다.' });
   }
 });
 
@@ -1193,14 +1411,35 @@ router.post('/reset-password', async (req, res) => {
 });
 
 // 로그아웃 (토큰 무효화는 클라이언트 측에서 처리, 여기서는 로그만 남김)
-router.post('/logout', (req, res) => {
+router.post('/logout', authenticate, async (req, res) => {
   try {
-    const email = (req.body && req.body.email) || 'unknown';
-    console.log(`[AUTH] 로그아웃: email=${email}`);
-  } catch (e) {
-    console.error('[AUTH] 로그아웃 로그 처리 중 오류:', e);
+    const userId = req.user.userId;
+    const { refreshToken } = req.body;
+
+    // 특정 Refresh Token만 무효화 (요청에 포함된 경우)
+    if (refreshToken) {
+      try {
+        await revokeRefreshToken(refreshToken);
+        console.log(`[AUTH] 로그아웃: 사용자 ${userId}의 Refresh Token 무효화 완료`);
+      } catch (tokenError) {
+        console.error('[AUTH] 로그아웃 - Refresh Token 무효화 실패:', tokenError);
+        // 토큰 무효화 실패해도 로그아웃은 성공으로 처리
+      }
+    } else {
+      // Refresh Token이 없으면 모든 토큰 무효화 (보안상 안전)
+      try {
+        await revokeAllUserTokens(userId);
+        console.log(`[AUTH] 로그아웃: 사용자 ${userId}의 모든 Refresh Token 무효화 완료`);
+      } catch (tokenError) {
+        console.error('[AUTH] 로그아웃 - 모든 토큰 무효화 실패:', tokenError);
+      }
+    }
+
+    return res.json({ success: true, message: '로그아웃되었습니다.' });
+  } catch (error) {
+    console.error('[AUTH] 로그아웃 오류:', error);
+    return res.json({ success: true, message: '로그아웃되었습니다.' }); // 로그아웃은 항상 성공으로 처리
   }
-  return res.json({ success: true, message: '로그아웃되었습니다.' });
 });
 
 module.exports = router; 

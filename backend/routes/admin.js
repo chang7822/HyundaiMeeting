@@ -319,6 +319,24 @@ router.put('/users/:userId/status', authenticate, async (req, res) => {
       console.error('사용자 상태 업데이트 오류');
       return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
     }
+
+    // 계정 비활성화 시 모든 Refresh Token 무효화
+    if (!isActive) {
+      try {
+        const { error: tokenError } = await supabase
+          .from('refresh_tokens')
+          .update({ revoked_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .is('revoked_at', null);
+        if (tokenError) {
+          console.error('[관리자] 계정 비활성화 - Refresh Token 무효화 오류:', tokenError);
+        } else {
+          console.log(`[관리자] 계정 비활성화 - 사용자 ${userId}의 모든 Refresh Token 무효화 완료`);
+        }
+      } catch (tokenErr) {
+        console.error('[관리자] 계정 비활성화 - 토큰 무효화 처리 중 오류:', tokenErr);
+      }
+    }
     
     res.json({
       success: true,
@@ -2465,6 +2483,24 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
         console.error('사용자 정지 상태 업데이트 오류:', banError);
         return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
       }
+
+      // 정지 처리 시 모든 Refresh Token 무효화
+      if (status === 'temporary_ban' || status === 'permanent_ban') {
+        try {
+          const { error: tokenError } = await supabase
+            .from('refresh_tokens')
+            .update({ revoked_at: new Date().toISOString() })
+            .eq('user_id', reportData.reported_user_id)
+            .is('revoked_at', null);
+          if (tokenError) {
+            console.error('[신고처리] 정지 처리 - Refresh Token 무효화 오류:', tokenError);
+          } else {
+            console.log(`[신고처리] 정지 처리 - 사용자 ${reportData.reported_user_id}의 모든 Refresh Token 무효화 완료`);
+          }
+        } catch (tokenErr) {
+          console.error('[신고처리] 정지 처리 - 토큰 무효화 처리 중 오류:', tokenErr);
+        }
+      }
       
       console.log(`[신고처리] 사용자 상태 업데이트 완료: ${reportData.reported_user_id} (${status}, 신고횟수: ${reportCount})`);
     } else if (!reportData.reported_user_id) {
@@ -2560,6 +2596,24 @@ router.put('/users/:userId/report-info', authenticate, async (req, res) => {
     if (error) {
       console.error('사용자 신고 정보 조정 오류:', error);
       return res.status(500).json({ message: '신고 정보 조정에 실패했습니다.' });
+    }
+
+    // 정지 처리 시 모든 Refresh Token 무효화
+    if (is_banned === true) {
+      try {
+        const { error: tokenError } = await supabase
+          .from('refresh_tokens')
+          .update({ revoked_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .is('revoked_at', null);
+        if (tokenError) {
+          console.error('[관리자] 신고 정보 조정 - Refresh Token 무효화 오류:', tokenError);
+        } else {
+          console.log(`[관리자] 신고 정보 조정 - 사용자 ${userId}의 모든 Refresh Token 무효화 완료`);
+        }
+      } catch (tokenErr) {
+        console.error('[관리자] 신고 정보 조정 - 토큰 무효화 처리 중 오류:', tokenErr);
+      }
     }
 
     res.json({

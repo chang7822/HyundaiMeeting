@@ -92,17 +92,20 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
 
 /**
  * 네이티브 앱에서 푸시 알림 토큰 가져오기 (Capacitor)
+ * @param skipPermissionCheck 권한 확인을 건너뛸지 여부 (이미 권한이 확인된 경우 true)
  */
-export async function getNativePushToken(): Promise<string | null> {
+export async function getNativePushToken(skipPermissionCheck: boolean = false): Promise<string | null> {
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
     
-    // 권한 요청
-    const permResult = await PushNotifications.requestPermissions();
-    
-    if (permResult.receive !== 'granted') {
-      console.warn('[push] 네이티브 푸시 알림 권한이 거부되었습니다.');
-      return null;
+    // 권한 확인이 필요한 경우에만 요청
+    if (!skipPermissionCheck) {
+      const permResult = await PushNotifications.requestPermissions();
+      
+      if (permResult.receive !== 'granted') {
+        console.warn('[push] 네이티브 푸시 알림 권한이 거부되었습니다.');
+        return null;
+      }
     }
     
     // 푸시 알림 등록
@@ -111,7 +114,6 @@ export async function getNativePushToken(): Promise<string | null> {
     // 토큰 받기 (Promise로 감싸기)
     return new Promise((resolve) => {
       PushNotifications.addListener('registration', (token) => {
-        console.log('[push] 네이티브 푸시 토큰:', token.value);
         resolve(token.value);
       });
       
@@ -141,7 +143,6 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     
     // 푸시 알림 수신 시
     PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      console.log('[push] 네이티브 푸시 알림 수신:', notification);
       if (onNotificationReceived) {
         onNotificationReceived(notification);
       }
@@ -149,7 +150,6 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     
     // 푸시 알림 클릭 시
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('[push] 네이티브 푸시 알림 클릭:', notification);
       // 필요시 특정 페이지로 이동하는 로직 추가 가능
     });
   } catch (error) {
