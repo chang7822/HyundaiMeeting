@@ -955,7 +955,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             await setupNativePushListeners();
 
             // 서버에 토큰 등록
-            await pushApi.registerToken(token);
+            try {
+              const registerResult = await pushApi.registerToken(token);
+              if (!registerResult || !registerResult.success) {
+                console.error('[push] 토큰 등록 실패:', registerResult);
+                toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
+            } catch (registerError) {
+              console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+              toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
 
             try {
               localStorage.setItem(`pushEnabled_${user.id}`, 'true');
@@ -998,7 +1011,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             await setupNativePushListeners();
 
             // 서버에 토큰 등록
-            await pushApi.registerToken(token);
+            try {
+              const registerResult = await pushApi.registerToken(token);
+              if (!registerResult || !registerResult.success) {
+                console.error('[push] 토큰 등록 실패:', registerResult);
+                toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
+            } catch (registerError) {
+              console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+              toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
 
             try {
               localStorage.setItem(`pushEnabled_${user.id}`, 'true');
@@ -1085,7 +1111,20 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           }
 
           // 서버에 토큰 등록
-          await pushApi.registerToken(token);
+          try {
+            const registerResult = await pushApi.registerToken(token);
+            if (!registerResult || !registerResult.success) {
+              console.error('[push] 토큰 등록 실패:', registerResult);
+              toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
+          } catch (registerError) {
+            console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+            toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+            setIsPushBusy(false);
+            return;
+          }
 
           try {
             localStorage.setItem(`pushEnabled_${user.id}`, 'true');
