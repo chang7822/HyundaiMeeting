@@ -1713,6 +1713,7 @@ router.get('/broadcast-recipients', authenticate, async (req, res) => {
         email,
         is_active,
         is_verified,
+        email_notification_enabled,
         created_at,
         profile:user_profiles(nickname, company)
       `)

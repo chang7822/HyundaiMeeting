@@ -419,6 +419,76 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
   }
 });
 
+// 이메일 수신 허용 설정 조회
+router.get('/me/email-notification', authenticate, async (req, res) => {
+  try {
+    const userId = req.user && req.user.userId;
+    if (!userId) {
+      return res.status(401).json({ error: '인증 정보가 없습니다.' });
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('email_notification_enabled')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('[이메일 수신 설정 조회] 오류:', error);
+      return res.status(500).json({ error: '설정 조회 중 오류가 발생했습니다.' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+    }
+
+    return res.json({
+      email_notification_enabled: user.email_notification_enabled !== false, // null이면 true로 처리
+    });
+  } catch (err) {
+    console.error('[이메일 수신 설정 조회] 서버 오류:', err);
+    return res.status(500).json({ error: '설정 조회 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+// 이메일 수신 허용 설정 업데이트
+router.put('/me/email-notification', authenticate, async (req, res) => {
+  try {
+    const userId = req.user && req.user.userId;
+    const { enabled } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: '인증 정보가 없습니다.' });
+    }
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled 값은 boolean이어야 합니다.' });
+    }
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        email_notification_enabled: enabled,
+        updated_at: getKSTISOString(),
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('[이메일 수신 설정 업데이트] 오류:', updateError);
+      return res.status(500).json({ error: '설정 업데이트 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      email_notification_enabled: enabled,
+      message: enabled ? '이메일 수신이 허용되었습니다.' : '이메일 수신이 거부되었습니다.',
+    });
+  } catch (err) {
+    console.error('[이메일 수신 설정 업데이트] 서버 오류:', err);
+    return res.status(500).json({ error: '설정 업데이트 중 서버 오류가 발생했습니다.' });
+  }
+});
+
 // 회원 탈퇴 (DELETE /me)
 router.delete('/me', authenticate, async (req, res) => {
   try {

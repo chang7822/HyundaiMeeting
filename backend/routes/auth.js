@@ -743,7 +743,8 @@ router.post('/register', async (req, res) => {
         is_applied: false, // 매칭 미신청(기본값)
         is_matched: null,  // 매칭 결과 없음(기본값)
         terms_agreed_at: termsAgreement.agreedAt || new Date().toISOString(), // 약관 동의 시간
-        email_verification_status: alreadyPreVerified ? 'verified' : 'pending'
+        email_verification_status: alreadyPreVerified ? 'verified' : 'pending',
+        email_notification_enabled: true // 이메일 수신 허용 기본값
       }])
       .select('id, email, is_verified, is_active, is_admin')
       .single();

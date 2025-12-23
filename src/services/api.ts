@@ -46,7 +46,7 @@ function getApiBaseUrl(): string {
   // 운영 환경: 환경변수 사용 (모든 플랫폼, localhost 계열 제외)
   if (envUrl) {
     const cleanUrl = envUrl.replace(/\/$/, '');
-    console.log(`[API] 운영 환경 - 환경변수 사용 (${platform || 'web'}):`, cleanUrl);
+    // console.log(`[API] 운영 환경 - 환경변수 사용 (${platform || 'web'}):`, cleanUrl);
     return cleanUrl;
   }
   
@@ -379,6 +379,18 @@ export const userApi = {
   deleteMe: async (): Promise<boolean> => {
     const response = await api.delete('/users/me');
     return response.data.success;
+  },
+
+  // 이메일 수신 허용 설정 조회
+  getEmailNotificationSetting: async (): Promise<{ email_notification_enabled: boolean }> => {
+    const response = await api.get('/users/me/email-notification');
+    return response.data;
+  },
+
+  // 이메일 수신 허용 설정 업데이트
+  updateEmailNotificationSetting: async (enabled: boolean): Promise<{ success: boolean; email_notification_enabled: boolean; message: string }> => {
+    const response = await api.put('/users/me/email-notification', { enabled });
+    return response.data;
   },
 };
 
