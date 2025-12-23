@@ -211,6 +211,25 @@ const SmallButton = styled.button`
   }
 `;
 
+const ForceEnableButton = styled.button<{ $active?: boolean }>`
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #ef4444;
+  background: ${props => props.$active ? '#fee2e2' : '#fef2f2'};
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  &:hover {
+    background: #fee2e2;
+    border-color: #dc2626;
+  }
+  &:active {
+    transform: scale(0.98);
+  }
+`;
+
 const RecipientList = styled.div`
   flex: 1;
   min-height: 0;
@@ -220,7 +239,7 @@ const RecipientList = styled.div`
   background: #f9fafb;
 `;
 
-const RecipientRow = styled.div`
+const RecipientRow = styled.div<{ $disabled?: boolean }>`
   display: flex;
   align-items: center;
   padding: 8px 10px;
@@ -229,6 +248,12 @@ const RecipientRow = styled.div`
   &:last-child {
     border-bottom: none;
   }
+  ${props => props.$disabled && `
+    background-color: #f3f4f6;
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+  `}
 `;
 
 const RecipientInfo = styled.div`
@@ -237,9 +262,21 @@ const RecipientInfo = styled.div`
   flex-direction: column;
 `;
 
-const RecipientName = styled.span`
+const RecipientName = styled.span<{ $disabled?: boolean }>`
   font-weight: 600;
-  color: #111827;
+  color: ${props => props.$disabled ? '#9ca3af' : '#111827'};
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
+
+const DisabledBadge = styled.span`
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: #e5e7eb;
+  color: #6b7280;
+  font-weight: 500;
 `;
 
 const RecipientMeta = styled.span`
@@ -304,6 +341,7 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
   const [isAutoFilling, setIsAutoFilling] = useState(false);
   const [sendProgress, setSendProgress] = useState(0);
   const [totalToSend, setTotalToSend] = useState(0);
+  const [forceEnable, setForceEnable] = useState(false); // 수신거부 강제 해제 모드
 
   const formatKST = (dateStr: string | null | undefined) => {
     if (!dateStr) return '-';
@@ -336,7 +374,10 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
       try {
         const list = await adminApi.getBroadcastRecipients();
         setRecipients(list || []);
-        setSelectedIds((list || []).map((u: any) => String(u.id)));
+        // 이메일 수신 허용된 사용자만 기본 선택
+        setSelectedIds((list || [])
+          .filter((u: any) => u.email_notification_enabled !== false)
+          .map((u: any) => String(u.id)));
         setShowRecipientModal(true);
       } catch (error: any) {
         console.error('[BroadcastEmailPage] 발송 대상 조회 오류:', error);
@@ -525,7 +566,12 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
                   </RecipientSub>
                 </div>
                 <RecipientSub>
-                  전체 {recipients.length}명 / 선택 {selectedIds.length}명
+                  전체 {forceEnable ? recipients.length : recipients.filter((u: any) => u.email_notification_enabled !== false).length}명 / 선택 {selectedIds.length}명
+                  {forceEnable && (
+                    <span style={{ marginLeft: 8, color: '#dc2626', fontSize: 11, fontWeight: 600 }}>
+                      (강제 해제 모드)
+                    </span>
+                  )}
                 </RecipientSub>
               </RecipientHeader>
 
@@ -534,22 +580,41 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
                   <SmallButton
                     type="button"
                     onClick={() => {
-                      const allIds = recipients.map((u: any) => String(u.id));
+                      // 강제 해제 모드가 아니면 이메일 수신 허용된 사용자만 선택 가능
+                      const selectableIds = forceEnable
+                        ? recipients.map((u: any) => String(u.id))
+                        : recipients
+                            .filter((u: any) => u.email_notification_enabled !== false)
+                            .map((u: any) => String(u.id));
                       const allSelected =
-                        allIds.length > 0 &&
-                        allIds.every(id => selectedIds.includes(id));
+                        selectableIds.length > 0 &&
+                        selectableIds.every(id => selectedIds.includes(id));
                       if (allSelected) {
                         setSelectedIds([]);
                       } else {
-                        setSelectedIds(allIds);
+                        setSelectedIds(selectableIds);
                       }
                     }}
                   >
-                    {recipients.length > 0 &&
-                    selectedIds.length === recipients.length
-                      ? '전체 해제'
-                      : '전체 선택'}
+                    {(() => {
+                      const selectableCount = forceEnable
+                        ? recipients.length
+                        : recipients.filter((u: any) => u.email_notification_enabled !== false).length;
+                      return selectableCount > 0 && selectedIds.length === selectableCount
+                        ? '전체 해제'
+                        : '전체 선택';
+                    })()}
                   </SmallButton>
+                  <ForceEnableButton
+                    type="button"
+                    $active={forceEnable}
+                    onClick={() => {
+                      setForceEnable(!forceEnable);
+                      setSelectedIds([]); // 모든 선택 초기화
+                    }}
+                  >
+                    {forceEnable ? '강제 해제 중' : '수신거부 강제해제'}
+                  </ForceEnableButton>
                 </div>
                 {loadingRecipients && (
                   <span style={{ fontSize: 12, color: '#9ca3af' }}>대상을 불러오는 중...</span>
@@ -559,25 +624,31 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
               <RecipientList>
                 {recipients.map((u: any) => {
                   const id = String(u.id);
+                  const isEmailDisabled = !forceEnable && u.email_notification_enabled === false;
                   const checked = selectedIds.includes(id);
                   const nickname = u.profile?.nickname;
                   const company = u.profile?.company;
+                  const isActuallyDisabled = u.email_notification_enabled === false;
                   return (
                     <RecipientRow
                       key={id}
+                      $disabled={isEmailDisabled}
                       onClick={() => {
+                        if (isEmailDisabled) return;
                         setSelectedIds(prev =>
                           prev.includes(id)
                             ? prev.filter(v => v !== id)
                             : [...prev, id]
                         );
                       }}
-                      style={{ cursor: 'pointer' }}
+                      style={{ cursor: isEmailDisabled ? 'not-allowed' : 'pointer' }}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
+                        disabled={isEmailDisabled}
                         onChange={e => {
+                          if (isEmailDisabled) return;
                           e.stopPropagation();
                           if (e.target.checked) {
                             setSelectedIds(prev =>
@@ -589,8 +660,16 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
                         }}
                       />
                       <RecipientInfo>
-                        <RecipientName>
+                        <RecipientName $disabled={isEmailDisabled}>
                           {nickname || '(닉네임 없음)'} {company ? `· ${company}` : ''}
+                          {isActuallyDisabled && (
+                            <DisabledBadge style={{ 
+                              backgroundColor: forceEnable ? '#fee2e2' : '#e5e7eb',
+                              color: forceEnable ? '#dc2626' : '#6b7280'
+                            }}>
+                              {forceEnable ? '강제 해제됨' : '이메일 수신 거부'}
+                            </DisabledBadge>
+                          )}
                         </RecipientName>
                         <RecipientMeta>{u.email}</RecipientMeta>
                       </RecipientInfo>

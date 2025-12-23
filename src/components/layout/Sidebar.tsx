@@ -18,8 +18,9 @@ import {
   FaHeadset,
   FaRegStar,
   FaBell,
+  FaCog,
 } from 'react-icons/fa';
-import { matchingApi, starApi, notificationApi, extraMatchingApi } from '../../services/api.ts';
+import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi } from '../../services/api.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -104,6 +105,177 @@ const Logo = styled.div`
 const UserInfo = styled.div`
   font-size: 0.9rem;
   opacity: 0.8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+`;
+
+const SettingsButton = styled.button`
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  font-size: 0.9rem;
+  
+  &:hover {
+    color: rgba(255, 255, 255, 1);
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  &:active {
+    transform: scale(0.95);
+  }
+`;
+
+const SettingsModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1400;
+`;
+
+const SettingsModalContent = styled.div`
+  background: #f9fafb;
+  border-radius: 18px;
+  padding: 24px;
+  width: 95vw;
+  max-width: 480px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+`;
+
+const SettingsModalTitle = styled.h2`
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 20px;
+  text-align: center;
+`;
+
+const SettingsRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const SettingsLabel = styled.div`
+  font-size: 1rem;
+  color: #333;
+  font-weight: 500;
+`;
+
+const SettingsDescription = styled.div`
+  font-size: 0.85rem;
+  color: #666;
+  margin-top: 4px;
+`;
+
+const SwitchLabel = styled.label`
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 18px;
+  flex-shrink: 0;
+`;
+
+const SwitchInput = styled.input`
+  opacity: 0;
+  width: 0;
+  height: 0;
+  &:checked + span {
+    background-color: #4F46E5;
+  }
+  &:focus + span {
+    box-shadow: 0 0 1px #4F46E5;
+  }
+  &:checked + span:before {
+    transform: translateX(16px);
+  }
+`;
+
+const SwitchSlider = styled.span`
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #cbd5e0;
+  transition: 0.3s;
+  border-radius: 18px;
+  &:before {
+    position: absolute;
+    content: "";
+    height: 15px;
+    width: 15px;
+    left: 1.5px;
+    bottom: 1.5px;
+    background-color: white;
+    transition: 0.3s;
+    border-radius: 50%;
+  }
+`;
+
+const SettingsModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+`;
+
+const SettingsModalButton = styled.button`
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &.primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    
+    &:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+  }
+  
+  &.secondary {
+    background: #f9fafb;
+    color: #4b5563;
+    border: 1px solid #d1d5db;
+    
+    &:hover {
+      background: #f3f4f6;
+    }
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 `;
 
 const UserSummary = styled.div`
@@ -419,9 +591,47 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   const [adSubmitting, setAdSubmitting] = useState(false);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
   const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [emailNotificationEnabled, setEmailNotificationEnabled] = useState<boolean>(true);
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   // 로딩 상태: user가 null이면 true, 아니면 false
   const isUserLoading = user === null;
+
+  // 이메일 수신 허용 설정 조회
+  useEffect(() => {
+    if (user?.id && settingsModalOpen) {
+      const fetchEmailNotificationSetting = async () => {
+        try {
+          const result = await userApi.getEmailNotificationSetting();
+          setEmailNotificationEnabled(result.email_notification_enabled);
+        } catch (error) {
+          console.error('[Sidebar] 이메일 수신 설정 조회 실패:', error);
+          // 기본값 유지
+        }
+      };
+      fetchEmailNotificationSetting();
+    }
+  }, [user?.id, settingsModalOpen]);
+
+  // 이메일 수신 허용 설정 토글
+  const handleToggleEmailNotification = async () => {
+    if (settingsLoading) return;
+    
+    const newValue = !emailNotificationEnabled;
+    setSettingsLoading(true);
+    
+    try {
+      const result = await userApi.updateEmailNotificationSetting(newValue);
+      setEmailNotificationEnabled(result.email_notification_enabled);
+      toast.success(result.message || (newValue ? '이메일 수신이 허용되었습니다.' : '이메일 수신이 거부되었습니다.'));
+    } catch (error: any) {
+      console.error('[Sidebar] 이메일 수신 설정 업데이트 실패:', error);
+      toast.error(error?.response?.data?.error || '설정 업데이트에 실패했습니다.');
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
 
   // console.log('[Sidebar] 렌더링', {
   //   user,
@@ -750,7 +960,16 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
             </div>
           ) : (
             <>
-              <UserInfo>{user?.email}</UserInfo>
+              <UserInfo>
+                <span>{user?.email}</span>
+                <SettingsButton
+                  type="button"
+                  onClick={() => setSettingsModalOpen(true)}
+                  title="설정"
+                >
+                  <FaCog size={32} />
+                </SettingsButton>
+              </UserInfo>
               <UserSummary>
                 <NicknameRow>
                   <span style={{ fontSize: '0.9rem' }}>
@@ -895,6 +1114,54 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
             </AttendanceModalActions>
           </AttendanceModalContent>
         </AttendanceModalOverlay>
+      )}
+
+      {/* 설정 모달 */}
+      {settingsModalOpen && (
+        <SettingsModalOverlay
+          onClick={() => {
+            if (!settingsLoading) {
+              setSettingsModalOpen(false);
+            }
+          }}
+        >
+          <SettingsModalContent onClick={(e) => e.stopPropagation()}>
+            <SettingsModalTitle>설정</SettingsModalTitle>
+            
+            <SettingsRow>
+              <div style={{ flex: 1 }}>
+                <SettingsLabel>이메일 수신 허용</SettingsLabel>
+                <SettingsDescription>
+                  이메일 수신을 거부하면 공지사항 및 매칭 관련 이메일을 받지 않습니다.
+                </SettingsDescription>
+              </div>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={emailNotificationEnabled}
+                  onChange={handleToggleEmailNotification}
+                  disabled={settingsLoading}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </SettingsRow>
+
+            <SettingsModalActions>
+              <SettingsModalButton
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  if (!settingsLoading) {
+                    setSettingsModalOpen(false);
+                  }
+                }}
+                disabled={settingsLoading}
+              >
+                닫기
+              </SettingsModalButton>
+            </SettingsModalActions>
+          </SettingsModalContent>
+        </SettingsModalOverlay>
       )}
     </>
   );

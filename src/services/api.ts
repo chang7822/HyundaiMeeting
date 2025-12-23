@@ -238,6 +238,18 @@ export const userApi = {
     const response = await api.delete('/users/me');
     return response.data.success;
   },
+
+  // 이메일 수신 허용 설정 조회
+  getEmailNotificationSetting: async (): Promise<{ email_notification_enabled: boolean }> => {
+    const response = await api.get('/users/me/email-notification');
+    return response.data;
+  },
+
+  // 이메일 수신 허용 설정 업데이트
+  updateEmailNotificationSetting: async (enabled: boolean): Promise<{ success: boolean; email_notification_enabled: boolean; message: string }> => {
+    const response = await api.put('/users/me/email-notification', { enabled });
+    return response.data;
+  },
 };
 
 // Matching API
