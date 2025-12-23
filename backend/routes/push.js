@@ -129,6 +129,7 @@ router.post('/register-token', authenticate, async (req, res) => {
     const userAgent = req.headers['user-agent'] || '';
     const deviceType = getDeviceTypeFromUA(userAgent);
 
+    // upsert 시 onConflict 명시 (복합 기본 키: user_id, token)
     const { error } = await supabase
       .from('user_push_tokens')
       .upsert(
@@ -139,7 +140,9 @@ router.post('/register-token', authenticate, async (req, res) => {
           nickname: nickname,
           device_type: deviceType,
         },
-        // 기본 키(또는 unique 제약조건)에 맞춰 upsert되므로 onConflict 생략 가능
+        {
+          onConflict: 'user_id,token', // 복합 기본 키 명시
+        }
       );
 
     if (error) {
