@@ -32,7 +32,8 @@ export interface UserProfile {
   height?: number;
   residence?: string;
   company?: string;
-  job_type?: '일반직' | '기술직' | '기타';
+  custom_company_name?: string; // 프리랜서/자영업, 기타 회사 선택 시 사용자가 입력한 회사명/직업
+  job_type?: '일반직(사무직)' | '기술직(생산직)' | '연구직' | '기타';
   appeal?: string;
   
   // 단일 선택 항목들
@@ -108,6 +109,7 @@ export interface Company {
   name: string;
   emailDomains: string[];
   isActive: boolean;
+  jobTypeHold?: boolean; // 직군 선택을 일반직으로 고정할지 여부
 }
 
 // Matching Types

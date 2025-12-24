@@ -105,6 +105,7 @@ export const authApi = {
     height?: number;
     residence?: string;
     company?: string;
+    customCompanyName?: string;
     maritalStatus?: string;
     jobType?: string;
     appeal?: string;

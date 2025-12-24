@@ -6,6 +6,7 @@ import ChatHeader from '../components/Chat/ChatHeader.tsx';
 import ChatWindow from '../components/Chat/ChatWindow.tsx';
 import ChatInput from '../components/Chat/ChatInput.tsx';
 import { toast } from 'react-toastify';
+import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 
 import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
@@ -470,7 +471,7 @@ const ChatPage: React.FC = () => {
             birthYear: partnerProfile?.birth_year,
             gender: partnerProfile?.gender,
             job: partnerProfile?.job_type,
-            company: partnerProfile?.company,
+            company: getDisplayCompanyName(partnerProfile?.company, partnerProfile?.custom_company_name),
             residence: partnerProfile?.residence,
             mbti: partnerProfile?.mbti,
           }}
@@ -562,7 +563,7 @@ const ChatPage: React.FC = () => {
             birthYear={partnerProfile.birth_year}
             gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : partnerProfile.gender || ''}
             job={partnerProfile.job_type}
-            company={partnerProfile.company || undefined}
+            company={getDisplayCompanyName(partnerProfile.company, partnerProfile.custom_company_name)}
             mbti={partnerProfile.mbti}
             maritalStatus={partnerProfile.marital_status}
             appeal={partnerProfile.appeal}

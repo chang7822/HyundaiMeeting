@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { adminApi, adminMatchingApi } from '../../services/api.ts';
+import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
 
 const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;
@@ -627,7 +628,7 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
                   const isEmailDisabled = !forceEnable && u.email_notification_enabled === false;
                   const checked = selectedIds.includes(id);
                   const nickname = u.profile?.nickname;
-                  const company = u.profile?.company;
+                  const company = getDisplayCompanyName(u.profile?.company, u.profile?.custom_company_name);
                   const isActuallyDisabled = u.email_notification_enabled === false;
                   return (
                     <RecipientRow

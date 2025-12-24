@@ -12,6 +12,7 @@ interface PreferenceMultiSelectModalProps {
   minCount: number;
   anyInactiveLabel: string; // 상관없음 (모든 ### 선택)
   anyActiveLabel: string;   // 모든 ### 선택 해제
+  footerNote?: string; // 모달 하단에 표시할 설명 문구
   onClose: () => void;
   onConfirm: (selected: string[], isNoPreference: boolean) => void;
 }
@@ -138,6 +139,16 @@ const Footer = styled.div`
   margin-top: 1.5rem;
 `;
 
+const FooterNote = styled.div`
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: center;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+  line-height: 1.4;
+`;
+
 const FooterButton = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   min-width: 80px;
   padding: 9px 16px;
@@ -189,6 +200,7 @@ const PreferenceMultiSelectModal: React.FC<PreferenceMultiSelectModalProps> = ({
   minCount,
   anyInactiveLabel,
   anyActiveLabel,
+  footerNote,
   onClose,
   onConfirm,
 }) => {
@@ -293,6 +305,7 @@ const PreferenceMultiSelectModal: React.FC<PreferenceMultiSelectModalProps> = ({
             확인
           </FooterButton>
         </Footer>
+        {footerNote && <FooterNote>{footerNote}</FooterNote>}
       </ModalContent>
     </ModalOverlay>
   );

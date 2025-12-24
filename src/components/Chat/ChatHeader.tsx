@@ -2,6 +2,7 @@ import React from 'react';
 import { FaArrowLeft, FaExclamationTriangle } from 'react-icons/fa';
 import styled from 'styled-components';
 import { ProfileIcon } from '../ProfileCard.tsx';
+import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
 
 interface ChatHeaderProps {
   partner: {
@@ -114,7 +115,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ partner, onBack, onReport, onSh
             <Name $gender={partner.gender}>{partner.nickname}</Name>
             <SubRow>
               {partner.birthYear && <SubItem>{partner.birthYear}년생</SubItem>}
-              {partner.company && <SubItem>{partner.company}</SubItem>}
+              {getDisplayCompanyName(partner.company, (partner as any).custom_company_name) && <SubItem>{getDisplayCompanyName(partner.company, (partner as any).custom_company_name)}</SubItem>}
               {partner.residence && <SubItem>{partner.residence}</SubItem>}
               {partner.mbti && <SubItem>{partner.mbti}</SubItem>}
             </SubRow>

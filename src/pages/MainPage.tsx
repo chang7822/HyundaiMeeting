@@ -10,6 +10,7 @@ import { userApi } from '../services/api.ts';
 import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
 import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../firebase.ts';
+import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 
 // 액션 타입 정의
 type ActionItem = {
@@ -2352,8 +2353,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </LatestNoticeCard>
         )}
         
-        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출) */}
-        {period && isExtraMatchingWindow && (
+        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출, 이메일 인증 완료된 사용자만) */}
+        {period && isExtraMatchingWindow && user?.is_verified === true && (
           <ExtraMatchingNoticeCard>
             <div style={{ fontSize: '0.9rem', color: '#111827', fontWeight: 600 }}>
               추가 매칭 도전 기회가 열렸습니다.
@@ -2495,7 +2496,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               birthYear={profile?.birth_year || 0}
               gender={profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
               job={profile?.job_type || '-'}
-              company={profile?.company || undefined}
+              company={getDisplayCompanyName(profile?.company, profile?.custom_company_name)}
               mbti={profile?.mbti}
               maritalStatus={profile?.marital_status}
               appeal={profile?.appeal}
@@ -2524,7 +2525,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               birthYear={partnerProfile.birth_year}
               gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : '-'}
               job={partnerProfile.job_type || '-'}
-              company={partnerProfile.company || undefined}
+              company={getDisplayCompanyName(partnerProfile.company, partnerProfile.custom_company_name)}
               mbti={partnerProfile.mbti}
               maritalStatus={partnerProfile.marital_status}
               appeal={partnerProfile.appeal}
@@ -2643,7 +2644,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   <div style={{fontWeight:700,fontSize:'1.18rem',color:'#4F46E5',marginBottom:2}}>{profile?.nickname || displayName}</div>
                   <div style={{fontSize:'0.98rem',color:'#666'}}>
                     {profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
-                    {profile?.company ? ` · ${profile.company}` : ''}
+                    {getDisplayCompanyName(profile?.company, profile?.custom_company_name) ? ` · ${getDisplayCompanyName(profile?.company, profile?.custom_company_name)}` : ''}
                     {' · '}{profile?.job_type || '-'}
                   </div>
                 </div>

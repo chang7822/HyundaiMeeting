@@ -625,44 +625,96 @@ router.post('/register', async (req, res) => {
     // 회사 정보 자동 설정 (도메인 또는 회사 선택 기반)
     try {
       let resolvedCompanyName = null;
+      let customCompanyName = null;
+      let jobTypeHold = false;
 
-      // 1) 프론트에서 전달한 company 값이 회사 id인 경우: companies 테이블에서 이름 조회
-      if (company) {
+      // 프리랜서/자영업(9999) 또는 기타 회사(9998)인지 확인
+      const isNoDomainCompany = company === '9999' || company === '9998';
+
+      if (isNoDomainCompany) {
+        // 프리랜서/자영업 또는 기타 회사인 경우
+        // 1) companies 테이블에서 회사명 및 job_type_hold 조회
         const { data: companyRow, error: companyError } = await supabase
           .from('companies')
-          .select('name')
+          .select('name, job_type_hold')
           .eq('id', company)
           .maybeSingle();
 
         if (!companyError && companyRow && companyRow.name) {
           resolvedCompanyName = companyRow.name;
-          // console.log('[회원가입] company id 기반 회사명 설정:', resolvedCompanyName);
+          jobTypeHold = !!companyRow.job_type_hold;
         }
-      }
 
-      // 2) company id로 못 찾았으면, 이메일 도메인으로 companies.email_domains 기반 매핑
-      if (!resolvedCompanyName && email && email.includes('@')) {
-        const domain = email.split('@')[1].toLowerCase();
-        const { data: domainCompanies, error: domainError } = await supabase
-          .from('companies')
-          .select('name, email_domains');
+        // 2) custom_company_name 저장 (프론트에서 전달)
+        if (req.body.customCompanyName) {
+          customCompanyName = String(req.body.customCompanyName).trim();
+        }
+      } else {
+        // 기존 회사 도메인이 있는 경우
+        // 1) 프론트에서 전달한 company 값이 회사 id인 경우: companies 테이블에서 이름 및 job_type_hold 조회
+        if (company) {
+          const { data: companyRow, error: companyError } = await supabase
+            .from('companies')
+            .select('name, job_type_hold')
+            .eq('id', company)
+            .maybeSingle();
 
-        if (!domainError && Array.isArray(domainCompanies)) {
-          const match = domainCompanies.find(row =>
-            Array.isArray(row.email_domains) &&
-            row.email_domains.some(d => String(d).toLowerCase() === domain)
-          );
-          if (match && match.name) {
-            resolvedCompanyName = match.name;
-            console.log('[회원가입] 이메일 도메인 기반 회사명 설정:', resolvedCompanyName, '도메인:', domain);
+          if (!companyError && companyRow && companyRow.name) {
+            resolvedCompanyName = companyRow.name;
+            jobTypeHold = !!companyRow.job_type_hold;
+          }
+        }
+
+        // 2) company id로 못 찾았으면, 이메일 도메인으로 companies.email_domains 기반 매핑
+        if (!resolvedCompanyName && email && email.includes('@')) {
+          const domain = email.split('@')[1].toLowerCase();
+          const { data: domainCompanies, error: domainError } = await supabase
+            .from('companies')
+            .select('name, email_domains, job_type_hold');
+
+          if (!domainError && Array.isArray(domainCompanies)) {
+            const match = domainCompanies.find(row =>
+              Array.isArray(row.email_domains) &&
+              row.email_domains.some(d => String(d).toLowerCase() === domain)
+            );
+            if (match && match.name) {
+              resolvedCompanyName = match.name;
+              jobTypeHold = !!match.job_type_hold;
+              console.log('[회원가입] 이메일 도메인 기반 회사명 설정:', resolvedCompanyName, '도메인:', domain);
+            }
           }
         }
       }
 
       profileDataToInsert.company = resolvedCompanyName;
+      profileDataToInsert.custom_company_name = customCompanyName || null;
+      
+      // job_type_hold가 true인 경우 직군을 "일반직"으로 시작하는 옵션으로 고정
+      if (jobTypeHold && !profileDataToInsert.job_type) {
+        // DB에서 직군 옵션 중 "일반직"으로 시작하는 첫 번째 옵션 찾기
+        const { data: jobTypeOptions, error: jobTypeError } = await supabase
+          .from('profile_options')
+          .select('option_text')
+          .eq('category_id', (await supabase
+            .from('profile_categories')
+            .select('id')
+            .eq('name', '직군')
+            .maybeSingle()).data?.id || 0)
+          .order('display_order', { ascending: true });
+        
+        if (!jobTypeError && Array.isArray(jobTypeOptions)) {
+          const generalJobOption = jobTypeOptions.find(opt => 
+            opt.option_text && opt.option_text.startsWith('일반직')
+          );
+          if (generalJobOption && generalJobOption.option_text) {
+            profileDataToInsert.job_type = generalJobOption.option_text;
+          }
+        }
+      }
     } catch (e) {
       console.error('[회원가입] 회사명 자동 설정 중 오류:', e);
       profileDataToInsert.company = null;
+      profileDataToInsert.custom_company_name = null;
     }
 
     // 프로필 데이터 처리 (상세 로그 제거, 값만 세팅)
@@ -942,16 +994,76 @@ router.post('/register', async (req, res) => {
     // 관리자 알림 메일 발송 (비동기) - 신규 회원 가입
     try {
       const adminSubject = '신규 회원 가입';
+      
+      // JSON 배열 파싱 헬퍼 함수
+      const parseJsonArray = (value) => {
+        if (!value) return null;
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(parsed) ? parsed.join(', ') : parsed;
+        } catch {
+          return value;
+        }
+      };
+
+      // 선호 회사명 조회
+      let preferCompanyNames = [];
+      if (Array.isArray(profileDataToInsert.prefer_company) && profileDataToInsert.prefer_company.length > 0) {
+        try {
+          const { data: companies } = await supabase
+            .from('companies')
+            .select('id, name')
+            .in('id', profileDataToInsert.prefer_company);
+          if (companies && companies.length > 0) {
+            preferCompanyNames = companies.map(c => c.name).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('[회원가입] 선호 회사명 조회 오류:', e);
+        }
+      }
+
       const adminBodyLines = [
         '새로운 회원이 가입했습니다.',
         '',
+        '=== 기본 정보 ===',
         `이메일: ${email}`,
-        `닉네임: ${nickname}`,
-        `성별: ${gender}`,
-        `출생연도: ${birthYear}`,
+        `닉네임: ${nickname || '-'}`,
+        `성별: ${gender || '-'}`,
+        `출생연도: ${birthYear || '-'}`,
+        `키: ${profileDataToInsert.height ? `${profileDataToInsert.height}cm` : '-'}`,
+        `거주지: ${profileDataToInsert.residence || '-'}`,
         '',
-        `회사(자동 인식): ${profileDataToInsert.company || '-'}`,
-      ];
+        '=== 회사 정보 ===',
+        `회사: ${profileDataToInsert.company || '-'}`,
+        profileDataToInsert.custom_company_name 
+          ? `사용자 입력 회사명: ${profileDataToInsert.custom_company_name}`
+          : '',
+        `직군: ${profileDataToInsert.job_type || '-'}`,
+        '',
+        '=== 프로필 정보 ===',
+        `자기소개: ${profileDataToInsert.appeal || '-'}`,
+        `결혼상태: ${profileDataToInsert.marital_status || '-'}`,
+        `종교: ${profileDataToInsert.religion || '-'}`,
+        `흡연: ${profileDataToInsert.smoking || '-'}`,
+        `음주: ${profileDataToInsert.drinking || '-'}`,
+        `MBTI: ${profileDataToInsert.mbti || '-'}`,
+        `체형: ${parseJsonArray(profileDataToInsert.body_type) || '-'}`,
+        `관심사: ${parseJsonArray(profileDataToInsert.interests) || '-'}`,
+        `외모: ${parseJsonArray(profileDataToInsert.appearance) || '-'}`,
+        `성격: ${parseJsonArray(profileDataToInsert.personality) || '-'}`,
+        '',
+        '=== 선호 스타일 ===',
+        `선호 연령: ${profileDataToInsert.preferred_age_min || '-'}세 ~ ${profileDataToInsert.preferred_age_max || '-'}세`,
+        `선호 키: ${profileDataToInsert.preferred_height_min || '-'}cm ~ ${profileDataToInsert.preferred_height_max || '-'}cm`,
+        `선호 체형: ${parseJsonArray(profileDataToInsert.preferred_body_types) || '-'}`,
+        `선호 직군: ${parseJsonArray(profileDataToInsert.preferred_job_types) || '-'}`,
+        `선호 결혼상태: ${parseJsonArray(profileDataToInsert.preferred_marital_statuses) || '-'}`,
+        `선호 회사: ${preferCompanyNames.length > 0 ? preferCompanyNames.join(', ') : '-'}`,
+        `선호 지역: ${Array.isArray(profileDataToInsert.prefer_region) && profileDataToInsert.prefer_region.length > 0 
+          ? profileDataToInsert.prefer_region.join(', ') 
+          : '-'}`,
+      ].filter(line => line !== ''); // 빈 줄 제거
+      
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[회원가입] 관리자 알림 메일 발송 실패:', err);
       });

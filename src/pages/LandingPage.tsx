@@ -442,7 +442,14 @@ const LandingPage = () => {
       .then((list) => {
         if (cancelled) return;
         const actives = (list || [])
-          .filter((c) => (c as any).is_active === true || (c as any).isActive === true)
+          .filter((c) => {
+            // isActive 체크
+            const isActive = (c as any).is_active === true || (c as any).isActive === true;
+            if (!isActive) return false;
+            // 9000번 이후 id는 제외
+            const companyId = parseInt(String(c.id), 10);
+            return !isNaN(companyId) && companyId < 9000;
+          })
           .slice()
           .sort((a, b) => (a as any).name.localeCompare((b as any).name, 'ko-KR'));
         setActiveCompanies(actives);
@@ -761,6 +768,20 @@ const LandingPage = () => {
                   </TextLinkButton>
                 </div>
               </CompanyFooter>
+              
+              <div
+                style={{
+                  marginTop: '16px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid #e5e7eb',
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  lineHeight: 1.4,
+                  textAlign: 'center',
+                }}
+              >
+                회사 도메인이 없는 경우 회원가입 시 <strong style={{ color: '#6b7280' }}>프리랜서/자영업</strong> 또는 <strong style={{ color: '#6b7280' }}>기타 회사</strong>를 선택하실 수 있습니다.
+              </div>
             </IntroBody>
           </IntroModalContent>
         </IntroModalOverlay>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { getProfileCategories, getProfileOptions } from '../../services/api.ts';
+import { getProfileCategories, getProfileOptions, companyApi } from '../../services/api.ts';
 import { useNavigate } from 'react-router-dom';
 import { ProfileCategory, ProfileOption } from '../../types/index.ts';
 import { toast } from 'react-toastify';
@@ -267,6 +267,8 @@ const ProfileSetupPage = () => {
   // 팝업 상태
   const [popup, setPopup] = useState<{type: string} | null>(null);
   const [addressPopup, setAddressPopup] = useState(false);
+  // job_type_hold 상태 (직군 선택 고정 여부)
+  const [jobTypeHold, setJobTypeHold] = useState(false);
   // [3] 체형 MultiSelect (정확히 3개 선택)
   // [삭제] bodyTypePopup 관련 상태/컴포넌트 제거
   // [추가] handleBodyTypeToggle 함수
@@ -293,6 +295,32 @@ const ProfileSetupPage = () => {
     
     getProfileCategories().then(setCategories).catch(() => setCategories([]));
     getProfileOptions().then(setOptions).catch(() => setOptions([]));
+    
+    // 회사 정보 확인하여 job_type_hold 체크
+    const selectedCompanyId = sessionStorage.getItem('userCompany');
+    if (selectedCompanyId) {
+      companyApi.getCompanies().then(companies => {
+        const company = companies.find(c => c.id === selectedCompanyId);
+        if (company && company.jobTypeHold) {
+          setJobTypeHold(true);
+          // DB에서 가져온 직군 옵션 중 "일반직"으로 시작하는 첫 번째 옵션 찾기
+          getProfileOptions().then(allOptions => {
+            getProfileCategories().then(allCategories => {
+              const jobTypeCategory = allCategories.find(c => c.name === '직군');
+              if (jobTypeCategory) {
+                const jobTypeOptions = allOptions.filter(opt => opt.category_id === jobTypeCategory.id);
+                const generalJobOption = jobTypeOptions.find(opt => 
+                  opt.option_text.startsWith('일반직')
+                );
+                if (generalJobOption) {
+                  setJobType(generalJobOption.option_text);
+                }
+              }
+            }).catch(() => {});
+          }).catch(() => {});
+        }
+      }).catch(() => {});
+    }
   }, [userGender, navigate]);
 
   useEffect(() => {
@@ -535,21 +563,46 @@ const ProfileSetupPage = () => {
         
         <Label>
           직군
-          <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
-            (직군 구분이 없는 회사의 경우 일반직으로 설정 바랍니다.)
-          </span>
+          {jobTypeHold ? (
+            <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
+              (해당 회사는 일반직으로 고정됩니다.)
+            </span>
+          ) : (
+            <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
+              (직군 구분이 없는 회사의 경우 일반직으로 설정 바랍니다.)
+            </span>
+          )}
         </Label>
         <Row style={{flexWrap:'wrap'}}>
-          {getOptions(filteredCategories.find(c => c.name === '직군')?.id || 0).map(opt => (
-            <OptionButton
-              key={opt.id}
-              selected={jobType === opt.option_text}
-              style={{minWidth:'80px', padding:'8px 16px', textAlign:'center'}}
-              onClick={() => setJobType(opt.option_text)}
-            >
-              {opt.option_text}
-            </OptionButton>
-          ))}
+          {getOptions(filteredCategories.find(c => c.name === '직군')?.id || 0)
+            .filter(opt => {
+              if (!jobTypeHold) return true;
+              // job_type_hold가 true인 경우 "일반직"으로 시작하는 옵션만 표시
+              return opt.option_text.startsWith('일반직');
+            })
+            .map(opt => {
+              const isGeneralJob = opt.option_text.startsWith('일반직');
+              return (
+              <OptionButton
+                key={opt.id}
+                selected={jobType === opt.option_text}
+                style={{
+                  minWidth:'80px', 
+                  padding:'8px 16px', 
+                  textAlign:'center',
+                  opacity: jobTypeHold && !isGeneralJob ? 0.5 : 1,
+                  cursor: jobTypeHold && !isGeneralJob ? 'not-allowed' : 'pointer'
+                }}
+                onClick={() => {
+                  if (!jobTypeHold || isGeneralJob) {
+                    setJobType(opt.option_text);
+                  }
+                }}
+              >
+                {opt.option_text}
+              </OptionButton>
+            );
+          })}
         </Row>
         
         <Label>결혼상태</Label>

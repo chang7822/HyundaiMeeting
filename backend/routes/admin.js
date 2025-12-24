@@ -2586,7 +2586,7 @@ router.get('/companies', authenticate, async (req, res) => {
 
     const { data, error } = await supabase
       .from('companies')
-      .select('id, name, email_domains, is_active, created_at')
+      .select('id, name, email_domains, is_active, job_type_hold, created_at')
       .order('id', { ascending: true });
 
     if (error) {
@@ -2599,6 +2599,7 @@ router.get('/companies', authenticate, async (req, res) => {
       name: c.name,
       emailDomains: Array.isArray(c.email_domains) ? c.email_domains : [],
       isActive: !!c.is_active,
+      jobTypeHold: !!c.job_type_hold,
       createdAt: c.created_at,
     }));
 
@@ -2614,7 +2615,7 @@ router.post('/companies', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const { name, emailDomains, isActive, createNotice } = req.body || {};
+    const { name, emailDomains, isActive, jobTypeHold, createNotice } = req.body || {};
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ success: false, message: '회사명을 입력해주세요.' });
@@ -2645,6 +2646,7 @@ router.post('/companies', authenticate, async (req, res) => {
       name: trimmedName,
       email_domains: domains,
       is_active: !!isActive,
+      job_type_hold: !!jobTypeHold,
     };
 
     const { data, error } = await supabase
@@ -2713,6 +2715,7 @@ router.post('/companies', authenticate, async (req, res) => {
         name: data.name,
         emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
         isActive: !!data.is_active,
+        jobTypeHold: !!data.job_type_hold,
         createdAt: data.created_at,
       },
       noticeId,
@@ -2729,7 +2732,7 @@ router.put('/companies/:id', authenticate, async (req, res) => {
     if (!ensureAdmin(req, res)) return;
 
     const { id } = req.params;
-    const { name, emailDomains, isActive } = req.body || {};
+    const { name, emailDomains, isActive, jobTypeHold } = req.body || {};
 
     const update = {};
     if (name !== undefined) {
@@ -2747,6 +2750,9 @@ router.put('/companies/:id', authenticate, async (req, res) => {
     }
     if (isActive !== undefined) {
       update.is_active = !!isActive;
+    }
+    if (jobTypeHold !== undefined) {
+      update.job_type_hold = !!jobTypeHold;
     }
 
     if (Object.keys(update).length === 0) {
@@ -2774,6 +2780,7 @@ router.put('/companies/:id', authenticate, async (req, res) => {
         name: data.name,
         emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
         isActive: !!data.is_active,
+        jobTypeHold: !!data.job_type_hold,
         createdAt: data.created_at,
       },
     });
