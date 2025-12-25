@@ -226,7 +226,10 @@ const AppealPage = () => {
       
       // 성공 시 sessionStorage 정리 및 토큰 저장
       sessionStorage.clear();
-      localStorage.setItem('token', result.token);
+      localStorage.setItem('token', result.token); // Access Token
+      if (result.refreshToken) {
+        localStorage.setItem('refreshToken', result.refreshToken); // Refresh Token
+      }
       
       // 자동 로그인 처리
       try {

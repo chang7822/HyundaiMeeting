@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { LoginCredentials } from '../../types/index.ts';
-import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaTimes } from 'react-icons/fa';
 
 const LoginContainer = styled.div`
   min-height: 100vh;
@@ -23,9 +23,35 @@ const LoginCard = styled.div`
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   width: 100%;
   max-width: 400px;
+  position: relative;
   
   @media (max-width: 480px) {
     padding: 1.5rem;
+  }
+`;
+
+const CloseButton = styled.button`
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: #999;
+  cursor: pointer;
+  padding: 0.5rem;
+  line-height: 1;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    color: #667eea;
+    transform: scale(1.1);
+  }
+  
+  @media (max-width: 480px) {
+    top: 0.75rem;
+    right: 0.75rem;
+    font-size: 1.3rem;
   }
 `;
 
@@ -179,6 +205,9 @@ const LoginPage = () => {
   return (
     <LoginContainer>
       <LoginCard>
+        <CloseButton onClick={() => navigate('/')} aria-label="닫기">
+          <FaTimes />
+        </CloseButton>
         <Title>로그인</Title>
         <Form onSubmit={handleSubmit(onSubmit)}>
           <FormGroup>

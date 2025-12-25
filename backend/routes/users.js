@@ -48,6 +48,24 @@ router.put('/:id/password', authenticate, async (req, res) => {
       console.error('[비번변경] 비밀번호 업데이트 에러:', updateError);
       return res.status(500).json({ error: '비밀번호 업데이트 중 오류가 발생했습니다.' });
     }
+
+    // 비밀번호 변경 시 모든 Refresh Token 무효화 (보안)
+    try {
+      const { error: tokenError } = await supabase
+        .from('refresh_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .is('revoked_at', null);
+      if (tokenError) {
+        console.error('[비번변경] Refresh Token 무효화 오류:', tokenError);
+      } else {
+        console.log(`[비번변경] 사용자 ${userId}의 모든 Refresh Token 무효화 완료`);
+      }
+    } catch (tokenErr) {
+      console.error('[비번변경] 토큰 무효화 처리 중 오류:', tokenErr);
+      // 토큰 무효화 실패해도 비밀번호 변경은 성공했으므로 계속 진행
+    }
+
     res.json({ success: true });
   } catch (err) {
     console.error('[비번변경] 서버 오류:', err);
@@ -401,6 +419,76 @@ router.get('/:userId/profile', authenticate, async (req, res) => {
   }
 });
 
+// 이메일 수신 허용 설정 조회
+router.get('/me/email-notification', authenticate, async (req, res) => {
+  try {
+    const userId = req.user && req.user.userId;
+    if (!userId) {
+      return res.status(401).json({ error: '인증 정보가 없습니다.' });
+    }
+
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('email_notification_enabled')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('[이메일 수신 설정 조회] 오류:', error);
+      return res.status(500).json({ error: '설정 조회 중 오류가 발생했습니다.' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+    }
+
+    return res.json({
+      email_notification_enabled: user.email_notification_enabled !== false, // null이면 true로 처리
+    });
+  } catch (err) {
+    console.error('[이메일 수신 설정 조회] 서버 오류:', err);
+    return res.status(500).json({ error: '설정 조회 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+// 이메일 수신 허용 설정 업데이트
+router.put('/me/email-notification', authenticate, async (req, res) => {
+  try {
+    const userId = req.user && req.user.userId;
+    const { enabled } = req.body;
+
+    if (!userId) {
+      return res.status(401).json({ error: '인증 정보가 없습니다.' });
+    }
+
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled 값은 boolean이어야 합니다.' });
+    }
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        email_notification_enabled: enabled,
+        updated_at: getKSTISOString(),
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('[이메일 수신 설정 업데이트] 오류:', updateError);
+      return res.status(500).json({ error: '설정 업데이트 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({
+      success: true,
+      email_notification_enabled: enabled,
+      message: enabled ? '이메일 수신이 허용되었습니다.' : '이메일 수신이 거부되었습니다.',
+    });
+  } catch (err) {
+    console.error('[이메일 수신 설정 업데이트] 서버 오류:', err);
+    return res.status(500).json({ error: '설정 업데이트 중 서버 오류가 발생했습니다.' });
+  }
+});
+
 // 회원 탈퇴 (DELETE /me)
 // 이메일 수신 허용 설정 조회
 router.get('/me/email-notification', authenticate, async (req, res) => {
@@ -564,7 +652,22 @@ router.delete('/me', authenticate, async (req, res) => {
       throw error6;
     }
     
-    // 4. users 삭제 (마지막에)
+    // 3-1. Refresh Token 무효화 (CASCADE로 자동 삭제되지만 명시적으로 무효화)
+    try {
+      const { error: tokenError } = await supabase
+        .from('refresh_tokens')
+        .update({ revoked_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .is('revoked_at', null);
+      if (tokenError) {
+        console.error('[회원탈퇴] Refresh Token 무효화 오류:', tokenError);
+        // 에러가 나도 계속 진행 (CASCADE로 삭제됨)
+      }
+    } catch (tokenErr) {
+      console.error('[회원탈퇴] Refresh Token 처리 중 오류:', tokenErr);
+    }
+    
+    // 4. users 삭제 (마지막에, CASCADE로 refresh_tokens도 자동 삭제됨)
     const { error: error7 } = await supabase.from('users').delete().eq('id', userId);
     if (error7) {
       console.error('[회원탈퇴] users 삭제 오류:', error7);

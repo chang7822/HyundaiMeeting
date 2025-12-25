@@ -48,6 +48,17 @@ const Subtitle = styled.p`
   line-height: 1.6;
 `;
 
+const ButtonContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  flex-wrap: nowrap;
+  justify-content: center;
+  
+  @media (max-width: 480px) {
+    gap: 0.5rem;
+  }
+`;
+
 const StartButton = styled.button`
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
@@ -58,8 +69,12 @@ const StartButton = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: transform 0.2s ease;
-  margin-bottom: 1rem;
-  margin-right: 2rem;
+  
+  @media (max-width: 480px) {
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+  
   &:hover {
     transform: translateY(-2px);
   }
@@ -75,6 +90,11 @@ const BackButton = styled.button`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  
+  @media (max-width: 480px) {
+    padding: 8px 14px;
+    font-size: 0.9rem;
+  }
   
   &:hover {
     background: #667eea;
@@ -159,13 +179,15 @@ const RegisterPage = () => {
           </ul>
         </InfoBox>
         
-        <StartButton onClick={handleStart}>
-          회원가입 시작하기
-        </StartButton>
-        
-        <BackButton onClick={handleBack}>
-          뒤로 가기
-        </BackButton>
+        <ButtonContainer>
+          <StartButton onClick={handleStart}>
+            회원가입 시작하기
+          </StartButton>
+          
+          <BackButton onClick={handleBack}>
+            뒤로 가기
+          </BackButton>
+        </ButtonContainer>
       </RegisterCard>
 
       <TermsAgreementModal

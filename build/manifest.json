@@ -1,31 +1,56 @@
 {
-  "short_name": "울산 사내 솔로공모",
-  "name": "울산 사내 솔로공모",
+  "short_name": "직쏠공",
+  "name": "직쏠공",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
-    },
-    {
-      "src": "favicon.ico",
-      "sizes": "192x192",
+      "src": "../icons/icon-48.webp",
       "type": "image/png",
+      "sizes": "48x48",
       "purpose": "any maskable"
     },
     {
-      "src": "favicon.ico",
-      "sizes": "512x512",
+      "src": "../icons/icon-72.webp",
       "type": "image/png",
+      "sizes": "72x72",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-96.webp",
+      "type": "image/png",
+      "sizes": "96x96",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-128.webp",
+      "type": "image/png",
+      "sizes": "128x128",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-192.webp",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-256.webp",
+      "type": "image/png",
+      "sizes": "256x256",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../icons/icon-512.webp",
+      "type": "image/png",
+      "sizes": "512x512",
       "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
   "theme_color": "#667eea",
-  "background_color": "#ffffff",
-  "description": "울산 사내 솔로공모 - 현대자동차 사내 만남 서비스",
+  "background_color": "#667eea",
+  "description": "직장인 솔로 공모 - 직장인을 위한 맞춤 소개팅/만남 서비스",
   "orientation": "portrait",
   "scope": "/",
   "lang": "ko"
-} 
+}

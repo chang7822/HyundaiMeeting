@@ -376,7 +376,7 @@ const MatchingHistoryPage: React.FC<MatchingHistoryPageProps> = ({ sidebarOpen }
     <Container $sidebarOpen={sidebarOpen}>
       <Content>
         <Header>
-          <Title>내 매칭 이력</Title>
+        <Title>내 매칭 이력</Title>
           <CloseButton onClick={() => navigate('/main')}>
             <FaTimes />
           </CloseButton>

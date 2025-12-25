@@ -3,6 +3,9 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { StatusBar } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
+import { isNativeApp } from './firebase.ts';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
@@ -124,6 +127,57 @@ const AppInner: React.FC = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+
+  // StatusBar 설정 (Android에서 상단바와 겹치지 않도록)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {
+        // StatusBar 플러그인이 사용 불가능한 경우 무시
+      });
+    }
+  }, []);
+
+  // 네이티브 앱 첫 실행 시 푸시 알림 권한 요청
+  useEffect(() => {
+    if (!isNativeApp()) return;
+
+    const requestPushPermission = async () => {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+        
+        // 현재 권한 상태 확인
+        const permissionStatus = await PushNotifications.checkPermissions();
+        
+        // Android에서는 'prompt' 상태가 없을 수 있으므로, 'denied'이거나 undefined인 경우 요청
+        const shouldRequest = permissionStatus.receive === 'prompt' || 
+                             permissionStatus.receive === 'denied' || 
+                             !permissionStatus.receive;
+        
+        if (shouldRequest) {
+          // 권한 요청
+          const result = await PushNotifications.requestPermissions();
+          
+          if (result.receive === 'granted') {
+            // 권한 허용 시 푸시 알림 등록
+            await PushNotifications.register();
+          }
+        } else if (permissionStatus.receive === 'granted') {
+          // 이미 권한이 허용된 경우 등록만 수행
+          await PushNotifications.register();
+        }
+      } catch (error) {
+        // 권한 요청 실패 시 무시 (사용자가 거부했을 수 있음)
+        console.error('[App] 네이티브 푸시 권한 요청 실패:', error);
+      }
+    };
+
+    // 약간의 지연을 두고 실행 (앱 초기화 완료 후)
+    const timer = setTimeout(() => {
+      requestPushPermission();
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   // 모바일 진입 시 사이드바 자동 닫기
   useEffect(() => {

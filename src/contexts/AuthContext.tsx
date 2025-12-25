@@ -39,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         } catch (err) {
           console.error('[AuthContext] 인증 복원 실패:', err);
           localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
           setAuthState({ user: null, profile: null });
         } finally {
           setIsLoading(false);
@@ -56,7 +57,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     try {
       const response = await authApi.login(credentials);
-      localStorage.setItem('token', response.token);
+      // Access Token과 Refresh Token 모두 저장
+      localStorage.setItem('token', response.token); // Access Token
+      if (response.refreshToken) {
+        localStorage.setItem('refreshToken', response.refreshToken); // Refresh Token
+      }
       // console.log('[AuthContext] 로그인 성공, 토큰 저장:', response.token);
       // console.log('[AuthContext] localStorage token:', localStorage.getItem('token'));
       if (!response.user.id) {
@@ -79,14 +84,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    // 서버 쪽에도 간단한 로그를 남기기 위해 호출 (실패해도 무시)
+  const logout = async () => {
+    // Refresh Token 무효화 요청
+    const refreshToken = localStorage.getItem('refreshToken');
     try {
-      authApi.logout(authState.user?.email);
+      await authApi.logout(refreshToken || undefined);
     } catch {
-      // ignore
+      // ignore - 로그아웃은 항상 성공으로 처리
     }
+    // 토큰 삭제
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     sessionStorage.clear();
     setAuthState({ user: null, profile: null });
     // console.log('[AuthContext] 로그아웃, localStorage token:', localStorage.getItem('token'));

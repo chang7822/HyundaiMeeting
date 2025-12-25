@@ -160,7 +160,7 @@ const IntroButton = styled.button`
   }
 
   @media (max-width: 768px) {
-    top: 14px;
+    top: 18px;
     right: 12px;
     padding: 6px 12px;
     font-size: 0.8rem;
@@ -175,7 +175,7 @@ const CompanyButton = styled(IntroButton)`
   padding: 6px 12px;
 
   @media (max-width: 768px) {
-    top: 14px;
+    top: 18px;
     left: 12px;
     right: auto;
   }

@@ -51,3 +51,4 @@ coverage/
 .tmp
 
 backend/firebase-service-account.json
+android/local.properties

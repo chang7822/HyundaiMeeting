@@ -9,7 +9,7 @@ import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../firebase.ts';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners } from '../firebase.ts';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 
 // 액션 타입 정의
@@ -879,7 +879,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return nowTime >= announce.getTime() && nowTime <= finish.getTime();
   }, [extraMatchingFeatureEnabled, period?.matching_announce, period?.finish]);
 
-  // user.id가 변경될 때마다 해당 사용자의 푸시 상태를 localStorage에서 불러오기
+  // user.id가 변경될 때마다 실제 알림 권한 상태를 확인하여 토글 동기화
   useEffect(() => {
     if (!user?.id) {
       setIsPushEnabled(false);
@@ -888,12 +888,32 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     
     if (typeof window === 'undefined') return;
     
-    try {
-      const stored = localStorage.getItem(`pushEnabled_${user.id}`);
-      setIsPushEnabled(stored === 'true');
-    } catch {
-      setIsPushEnabled(false);
-    }
+    const checkPermissionStatus = async () => {
+      const isNative = isNativeApp();
+      
+      if (isNative) {
+        // 네이티브 앱: 실제 시스템 권한 상태 확인
+        try {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
+          const permStatus = await PushNotifications.checkPermissions();
+          // 권한이 granted면 ON, 그 외(denied, prompt)면 OFF
+          setIsPushEnabled(permStatus.receive === 'granted');
+        } catch (error) {
+          console.error('[push] 권한 상태 확인 실패:', error);
+          setIsPushEnabled(false);
+        }
+      } else {
+        // 웹: localStorage 기반 (기존 로직 유지)
+        try {
+          const stored = localStorage.getItem(`pushEnabled_${user.id}`);
+          setIsPushEnabled(stored === 'true');
+        } catch {
+          setIsPushEnabled(false);
+        }
+      }
+    };
+    
+    checkPermissionStatus();
   }, [user?.id]);
 
   const handleTogglePush = useCallback(async () => {
@@ -904,105 +924,219 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return;
     }
 
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
-      toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
-      return;
-    }
-
     const next = !isPushEnabled;
+    const isNative = isNativeApp();
 
     // OFF → ON
     if (next) {
       try {
         setIsPushBusy(true);
 
-        let permission = Notification.permission;
-        if (permission === 'default') {
-          permission = await Notification.requestPermission();
-        }
+        let token: string | null = null;
 
-        if (permission !== 'granted') {
-          toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
-          setIsPushBusy(false);
-          return;
-        }
+        // 네이티브 앱 환경
+        if (isNative) {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
+          
+          // 현재 권한 상태 확인
+          const currentPerm = await PushNotifications.checkPermissions();
+          
+          // 이미 권한이 허용된 경우
+          if (currentPerm.receive === 'granted') {
+            // 토큰 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
+            token = await getNativePushToken(true);
+            
+            if (!token) {
+              toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
 
-        const messaging = await getFirebaseMessaging();
-        if (!messaging) {
-          console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
-          console.error('[push] Notification.permission:', Notification.permission);
-          console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
-          toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
+            // 네이티브 푸시 리스너 설정
+            await setupNativePushListeners();
 
-        if (!FIREBASE_VAPID_KEY) {
-          console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
-        }
+            // 서버에 토큰 등록
+            try {
+              const registerResult = await pushApi.registerToken(token);
+              if (!registerResult || !registerResult.success) {
+                console.error('[push] 토큰 등록 실패:', registerResult);
+                toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
+            } catch (registerError) {
+              console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+              toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
 
-        const { getToken } = await import('firebase/messaging');
+            try {
+              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+              localStorage.setItem('pushFcmToken', token);
+            } catch {
+              // ignore
+            }
 
-        // 서비스워커를 명시적으로 등록
-        let registration: ServiceWorkerRegistration | undefined;
-        try {
-          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          // console.info('[push] service worker 등록 성공:', registration.scope);
-        } catch (swErr) {
-          console.error('[push] service worker 등록 실패:', swErr);
-          toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
+            setIsPushEnabled(true);
+            toast.success('푸시 알림이 활성화되었습니다.');
+          } 
+          // 권한이 없거나 prompt, denied 상태인 경우: 시스템 권한 요청 팝업 표시
+          else {
+            // denied 상태에서도 requestPermissions()를 호출하여 권한 요청 시도
+            // (일부 Android 버전에서는 denied 상태에서도 팝업이 뜰 수 있음)
+            const permResult = await PushNotifications.requestPermissions();
+            
+            if (permResult.receive !== 'granted') {
+              // 권한이 여전히 거부된 경우
+              if (currentPerm.receive === 'denied' && permResult.receive === 'denied') {
+                toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
+              } else {
+                toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
+              }
+              setIsPushEnabled(false);
+              setIsPushBusy(false);
+              return;
+            }
+            
+            // 권한이 허용된 경우 토큰 가져오기
+            token = await getNativePushToken(true);
+            
+            if (!token) {
+              toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
 
-        // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
-        let readyRegistration: ServiceWorkerRegistration;
-        try {
-          readyRegistration = await navigator.serviceWorker.ready;
-          // console.info('[push] service worker ready:', readyRegistration.scope);
-        } catch (readyErr) {
-          console.error('[push] service worker ready 대기 중 오류:', readyErr);
-          toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
+            // 네이티브 푸시 리스너 설정
+            await setupNativePushListeners();
 
-        const token = await getToken(messaging, {
-          vapidKey: FIREBASE_VAPID_KEY || undefined,
-          serviceWorkerRegistration: readyRegistration,
-        });
+            // 서버에 토큰 등록
+            try {
+              const registerResult = await pushApi.registerToken(token);
+              if (!registerResult || !registerResult.success) {
+                console.error('[push] 토큰 등록 실패:', registerResult);
+                toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
+            } catch (registerError) {
+              console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+              toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
 
-        if (!token) {
-          toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
+            try {
+              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+              localStorage.setItem('pushFcmToken', token);
+            } catch {
+              // ignore
+            }
 
-        // 서버에 토큰 등록
-        try {
-          const registerResult = await pushApi.registerToken(token);
-          if (!registerResult || !registerResult.success) {
-            console.error('[push] 토큰 등록 실패:', registerResult);
-            toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+            setIsPushEnabled(true);
+            toast.success('푸시 알림이 활성화되었습니다.');
+          }
+        } 
+        // 웹 브라우저 환경
+        else {
+          if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+            toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
             setIsPushBusy(false);
             return;
           }
-        } catch (registerError) {
-          console.error('[push] 토큰 등록 API 호출 실패:', registerError);
-          toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-          setIsPushBusy(false);
-          return;
-        }
 
-        try {
-          localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-          localStorage.setItem('pushFcmToken', token);
-        } catch {
-          // ignore
-        }
+          let permission = Notification.permission;
+          if (permission === 'default') {
+            permission = await Notification.requestPermission();
+          }
 
-        setIsPushEnabled(true);
-        toast.success('웹 푸시 알림이 활성화되었습니다.');
+          if (permission !== 'granted') {
+            // 이미 거부된 경우 브라우저 설정에서 직접 허용해야 함
+            if (permission === 'denied') {
+              toast.error('브라우저 설정에서 알림 권한을 직접 허용해주세요.');
+            } else {
+              toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
+            }
+            setIsPushBusy(false);
+            return;
+          }
+
+          const messaging = await getFirebaseMessaging();
+          if (!messaging) {
+            console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
+            console.error('[push] Notification.permission:', Notification.permission);
+            console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
+            toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          if (!FIREBASE_VAPID_KEY) {
+            console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
+          }
+
+          const { getToken } = await import('firebase/messaging');
+
+          // 서비스워커를 명시적으로 등록
+          let registration: ServiceWorkerRegistration | undefined;
+          try {
+            registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          } catch (swErr) {
+            console.error('[push] service worker 등록 실패:', swErr);
+            toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
+          let readyRegistration: ServiceWorkerRegistration;
+          try {
+            readyRegistration = await navigator.serviceWorker.ready;
+          } catch (readyErr) {
+            console.error('[push] service worker ready 대기 중 오류:', readyErr);
+            toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          token = await getToken(messaging, {
+            vapidKey: FIREBASE_VAPID_KEY || undefined,
+            serviceWorkerRegistration: readyRegistration,
+          });
+
+          if (!token) {
+            toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          // 서버에 토큰 등록
+          try {
+            const registerResult = await pushApi.registerToken(token);
+            if (!registerResult || !registerResult.success) {
+              console.error('[push] 토큰 등록 실패:', registerResult);
+              toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
+          } catch (registerError) {
+            console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+            toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          try {
+            localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+            localStorage.setItem('pushFcmToken', token);
+          } catch {
+            // ignore
+          }
+
+          setIsPushEnabled(true);
+          toast.success('웹 푸시 알림이 활성화되었습니다.');
+        }
       } catch (e) {
         console.error('[push] 푸시 활성화 중 오류:', e);
         toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
@@ -1032,7 +1166,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }
 
       setIsPushEnabled(false);
-      toast.success('웹 푸시 알림이 비활성화되었습니다.');
+      const msg = isNative ? '푸시 알림이 비활성화되었습니다.' : '웹 푸시 알림이 비활성화되었습니다.';
+      toast.success(msg);
     } catch (e) {
       console.error('[push] 푸시 비활성화 중 오류:', e);
       toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
@@ -1343,7 +1478,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       try {
         const res = await notificationApi.getUnreadCount();
         const count = res.unreadCount || 0;
-        // console.log('[MainPage] 알림 미읽음 개수:', count);
         setNotificationUnreadCount(count);
       } catch (error) {
         // console.error('[MainPage] 알림 개수 조회 실패:', error);
@@ -2025,7 +2159,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 <button
                   type="button"
                   onClick={() => {
-                    console.log('[MainPage] 알림 아이콘 클릭, 현재 미읽음:', notificationUnreadCount);
                     navigate('/notifications');
                   }}
                   style={{
@@ -2079,7 +2212,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </TopWelcomeSubtitle>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
               <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
-                <span>아이폰 푸시알림 안내</span>
+                <span>{isNativeApp() ? '푸시알림이 필요한 이유' : '아이폰 푸시알림 안내'}</span>
                 <FaInfoCircle size={10} />
               </IosGuideButton>
               <PushToggleBlock style={{ margin: 0 }}>
@@ -2090,7 +2223,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     checked={isPushEnabled}
                     onChange={() => {
                       if (!isPushEnabled) {
-                        setShowPushConfirmModal(true);
+                        // 네이티브 앱에서는 안내 모달 표시 안함
+                        if (!isNativeApp()) {
+                          setShowPushConfirmModal(true);
+                        } else {
+                          handleTogglePush();
+                        }
                       } else {
                         handleTogglePush();
                       }
@@ -2305,7 +2443,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </TopWelcomeSubtitle>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
             <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
-              <span>아이폰 푸시알림 안내</span>
+              <span>{isNativeApp() ? '푸시알림이 필요한 이유' : '아이폰 푸시알림 안내'}</span>
               <FaInfoCircle size={10} />
             </IosGuideButton>
             <PushToggleBlock style={{ margin: 0 }}>
@@ -2316,7 +2454,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   checked={isPushEnabled}
                   onChange={() => {
                     if (!isPushEnabled) {
-                      setShowPushConfirmModal(true);
+                      // 네이티브 앱에서는 안내 모달 표시 안함
+                      if (!isNativeApp()) {
+                        setShowPushConfirmModal(true);
+                      } else {
+                        handleTogglePush();
+                      }
                     } else {
                       handleTogglePush();
                     }
@@ -3332,25 +3475,47 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         </ModalOverlay>
       )}
 
-      {/* 아이폰 푸시 알림 안내 모달 */}
+      {/* 푸시알림 안내 모달 (플랫폼별로 다른 내용) */}
       {showIosGuideModal && (
         <ModalOverlay onClick={() => setShowIosGuideModal(false)}>
           <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
             <div style={{ width: '100%', maxWidth: '420px' }}>
-              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
-                아이폰(iOS) 푸시 알림 안내
-              </h2>
-              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n' +
-                  '아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n' +
-                  '1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n' +
-                  '2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n' +
-                  '3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n' +
-                  '4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
-              </p>
-              <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-                위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.
-              </p>
+              {isNativeApp() ? (
+                <>
+                  <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                    푸시알림이 필요한 이유
+                  </h2>
+                  <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                    {'푸시 알림을 켜시면 중요한 순간을 놓치지 않고 실시간으로 소통할 수 있습니다.\n\n' +
+                      '📌 매칭 결과 발표\n' +
+                      '매칭 결과가 나온 시점을 놓치면 상대방이 오랫동안 기다릴 수 있습니다. 푸시 알림을 통해 즉시 확인하고 상대방과 연락을 시작할 수 있습니다.\n\n' +
+                      '💬 채팅 메시지 알림\n' +
+                      '채팅을 통해 메시지를 주고받을 때 알림을 받지 못하면 서로 연락이 어려워 오해를 살 수 있습니다. 푸시 알림을 통해 상대방의 메시지를 빠르게 확인하고 답변할 수 있어 더 원활한 소통이 가능합니다.\n\n' +
+                      '🔔 기타 중요한 알림\n' +
+                      '매칭 신청 시작, 시스템 공지 등 중요한 정보도 실시간으로 받아보실 수 있습니다.'}
+                  </p>
+                  <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                    푸시 알림을 켜시면 더욱 편리하고 빠른 소통이 가능합니다.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                    아이폰(iOS) 푸시 알림 안내
+                  </h2>
+                  <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                    {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n' +
+                      '아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n' +
+                      '1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n' +
+                      '2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n' +
+                      '3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n' +
+                      '4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
+                  </p>
+                  <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                    위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.
+                  </p>
+                </>
+              )}
               <div style={{ textAlign: 'center' }}>
                 <button
                   type="button"
