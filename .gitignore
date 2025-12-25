@@ -18,6 +18,17 @@ build/
 dist/
 *.log
 
+# Android build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+
 # IDE
 .vscode/
 .idea/
