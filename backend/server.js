@@ -51,6 +51,7 @@ const corsOptions = {
     'https://www.automatchingway.com',
     'http://localhost:3000',
     'http://localhost:3001',
+    'capacitor://localhost',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001'
   ],
@@ -98,6 +99,7 @@ const io = new Server(httpServer, {
       'https://www.automatchingway.com',
       'http://localhost:3000',
       'http://localhost:3001',
+      'capacitor://localhost',
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001'
     ],
