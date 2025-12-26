@@ -53,6 +53,7 @@ const corsOptions = {
     'http://localhost:3001',
     'https://localhost', // Capacitor Android 앱용
     'http://localhost', // Capacitor Android 앱용 (androidScheme: http 설정 시)
+    'capacitor://localhost', // Capacitor Android 앱용 (실제 origin)
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001'
   ],
@@ -100,6 +101,9 @@ const io = new Server(httpServer, {
       'https://www.automatchingway.com',
       'http://localhost:3000',
       'http://localhost:3001',
+      'https://localhost', // Capacitor Android 앱용
+      'http://localhost', // Capacitor Android 앱용 (androidScheme: http 설정 시)
+      'capacitor://localhost', // Capacitor Android 앱용 (실제 origin)
       'http://127.0.0.1:3000',
       'http://127.0.0.1:3001'
     ],

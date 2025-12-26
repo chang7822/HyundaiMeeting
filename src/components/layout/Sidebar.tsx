@@ -889,7 +889,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       
       // 테스트 모드: Google 테스트 광고 단위 ID 사용
       // 배포 시: 실제 광고 단위 ID 사용
-      const isTesting = true; // 배포 시 false로 변경
+      const isTesting = false; // 배포 시 false로 변경
       const adId = isTesting 
         ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
         : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID
