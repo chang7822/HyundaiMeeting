@@ -218,10 +218,14 @@ router.post('/send-test', authenticate, async (req, res) => {
     }
 
     const messaging = getMessaging();
-    // Web에서 중복 알림을 방지하기 위해 notification 필드는 사용하지 않고,
-    // data-only 메시지로 보내고 서비스워커(firebase-messaging-sw.js)에서 직접 표시한다.
+    // 앱에서 알림을 받기 위해 notification 필드 추가
+    // 웹에서는 서비스워커가 notification 필드를 무시하고 data만 처리하므로 중복 알림 발생하지 않음
     const message = {
       tokens: tokenList,
+      notification: {
+        title: '푸시알람 테스트',
+        body: '푸시알람 테스트 (기능개선 진행중)',
+      },
       data: {
         type: 'test',
         title: '푸시알람 테스트',
@@ -303,8 +307,14 @@ router.post('/send-admin', authenticate, async (req, res) => {
     }
 
     const messaging = getMessaging();
+    // 앱에서 알림을 받기 위해 notification 필드 추가
+    // 웹에서는 서비스워커가 notification 필드를 무시하고 data만 처리하므로 중복 알림 발생하지 않음
     const pushMessage = {
       tokens: tokenList,
+      notification: {
+        title: title,
+        body: message,
+      },
       data: {
         type: 'admin',
         title: title,
