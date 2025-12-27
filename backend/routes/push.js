@@ -191,6 +191,39 @@ router.post('/unregister-token', authenticate, async (req, res) => {
 });
 
 /**
+ * 사용자의 푸시 토큰 목록 조회
+ * - 현재 로그인한 사용자의 모든 토큰 반환
+ */
+router.get('/tokens', authenticate, async (req, res) => {
+  try {
+    const userId = req.user && req.user.userId;
+    
+    if (!userId) {
+      return res.status(401).json({ success: false, message: '인증 정보가 없습니다.' });
+    }
+
+    const { data: tokens, error } = await supabase
+      .from('user_push_tokens')
+      .select('token, device_type, created_at')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('[push][tokens] 조회 오류:', error);
+      return res.status(500).json({ success: false, message: '토큰 조회 중 오류가 발생했습니다.' });
+    }
+
+    return res.json({ 
+      success: true, 
+      tokens: tokens || [],
+      hasToken: (tokens || []).length > 0
+    });
+  } catch (e) {
+    console.error('[push][tokens] 예외:', e);
+    return res.status(500).json({ success: false, message: '토큰 조회 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+/**
  * 테스트 푸시 알림 전송
  * - 현재 로그인한 사용자의 모든 토큰을 대상으로 FCM 푸시 발송
  * - notification: { title, body } 고정
