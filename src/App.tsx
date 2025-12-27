@@ -128,6 +128,25 @@ const AppInner: React.FC = () => {
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
 
+  // 앱 초기화 로그 (APK 디버깅용)
+  useEffect(() => {
+    console.log('[App] 초기화 시작');
+    console.log('[App] API URL:', process.env.REACT_APP_API_URL);
+    console.log('[App] NODE_ENV:', process.env.NODE_ENV);
+    console.log('[App] Capacitor Platform:', Capacitor.getPlatform());
+    console.log('[App] Is Native:', Capacitor.isNativePlatform());
+    console.log('[App] User Agent:', navigator.userAgent);
+    console.log('[App] Window Location:', window.location.href);
+    console.log('[App] Window Origin:', window.location.origin);
+    
+    // API URL을 window 객체에 저장 (디버깅용)
+    if (typeof window !== 'undefined') {
+      (window as any).__DEBUG_API_URL__ = process.env.REACT_APP_API_URL || 'NOT_SET';
+      (window as any).__DEBUG_NODE_ENV__ = process.env.NODE_ENV || 'NOT_SET';
+      (window as any).__DEBUG_ORIGIN__ = window.location.origin;
+    }
+  }, []);
+
   // StatusBar 설정 (Android에서 상단바와 겹치지 않도록)
   useEffect(() => {
     if (Capacitor.isNativePlatform()) {
@@ -551,6 +570,62 @@ const AppInner: React.FC = () => {
                 touchAction: 'manipulation'
               }}
             />
+            
+            {/* 네이티브 앱 디버그 정보 표시 */}
+            {Capacitor.isNativePlatform() && (window as any).__API_BASE_URL__ && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 10,
+                  right: 10,
+                  background: (window as any).__CORS_ERROR__ ? 'rgba(200, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.8)',
+                  color: '#fff',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '10px',
+                  zIndex: 9998,
+                  maxWidth: '250px',
+                  wordBreak: 'break-all',
+                  fontFamily: 'monospace',
+                  border: (window as any).__CORS_ERROR__ ? '2px solid #ff0000' : 'none',
+                }}
+                onClick={() => {
+                  const apiUrl = (window as any).__API_BASE_URL__;
+                  const envUrl = (window as any).__DEBUG_API_URL__;
+                  const origin = window.location.origin;
+                  const corsError = (window as any).__CORS_ERROR__;
+                  
+                  let message = `API Base URL: ${apiUrl}\n`;
+                  message += `Env URL: ${envUrl}\n`;
+                  message += `NODE_ENV: ${process.env.NODE_ENV}\n`;
+                  message += `\n현재 Origin: ${origin}\n`;
+                  
+                  if (corsError) {
+                    message += `\n⚠️ CORS 에러 발생!\n`;
+                    message += `Origin: ${corsError.origin}\n`;
+                    message += `시간: ${corsError.timestamp}\n`;
+                    message += `\n백엔드 서버의 CORS 설정에\n"${origin}"을 추가해야 합니다.`;
+                  } else {
+                    message += `\n✅ CORS 정상`;
+                  }
+                  
+                  alert(message);
+                }}
+              >
+                <div>API: {(window as any).__API_BASE_URL__?.substring(0, 25)}...</div>
+                <div style={{ fontSize: '9px', marginTop: '4px', fontWeight: 'bold' }}>
+                  Origin: {window.location.origin}
+                </div>
+                {(window as any).__CORS_ERROR__ && (
+                  <div style={{ fontSize: '8px', marginTop: '4px', color: '#ffcccc', fontWeight: 'bold' }}>
+                    ⚠️ CORS 에러!
+                  </div>
+                )}
+                <div style={{ fontSize: '8px', marginTop: '4px', opacity: 0.7 }}>
+                  (탭하여 상세 확인)
+                </div>
+              </div>
+            )}
           </div>
   );
 }
