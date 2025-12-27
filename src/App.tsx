@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
@@ -125,14 +125,131 @@ const MaintenanceScreen: React.FC<{ onLogout: () => void; message?: string }> = 
 const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+  
+  // 뒤로가기 버튼 두 번 누르면 앱 종료를 위한 ref
+  const backButtonPressCount = useRef(0);
+  const backButtonTimer = useRef<NodeJS.Timeout | null>(null);
 
   // 앱 초기화
   useEffect(() => {
-    // 초기화 로직
+    // AdMob 초기화 (네이티브 앱에서만)
+    // WebView가 완전히 로드된 후에 초기화해야 함
+    const initializeAdMob = async () => {
+      if (!isNativeApp()) return;
+      
+      // WebView가 준비될 때까지 대기
+      const waitForWebView = () => {
+        return new Promise<void>((resolve) => {
+          if (Capacitor.getPlatform() === 'android') {
+            // Android: DOMContentLoaded 이벤트 대기
+            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+              // 추가 지연으로 WebView JavaScript 엔진이 완전히 준비되도록 함
+              setTimeout(resolve, 500);
+            } else {
+              window.addEventListener('DOMContentLoaded', () => {
+                setTimeout(resolve, 500);
+              });
+            }
+          } else {
+            resolve();
+          }
+        });
+      };
+      
+      try {
+        await waitForWebView();
+        
+        const { AdMob } = await import('@capacitor-community/admob');
+        // 환경 변수로 테스트 모드 제어 (기본값: 테스트 모드)
+        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+        await AdMob.initialize({
+          initializeForTesting: isTesting,
+        });
+        console.log(`[AdMob] 초기화 완료 (테스트 모드: ${isTesting})`);
+      } catch (error) {
+        console.error('[AdMob] 초기화 실패:', error);
+      }
+    };
+    
+    // 약간의 지연 후 초기화 (앱이 완전히 로드된 후)
+    const timer = setTimeout(() => {
+      initializeAdMob();
+    }, 1000);
+    
+    return () => clearTimeout(timer);
   }, []);
+  
+  // Android 뒤로가기 버튼 처리 (두 번 누르면 앱 종료)
+  useEffect(() => {
+    if (!isNativeApp() || Capacitor.getPlatform() !== 'android') return;
+    
+    let listener: any = null;
+    
+    const setupBackButton = async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        
+        listener = await App.addListener('backButton', ({ canGoBack }) => {
+          // 루트 경로(/)나 메인 페이지에서 뒤로 갈 곳이 없을 때만 앱 종료 로직 실행
+          const isRootPath = location.pathname === '/' || location.pathname === '/main';
+          
+          if (!isRootPath) {
+            // 다른 페이지에서는 일반 뒤로가기 동작
+            navigate(-1);
+            // 카운트 리셋
+            backButtonPressCount.current = 0;
+            if (backButtonTimer.current) {
+              clearTimeout(backButtonTimer.current);
+              backButtonTimer.current = null;
+            }
+            return;
+          }
+          
+          // 루트 경로에서 뒤로 갈 곳이 없을 때
+          // 첫 번째 누름: 토스트 메시지 표시
+          if (backButtonPressCount.current === 0) {
+            backButtonPressCount.current = 1;
+            toast.info('한 번 더 누르면 앱이 종료됩니다', {
+              position: 'bottom-center',
+              autoClose: 2000,
+            });
+            
+            // 2초 후 카운트 리셋
+            backButtonTimer.current = setTimeout(() => {
+              backButtonPressCount.current = 0;
+              backButtonTimer.current = null;
+            }, 2000);
+          } 
+          // 두 번째 누름 (2초 이내): 앱 종료
+          else {
+            if (backButtonTimer.current) {
+              clearTimeout(backButtonTimer.current);
+              backButtonTimer.current = null;
+            }
+            backButtonPressCount.current = 0;
+            App.exitApp();
+          }
+        });
+      } catch (error) {
+        console.error('[App] 뒤로가기 버튼 리스너 설정 실패:', error);
+      }
+    };
+    
+    setupBackButton();
+    
+    return () => {
+      if (listener) {
+        listener.remove();
+      }
+      if (backButtonTimer.current) {
+        clearTimeout(backButtonTimer.current);
+      }
+    };
+  }, [location.pathname, navigate]);
 
   // StatusBar 설정 (Android에서 상단바와 겹치지 않도록)
   useEffect(() => {
@@ -174,12 +291,33 @@ const AppInner: React.FC = () => {
             // 네이티브 푸시 리스너 설정
             await setupNativePushListeners();
             
-            // 서버에 토큰 등록
+            // 이전 토큰 확인 및 정리
+            const previousToken = localStorage.getItem('pushFcmToken');
+            
+            // 여러 기기 지원: localStorage에 이전 토큰이 있고 현재 토큰과 다른 경우에만 삭제
+            // (같은 기기에서 토큰이 변경된 경우만 처리, 다른 기기의 토큰은 유지)
+            if (previousToken && previousToken !== token) {
+              try {
+                // 서버에서 이전 토큰 삭제 (같은 기기의 이전 토큰만 삭제)
+                await pushApi.unregisterToken(previousToken);
+                console.log('[push] 이전 토큰 삭제 완료 (같은 기기)');
+              } catch (unregisterError) {
+                // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
+                console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+              }
+            }
+            // localStorage에 토큰이 없는 경우 (앱 재설치 또는 새 기기)
+            // 여러 기기 지원을 위해 다른 기기의 토큰은 삭제하지 않음
+            // (서버에서 오래된 토큰은 별도 정리 작업으로 처리)
+            
+            // 서버에 새 토큰 등록
             try {
               await pushApi.registerToken(token);
               localStorage.setItem('pushFcmToken', token);
+              console.log('[push] 새 토큰 등록 완료');
             } catch (registerError) {
               // 토큰 등록 실패는 조용히 처리 (나중에 MainPage에서 재시도 가능)
+              console.error('[push] 토큰 등록 실패:', registerError);
             }
           }
         }
@@ -196,12 +334,33 @@ const AppInner: React.FC = () => {
               // 네이티브 푸시 리스너 설정
               await setupNativePushListeners();
               
-              // 서버에 토큰 등록
+              // 이전 토큰 확인 및 정리
+              const previousToken = localStorage.getItem('pushFcmToken');
+              
+              // 여러 기기 지원: localStorage에 이전 토큰이 있고 현재 토큰과 다른 경우에만 삭제
+              // (같은 기기에서 토큰이 변경된 경우만 처리, 다른 기기의 토큰은 유지)
+              if (previousToken && previousToken !== token) {
+                try {
+                  // 서버에서 이전 토큰 삭제 (같은 기기의 이전 토큰만 삭제)
+                  await pushApi.unregisterToken(previousToken);
+                  console.log('[push] 이전 토큰 삭제 완료 (같은 기기)');
+                } catch (unregisterError) {
+                  // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
+                  console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+                }
+              }
+              // localStorage에 토큰이 없는 경우 (앱 재설치 또는 새 기기)
+              // 여러 기기 지원을 위해 다른 기기의 토큰은 삭제하지 않음
+              // (서버에서 오래된 토큰은 별도 정리 작업으로 처리)
+              
+              // 서버에 새 토큰 등록
               try {
                 await pushApi.registerToken(token);
                 localStorage.setItem('pushFcmToken', token);
+                console.log('[push] 새 토큰 등록 완료');
               } catch (registerError) {
                 // 토큰 등록 실패는 조용히 처리
+                console.error('[push] 토큰 등록 실패:', registerError);
               }
             }
           }

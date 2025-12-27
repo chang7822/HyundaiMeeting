@@ -86,13 +86,19 @@ const Button = styled.button<{ $primary?: boolean }>`
   color: ${props => props.$primary ? '#667eea' : 'white'};
   border: 2px solid white;
   
-  &:hover {
+  &:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
   
-  &:active {
+  &:active:not(:disabled) {
     transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 `;
 
@@ -518,10 +524,17 @@ const LandingPage = () => {
       </Subtitle>
       
       <ButtonContainer>
-        <Button onClick={() => navigate('/login')}>
+        <Button 
+          onClick={() => navigate('/login')}
+          disabled={isLoading}
+        >
           로그인
         </Button>
-        <Button $primary onClick={() => navigate('/register')}>
+        <Button 
+          $primary 
+          onClick={() => navigate('/register')}
+          disabled={isLoading}
+        >
           회원가입
         </Button>
       </ButtonContainer>

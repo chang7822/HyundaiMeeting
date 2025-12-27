@@ -1094,6 +1094,12 @@ export const pushApi = {
     return response.data;
   },
 
+  // 사용자의 푸시 토큰 목록 조회
+  getTokens: async (): Promise<{ success: boolean; tokens: any[]; hasToken: boolean }> => {
+    const response = await api.get('/push/tokens');
+    return response.data;
+  },
+
   // 테스트 푸시 알림 전송 (현재 사용자 대상)
   sendTestNotification: async (): Promise<{ success: boolean }> => {
     const response = await api.post('/push/send-test', {});

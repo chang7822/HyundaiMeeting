@@ -887,9 +887,26 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       // AdMob 광고 표시
       const { AdMob } = await import('@capacitor-community/admob');
       
+      // AdMob이 초기화되지 않았다면 초기화 시도
+      try {
+        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+        await AdMob.initialize({
+          initializeForTesting: isTesting,
+        });
+        console.log('[AdMob] 지연 초기화 완료');
+      } catch (initError: any) {
+        // 이미 초기화되어 있으면 무시
+        if (!initError?.message?.includes('already initialized')) {
+          console.warn('[AdMob] 초기화 시도 중 오류 (무시 가능):', initError);
+        }
+      }
+      
       // 테스트 모드: Google 테스트 광고 단위 ID 사용
       // 배포 시: 실제 광고 단위 ID 사용
-      const isTesting = false; // 배포 시 false로 변경
+      // 구글 플레이에 등재되지 않은 상태(로컬 APK)에서는 테스트 모드 사용
+      // 환경 변수로 제어: REACT_APP_ADMOB_TESTING=false로 설정하면 실제 광고 사용
+      // 기본값: 테스트 모드 (구글 플레이 미등재 상태에서도 동작)
+      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
       const adId = isTesting 
         ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
         : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID

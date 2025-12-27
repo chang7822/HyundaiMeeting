@@ -903,11 +903,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           const normalizedPermission = permission === 'prompt-with-rationale' ? 'prompt' : permission;
           setPushPermissionStatus(normalizedPermission as 'granted' | 'denied' | 'prompt' | null);
           
-          // 권한이 granted인 경우에만 토큰 등록 상태 확인
+          // 권한이 granted인 경우 서버에서 실제 토큰 존재 여부 확인
           if (permission === 'granted') {
-            // localStorage에 토큰이 있으면 등록된 것으로 간주
-            const storedToken = localStorage.getItem('pushFcmToken');
-            setIsPushEnabled(!!storedToken);
+            try {
+              const tokenResult = await pushApi.getTokens();
+              // 서버에 토큰이 있으면 ON, 없으면 OFF
+              setIsPushEnabled(tokenResult.hasToken || false);
+            } catch (tokenError) {
+              // 토큰 조회 실패 시 localStorage 확인 (폴백)
+              const storedToken = localStorage.getItem('pushFcmToken');
+              setIsPushEnabled(!!storedToken);
+            }
           } else {
             // 권한이 없으면 OFF
             setIsPushEnabled(false);
@@ -968,19 +974,43 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           
           // 이미 권한이 허용된 경우
           if (currentPerm.receive === 'granted') {
-            // 토큰 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
-            token = await getNativePushToken(true);
+            // localStorage에 이미 토큰이 있는지 확인
+            const existingToken = localStorage.getItem('pushFcmToken');
             
-            if (!token) {
-              toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
-              setIsPushBusy(false);
-              return;
+            if (existingToken) {
+              // 이미 토큰이 있으면 그것을 사용 (서버에 재등록만 시도)
+              token = existingToken;
+              console.log('[push] 기존 토큰 사용:', token.substring(0, 20) + '...');
+            } else {
+              // 토큰이 없으면 새로 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
+              token = await getNativePushToken(true);
+              
+              if (!token) {
+                toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
             }
 
             // 네이티브 푸시 리스너 설정
             await setupNativePushListeners();
 
-            // 서버에 토큰 등록
+            // 이전 토큰 확인 및 정리
+            const previousToken = localStorage.getItem('pushFcmToken');
+            
+            // 토큰이 변경된 경우 (앱 재설치 등)
+            if (previousToken && previousToken !== token) {
+              try {
+                // 서버에서 이전 토큰 삭제
+                await pushApi.unregisterToken(previousToken);
+                // console.log('[push] 이전 토큰 삭제 완료');
+              } catch (unregisterError) {
+                // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
+                // console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+              }
+            }
+
+            // 서버에 새 토큰 등록
             try {
               const registerResult = await pushApi.registerToken(token);
               if (!registerResult || !registerResult.success) {
@@ -1030,19 +1060,43 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               return;
             }
             
-            // 권한이 허용된 경우 토큰 가져오기
-            token = await getNativePushToken(true);
+            // localStorage에 이미 토큰이 있는지 확인
+            const existingToken = localStorage.getItem('pushFcmToken');
             
-            if (!token) {
-              toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
-              setIsPushBusy(false);
-              return;
+            if (existingToken) {
+              // 이미 토큰이 있으면 그것을 사용 (서버에 재등록만 시도)
+              token = existingToken;
+              console.log('[push] 기존 토큰 사용:', token.substring(0, 20) + '...');
+            } else {
+              // 권한이 허용된 경우 토큰 가져오기
+              token = await getNativePushToken(true);
+              
+              if (!token) {
+                toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
             }
 
             // 네이티브 푸시 리스너 설정
             await setupNativePushListeners();
 
-            // 서버에 토큰 등록
+            // 이전 토큰 확인 및 정리
+            const previousToken = localStorage.getItem('pushFcmToken');
+            
+            // 토큰이 변경된 경우 (앱 재설치 등)
+            if (previousToken && previousToken !== token) {
+              try {
+                // 서버에서 이전 토큰 삭제
+                await pushApi.unregisterToken(previousToken);
+                console.log('[push] 이전 토큰 삭제 완료');
+              } catch (unregisterError) {
+                // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
+                console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+              }
+            }
+
+            // 서버에 새 토큰 등록
             try {
               const registerResult = await pushApi.registerToken(token);
               if (!registerResult || !registerResult.success) {
@@ -1142,7 +1196,22 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             return;
           }
 
-          // 서버에 토큰 등록
+          // 이전 토큰 확인 및 정리
+          const previousToken = localStorage.getItem('pushFcmToken');
+          
+          // 토큰이 변경된 경우 (앱 재설치 등)
+          if (previousToken && previousToken !== token) {
+            try {
+              // 서버에서 이전 토큰 삭제
+              await pushApi.unregisterToken(previousToken);
+              console.log('[push] 이전 토큰 삭제 완료');
+            } catch (unregisterError) {
+              // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
+              console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+            }
+          }
+
+          // 서버에 새 토큰 등록
           try {
             const registerResult = await pushApi.registerToken(token);
             if (!registerResult || !registerResult.success) {
@@ -2253,6 +2322,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
+                      // 토큰 등록/해제 진행 중이면 무시
+                      if (isPushBusy) {
+                        return;
+                      }
+                      
                       // 권한이 denied인 경우 토글 비활성화
                       if (isNativeApp() && pushPermissionStatus === 'denied') {
                         toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
@@ -2271,7 +2345,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                       }
                     }}
                     disabled={isLoading || isPushBusy || (isNativeApp() && pushPermissionStatus === 'denied')}
-                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : ''}
+                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : (isPushBusy ? '토큰 등록/해제 중입니다...' : '')}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
@@ -2496,6 +2570,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
+                      // 토큰 등록/해제 진행 중이면 무시
+                      if (isPushBusy) {
+                        return;
+                      }
+                      
                       // 권한이 denied인 경우 토글 비활성화
                       if (isNativeApp() && pushPermissionStatus === 'denied') {
                         toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
@@ -2514,7 +2593,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                       }
                     }}
                     disabled={isLoading || isPushBusy || (isNativeApp() && pushPermissionStatus === 'denied')}
-                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : ''}
+                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : (isPushBusy ? '토큰 등록/해제 중입니다...' : '')}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
