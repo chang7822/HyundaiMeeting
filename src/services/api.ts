@@ -6,34 +6,15 @@ import { toast } from 'react-toastify';
 function getApiBaseUrl(): string {
   const envUrl = process.env.REACT_APP_API_URL;
   
-  // 화면에 표시하기 위해 window 객체에 저장 (디버깅용)
-  if (typeof window !== 'undefined') {
-    (window as any).__API_BASE_URL__ = envUrl || 'FALLBACK';
-  }
-  
   if (envUrl) {
-    const cleanUrl = envUrl.replace(/\/$/, ''); // 끝의 슬래시 제거
-    console.log('[API] 환경변수에서 API URL 로드:', cleanUrl);
-    // 화면에 표시하기 위해 document.title에 추가 (임시)
-    if (typeof document !== 'undefined') {
-      const originalTitle = document.title;
-      document.title = `[API: ${cleanUrl.substring(0, 30)}...] ${originalTitle}`;
-    }
-    return cleanUrl;
+    return envUrl.replace(/\/$/, ''); // 끝의 슬래시 제거
   }
   
   // 환경변수가 없을 때만 fallback 사용
-  const fallbackUrl = 'https://auto-matching-way-backend.onrender.com/api';
-  console.warn('[API] 환경변수가 없어 Fallback URL 사용:', fallbackUrl);
-  if (typeof document !== 'undefined') {
-    const originalTitle = document.title;
-    document.title = `[API: FALLBACK] ${originalTitle}`;
-  }
-  return fallbackUrl;
+  return 'https://auto-matching-way-backend.onrender.com/api';
 }
 
 const API_BASE_URL = getApiBaseUrl();
-console.log('[API] 최종 API_BASE_URL:', API_BASE_URL);
 
 // API_BASE_URL을 export하여 다른 곳에서도 사용 가능하도록 함
 export { API_BASE_URL };
@@ -58,16 +39,12 @@ const api = axios.create({
 // 수동 로그아웃 이후에는 401 토스트를 막기 위한 플래그
 let suppressAuth401Toast = false;
 
-// Add token to requests if available + debugging
+// Add token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  const fullUrl = config.baseURL + (config.url || '');
-  console.log('[API] 요청:', config.method?.toUpperCase(), fullUrl);
-  console.log('[API] Origin:', window.location.origin);
-  console.log('[API] Headers:', config.headers);
   return config;
 });
 
@@ -77,37 +54,8 @@ let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) 
 
 // Global response interceptor for error handling
 api.interceptors.response.use(
-  (response) => {
-    console.log('[API] 응답 성공:', response.config.method?.toUpperCase(), response.config.url, response.status);
-    return response;
-  },
+  (response) => response,
   async (error) => {
-    const url = error.config?.baseURL + (error.config?.url || '');
-    const status = error.response?.status;
-    const message = error.response?.data?.message || error.message;
-    const origin = window.location.origin;
-    
-    console.error('[API] 요청 실패:', error.config?.method?.toUpperCase(), url);
-    console.error('[API] Origin:', origin);
-    console.error('[API] Status:', status);
-    console.error('[API] Error:', message);
-    
-    // CORS 에러인 경우 상세 정보 출력
-    if (error.code === 'ERR_NETWORK' || message.includes('CORS') || message.includes('Access-Control')) {
-      console.error('[API] ⚠️ CORS 에러 감지!');
-      console.error('[API] 현재 Origin:', origin);
-      console.error('[API] 백엔드 서버가 이 Origin을 허용하는지 확인 필요');
-      console.error('[API] 백엔드 CORS 설정에 다음이 포함되어야 함:', origin);
-      
-      // 백엔드 서버의 CORS 설정 확인을 위한 정보
-      if (typeof window !== 'undefined') {
-        (window as any).__CORS_ERROR__ = {
-          origin: origin,
-          url: url,
-          timestamp: new Date().toISOString()
-        };
-      }
-    }
     // /matching/period 엔드포인트의 404 에러는 조용히 처리
     if (error?.config?.url?.includes('/matching/period') && error?.response?.status === 404) {
       // 404를 정상적인 응답으로 변환

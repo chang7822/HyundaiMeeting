@@ -140,9 +140,44 @@ export async function getNativePushToken(skipPermissionCheck: boolean = false): 
 export async function setupNativePushListeners(onNotificationReceived?: (notification: any) => void) {
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
     
     // 푸시 알림 수신 시
-    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+      console.log('[push] 푸시 알림 수신:', notification);
+      
+      // data-only 메시지인 경우 로컬 알림으로 표시
+      // Capacitor PushNotifications는 notification 필드가 없으면 자동으로 알림을 표시하지 않음
+      if (notification.data && !notification.title && !notification.body) {
+        const title = notification.data.title || '새 알림';
+        const body = notification.data.body || '';
+        const data = notification.data;
+        
+        try {
+          // 로컬 알림 권한 확인
+          const permissionStatus = await LocalNotifications.checkPermissions();
+          if (permissionStatus.display === 'granted') {
+            await LocalNotifications.schedule({
+              notifications: [
+                {
+                  title: title,
+                  body: body,
+                  id: Date.now(),
+                  extra: data,
+                  sound: 'default',
+                  priority: 'high',
+                },
+              ],
+            });
+            console.log('[push] 로컬 알림 표시:', title, body);
+          } else {
+            console.warn('[push] 로컬 알림 권한이 없습니다.');
+          }
+        } catch (error) {
+          console.error('[push] 로컬 알림 표시 실패:', error);
+        }
+      }
+      
       if (onNotificationReceived) {
         onNotificationReceived(notification);
       }
@@ -150,6 +185,7 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     
     // 푸시 알림 클릭 시
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('[push] 푸시 알림 클릭:', notification);
       // 필요시 특정 페이지로 이동하는 로직 추가 가능
     });
   } catch (error) {

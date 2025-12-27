@@ -863,6 +863,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
   const [isPushBusy, setIsPushBusy] = useState(false);
+  const [pushPermissionStatus, setPushPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | null>(null);
   const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
   const [showIosGuideModal, setShowIosGuideModal] = useState(false);
   const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
@@ -879,41 +880,58 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return nowTime >= announce.getTime() && nowTime <= finish.getTime();
   }, [extraMatchingFeatureEnabled, period?.matching_announce, period?.finish]);
 
-  // user.id가 변경될 때마다 실제 알림 권한 상태를 확인하여 토글 동기화
+  // user.id가 변경될 때마다 권한 상태와 토큰 등록 상태를 확인하여 토글 동기화
   useEffect(() => {
     if (!user?.id) {
       setIsPushEnabled(false);
+      setPushPermissionStatus(null);
       return;
     }
     
     if (typeof window === 'undefined') return;
     
-    const checkPermissionStatus = async () => {
+    const checkPermissionAndTokenStatus = async () => {
       const isNative = isNativeApp();
       
       if (isNative) {
-        // 네이티브 앱: 실제 시스템 권한 상태 확인
+        // 네이티브 앱: 권한 상태와 토큰 등록 상태 확인
         try {
           const { PushNotifications } = await import('@capacitor/push-notifications');
           const permStatus = await PushNotifications.checkPermissions();
-          // 권한이 granted면 ON, 그 외(denied, prompt)면 OFF
-          setIsPushEnabled(permStatus.receive === 'granted');
+          const permission = permStatus.receive || 'prompt';
+          // 'prompt-with-rationale'를 'prompt'로 변환
+          const normalizedPermission = permission === 'prompt-with-rationale' ? 'prompt' : permission;
+          setPushPermissionStatus(normalizedPermission as 'granted' | 'denied' | 'prompt' | null);
+          
+          // 권한이 granted인 경우에만 토큰 등록 상태 확인
+          if (permission === 'granted') {
+            // localStorage에 토큰이 있으면 등록된 것으로 간주
+            const storedToken = localStorage.getItem('pushFcmToken');
+            setIsPushEnabled(!!storedToken);
+          } else {
+            // 권한이 없으면 OFF
+            setIsPushEnabled(false);
+          }
         } catch (error) {
           console.error('[push] 권한 상태 확인 실패:', error);
           setIsPushEnabled(false);
+          setPushPermissionStatus(null);
         }
       } else {
         // 웹: localStorage 기반 (기존 로직 유지)
         try {
           const stored = localStorage.getItem(`pushEnabled_${user.id}`);
           setIsPushEnabled(stored === 'true');
+          // 웹에서는 권한 상태를 확인할 수 없으므로 null
+          setPushPermissionStatus(null);
         } catch {
           setIsPushEnabled(false);
+          setPushPermissionStatus(null);
         }
       }
     };
     
-    checkPermissionStatus();
+    checkPermissionAndTokenStatus();
   }, [user?.id]);
 
   const handleTogglePush = useCallback(async () => {
@@ -924,8 +942,15 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return;
     }
 
-    const next = !isPushEnabled;
     const isNative = isNativeApp();
+    
+    // 네이티브 앱에서 권한이 denied인 경우 처리
+    if (isNative && pushPermissionStatus === 'denied') {
+      toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
+      return;
+    }
+
+    const next = !isPushEnabled;
 
     // OFF → ON
     if (next) {
@@ -981,19 +1006,25 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             setIsPushEnabled(true);
             toast.success('푸시 알림이 활성화되었습니다.');
           } 
-          // 권한이 없거나 prompt, denied 상태인 경우: 시스템 권한 요청 팝업 표시
+          // 권한이 denied 상태인 경우: 앱 설정으로 이동 안내
+          else if (currentPerm.receive === 'denied') {
+            // denied 상태에서는 requestPermissions()를 호출해도 팝업이 뜨지 않음
+            // 앱 설정으로 이동하도록 안내
+            toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
+            
+            // denied 상태에서는 requestPermissions()를 호출해도 팝업이 뜨지 않으므로
+            // 사용자에게 앱 설정에서 수동으로 권한을 허용하도록 안내만 함
+            
+            setIsPushEnabled(false);
+            setIsPushBusy(false);
+            return;
+          }
+          // 권한이 prompt 상태인 경우: 시스템 권한 요청 팝업 표시
           else {
-            // denied 상태에서도 requestPermissions()를 호출하여 권한 요청 시도
-            // (일부 Android 버전에서는 denied 상태에서도 팝업이 뜰 수 있음)
             const permResult = await PushNotifications.requestPermissions();
             
             if (permResult.receive !== 'granted') {
-              // 권한이 여전히 거부된 경우
-              if (currentPerm.receive === 'denied' && permResult.receive === 'denied') {
-                toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
-              } else {
-                toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
-              }
+              toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
               setIsPushEnabled(false);
               setIsPushBusy(false);
               return;
@@ -1174,7 +1205,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } finally {
       setIsPushBusy(false);
     }
-  }, [isPushEnabled, isPushBusy, user?.id]);
+  }, [isPushEnabled, isPushBusy, user?.id, pushPermissionStatus]);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -2222,6 +2253,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
+                      // 권한이 denied인 경우 토글 비활성화
+                      if (isNativeApp() && pushPermissionStatus === 'denied') {
+                        toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
+                        return;
+                      }
+                      
                       if (!isPushEnabled) {
                         // 네이티브 앱에서는 안내 모달 표시 안함
                         if (!isNativeApp()) {
@@ -2233,10 +2270,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         handleTogglePush();
                       }
                     }}
-                    disabled={isLoading || isPushBusy}
+                    disabled={isLoading || isPushBusy || (isNativeApp() && pushPermissionStatus === 'denied')}
+                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : ''}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
+                {isNativeApp() && pushPermissionStatus === 'denied' && (
+                  <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
+                    (알림 권한 필요)
+                  </span>
+                )}
               </PushToggleBlock>
             </div>
           </div>
@@ -2449,29 +2492,41 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             <PushToggleBlock style={{ margin: 0 }}>
               <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
               <SwitchLabel>
-                <SwitchInput
-                  type="checkbox"
-                  checked={isPushEnabled}
-                  onChange={() => {
-                    if (!isPushEnabled) {
-                      // 네이티브 앱에서는 안내 모달 표시 안함
-                      if (!isNativeApp()) {
-                        setShowPushConfirmModal(true);
+                  <SwitchInput
+                    type="checkbox"
+                    checked={isPushEnabled}
+                    onChange={() => {
+                      // 권한이 denied인 경우 토글 비활성화
+                      if (isNativeApp() && pushPermissionStatus === 'denied') {
+                        toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
+                        return;
+                      }
+                      
+                      if (!isPushEnabled) {
+                        // 네이티브 앱에서는 안내 모달 표시 안함
+                        if (!isNativeApp()) {
+                          setShowPushConfirmModal(true);
+                        } else {
+                          handleTogglePush();
+                        }
                       } else {
                         handleTogglePush();
                       }
-                    } else {
-                      handleTogglePush();
-                    }
-                  }}
-                  disabled={isLoading || isPushBusy}
-                />
-                <SwitchSlider />
-              </SwitchLabel>
-            </PushToggleBlock>
+                    }}
+                    disabled={isLoading || isPushBusy || (isNativeApp() && pushPermissionStatus === 'denied')}
+                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : ''}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+                {isNativeApp() && pushPermissionStatus === 'denied' && (
+                  <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
+                    (알림 권한 필요)
+                  </span>
+                )}
+              </PushToggleBlock>
+            </div>
           </div>
-        </div>
-      </TopHeaderRow>
+        </TopHeaderRow>
       <WelcomeSection>
         {/* 최신 공지사항 카드 */}
         {latestNotice && (

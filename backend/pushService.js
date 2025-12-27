@@ -32,8 +32,14 @@ async function sendPushToUsers(userIds, data) {
     }
 
     const messaging = getMessaging();
+    // 앱에서 알림을 받기 위해 notification 필드 추가
+    // 웹에서는 서비스워커가 notification 필드를 무시하고 data만 처리하므로 중복 알림 발생하지 않음
     const message = {
       tokens,
+      notification: {
+        title: data.title || '새 알림',
+        body: data.body || '',
+      },
       data,
     };
 
@@ -71,8 +77,14 @@ async function sendPushToAllUsers(data) {
     }
 
     const messaging = getMessaging();
+    // 앱에서 알림을 받기 위해 notification 필드 추가
+    // 웹에서는 서비스워커가 notification 필드를 무시하고 data만 처리하므로 중복 알림 발생하지 않음
     const message = {
       tokens,
+      notification: {
+        title: data.title || '새 알림',
+        body: data.body || '',
+      },
       data,
     };
 
@@ -133,8 +145,14 @@ async function sendPushToAdmin(title, body) {
     }
 
     const messaging = getMessaging();
+    // 앱에서 알림을 받기 위해 notification 필드 추가
+    // 웹에서는 서비스워커가 notification 필드를 무시하고 data만 처리하므로 중복 알림 발생하지 않음
     const message = {
       tokens,
+      notification: {
+        title: title || '[직쏠공 관리자]',
+        body: body || '새로운 알림이 있습니다.',
+      },
       data: {
         title: title || '[직쏠공 관리자]',
         body: body || '새로운 알림이 있습니다.',

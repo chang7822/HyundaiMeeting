@@ -5,7 +5,8 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
-import { isNativeApp } from './firebase.ts';
+import { isNativeApp, getNativePushToken, setupNativePushListeners } from './firebase.ts';
+import { pushApi } from './services/api.ts';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
@@ -128,23 +129,9 @@ const AppInner: React.FC = () => {
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
 
-  // 앱 초기화 로그 (APK 디버깅용)
+  // 앱 초기화
   useEffect(() => {
-    console.log('[App] 초기화 시작');
-    console.log('[App] API URL:', process.env.REACT_APP_API_URL);
-    console.log('[App] NODE_ENV:', process.env.NODE_ENV);
-    console.log('[App] Capacitor Platform:', Capacitor.getPlatform());
-    console.log('[App] Is Native:', Capacitor.isNativePlatform());
-    console.log('[App] User Agent:', navigator.userAgent);
-    console.log('[App] Window Location:', window.location.href);
-    console.log('[App] Window Origin:', window.location.origin);
-    
-    // API URL을 window 객체에 저장 (디버깅용)
-    if (typeof window !== 'undefined') {
-      (window as any).__DEBUG_API_URL__ = process.env.REACT_APP_API_URL || 'NOT_SET';
-      (window as any).__DEBUG_NODE_ENV__ = process.env.NODE_ENV || 'NOT_SET';
-      (window as any).__DEBUG_ORIGIN__ = window.location.origin;
-    }
+    // 초기화 로직
   }, []);
 
   // StatusBar 설정 (Android에서 상단바와 겹치지 않도록)
@@ -156,47 +143,81 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
-  // 네이티브 앱 첫 실행 시 푸시 알림 권한 요청
+  // 네이티브 앱에서 푸시 알림 권한 요청 및 토큰 등록
   useEffect(() => {
-    if (!isNativeApp()) return;
+    if (!isNativeApp() || !isAuthenticated || !user?.id) return;
 
-    const requestPushPermission = async () => {
+    const setupPushNotifications = async () => {
       try {
         const { PushNotifications } = await import('@capacitor/push-notifications');
+        const { LocalNotifications } = await import('@capacitor/local-notifications');
+        
+        // 로컬 알림 권한 요청 (data-only 메시지를 로컬 알림으로 표시하기 위해 필요)
+        try {
+          const localPermStatus = await LocalNotifications.checkPermissions();
+          if (localPermStatus.display !== 'granted') {
+            await LocalNotifications.requestPermissions();
+          }
+        } catch (error) {
+          console.warn('[App] 로컬 알림 권한 요청 실패:', error);
+        }
         
         // 현재 권한 상태 확인
         const permissionStatus = await PushNotifications.checkPermissions();
         
-        // Android에서는 'prompt' 상태가 없을 수 있으므로, 'denied'이거나 undefined인 경우 요청
-        const shouldRequest = permissionStatus.receive === 'prompt' || 
-                             permissionStatus.receive === 'denied' || 
-                             !permissionStatus.receive;
-        
-        if (shouldRequest) {
+        // 권한이 이미 허용된 경우 토큰 가져와서 서버에 등록
+        if (permissionStatus.receive === 'granted') {
+          // 토큰 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
+          const token = await getNativePushToken(true);
+          
+          if (token) {
+            // 네이티브 푸시 리스너 설정
+            await setupNativePushListeners();
+            
+            // 서버에 토큰 등록
+            try {
+              await pushApi.registerToken(token);
+              localStorage.setItem('pushFcmToken', token);
+            } catch (registerError) {
+              // 토큰 등록 실패는 조용히 처리 (나중에 MainPage에서 재시도 가능)
+            }
+          }
+        }
+        // 권한이 없는 경우에만 요청 (사용자가 거부한 경우는 요청하지 않음)
+        else if (permissionStatus.receive !== 'denied') {
           // 권한 요청
           const result = await PushNotifications.requestPermissions();
           
           if (result.receive === 'granted') {
-            // 권한 허용 시 푸시 알림 등록
-            await PushNotifications.register();
+            // 권한 허용 시 토큰 가져와서 서버에 등록
+            const token = await getNativePushToken(true);
+            
+            if (token) {
+              // 네이티브 푸시 리스너 설정
+              await setupNativePushListeners();
+              
+              // 서버에 토큰 등록
+              try {
+                await pushApi.registerToken(token);
+                localStorage.setItem('pushFcmToken', token);
+              } catch (registerError) {
+                // 토큰 등록 실패는 조용히 처리
+              }
+            }
           }
-        } else if (permissionStatus.receive === 'granted') {
-          // 이미 권한이 허용된 경우 등록만 수행
-          await PushNotifications.register();
         }
       } catch (error) {
         // 권한 요청 실패 시 무시 (사용자가 거부했을 수 있음)
-        console.error('[App] 네이티브 푸시 권한 요청 실패:', error);
       }
     };
 
-    // 약간의 지연을 두고 실행 (앱 초기화 완료 후)
+    // 약간의 지연을 두고 실행 (앱 초기화 및 로그인 완료 후)
     const timer = setTimeout(() => {
-      requestPushPermission();
-    }, 500);
+      setupPushNotifications();
+    }, 1000);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [isAuthenticated, user?.id]);
 
   // 모바일 진입 시 사이드바 자동 닫기
   useEffect(() => {
@@ -571,61 +592,6 @@ const AppInner: React.FC = () => {
               }}
             />
             
-            {/* 네이티브 앱 디버그 정보 표시 */}
-            {Capacitor.isNativePlatform() && (window as any).__API_BASE_URL__ && (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 10,
-                  right: 10,
-                  background: (window as any).__CORS_ERROR__ ? 'rgba(200, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.8)',
-                  color: '#fff',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontSize: '10px',
-                  zIndex: 9998,
-                  maxWidth: '250px',
-                  wordBreak: 'break-all',
-                  fontFamily: 'monospace',
-                  border: (window as any).__CORS_ERROR__ ? '2px solid #ff0000' : 'none',
-                }}
-                onClick={() => {
-                  const apiUrl = (window as any).__API_BASE_URL__;
-                  const envUrl = (window as any).__DEBUG_API_URL__;
-                  const origin = window.location.origin;
-                  const corsError = (window as any).__CORS_ERROR__;
-                  
-                  let message = `API Base URL: ${apiUrl}\n`;
-                  message += `Env URL: ${envUrl}\n`;
-                  message += `NODE_ENV: ${process.env.NODE_ENV}\n`;
-                  message += `\n현재 Origin: ${origin}\n`;
-                  
-                  if (corsError) {
-                    message += `\n⚠️ CORS 에러 발생!\n`;
-                    message += `Origin: ${corsError.origin}\n`;
-                    message += `시간: ${corsError.timestamp}\n`;
-                    message += `\n백엔드 서버의 CORS 설정에\n"${origin}"을 추가해야 합니다.`;
-                  } else {
-                    message += `\n✅ CORS 정상`;
-                  }
-                  
-                  alert(message);
-                }}
-              >
-                <div>API: {(window as any).__API_BASE_URL__?.substring(0, 25)}...</div>
-                <div style={{ fontSize: '9px', marginTop: '4px', fontWeight: 'bold' }}>
-                  Origin: {window.location.origin}
-                </div>
-                {(window as any).__CORS_ERROR__ && (
-                  <div style={{ fontSize: '8px', marginTop: '4px', color: '#ffcccc', fontWeight: 'bold' }}>
-                    ⚠️ CORS 에러!
-                  </div>
-                )}
-                <div style={{ fontSize: '8px', marginTop: '4px', opacity: 0.7 }}>
-                  (탭하여 상세 확인)
-                </div>
-              </div>
-            )}
           </div>
   );
 }
