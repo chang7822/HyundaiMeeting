@@ -262,108 +262,86 @@ const AppInner: React.FC = () => {
     const setupPushNotifications = async () => {
       try {
         const { PushNotifications } = await import('@capacitor/push-notifications');
-        const { LocalNotifications } = await import('@capacitor/local-notifications');
-        
-        // 로컬 알림 권한 요청 (data-only 메시지를 로컬 알림으로 표시하기 위해 필요)
-        try {
-          const localPermStatus = await LocalNotifications.checkPermissions();
-          if (localPermStatus.display !== 'granted') {
-            await LocalNotifications.requestPermissions();
-          }
-        } catch (error) {
-          console.warn('[App] 로컬 알림 권한 요청 실패:', error);
-        }
-        
-        // 현재 권한 상태 확인
-        const permissionStatus = await PushNotifications.checkPermissions();
-        
-        // 권한이 이미 허용된 경우 토큰 가져와서 서버에 등록
-        if (permissionStatus.receive === 'granted') {
+
+        // "앱 첫 실행(권한이 prompt 상태)"에서만 1회 자동으로 권한 팝업을 띄우기 위한 플래그
+        // - 허용: 토큰 자동 발급/등록 + 토글 ON
+        // - 거부: 토글 OFF로 유지, 추가 팝업 없음
+        const PROMPTED_KEY = 'pushPermissionPrompted_v1';
+
+        const ensureTokenRegisteredAndEnabled = async () => {
           // 토큰 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
           const token = await getNativePushToken(true);
-          
+
           if (token) {
             // 네이티브 푸시 리스너 설정
             await setupNativePushListeners();
-            
-            // 이전 토큰 확인 및 정리
+
+            // 이전 토큰 확인 및 정리 (클라이언트 저장 토큰이 바뀐 경우만)
             const previousToken = localStorage.getItem('pushFcmToken');
-            
-            // 여러 기기 지원: localStorage에 이전 토큰이 있고 현재 토큰과 다른 경우에만 삭제
-            // (같은 기기에서 토큰이 변경된 경우만 처리, 다른 기기의 토큰은 유지)
             if (previousToken && previousToken !== token) {
               try {
-                // 서버에서 이전 토큰 삭제 (같은 기기의 이전 토큰만 삭제)
                 await pushApi.unregisterToken(previousToken);
                 console.log('[push] 이전 토큰 삭제 완료 (같은 기기)');
               } catch (unregisterError) {
-                // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
                 console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
               }
             }
-            // localStorage에 토큰이 없는 경우 (앱 재설치 또는 새 기기)
-            // 여러 기기 지원을 위해 다른 기기의 토큰은 삭제하지 않음
-            // (서버에서 오래된 토큰은 별도 정리 작업으로 처리)
-            
-              // 서버에 새 토큰 등록
+
+            // 서버에 새 토큰 등록 (서버에서 user_id + device_type 기준으로 1개만 유지)
+            try {
+              await pushApi.registerToken(token);
+              localStorage.setItem('pushFcmToken', token);
+              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+              console.log('[push] 새 토큰 등록 완료 및 토글 ON 설정');
+
+              // MainPage 토글이 즉시 DB 기준으로 ON으로 갱신되도록 이벤트 브로드캐스트
               try {
-                await pushApi.registerToken(token);
-                localStorage.setItem('pushFcmToken', token);
-                // 토글 상태도 ON으로 설정
-                if (user?.id) {
-                  localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-                }
-                console.log('[push] 새 토큰 등록 완료 및 토글 ON 설정');
-              } catch (registerError) {
-                // 토큰 등록 실패는 조용히 처리 (나중에 MainPage에서 재시도 가능)
-                console.error('[push] 토큰 등록 실패:', registerError);
+                window.dispatchEvent(new CustomEvent('push-status-changed', {
+                  detail: { enabled: true, source: 'auto' },
+                }));
+              } catch {
+                // ignore
               }
+            } catch (registerError) {
+              console.error('[push] 토큰 등록 실패:', registerError);
+            }
           }
-        }
-        // 권한이 없는 경우에만 요청 (사용자가 거부한 경우는 요청하지 않음)
-        else if (permissionStatus.receive !== 'denied') {
-          // 권한 요청
-          const result = await PushNotifications.requestPermissions();
-          
-          if (result.receive === 'granted') {
-            // 권한 허용 시 토큰 가져와서 서버에 등록
-            const token = await getNativePushToken(true);
-            
-            if (token) {
-              // 네이티브 푸시 리스너 설정
-              await setupNativePushListeners();
-              
-              // 이전 토큰 확인 및 정리
-              const previousToken = localStorage.getItem('pushFcmToken');
-              
-              // 여러 기기 지원: localStorage에 이전 토큰이 있고 현재 토큰과 다른 경우에만 삭제
-              // (같은 기기에서 토큰이 변경된 경우만 처리, 다른 기기의 토큰은 유지)
-              if (previousToken && previousToken !== token) {
-                try {
-                  // 서버에서 이전 토큰 삭제 (같은 기기의 이전 토큰만 삭제)
-                  await pushApi.unregisterToken(previousToken);
-                  console.log('[push] 이전 토큰 삭제 완료 (같은 기기)');
-                } catch (unregisterError) {
-                  // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
-                  console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
-                }
-              }
-              // localStorage에 토큰이 없는 경우 (앱 재설치 또는 새 기기)
-              // 여러 기기 지원을 위해 다른 기기의 토큰은 삭제하지 않음
-              // (서버에서 오래된 토큰은 별도 정리 작업으로 처리)
-              
-              // 서버에 새 토큰 등록
+        };
+        
+        // 현재 권한 상태 확인
+        const permissionStatus = await PushNotifications.checkPermissions();
+        const receive = (permissionStatus.receive === 'prompt-with-rationale')
+          ? 'prompt'
+          : (permissionStatus.receive || 'prompt');
+        
+        // 권한이 이미 허용된 경우 토큰 가져와서 서버에 등록
+        if (receive === 'granted') {
+          await ensureTokenRegisteredAndEnabled();
+        } else if (receive === 'prompt') {
+          // 앱 첫 실행 때만(플래그 1회) 자동 권한 요청 팝업을 띄운다.
+          const prompted = localStorage.getItem(PROMPTED_KEY) === 'true';
+          if (!prompted) {
+            localStorage.setItem(PROMPTED_KEY, 'true');
+            const result = await PushNotifications.requestPermissions();
+            const next = (result.receive === 'prompt-with-rationale') ? 'prompt' : (result.receive || 'prompt');
+
+            if (next === 'granted') {
+              await ensureTokenRegisteredAndEnabled();
+            } else {
+              // 거부/미결정: 토글 OFF 유지
               try {
-                await pushApi.registerToken(token);
-                localStorage.setItem('pushFcmToken', token);
-                // 토글 상태도 ON으로 설정
-                if (user?.id) {
-                  localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-                }
-                console.log('[push] 새 토큰 등록 완료 및 토글 ON 설정');
-              } catch (registerError) {
-                // 토큰 등록 실패는 조용히 처리
-                console.error('[push] 토큰 등록 실패:', registerError);
+                localStorage.setItem(`pushEnabled_${user.id}`, 'false');
+              } catch {
+                // ignore
+              }
+
+              // MainPage 토글이 즉시 OFF로 갱신되도록 이벤트 브로드캐스트
+              try {
+                window.dispatchEvent(new CustomEvent('push-status-changed', {
+                  detail: { enabled: false, source: 'auto' },
+                }));
+              } catch {
+                // ignore
               }
             }
           }

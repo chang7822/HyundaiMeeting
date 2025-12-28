@@ -11,6 +11,7 @@ import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
 import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners } from '../firebase.ts';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 // 액션 타입 정의
 type ActionItem = {
@@ -866,6 +867,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [pushPermissionStatus, setPushPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | null>(null);
   const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
   const [showIosGuideModal, setShowIosGuideModal] = useState(false);
+  const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
   const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
 
   // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
@@ -938,10 +940,28 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     };
     
     checkPermissionAndTokenStatus();
+
+    // App.tsx(자동 권한/자동 등록)에서 푸시 상태 변경 이벤트를 쏘면 즉시 반영
+    const onPushStatusChanged = async () => {
+      try {
+        // DB 기준으로 다시 동기화
+        await checkPermissionAndTokenStatus();
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('push-status-changed', onPushStatusChanged as any);
+
+    return () => {
+      window.removeEventListener('push-status-changed', onPushStatusChanged as any);
+    };
   }, [user?.id]);
 
   const handleTogglePush = useCallback(async () => {
-    if (isPushBusy) return;
+    if (isPushBusy) {
+      toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
+      return;
+    }
 
     if (!user?.id) {
       toast.error('로그인이 필요합니다.');
@@ -949,12 +969,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
 
     const isNative = isNativeApp();
-    
-    // 네이티브 앱에서 권한이 denied인 경우 처리
-    if (isNative && pushPermissionStatus === 'denied') {
-      toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
-      return;
-    }
 
     const next = !isPushEnabled;
 
@@ -968,12 +982,62 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         // 네이티브 앱 환경
         if (isNative) {
           const { PushNotifications } = await import('@capacitor/push-notifications');
-          
-          // 현재 권한 상태 확인
+
+          const normalize = (p: any) => (p === 'prompt-with-rationale' ? 'prompt' : (p || 'prompt'));
+          const DENIED_BY_TOGGLE_KEY = `pushDeniedByToggle_v1_${user.id}`;
+
+          // 현재 권한 상태 확인 → granted가 아니면 "무조건" requestPermissions() 한번 시도
           const currentPerm = await PushNotifications.checkPermissions();
-          
-          // 이미 권한이 허용된 경우
-          if (currentPerm.receive === 'granted') {
+          let perm = normalize(currentPerm.receive);
+          const prePerm = perm; // requestPermissions() 호출 "전" 상태
+
+          if (perm !== 'granted') {
+            const permResult = await PushNotifications.requestPermissions();
+            perm = normalize(permResult.receive);
+          }
+
+          setPushPermissionStatus(perm as any);
+
+          // 여전히 거부/미허용이면:
+          // - prePerm이 'prompt'였다면: "사용자가 방금 거부"한 케이스라 설정 모달은 과함 → 토스트만
+          // - prePerm이 'denied'였다면: OS가 더 이상 팝업을 띄우지 않는 상태일 가능성이 큼 → 설정 모달 안내
+          if (perm !== 'granted') {
+            toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
+
+            // Android에서는 'denied' 대신 'prompt-with-rationale'가 계속 내려오는 경우가 있어
+            // "토글에서 거부를 한 번이라도 한 이후"에는 다음 시도부터 설정 모달을 띄운다.
+            let deniedByToggle = false;
+            try {
+              deniedByToggle = localStorage.getItem(DENIED_BY_TOGGLE_KEY) === 'true';
+            } catch {
+              // ignore
+            }
+
+            const shouldShowSettingsModal = prePerm === 'denied' || deniedByToggle;
+            if (shouldShowSettingsModal) {
+              setShowPushSettingsModal(true);
+            } else {
+              // 방금(토글에서) 거부한 첫 케이스: 다음 시도부터는 설정 모달을 띄우기 위해 플래그 저장
+              try {
+                localStorage.setItem(DENIED_BY_TOGGLE_KEY, 'true');
+              } catch {
+                // ignore
+              }
+            }
+            setIsPushEnabled(false);
+            setIsPushBusy(false);
+            return;
+          }
+
+          // 권한이 허용된 경우
+          {
+            // 권한이 허용되면 "토글 거부 플래그"는 해제
+            try {
+              localStorage.removeItem(DENIED_BY_TOGGLE_KEY);
+            } catch {
+              // ignore
+            }
+
             // localStorage에 이미 토큰이 있는지 확인
             const existingToken = localStorage.getItem('pushFcmToken');
             
@@ -1007,92 +1071,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               } catch (unregisterError) {
                 // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
                 // console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
-              }
-            }
-
-            // 서버에 새 토큰 등록
-            try {
-              const registerResult = await pushApi.registerToken(token);
-              if (!registerResult || !registerResult.success) {
-                console.error('[push] 토큰 등록 실패:', registerResult);
-                toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
-                setIsPushBusy(false);
-                return;
-              }
-            } catch (registerError) {
-              console.error('[push] 토큰 등록 API 호출 실패:', registerError);
-              toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-              setIsPushBusy(false);
-              return;
-            }
-
-            try {
-              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-              localStorage.setItem('pushFcmToken', token);
-            } catch {
-              // ignore
-            }
-
-            setIsPushEnabled(true);
-            toast.success('푸시 알림이 활성화되었습니다.');
-          } 
-          // 권한이 denied 상태인 경우: 앱 설정으로 이동 안내
-          else if (currentPerm.receive === 'denied') {
-            // denied 상태에서는 requestPermissions()를 호출해도 팝업이 뜨지 않음
-            // 앱 설정으로 이동하도록 안내
-            toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
-            
-            // denied 상태에서는 requestPermissions()를 호출해도 팝업이 뜨지 않으므로
-            // 사용자에게 앱 설정에서 수동으로 권한을 허용하도록 안내만 함
-            
-            setIsPushEnabled(false);
-            setIsPushBusy(false);
-            return;
-          }
-          // 권한이 prompt 상태인 경우: 시스템 권한 요청 팝업 표시
-          else {
-            const permResult = await PushNotifications.requestPermissions();
-            
-            if (permResult.receive !== 'granted') {
-              toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
-              setIsPushEnabled(false);
-              setIsPushBusy(false);
-              return;
-            }
-            
-            // localStorage에 이미 토큰이 있는지 확인
-            const existingToken = localStorage.getItem('pushFcmToken');
-            
-            if (existingToken) {
-              // 이미 토큰이 있으면 그것을 사용 (서버에 재등록만 시도)
-              token = existingToken;
-              console.log('[push] 기존 토큰 사용:', token.substring(0, 20) + '...');
-            } else {
-              // 권한이 허용된 경우 토큰 가져오기
-              token = await getNativePushToken(true);
-              
-              if (!token) {
-                toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
-                setIsPushBusy(false);
-                return;
-              }
-            }
-
-            // 네이티브 푸시 리스너 설정
-            await setupNativePushListeners();
-
-            // 이전 토큰 확인 및 정리
-            const previousToken = localStorage.getItem('pushFcmToken');
-            
-            // 토큰이 변경된 경우 (앱 재설치 등)
-            if (previousToken && previousToken !== token) {
-              try {
-                // 서버에서 이전 토큰 삭제
-                await pushApi.unregisterToken(previousToken);
-                console.log('[push] 이전 토큰 삭제 완료');
-              } catch (unregisterError) {
-                // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
-                console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
               }
             }
 
@@ -1249,15 +1227,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     // ON → OFF
     try {
       setIsPushBusy(true);
-      let token: string | undefined;
-      try {
-        const storedToken = localStorage.getItem('pushFcmToken');
-        if (storedToken) token = storedToken;
-      } catch {
-        // ignore
-      }
-
-      await pushApi.unregisterToken(token);
+      // ✅ 정책: 토글 OFF 시 같은 device_type 토큰을 전부 삭제 (서버가 UA로 device_type 판단)
+      await pushApi.unregisterToken();
 
       try {
         localStorage.setItem(`pushEnabled_${user.id}`, 'false');
@@ -1275,6 +1246,25 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       setIsPushBusy(false);
     }
   }, [isPushEnabled, isPushBusy, user?.id, pushPermissionStatus]);
+
+  const openNativeAppSettings = useCallback(async () => {
+    try {
+      if (!isNativeApp()) return;
+
+      const platform = Capacitor.getPlatform();
+      if (platform === 'android') {
+        const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
+        await AppSettings.open();
+      } else {
+        // iOS 등: 현재 프로젝트에는 iOS 네이티브가 없어서 설정 화면 딥링크를 제공하지 않음
+        // (iOS 네이티브를 추가하는 경우 별도 구현 가능)
+        toast.info('기기 설정 앱에서 직쏠공 알림 권한을 허용해주세요.');
+      }
+    } catch (e) {
+      console.error('[push] 앱 설정 열기 실패:', e);
+      toast.error('설정 화면을 열 수 없습니다. 기기 설정에서 직접 알림 권한을 허용해주세요.');
+    }
+  }, []);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -2322,14 +2312,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
-                      // 토큰 등록/해제 진행 중이면 무시
+                      // 토큰 등록/해제 진행 중이면 안내 후 무시
                       if (isPushBusy) {
-                        return;
-                      }
-                      
-                      // 권한이 denied인 경우 토글 비활성화
-                      if (isNativeApp() && pushPermissionStatus === 'denied') {
-                        toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
+                        toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
                         return;
                       }
                       
@@ -2344,8 +2329,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         handleTogglePush();
                       }
                     }}
-                    disabled={isLoading || isPushBusy || (isNativeApp() && pushPermissionStatus === 'denied')}
-                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : (isPushBusy ? '토큰 등록/해제 중입니다...' : '')}
+                    // denied 상태여도 사용자가 다시 토글하면 requestPermissions()를 재시도하고,
+                    // OS가 팝업을 막는 경우 "설정으로 이동" 모달로 안내한다.
+                    // NOTE: disabled로 막으면 모바일에서 "아무 반응 없음" 체감이 생길 수 있어,
+                    // 로딩 상태만 막고(아주 예외), 나머지는 핸들러에서 안내한다.
+                    disabled={isLoading}
+                    title={isLoading ? '로딩 중입니다...' : ''}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
@@ -2570,14 +2559,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
-                      // 토큰 등록/해제 진행 중이면 무시
+                      // 토큰 등록/해제 진행 중이면 안내 후 무시
                       if (isPushBusy) {
-                        return;
-                      }
-                      
-                      // 권한이 denied인 경우 토글 비활성화
-                      if (isNativeApp() && pushPermissionStatus === 'denied') {
-                        toast.error('알림 권한이 거부되었습니다. 앱 설정에서 알림 권한을 허용해주세요.');
+                        toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
                         return;
                       }
                       
@@ -2592,8 +2576,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         handleTogglePush();
                       }
                     }}
-                    disabled={isLoading || isPushBusy || (isNativeApp() && pushPermissionStatus === 'denied')}
-                    title={isNativeApp() && pushPermissionStatus === 'denied' ? '알림 권한을 허용해야 푸시 알림을 사용할 수 있습니다' : (isPushBusy ? '토큰 등록/해제 중입니다...' : '')}
+                    // disabled로 막으면 모바일에서 "아무 반응 없음" 체감이 생길 수 있어,
+                    // 로딩 상태만 막고(아주 예외), 나머지는 핸들러에서 안내한다.
+                    disabled={isLoading}
+                    title={isLoading ? '로딩 중입니다...' : ''}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
@@ -3602,6 +3588,62 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   }}
                 >
                   네, 켤게요
+                </button>
+              </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* 푸시 권한이 차단되어 더 이상 팝업이 뜨지 않을 때: 앱 설정으로 이동 안내 */}
+      {showPushSettingsModal && (
+        <ModalOverlay onClick={() => setShowPushSettingsModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
+            <div style={{ width: '100%', maxWidth: '420px' }}>
+              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                알림 권한이 꺼져 있어요
+              </h2>
+              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                {'기기에서 알림 권한이 거부되어, 더 이상 권한 팝업이 뜨지 않을 수 있습니다.\n\n' +
+                  '아래 버튼을 눌러 설정으로 이동한 뒤,\n' +
+                  '설정 > 애플리케이션 > 직쏠공 > 알림에서 "허용"으로 변경해주세요.'}
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPushSettingsModal(false)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: '#f9fafb',
+                    color: '#4b5563',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    minWidth: 90,
+                  }}
+                >
+                  닫기
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowPushSettingsModal(false);
+                    await openNativeAppSettings();
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    minWidth: 130,
+                  }}
+                >
+                  설정으로 이동
                 </button>
               </div>
             </div>

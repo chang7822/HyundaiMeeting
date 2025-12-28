@@ -97,6 +97,43 @@ const Input = styled.input`
   }
 `;
 
+const PasswordRow = styled.div`
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+`;
+
+const PasswordInput = styled(Input)`
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+`;
+
+const PasswordToggleButton = styled.button<{ $error?: boolean }>`
+  width: 46px;
+  flex: 0 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 2px solid ${props => (props.$error ? '#e74c3c' : '#e1e5e9')};
+  border-left: none;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  color: #6b7280;
+
+  &:hover {
+    color: #667eea;
+  }
+
+  &:focus {
+    outline: none;
+  }
+`;
+
 const ErrorMessage = styled.span`
   color: #e74c3c;
   font-size: 0.8rem;
@@ -230,8 +267,8 @@ const LoginPage = () => {
 
           <FormGroup>
             <Label>비밀번호</Label>
-            <div style={{ position: 'relative' }}>
-              <Input
+            <PasswordRow>
+              <PasswordInput
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 {...register('password', {
@@ -243,29 +280,18 @@ const LoginPage = () => {
                 })}
                 className={errors.password ? 'error' : ''}
                 placeholder="비밀번호를 입력하세요"
-                style={{ paddingRight: 40 }}
                 onKeyDown={checkCapsLock}
               />
-              <button
+              <PasswordToggleButton
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                style={{
-                  position: 'absolute',
-                  right: 10,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  margin: 0
-                }}
                 tabIndex={-1}
                 aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                $error={!!errors.password}
               >
                 {showPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
-            </div>
+              </PasswordToggleButton>
+            </PasswordRow>
             {errors.password && <ErrorMessage>{errors.password.message}</ErrorMessage>}
             {isCapsLockOn && (
               <CapsLockWarning>

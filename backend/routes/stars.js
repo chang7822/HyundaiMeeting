@@ -127,7 +127,7 @@ router.post('/attendance/daily', async (req, res) => {
     const userId = req.user.userId;
     const today = getKSTDateString();
 
-    // 오늘 이미 어떤 형태로든(출석/광고) 출석 처리 되었는지 확인
+    // 오늘 이미 어떤 형태로든(출석/광고) 출석 처리 되었는지 확인 (하루 1회: 둘 중 택1)
     const { data: existing, error: existsError } = await supabase
       .from('attendance_logs')
       .select('id')
@@ -195,7 +195,7 @@ router.post('/attendance/ad', async (req, res) => {
     const userId = req.user.userId;
     const today = getKSTDateString();
 
-    // 오늘 이미 어떤 형태로든(출석/광고) 출석 처리 되었는지 확인
+    // 오늘 이미 어떤 형태로든(출석/광고) 출석 처리 되었는지 확인 (하루 1회: 둘 중 택1)
     const { data: existing, error: existsError } = await supabase
       .from('attendance_logs')
       .select('id')

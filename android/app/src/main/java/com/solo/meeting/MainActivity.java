@@ -15,6 +15,7 @@ import com.getcapacitor.Bridge;
 import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.initialization.InitializationStatus;
 import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
+import com.solo.meeting.AppSettingsPlugin;
 
 public class MainActivity extends BridgeActivity {
     @Override
@@ -22,6 +23,9 @@ public class MainActivity extends BridgeActivity {
         // WebView 디버깅 활성화 (항상 활성화)
         WebView.setWebContentsDebuggingEnabled(true);
         android.util.Log.d("MainActivity", "WebView 디버깅 활성화됨");
+
+        // 네이티브 플러그인 등록 (설정 화면 열기 등)
+        registerPlugin(AppSettingsPlugin.class);
         
         super.onCreate(savedInstanceState);
         
@@ -34,8 +38,11 @@ public class MainActivity extends BridgeActivity {
         View rootView = findViewById(android.R.id.content);
         if (rootView != null) {
             ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, windowInsets) -> {
-                Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.statusBars());
+                // 시스템 바(상단 StatusBar + 하단 NavigationBar) 인셋 반영
+                // 하단 네비게이션 바에 토스트/하단 UI가 가려지는 문제 해결
+                Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
                 int statusBarHeight = insets.top;
+                int navigationBarHeight = insets.bottom;
                 
                 // CoordinatorLayout 찾아서 패딩 추가
                 if (rootView instanceof ViewGroup) {
@@ -44,14 +51,12 @@ public class MainActivity extends BridgeActivity {
                         View child = rootGroup.getChildAt(i);
                         if (child instanceof CoordinatorLayout) {
                             CoordinatorLayout coordinatorLayout = (CoordinatorLayout) child;
-                            if (statusBarHeight > 0) {
-                                coordinatorLayout.setPadding(
-                                    coordinatorLayout.getPaddingLeft(),
-                                    statusBarHeight,
-                                    coordinatorLayout.getPaddingRight(),
-                                    coordinatorLayout.getPaddingBottom()
-                                );
-                            }
+                            coordinatorLayout.setPadding(
+                                coordinatorLayout.getPaddingLeft(),
+                                Math.max(statusBarHeight, 0),
+                                coordinatorLayout.getPaddingRight(),
+                                Math.max(navigationBarHeight, 0)
+                            );
                             break;
                         }
                     }
