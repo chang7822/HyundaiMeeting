@@ -145,13 +145,13 @@ const AppInner: React.FC = () => {
       const waitForWebView = () => {
         return new Promise<void>((resolve) => {
           if (Capacitor.getPlatform() === 'android') {
-            // Android: DOMContentLoaded 이벤트 대기
-            if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            // Android: window.load 이벤트 대기 (더 확실한 방법)
+            if (document.readyState === 'complete') {
               // 추가 지연으로 WebView JavaScript 엔진이 완전히 준비되도록 함
-              setTimeout(resolve, 500);
+              setTimeout(resolve, 1500);
             } else {
-              window.addEventListener('DOMContentLoaded', () => {
-                setTimeout(resolve, 500);
+              window.addEventListener('load', () => {
+                setTimeout(resolve, 1500);
               });
             }
           } else {
@@ -163,22 +163,17 @@ const AppInner: React.FC = () => {
       try {
         await waitForWebView();
         
-        const { AdMob } = await import('@capacitor-community/admob');
-        // 환경 변수로 테스트 모드 제어 (기본값: 테스트 모드)
-        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-        await AdMob.initialize({
-          initializeForTesting: isTesting,
-        });
-        console.log(`[AdMob] 초기화 완료 (테스트 모드: ${isTesting})`);
+        const { AdMob } = await import('@capgo/capacitor-admob');
+        await AdMob.start();
       } catch (error) {
-        console.error('[AdMob] 초기화 실패:', error);
+        // AdMob 초기화 실패는 조용히 처리 (앱 사용에는 영향 없음)
       }
     };
     
     // 약간의 지연 후 초기화 (앱이 완전히 로드된 후)
     const timer = setTimeout(() => {
       initializeAdMob();
-    }, 1000);
+    }, 2000);
     
     return () => clearTimeout(timer);
   }, []);
@@ -310,15 +305,19 @@ const AppInner: React.FC = () => {
             // 여러 기기 지원을 위해 다른 기기의 토큰은 삭제하지 않음
             // (서버에서 오래된 토큰은 별도 정리 작업으로 처리)
             
-            // 서버에 새 토큰 등록
-            try {
-              await pushApi.registerToken(token);
-              localStorage.setItem('pushFcmToken', token);
-              console.log('[push] 새 토큰 등록 완료');
-            } catch (registerError) {
-              // 토큰 등록 실패는 조용히 처리 (나중에 MainPage에서 재시도 가능)
-              console.error('[push] 토큰 등록 실패:', registerError);
-            }
+              // 서버에 새 토큰 등록
+              try {
+                await pushApi.registerToken(token);
+                localStorage.setItem('pushFcmToken', token);
+                // 토글 상태도 ON으로 설정
+                if (user?.id) {
+                  localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+                }
+                console.log('[push] 새 토큰 등록 완료 및 토글 ON 설정');
+              } catch (registerError) {
+                // 토큰 등록 실패는 조용히 처리 (나중에 MainPage에서 재시도 가능)
+                console.error('[push] 토큰 등록 실패:', registerError);
+              }
           }
         }
         // 권한이 없는 경우에만 요청 (사용자가 거부한 경우는 요청하지 않음)
@@ -357,7 +356,11 @@ const AppInner: React.FC = () => {
               try {
                 await pushApi.registerToken(token);
                 localStorage.setItem('pushFcmToken', token);
-                console.log('[push] 새 토큰 등록 완료');
+                // 토글 상태도 ON으로 설정
+                if (user?.id) {
+                  localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+                }
+                console.log('[push] 새 토큰 등록 완료 및 토글 ON 설정');
               } catch (registerError) {
                 // 토큰 등록 실패는 조용히 처리
                 console.error('[push] 토큰 등록 실패:', registerError);

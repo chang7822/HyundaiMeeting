@@ -822,7 +822,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         setStarBalance(typeof data.balance === 'number' ? data.balance : 0);
         const dailyDone = !!data?.today?.dailyDone;
         const adDone = !!data?.today?.adDone;
-        // 오늘 중 하나라도 별을 획득했다면 사이드바에서는 "오늘 출석 완료"로 표시
+        // 오늘 중 하나라도 별을 획득했다면 사이드바에서는 "오늘 출석 완료"로 표시 (하루 1회: 둘 중 택1)
         setHasDailyToday(dailyDone || adDone);
         setHasAdToday(adDone);
       })
@@ -863,7 +863,6 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         setStarBalance(res.newBalance);
       }
       toast.success(res.message || '출석 체크가 완료되었습니다.');
-      setAttendanceModalOpen(false);
       setHasDailyToday(true);
     } catch (error: any) {
       const msg =
@@ -881,75 +880,164 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       toast.error('광고 보기는 앱에서만 사용 가능합니다.');
       return;
     }
+    if (hasDailyToday) return;
     
     setAdSubmitting(true);
+    let removeListeners: (() => Promise<void>) | null = null;
     try {
-      // AdMob 광고 표시
-      const { AdMob } = await import('@capacitor-community/admob');
-      
-      // AdMob이 초기화되지 않았다면 초기화 시도
-      try {
-        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-        await AdMob.initialize({
-          initializeForTesting: isTesting,
+      // WebView 준비 확인
+      const waitForWebViewReady = () => {
+        return new Promise<void>((resolve) => {
+          if (document.readyState === 'complete') {
+            setTimeout(resolve, 1000);
+          } else {
+            window.addEventListener('load', () => {
+              setTimeout(resolve, 1000);
+            });
+          }
         });
-        console.log('[AdMob] 지연 초기화 완료');
-      } catch (initError: any) {
-        // 이미 초기화되어 있으면 무시
-        if (!initError?.message?.includes('already initialized')) {
-          console.warn('[AdMob] 초기화 시도 중 오류 (무시 가능):', initError);
-        }
+      };
+      
+      await waitForWebViewReady();
+      
+      // AdMob 모듈 로드
+      let RewardedAd;
+      let AdMob;
+      try {
+        const admobModule = await import('@capgo/capacitor-admob');
+        RewardedAd = admobModule.RewardedAd;
+        AdMob = admobModule.AdMob;
+      } catch (importError: any) {
+        toast.error('광고 모듈을 불러올 수 없습니다.');
+        setAdSubmitting(false);
+        return;
       }
       
-      // 테스트 모드: Google 테스트 광고 단위 ID 사용
-      // 배포 시: 실제 광고 단위 ID 사용
-      // 구글 플레이에 등재되지 않은 상태(로컬 APK)에서는 테스트 모드 사용
-      // 환경 변수로 제어: REACT_APP_ADMOB_TESTING=false로 설정하면 실제 광고 사용
-      // 기본값: 테스트 모드 (구글 플레이 미등재 상태에서도 동작)
+      // 광고 ID 설정
       const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
       const adId = isTesting 
         ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
         : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID
       
-      // 광고 준비
-      await AdMob.prepareRewardVideoAd({
-        adId,
-        isTesting,
+      // WebView 완전 준비 확인
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 보상형 광고 생성 및 표시
+      const rewardedAd = new RewardedAd({
+        adUnitId: adId,
       });
+
+      // 플러그인 이벤트 기반으로 "리워드 지급" 여부를 판정해야 함
+      // (RewardedAd.show()는 Promise<void> 이므로 반환값으로 완료여부 판단 불가)
+      const adInstanceId = (rewardedAd as any)?.id;
+      const getEventAdId = (event: any) => event?.adId ?? event?.id; // Android: adId, iOS: id
+
+      let rewarded = false;
+      let dismissed = false;
+      let showFailed: string | undefined;
+      let rewardPromise: Promise<void> | null = null;
+      
+      // 광고 로드
+      try {
+        await rewardedAd.load();
+      } catch (loadError: any) {
+        // 로드 실패 시 재시도
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await rewardedAd.load();
+      }
+
+      // 로드 성공 후에 리스너를 등록 (로드 실패 시 리스너 누수 방지)
+      {
+        let rewardHandle: any;
+        let dismissHandle: any;
+        let showFailHandle: any;
+
+        removeListeners = async () => {
+          try { await rewardHandle?.remove?.(); } catch {}
+          try { await dismissHandle?.remove?.(); } catch {}
+          try { await showFailHandle?.remove?.(); } catch {}
+        };
+
+        rewardPromise = new Promise<void>((resolve, reject) => {
+          const safeResolve = async () => {
+            await removeListeners?.();
+            resolve();
+          };
+          const safeReject = async (err: any) => {
+            await removeListeners?.();
+            reject(err);
+          };
+
+          (async () => {
+            try {
+              rewardHandle = await AdMob.addListener('rewarded.reward', (event: any) => {
+                const evAdId = getEventAdId(event);
+                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                rewarded = true;
+                safeResolve();
+              });
+
+              dismissHandle = await AdMob.addListener('rewarded.dismiss', (event: any) => {
+                const evAdId = getEventAdId(event);
+                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                dismissed = true;
+                safeResolve();
+              });
+
+              showFailHandle = await AdMob.addListener('rewarded.showfail', (event: any) => {
+                const evAdId = getEventAdId(event);
+                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                showFailed = event?.error || event?.message || '광고 표시 실패';
+                safeReject(new Error(showFailed || '광고 표시 실패'));
+              });
+            } catch (e) {
+              safeReject(e);
+            }
+          })();
+        });
+      }
       
       // 광고 표시
-      const result = await AdMob.showRewardVideoAd();
-      
-      // 광고 시청 완료 확인 (result 객체가 존재하면 보상 받음)
-      if (result) {
-        // 서버에 보상 요청
-        const res = await starApi.adReward();
-        if (typeof res.newBalance === 'number') {
-          setStarBalance(res.newBalance);
+      await rewardedAd.show();
+
+      // rewarded.reward(보상) 또는 rewarded.dismiss(닫힘) 이벤트를 기다림
+      // (너무 오래 걸리는 케이스 방지: 90초 타임아웃)
+      await Promise.race([
+        rewardPromise!,
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('광고 응답이 지연되었습니다. 잠시 후 다시 시도해주세요.')), 90_000)),
+      ]);
+
+      // 광고 시청 완료(리워드 지급) 확인 및 보상 지급
+      if (rewarded) {
+        try {
+          const res = await starApi.adReward();
+          if (res.success && typeof res.newBalance === 'number') {
+            setStarBalance(res.newBalance);
+            toast.success(res.message || '광고 보상 별이 지급되었습니다.');
+            setAttendanceModalOpen(false);
+            setHasAdToday(true);
+            setHasDailyToday(true);
+          } else {
+            // 백엔드에서 에러 응답 (400, 500 등)인 경우
+            toast.error(res.message || '보상 지급에 실패했습니다.');
+          }
+        } catch (rewardError: any) {
+          // 네트워크 오류 또는 기타 예외
+          const errorMessage = rewardError?.response?.data?.message || '보상 지급 중 오류가 발생했습니다.';
+          toast.error(errorMessage);
         }
-        toast.success(res.message || '광고 보상 별이 지급되었습니다.');
-        setAttendanceModalOpen(false);
-        setHasAdToday(true);
-        setHasDailyToday(true);
       } else {
-        toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있습니다.');
+        // dismissed 되었거나 타임아웃 등으로 reward가 없으면 안내
+        if (!dismissed) {
+          toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있습니다.');
+        } else {
+          toast.info('광고 보상을 받지 못했습니다. 광고를 끝까지 시청해야 보상이 지급됩니다.');
+        }
       }
     } catch (error: any) {
-      console.error('[AdMob] 광고 표시 오류:', error);
-      console.error('[AdMob] 에러 상세:', JSON.stringify(error, null, 2));
-      
-      // 에러 메시지 추출
-      let errorMessage = '광고 보상 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-      if (error?.message) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      } else if (error?.toString && error.toString() !== '[object Object]') {
-        errorMessage = error.toString();
-      }
-      
-      toast.error(errorMessage);
+      toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
     } finally {
+      try { await removeListeners?.(); } catch {}
       setAdSubmitting(false);
     }
   };
@@ -1190,14 +1278,14 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               <AttendancePrimaryButton
                 type="button"
                 onClick={handleDailyAttendance}
-                disabled={attendanceSubmitting}
+                disabled={attendanceSubmitting || hasDailyToday}
               >
                 {attendanceSubmitting ? '출석 처리 중...' : '출석 체크 (⭐1)'}
               </AttendancePrimaryButton>
               <AttendancePrimaryButton
                 type="button"
                 onClick={handleAdReward}
-                disabled={adSubmitting || !isNativeApp()}
+                disabled={adSubmitting || !isNativeApp() || hasDailyToday}
                 style={{ background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' }}
               >
                 <span>{adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}</span>

@@ -70,6 +70,8 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+    // AdMob SDK (MainActivity에서 직접 사용하기 위해 추가)
+    implementation "com.google.android.gms:play-services-ads:$playServicesAdsVersion"
 }
 
 apply from: 'capacitor.build.gradle'
