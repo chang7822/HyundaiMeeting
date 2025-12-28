@@ -597,6 +597,21 @@ export const adminApi = {
     return response.data;
   },
 
+  // 관리자: 이벤트 별 지급 + (선택) 알림/푸시 발송
+  grantStars: async (payload: {
+    userIds: string[];
+    amount: number;
+    notification?: {
+      title: string;
+      body: string;
+      linkUrl?: string | null;
+    };
+    sendPush?: boolean;
+  }): Promise<any> => {
+    const response = await api.post('/admin/stars/grant', payload);
+    return response.data;
+  },
+
   // 추가 매칭도전 회차 요약 조회
   getExtraMatchingPeriodsSummary: async (): Promise<any[]> => {
     const response = await api.get('/admin/extra-matching/periods');

@@ -44,6 +44,7 @@ import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
 import ExtraMatchingPage from './pages/ExtraMatchingPage.tsx';
 import NotificationsPage from './pages/NotificationsPage.tsx';
 import AdminNotificationPage from './pages/admin/AdminNotificationPage.tsx';
+import AdminStarRewardPage from './pages/admin/AdminStarRewardPage.tsx';
 import ExtraMatchingAdminPage from './pages/admin/ExtraMatchingAdminPage.tsx';
 import UserMatchingOverviewPage from './pages/admin/UserMatchingOverviewPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
@@ -703,6 +704,14 @@ const AppInner: React.FC = () => {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <AdminNotificationPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/star-rewards" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <AdminStarRewardPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />
