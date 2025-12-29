@@ -135,9 +135,15 @@ router.get('/users', authenticate, async (req, res) => {
           .eq('user_id', user.id)
           .single();
 
+        // 중요: user_profiles 테이블에도 id(정수 PK)가 있어 users.id(uuid)를 덮어쓸 수 있음
+        // - id는 반드시 users.id(uuid)가 되도록 profile을 먼저 펼치고 user를 나중에 펼친다.
+        // - 프론트 호환성을 위해 profile은 nested로도 함께 제공한다.
+        const safeProfile = profileError ? null : (profile || null);
+
         return {
+          ...(safeProfile || {}),
           ...user,
-          ...profile
+          profile: safeProfile,
         };
       })
     );
@@ -1972,6 +1978,18 @@ router.post('/stars/grant', authenticate, async (req, res) => {
           .filter(Boolean),
       ),
     );
+
+    // UUID 형식이 아닌 값이 들어오면 Postgres에서 22P02로 500이 나므로,
+    // 여기서 명확히 400으로 차단한다. (프론트/데이터 이상 조기 탐지 목적)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const invalidIds = cleanUserIds.filter((id) => !uuidRegex.test(id));
+    if (invalidIds.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: '대상 회원 ID 형식이 올바르지 않습니다. (UUID 필요)',
+        invalidIds: invalidIds.slice(0, 20),
+      });
+    }
 
     const numericAmount = Number(amount);
     const intAmount = Number.isFinite(numericAmount) ? Math.floor(numericAmount) : NaN;
