@@ -224,6 +224,9 @@ async function sendMatchingResultEmails(periodIdOverride) {
     let pending = applications.map(app => ({
       ...app,
       attempts: 0,
+      lastError: null,
+      lastErrorCode: null,
+      lastErrorTransient: null,
     }));
 
     let totalSuccess = 0;
@@ -239,18 +242,29 @@ async function sendMatchingResultEmails(periodIdOverride) {
         const partnerInfo = isMatched && app.partner_user_id ? { partnerId: app.partner_user_id } : null;
 
         try {
-          const emailSent = await sendMatchingResultEmail(app.user.email, isMatched, partnerInfo);
+          const result = await sendMatchingResultEmail(app.user.email, isMatched, partnerInfo);
+          const ok = (result === true) || (result && result.ok === true);
 
-          if (emailSent) {
+          if (ok) {
             totalSuccess++;
 
             // 🔔 매칭 결과 알림은 scheduler에서 결과 공지 시점에 일괄 전송됨
           } else {
+            const errMsg =
+              (result && result.error && result.error.message) ? String(result.error.message) : 'unknown error';
+            const errCode =
+              (result && result.error && result.error.code != null) ? String(result.error.code) : null;
+            const errTransient =
+              (result && typeof result.transient === 'boolean') ? result.transient : null;
+
             // 실패한 경우: 최대 횟수 이내면 다음 라운드 대상으로 넘기고, 아니면 최종 실패로 집계
             if (attempt < maxAttempts) {
               nextPending.push({
                 ...app,
                 attempts: app.attempts + 1,
+                lastError: errMsg,
+                lastErrorCode: errCode,
+                lastErrorTransient: errTransient,
               });
             } else {
               totalFail++;
@@ -258,15 +272,22 @@ async function sendMatchingResultEmails(periodIdOverride) {
               nextPending.push({
                 ...app,
                 attempts: app.attempts + 1,
+                lastError: errMsg,
+                lastErrorCode: errCode,
+                lastErrorTransient: errTransient,
               });
             }
           }
         } catch (error) {
           console.error(`이메일 발송 오류 - 사용자: ${app.user_id}`, error);
+          const errMsg = error?.message || String(error);
           if (attempt < maxAttempts) {
             nextPending.push({
               ...app,
               attempts: app.attempts + 1,
+              lastError: errMsg,
+              lastErrorCode: null,
+              lastErrorTransient: null,
             });
           } else {
             totalFail++;
@@ -274,6 +295,9 @@ async function sendMatchingResultEmails(periodIdOverride) {
             nextPending.push({
               ...app,
               attempts: app.attempts + 1,
+              lastError: errMsg,
+              lastErrorCode: null,
+              lastErrorTransient: null,
             });
           }
         }
@@ -297,15 +321,23 @@ async function sendMatchingResultEmails(periodIdOverride) {
     // 최종적으로 5회 시도 후에도 실패한 대상이 남았다면, 관리자에게 요약 메일 발송
     if (pending.length > 0) {
       const failList = pending
-        .map(app => `- user_id: ${app.user_id}, email: ${app.user?.email || '(이메일 없음)'}`)
+        .map(app => {
+          const email = app.user?.email || '(이메일 없음)';
+          const reason = app.lastError ? String(app.lastError) : '(사유 없음)';
+          const code = app.lastErrorCode ? `, code: ${app.lastErrorCode}` : '';
+          const transient = (app.lastErrorTransient === true) ? ', transient: true' : '';
+          return `- user_id: ${app.user_id}, email: ${email}${code}${transient}, reason: ${reason}`;
+        })
         .join('\n');
 
-      const subject = '[직장인 솔로 공모] 매칭 결과 이메일 일부 발송 실패 알림';
+      // NOTE: SMTP 예외(특히 transient 오류)는 실제 수신이 되었을 수도 있어 "발송 미확인"으로 표기
+      const subject = '[직장인 솔로 공모] 매칭 결과 이메일 일부 발송 미확인 알림';
       const content = [
         `회차 ID: ${periodId}`,
-        `최대 ${maxAttempts}회 재시도 후에도 발송 실패한 대상이 ${pending.length}명 있습니다.`,
+        `최대 ${maxAttempts}회 재시도 후에도 발송 확인이 되지 않은 대상이 ${pending.length}명 있습니다.`,
+        '※ 일부 오류(네트워크/타임아웃 등)는 실제 수신이 되었을 수도 있으니, 필요 시 수신자에게 수신 여부를 확인해주세요.',
         '',
-        '실패 대상 목록:',
+        '미확인 대상 목록:',
         failList || '(없음)',
       ].join('\n');
 

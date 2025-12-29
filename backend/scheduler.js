@@ -441,7 +441,7 @@ cron.schedule(scheduleInterval, async () => {
               await sendPushToUsers(userIds, {
                 type: 'matching_result_announce',
                 periodId: String(current.id),
-                title: '[직쏠공]',
+                title: '[직쏠공] 매칭결과 발표',
                 body: '매칭 결과가 발표되었어요.',
               });
 

@@ -1626,9 +1626,10 @@ router.post('/send-matching-result-emails', authenticate, async (req, res) => {
         const isMatched = app.matched === true;
         const partnerInfo = isMatched && app.partner_user_id ? { partnerId: app.partner_user_id } : null;
         
-        const emailSent = await sendMatchingResultEmail(app.user.email, isMatched, partnerInfo);
+        const result = await sendMatchingResultEmail(app.user.email, isMatched, partnerInfo);
+        const ok = (result === true) || (result && result.ok === true);
         
-        if (emailSent) {
+        if (ok) {
           emailSuccessCount++;
           emailResults.push({
             userId: app.user_id,
@@ -1637,12 +1638,15 @@ router.post('/send-matching-result-emails', authenticate, async (req, res) => {
             status: 'success'
           });
         } else {
+          const errMsg =
+            (result && result.error && result.error.message) ? String(result.error.message) : 'unknown error';
           emailFailCount++;
           emailResults.push({
             userId: app.user_id,
             email: app.user.email,
             matched: isMatched,
-            status: 'failed'
+            status: 'failed',
+            error: errMsg,
           });
         }
       } catch (error) {

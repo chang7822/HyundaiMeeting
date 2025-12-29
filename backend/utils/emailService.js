@@ -95,24 +95,52 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
   try {
     const info = await transporter.sendMail(mailOptions);
     // SMTP "접수" 단계의 결과를 로그로 남김 (실제 수신 성공/실패(바운스)는 이후에 발생할 수 있음)
+    const accepted = Array.isArray(info?.accepted) ? info.accepted : [];
+    const rejected = Array.isArray(info?.rejected) ? info.rejected : [];
+    const response = info?.response || null;
+    const messageId = info?.messageId || null;
     try {
-      const accepted = Array.isArray(info?.accepted) ? info.accepted : [];
-      const rejected = Array.isArray(info?.rejected) ? info.rejected : [];
-      const response = info?.response || null;
-      const messageId = info?.messageId || null;
       console.log(
         `[sendMatchingResultEmail] queued: to=${userEmail} accepted=${accepted.length} rejected=${rejected.length}` +
           (messageId ? ` messageId=${messageId}` : '') +
           (response ? ` | response=${response}` : ''),
       );
     } catch {}
-    return true;
+    return {
+      ok: true,
+      to: userEmail,
+      accepted,
+      rejected,
+      response,
+      messageId,
+    };
   } catch (error) {
     // 운영/개발 모두에서 실패 원인을 남겨서, 실제 장애 원인을 추적할 수 있도록 한다.
     const basicMsg = error?.message || String(error);
-    const smtpResponse = error?.response || error?.responseCode || null;
-    console.error('[sendMatchingResultEmail] 이메일 발송 실패:', basicMsg, smtpResponse ? `| SMTP 응답: ${smtpResponse}` : '');
-    return false;
+    const code = error?.code || error?.responseCode || null;
+    const smtpResponse = error?.response || null;
+
+    // 네트워크/연결성 계열 오류는 "실제 발송은 되었을 수도" 있는 케이스가 존재함(연결 끊김/타임아웃 등)
+    const transientCodes = new Set(['ETIMEDOUT', 'ECONNRESET', 'EPIPE', 'ESOCKET', 'ETIMEDOUT']);
+    const transient = transientCodes.has(String(code || ''));
+
+    console.error(
+      '[sendMatchingResultEmail] 이메일 발송 실패:',
+      basicMsg,
+      code ? `| code=${code}` : '',
+      smtpResponse ? `| SMTP 응답: ${smtpResponse}` : '',
+    );
+
+    return {
+      ok: false,
+      to: userEmail,
+      transient,
+      error: {
+        message: basicMsg,
+        code,
+        smtpResponse,
+      },
+    };
   }
 }
 
