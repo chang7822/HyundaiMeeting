@@ -563,7 +563,7 @@ const LandingPage = () => {
       <CompanyButton onClick={() => setShowCompanies(true)}>
         가입 가능 회사
       </CompanyButton>
-      <Logo>울산 직장인 솔로 공모</Logo>
+      <Logo>직장인 솔로 공모</Logo>
       <Subtitle>
         신분이 보장된 내 맘에 드는 사람을 만나고 싶은데<br/>
         실패하면서 주선자와의 관계가 신경쓰이고<br/>
@@ -622,42 +622,42 @@ const LandingPage = () => {
             <IntroModalHeader>
               <IntroTitle>
                 직쏠공이란?
-                <IntroBadge>울산 직장인 솔로 공모</IntroBadge>
+                <IntroBadge>직장인 솔로 공모</IntroBadge>
               </IntroTitle>
               <IntroCloseButton onClick={() => setShowIntro(false)}>×</IntroCloseButton>
             </IntroModalHeader>
 
             <IntroBody>
               <p style={{ marginBottom: 10 }}>
-                안녕하세요. 울산 지역에서 근무하고 있는 현대차 일반직 직원입니다.
-                개인적으로 준비해 오다 최근 오픈하게 된 
-                <br/><strong>울산 직장인 솔로 공모 </strong>
-                서비스를 소개드리고자 합니다.
-              </p><br/>
+                안녕하세요. 울산 지역에서 근무하고 있는
+                <br/>일반 회사직원입니다.
+                개인적으로 준비해 오다 
+                <br/>최근 오픈하게 된 
+                <strong> 직장인 솔로 공모 </strong>
+                서비스를 <br/>소개합니다.
+              </p>
 
               <IntroSectionTitle>왜 이 서비스를 만들었나요?</IntroSectionTitle>
               <p style={{ marginBottom: 8 }}>
-                근무하면서 보니 괜찮은 선후배들이 솔로로 지내는 경우가 종종 있고,
+                 근무하면서 보니 괜찮은 선후배들이 솔로로 지내는 경우가 종종 있고,
                 어느 팀에 누가 솔로인지 수소문해 소개해 주기에도 한계가 있었습니다.
-                예전에 학교 커뮤니티에서 매칭해 주던 방식이 떠올라, 울산 현대차 사내
-                근무자를 위한 매칭 웹서비스를 직접 만들게 되었습니다.
+                <br/> 예전에 학교 커뮤니티에서 매칭해 주던 방식이 떠올라, 처음에는 울산지역 사내
+                근무자를 위한 매칭 웹서비스를 직접 만들게 되었는데요.<br/>
+                 현재는 지역, 회사를 확대해서 일반 타회사 직원들도 이용할 수 있도록 서비스를 확장하게 되었습니다.
               </p>
-              <p style={{ marginBottom: 10 }}>
-                네, 홍보가 맞습니다만 <strong>비영리 목적</strong>으로 운영되는 무료 서비스입니다.
-              </p><br/>
 
               <IntroSectionTitle>서비스 구성</IntroSectionTitle>
               <IntroList>
                 <li>
                   <strong>회사 메일 인증 가입</strong>
                   <br />
-                  사내 직원 간 기본적인 신뢰를 확보하기 위해 회사 이메일 인증을 통해 가입합니다.
-                </li>
+                  기본적인 직업 신뢰를 확보하기 위해 회사 이메일 인증을 통해 가입합니다.<br/>
+                  이메일 도메인이 없으신 분은 프리랜서/자영업 또는 기타 회사를 선택하실 수 있습니다.</li>
                 <li>
                   <strong>프로필 기반 자동 매칭</strong>
                   <br />
                   나이, 키, 체형 등 프로필과 선호 스타일을 기반으로 매칭 알고리즘이 동작합니다.
-                  매칭 주기는 현재 <strong>2주 1회</strong>를 계획하고 있습니다.
+                  매칭 주기는 현재 <strong>2주 1회</strong>로 진행하고 있습니다.
                 </li>
                 <li>
                   <strong>매칭 성공 시 1:1 채팅방 생성</strong>
@@ -679,7 +679,7 @@ const LandingPage = () => {
                 실제 이용해 보시면 직관적으로 이해하실 수 있을 것입니다.
               </p>
               <p style={{ marginBottom: 8 }}>
-                초기에는 인원이 적어 매칭률이 낮을 수 있지만, 꾸준히 운영하면서
+                서비스 초기에는 인원이 적어 매칭률이 낮을 수 있지만, 꾸준히 운영하면서
                 좋은 솔로 분들을 많이 모셔보겠습니다. 주변에 떠오르는 지인이나 선후배가 있다면
                 가볍게 추천해 주세요.
               </p><br/>

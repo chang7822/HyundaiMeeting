@@ -165,7 +165,6 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
                   id: Date.now(),
                   extra: data,
                   sound: 'default',
-                  priority: 'high',
                 },
               ],
             });
