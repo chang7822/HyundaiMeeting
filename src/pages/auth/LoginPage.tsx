@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { LoginCredentials } from '../../types/index.ts';
-import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaTimes } from 'react-icons/fa';
 
 const LoginContainer = styled.div`
   min-height: 100vh;
@@ -23,9 +23,35 @@ const LoginCard = styled.div`
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   width: 100%;
   max-width: 400px;
+  position: relative;
   
   @media (max-width: 480px) {
     padding: 1.5rem;
+  }
+`;
+
+const CloseButton = styled.button`
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: #999;
+  cursor: pointer;
+  padding: 0.5rem;
+  line-height: 1;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    color: #667eea;
+    transform: scale(1.1);
+  }
+  
+  @media (max-width: 480px) {
+    top: 0.75rem;
+    right: 0.75rem;
+    font-size: 1.3rem;
   }
 `;
 
@@ -68,6 +94,43 @@ const Input = styled.input`
   
   &.error {
     border-color: #e74c3c;
+  }
+`;
+
+const PasswordRow = styled.div`
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+`;
+
+const PasswordInput = styled(Input)`
+  flex: 1;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+`;
+
+const PasswordToggleButton = styled.button<{ $error?: boolean }>`
+  width: 46px;
+  flex: 0 0 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 2px solid ${props => (props.$error ? '#e74c3c' : '#e1e5e9')};
+  border-left: none;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  color: #6b7280;
+
+  &:hover {
+    color: #667eea;
+  }
+
+  &:focus {
+    outline: none;
   }
 `;
 
@@ -179,6 +242,9 @@ const LoginPage = () => {
   return (
     <LoginContainer>
       <LoginCard>
+        <CloseButton onClick={() => navigate('/')} aria-label="닫기">
+          <FaTimes />
+        </CloseButton>
         <Title>로그인</Title>
         <Form onSubmit={handleSubmit(onSubmit)}>
           <FormGroup>
@@ -201,8 +267,8 @@ const LoginPage = () => {
 
           <FormGroup>
             <Label>비밀번호</Label>
-            <div style={{ position: 'relative' }}>
-              <Input
+            <PasswordRow>
+              <PasswordInput
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 {...register('password', {
@@ -214,29 +280,18 @@ const LoginPage = () => {
                 })}
                 className={errors.password ? 'error' : ''}
                 placeholder="비밀번호를 입력하세요"
-                style={{ paddingRight: 40 }}
                 onKeyDown={checkCapsLock}
               />
-              <button
+              <PasswordToggleButton
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                style={{
-                  position: 'absolute',
-                  right: 10,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  margin: 0
-                }}
                 tabIndex={-1}
                 aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
+                $error={!!errors.password}
               >
                 {showPassword ? <FaEyeSlash /> : <FaEye />}
-              </button>
-            </div>
+              </PasswordToggleButton>
+            </PasswordRow>
             {errors.password && <ErrorMessage>{errors.password.message}</ErrorMessage>}
             {isCapsLockOn && (
               <CapsLockWarning>

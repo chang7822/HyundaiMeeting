@@ -206,7 +206,23 @@ const PreferredCompanyModal: React.FC<PreferredCompanyModalProps> = ({
   const activeCompanies = companies
     .filter(c => c.isActive)
     .slice()
-    .sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
+    .sort((a, b) => {
+      const aId = parseInt(String(a.id), 10);
+      const bId = parseInt(String(b.id), 10);
+      
+      // 프리랜서/자영업(9999)과 기타 회사(9998)는 맨 뒤로
+      const aIsSpecial = !isNaN(aId) && aId >= 9000;
+      const bIsSpecial = !isNaN(bId) && bId >= 9000;
+      
+      if (aIsSpecial && !bIsSpecial) return 1; // a가 특수 회사면 뒤로
+      if (!aIsSpecial && bIsSpecial) return -1; // b가 특수 회사면 뒤로
+      if (aIsSpecial && bIsSpecial) {
+        // 둘 다 특수 회사면 ID 순서 유지 (9998, 9999)
+        return aId - bId;
+      }
+      // 둘 다 일반 회사면 사전순 정렬
+      return a.name.localeCompare(b.name, 'ko-KR');
+    });
   const allSelected =
     activeCompanies.length > 0 &&
     selectedIds.length === activeCompanies.length;
@@ -300,6 +316,18 @@ const PreferredCompanyModal: React.FC<PreferredCompanyModalProps> = ({
             확인
           </FooterButton>
         </Footer>
+        
+        <div style={{ 
+          marginTop: '1rem', 
+          paddingTop: '1rem', 
+          borderTop: '1px solid #e5e7eb',
+          fontSize: '0.85rem',
+          color: '#6b7280',
+          lineHeight: '1.5',
+          textAlign: 'left'
+        }}>
+          회사 도메인이 없는 경우 <strong>기타 회사</strong>로 분류됩니다.
+        </div>
       </ModalContent>
     </ModalOverlay>
   );

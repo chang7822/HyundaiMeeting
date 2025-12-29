@@ -93,7 +93,19 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
   };
 
   try {
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
+    // SMTP "접수" 단계의 결과를 로그로 남김 (실제 수신 성공/실패(바운스)는 이후에 발생할 수 있음)
+    try {
+      const accepted = Array.isArray(info?.accepted) ? info.accepted : [];
+      const rejected = Array.isArray(info?.rejected) ? info.rejected : [];
+      const response = info?.response || null;
+      const messageId = info?.messageId || null;
+      console.log(
+        `[sendMatchingResultEmail] queued: to=${userEmail} accepted=${accepted.length} rejected=${rejected.length}` +
+          (messageId ? ` messageId=${messageId}` : '') +
+          (response ? ` | response=${response}` : ''),
+      );
+    } catch {}
     return true;
   } catch (error) {
     // 운영/개발 모두에서 실패 원인을 남겨서, 실제 장애 원인을 추적할 수 있도록 한다.

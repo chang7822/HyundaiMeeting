@@ -86,13 +86,19 @@ const Button = styled.button<{ $primary?: boolean }>`
   color: ${props => props.$primary ? '#667eea' : 'white'};
   border: 2px solid white;
   
-  &:hover {
+  &:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
   
-  &:active {
+  &:active:not(:disabled) {
     transform: translateY(0);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 `;
 
@@ -160,7 +166,7 @@ const IntroButton = styled.button`
   }
 
   @media (max-width: 768px) {
-    top: 14px;
+    top: 18px;
     right: 12px;
     padding: 6px 12px;
     font-size: 0.8rem;
@@ -175,7 +181,7 @@ const CompanyButton = styled(IntroButton)`
   padding: 6px 12px;
 
   @media (max-width: 768px) {
-    top: 14px;
+    top: 18px;
     left: 12px;
     right: auto;
   }
@@ -365,6 +371,57 @@ const FormTextarea = styled.textarea`
   }
 `;
 
+const Footer = styled.div`
+  margin-top: 3rem;
+  padding-top: 2rem;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  width: 100%;
+  max-width: 1200px;
+  
+  @media (max-width: 768px) {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+  }
+  
+  @media (max-width: 480px) {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+  }
+`;
+
+const FooterLink = styled.button`
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0.5rem;
+  
+  &:hover {
+    color: white;
+    text-decoration: none;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+  }
+`;
+
+const FooterText = styled.p`
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  
+  @media (max-width: 480px) {
+    font-size: 0.7rem;
+    margin-top: 0.4rem;
+  }
+`;
+
 const FormActions = styled.div`
   margin-top: 16px;
   display: flex;
@@ -442,7 +499,14 @@ const LandingPage = () => {
       .then((list) => {
         if (cancelled) return;
         const actives = (list || [])
-          .filter((c) => (c as any).is_active === true || (c as any).isActive === true)
+          .filter((c) => {
+            // isActive 체크
+            const isActive = (c as any).is_active === true || (c as any).isActive === true;
+            if (!isActive) return false;
+            // 9000번 이후 id는 제외
+            const companyId = parseInt(String(c.id), 10);
+            return !isNaN(companyId) && companyId < 9000;
+          })
           .slice()
           .sort((a, b) => (a as any).name.localeCompare((b as any).name, 'ko-KR'));
         setActiveCompanies(actives);
@@ -499,7 +563,7 @@ const LandingPage = () => {
       <CompanyButton onClick={() => setShowCompanies(true)}>
         가입 가능 회사
       </CompanyButton>
-      <Logo>울산 직장인 솔로 공모</Logo>
+      <Logo>직장인 솔로 공모</Logo>
       <Subtitle>
         신분이 보장된 내 맘에 드는 사람을 만나고 싶은데<br/>
         실패하면서 주선자와의 관계가 신경쓰이고<br/>
@@ -511,10 +575,17 @@ const LandingPage = () => {
       </Subtitle>
       
       <ButtonContainer>
-        <Button onClick={() => navigate('/login')}>
+        <Button 
+          onClick={() => navigate('/login')}
+          disabled={isLoading}
+        >
           로그인
         </Button>
-        <Button $primary onClick={() => navigate('/register')}>
+        <Button 
+          $primary 
+          onClick={() => navigate('/register')}
+          disabled={isLoading}
+        >
           회원가입
         </Button>
       </ButtonContainer>
@@ -536,48 +607,57 @@ const LandingPage = () => {
         </FeatureCard>
       </Features>
 
+      <Footer>
+        <FooterLink onClick={() => navigate('/privacy-policy')}>
+          개인정보 처리방침
+        </FooterLink>
+        <FooterText>
+          문의처: automatchingway@gmail.com
+        </FooterText>
+      </Footer>
+
       {showIntro && (
         <IntroModalOverlay onClick={() => setShowIntro(false)}>
           <IntroModalContent onClick={e => e.stopPropagation()}>
             <IntroModalHeader>
               <IntroTitle>
                 직쏠공이란?
-                <IntroBadge>울산 직장인 솔로 공모</IntroBadge>
+                <IntroBadge>직장인 솔로 공모</IntroBadge>
               </IntroTitle>
               <IntroCloseButton onClick={() => setShowIntro(false)}>×</IntroCloseButton>
             </IntroModalHeader>
 
             <IntroBody>
               <p style={{ marginBottom: 10 }}>
-                안녕하세요. 울산 지역에서 근무하고 있는 현대차 일반직 직원입니다.
-                개인적으로 준비해 오다 최근 오픈하게 된 
-                <br/><strong>울산 직장인 솔로 공모 </strong>
-                서비스를 소개드리고자 합니다.
-              </p><br/>
+                안녕하세요. 울산 지역에서 근무하고 있는
+                <br/>일반 회사직원입니다.
+                개인적으로 준비해 오다 
+                <br/>최근 오픈하게 된 
+                <strong> 직장인 솔로 공모 </strong>
+                서비스를 <br/>소개합니다.
+              </p>
 
               <IntroSectionTitle>왜 이 서비스를 만들었나요?</IntroSectionTitle>
               <p style={{ marginBottom: 8 }}>
-                근무하면서 보니 괜찮은 선후배들이 솔로로 지내는 경우가 종종 있고,
+                 근무하면서 보니 괜찮은 선후배들이 솔로로 지내는 경우가 종종 있고,
                 어느 팀에 누가 솔로인지 수소문해 소개해 주기에도 한계가 있었습니다.
-                예전에 학교 커뮤니티에서 매칭해 주던 방식이 떠올라, 울산 현대차 사내
-                근무자를 위한 매칭 웹서비스를 직접 만들게 되었습니다.
+                <br/> 예전에 학교 커뮤니티에서 매칭해 주던 방식이 떠올라, 처음에는 울산지역 사내
+                근무자를 위한 매칭 웹서비스를 직접 만들게 되었는데요.<br/>
+                 현재는 지역, 회사를 확대해서 일반 타회사 직원들도 이용할 수 있도록 서비스를 확장하게 되었습니다.
               </p>
-              <p style={{ marginBottom: 10 }}>
-                네, 홍보가 맞습니다만 <strong>비영리 목적</strong>으로 운영되는 무료 서비스입니다.
-              </p><br/>
 
               <IntroSectionTitle>서비스 구성</IntroSectionTitle>
               <IntroList>
                 <li>
                   <strong>회사 메일 인증 가입</strong>
                   <br />
-                  사내 직원 간 기본적인 신뢰를 확보하기 위해 회사 이메일 인증을 통해 가입합니다.
-                </li>
+                  기본적인 직업 신뢰를 확보하기 위해 회사 이메일 인증을 통해 가입합니다.<br/>
+                  이메일 도메인이 없으신 분은 프리랜서/자영업 또는 기타 회사를 선택하실 수 있습니다.</li>
                 <li>
                   <strong>프로필 기반 자동 매칭</strong>
                   <br />
                   나이, 키, 체형 등 프로필과 선호 스타일을 기반으로 매칭 알고리즘이 동작합니다.
-                  매칭 주기는 현재 <strong>2주 1회</strong>를 계획하고 있습니다.
+                  매칭 주기는 현재 <strong>2주 1회</strong>로 진행하고 있습니다.
                 </li>
                 <li>
                   <strong>매칭 성공 시 1:1 채팅방 생성</strong>
@@ -599,7 +679,7 @@ const LandingPage = () => {
                 실제 이용해 보시면 직관적으로 이해하실 수 있을 것입니다.
               </p>
               <p style={{ marginBottom: 8 }}>
-                초기에는 인원이 적어 매칭률이 낮을 수 있지만, 꾸준히 운영하면서
+                서비스 초기에는 인원이 적어 매칭률이 낮을 수 있지만, 꾸준히 운영하면서
                 좋은 솔로 분들을 많이 모셔보겠습니다. 주변에 떠오르는 지인이나 선후배가 있다면
                 가볍게 추천해 주세요.
               </p><br/>
@@ -761,6 +841,20 @@ const LandingPage = () => {
                   </TextLinkButton>
                 </div>
               </CompanyFooter>
+              
+              <div
+                style={{
+                  marginTop: '16px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid #e5e7eb',
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  lineHeight: 1.4,
+                  textAlign: 'center',
+                }}
+              >
+                회사 도메인이 없는 경우 회원가입 시 <strong style={{ color: '#6b7280' }}>프리랜서/자영업</strong> 또는 <strong style={{ color: '#6b7280' }}>기타 회사</strong>를 선택하실 수 있습니다.
+              </div>
             </IntroBody>
           </IntroModalContent>
         </IntroModalOverlay>

@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { adminMatchingApi } from '../../services/api.ts';
 import InlineSpinner from '../../components/InlineSpinner.tsx';
+import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
 
 const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin: 40px auto;
@@ -689,7 +690,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                   <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{pair.male?.email || '-'}</div>
                   <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
                     {pair.male?.birth_year ? `${pair.male.birth_year}년생` : ''}
-                    {pair.male?.company ? ` · ${pair.male.company}` : ''}
+                    {getDisplayCompanyName(pair.male?.company, pair.male?.custom_company_name) ? ` · ${getDisplayCompanyName(pair.male?.company, pair.male?.custom_company_name)}` : ''}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center', fontSize: '0.8rem', color: '#6b7280' }}>
@@ -701,7 +702,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                   <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{pair.female?.email || '-'}</div>
                   <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
                     {pair.female?.birth_year ? `${pair.female.birth_year}년생` : ''}
-                    {pair.female?.company ? ` · ${pair.female.company}` : ''}
+                    {getDisplayCompanyName(pair.female?.company, pair.female?.custom_company_name) ? ` · ${getDisplayCompanyName(pair.female?.company, pair.female?.custom_company_name)}` : ''}
                   </div>
                 </div>
               </div>

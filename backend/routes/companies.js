@@ -20,7 +20,8 @@ router.get('/', async (req, res) => {
     id: String(company.id),
     name: company.name,
     emailDomains: company.email_domains,
-    isActive: company.is_active
+    isActive: company.is_active,
+    jobTypeHold: !!company.job_type_hold
   }));
 
   res.json(companies);

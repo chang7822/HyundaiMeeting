@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
 import { companyApi } from '../../services/api.ts';
 import { Company } from '../../types/index.ts';
+import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
 
 const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean, onRequestClose: () => void, user: any }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -66,7 +67,7 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
         <div style={{marginBottom:8}}><b>생년:</b> {user.birth_year}</div>
         <div style={{marginBottom:8}}><b>키:</b> {user.height}</div>
         <div style={{marginBottom:8}}><b>거주지:</b> {user.residence}</div>
-        <div style={{marginBottom:8}}><b>회사:</b> {user.company}</div>
+        <div style={{marginBottom:8}}><b>회사:</b> {getDisplayCompanyName(user.company, user.custom_company_name) || '-'}</div>
         <div style={{marginBottom:8}}><b>직군:</b> {user.job_type}</div>
         <div style={{marginBottom:8}}><b>결혼상태:</b> {user.marital_status}</div>
         <div style={{marginBottom:8}}><b>MBTI:</b> {user.mbti}</div>

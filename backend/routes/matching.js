@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
+const authenticate = require('../middleware/authenticate');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
 const { sendPushToAdmin } = require('../pushService');
 const notificationRoutes = require('./notifications');
@@ -9,6 +10,110 @@ const notificationRoutes = require('./notifications');
 const matches = [];
 
 const cancelTime = 1;
+
+const MAIN_MATCH_STAR_COST = 5;
+const INSUFFICIENT_STARS_MESSAGE =
+  '보유하신 ⭐이 모자랍니다. 출석체크 보상을 통해 별을 모아주세요';
+
+// 별 차감 공통 함수 (extra-matching의 패턴과 동일)
+async function spendStars(userId, amount, reason, meta) {
+  if (!userId || typeof amount !== 'number' || amount <= 0) {
+    throw new Error('spendStars: 잘못된 인자');
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('star_balance')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user) {
+    throw userError || new Error('사용자를 찾을 수 없습니다.');
+  }
+
+  const currentBalance = typeof user.star_balance === 'number' ? user.star_balance : 0;
+
+  if (currentBalance < amount) {
+    return {
+      ok: false,
+      code: 'INSUFFICIENT_STARS',
+      balance: currentBalance,
+    };
+  }
+
+  const newBalance = currentBalance - amount;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ star_balance: newBalance })
+    .eq('id', userId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: txError } = await supabase
+    .from('star_transactions')
+    .insert({
+      user_id: userId,
+      amount: -amount,
+      reason,
+      meta: meta || null,
+    });
+
+  if (txError) {
+    throw txError;
+  }
+
+  return {
+    ok: true,
+    balance: newBalance,
+  };
+}
+
+// 별 지급 공통 함수 (환불 등)
+async function awardStars(userId, amount, reason, meta) {
+  if (!userId || typeof amount !== 'number' || amount <= 0) {
+    throw new Error('awardStars: 잘못된 인자');
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('star_balance')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user) {
+    throw userError || new Error('사용자를 찾을 수 없습니다.');
+  }
+
+  const currentBalance = typeof user.star_balance === 'number' ? user.star_balance : 0;
+  const newBalance = currentBalance + amount;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ star_balance: newBalance })
+    .eq('id', userId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: txError } = await supabase
+    .from('star_transactions')
+    .insert({
+      user_id: userId,
+      amount,
+      reason,
+      meta: meta || null,
+    });
+
+  if (txError) {
+    throw txError;
+  }
+
+  return newBalance;
+}
 
 // status 기반으로 현재 회차/다음 회차를 계산하는 내부 헬퍼
 function computeCurrentAndNextFromLogs(logs) {
@@ -137,11 +242,16 @@ router.get('/period', async (req, res) => {
 });
 
 // 매칭 요청
-router.post('/request', async (req, res) => {
+router.post('/request', authenticate, async (req, res) => {
   try {
-    const { userId } = req.body;
+    const authedUserId = req.user?.userId;
+    const { userId: bodyUserId } = req.body;
+    const userId = authedUserId || bodyUserId;
     if (!userId) {
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
+    }
+    if (authedUserId && bodyUserId && authedUserId !== bodyUserId) {
+      return res.status(403).json({ message: '요청 사용자 정보가 올바르지 않습니다.' });
     }
 
     // 정지 상태 확인
@@ -260,6 +370,53 @@ router.post('/request', async (req, res) => {
       .update({ is_applied: true, is_matched: null })
       .eq('id', userId);
 
+    // ⭐ 5개 차감 (신청 저장 후 차감 → 부족 시 롤백 가능하게)
+    let newStarBalance = null;
+    try {
+      const spendResult = await spendStars(userId, MAIN_MATCH_STAR_COST, 'main_match_apply', {
+        period_id: periodId,
+        application_id: data?.id ?? null,
+      });
+
+      if (!spendResult.ok && spendResult.code === 'INSUFFICIENT_STARS') {
+        // 롤백: 신청 row 삭제 + users.is_applied=false
+        try {
+          await supabase.from('matching_applications').delete().eq('id', data.id);
+        } catch (rollbackErr) {
+          console.error('[matching/request] 별 부족 롤백(신청 삭제) 실패:', rollbackErr);
+        }
+        try {
+          await supabase.from('users').update({ is_applied: false }).eq('id', userId);
+        } catch (rollbackErr) {
+          console.error('[matching/request] 별 부족 롤백(users.is_applied) 실패:', rollbackErr);
+        }
+
+        return res.status(400).json({
+          code: 'INSUFFICIENT_STARS',
+          required: MAIN_MATCH_STAR_COST,
+          balance: spendResult.balance,
+          message: INSUFFICIENT_STARS_MESSAGE,
+        });
+      }
+
+      newStarBalance = spendResult.balance;
+    } catch (e) {
+      console.error('[matching/request] 별 차감 처리 오류:', e);
+      // 롤백: 신청 row 삭제 + users.is_applied=false
+      try {
+        await supabase.from('matching_applications').delete().eq('id', data.id);
+      } catch (rollbackErr) {
+        console.error('[matching/request] 별 차감 오류 롤백(신청 삭제) 실패:', rollbackErr);
+      }
+      try {
+        await supabase.from('users').update({ is_applied: false }).eq('id', userId);
+      } catch (rollbackErr) {
+        console.error('[matching/request] 별 차감 오류 롤백(users.is_applied) 실패:', rollbackErr);
+      }
+
+      return res.status(500).json({ message: '별을 차감하는 중 오류가 발생했습니다.' });
+    }
+
     // [로그] 매칭 신청 완료: "닉네임(이메일) N회차 매칭 신청완료"
     try {
       const nickname = profile.nickname || '알 수 없음';
@@ -299,7 +456,9 @@ router.post('/request', async (req, res) => {
     res.json({
       success: true,
       message: '매칭 신청이 완료되었습니다.',
-      application: data
+      application: data,
+      usedStarAmount: MAIN_MATCH_STAR_COST,
+      newStarBalance,
     });
   } catch (error) {
     console.error('매칭 신청 오류:', error);
@@ -443,11 +602,16 @@ router.get('/status', async (req, res) => {
 });
 
 // 매칭 신청 취소
-router.post('/cancel', async (req, res) => {
+router.post('/cancel', authenticate, async (req, res) => {
   try {
-    const { userId } = req.body;
+    const authedUserId = req.user?.userId;
+    const { userId: bodyUserId } = req.body;
+    const userId = authedUserId || bodyUserId;
     if (!userId) {
       return res.status(400).json({ message: '사용자 ID가 필요합니다.' });
+    }
+    if (authedUserId && bodyUserId && authedUserId !== bodyUserId) {
+      return res.status(403).json({ message: '요청 사용자 정보가 올바르지 않습니다.' });
     }
 
     // 정지 상태 확인
@@ -512,6 +676,48 @@ router.post('/cancel', async (req, res) => {
       .from('users')
       .update({ is_applied: false })
       .eq('id', application.user_id);
+
+    // ⭐ 5개 환불 (해당 신청에서 차감된 내역이 있고, 아직 환불이 없으면 환불)
+    let refundedStarAmount = 0;
+    let newStarBalance = null;
+    try {
+      const { data: spentTx, error: spentTxError } = await supabase
+        .from('star_transactions')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('reason', 'main_match_apply')
+        .contains('meta', { application_id: application.id })
+        .maybeSingle();
+
+      if (spentTxError && spentTxError.code !== 'PGRST116') {
+        throw spentTxError;
+      }
+
+      if (spentTx) {
+        const { data: refundedTx, error: refundedTxError } = await supabase
+          .from('star_transactions')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('reason', 'main_match_cancel_refund')
+          .contains('meta', { application_id: application.id })
+          .maybeSingle();
+
+        if (refundedTxError && refundedTxError.code !== 'PGRST116') {
+          throw refundedTxError;
+        }
+
+        if (!refundedTx) {
+          newStarBalance = await awardStars(userId, MAIN_MATCH_STAR_COST, 'main_match_cancel_refund', {
+            period_id: periodId,
+            application_id: application.id,
+          });
+          refundedStarAmount = MAIN_MATCH_STAR_COST;
+        }
+      }
+    } catch (e) {
+      console.error('[matching/cancel] 별 환불 처리 오류:', e);
+      // 환불 실패는 취소 자체를 실패로 만들지 않음(기존 동작 보존)
+    }
 
     // 5. 서버 로그 및 관리자 알림 메일 발송 (비동기)
     try {
@@ -584,7 +790,16 @@ router.post('/cancel', async (req, res) => {
       console.error('[매칭 신청 취소] 관리자 알림 메일 처리 중 오류:', e);
     }
 
-    res.json({ success: true, message: '매칭 신청이 취소되었습니다.', application: updated });
+    res.json({
+      success: true,
+      message:
+        refundedStarAmount > 0
+          ? `매칭 신청이 취소되었습니다. ⭐${refundedStarAmount}개가 환불되었습니다.`
+          : '매칭 신청이 취소되었습니다.',
+      application: updated,
+      refundedStarAmount,
+      newStarBalance,
+    });
   } catch (error) {
     console.error('매칭 신청 취소 오류:', error);
     res.status(500).json({ message: '서버 오류가 발생했습니다.' });

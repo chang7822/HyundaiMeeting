@@ -5,6 +5,7 @@ const { sendMatchingResultEmail, sendAdminBroadcastEmail } = require('../utils/e
 const { computeMatchesForPeriod, computeMatchesForAllUsers } = require('../matching-algorithm');
 const authenticate = require('../middleware/authenticate');
 const notificationRoutes = require('./notifications');
+const { getMessaging } = require('../firebaseAdmin');
 
 // 임시 데이터 (다른 라우트와 공유)
 const users = [];
@@ -58,6 +59,58 @@ function ensureAdmin(req, res) {
     return false;
   }
   return true;
+}
+
+// 별 지급 공통 함수 (출석체크 로직과 동일한 방식: users.star_balance 업데이트 + star_transactions 기록)
+async function awardStarsToUser(userId, amount, reason, meta) {
+  if (!userId || typeof amount !== 'number' || amount <= 0) {
+    throw new Error('awardStarsToUser: 잘못된 인자');
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('star_balance')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user) {
+    throw userError || new Error('사용자를 찾을 수 없습니다.');
+  }
+
+  const currentBalance = typeof user.star_balance === 'number' ? user.star_balance : 0;
+  const newBalance = currentBalance + amount;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ star_balance: newBalance })
+    .eq('id', userId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: txError } = await supabase
+    .from('star_transactions')
+    .insert({
+      user_id: userId,
+      amount,
+      reason,
+      meta: meta || null,
+    });
+
+  if (txError) {
+    throw txError;
+  }
+
+  return newBalance;
+}
+
+function chunkArray(arr, size) {
+  const result = [];
+  for (let i = 0; i < arr.length; i += size) {
+    result.push(arr.slice(i, i + size));
+  }
+  return result;
 }
 
 // 모든 사용자 조회 (계정 정보 + 프로필 정보)
@@ -318,6 +371,24 @@ router.put('/users/:userId/status', authenticate, async (req, res) => {
     if (error) {
       console.error('사용자 상태 업데이트 오류');
       return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
+    }
+
+    // 계정 비활성화 시 모든 Refresh Token 무효화
+    if (!isActive) {
+      try {
+        const { error: tokenError } = await supabase
+          .from('refresh_tokens')
+          .update({ revoked_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .is('revoked_at', null);
+        if (tokenError) {
+          console.error('[관리자] 계정 비활성화 - Refresh Token 무효화 오류:', tokenError);
+        } else {
+          console.log(`[관리자] 계정 비활성화 - 사용자 ${userId}의 모든 Refresh Token 무효화 완료`);
+        }
+      } catch (tokenErr) {
+        console.error('[관리자] 계정 비활성화 - 토큰 무효화 처리 중 오류:', tokenErr);
+      }
     }
     
     res.json({
@@ -1878,6 +1949,211 @@ router.post('/notifications/send', authenticate, async (req, res) => {
   }
 });
 
+/**
+ * [관리자] 이벤트 별 지급 + (선택) 인앱 알림/푸시 발송
+ * POST /api/admin/stars/grant
+ * body: {
+ *   userIds: string[],
+ *   amount: number,
+ *   notification?: { title: string, body: string, linkUrl?: string | null },
+ *   sendPush?: boolean
+ * }
+ */
+router.post('/stars/grant', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { userIds, amount, notification, sendPush } = req.body || {};
+
+    const cleanUserIds = Array.from(
+      new Set(
+        (Array.isArray(userIds) ? userIds : [])
+          .map((id) => String(id || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
+    const numericAmount = Number(amount);
+    const intAmount = Number.isFinite(numericAmount) ? Math.floor(numericAmount) : NaN;
+
+    if (!cleanUserIds.length) {
+      return res.status(400).json({ success: false, message: '대상 회원(userIds)을 1명 이상 선택해주세요.' });
+    }
+    if (!Number.isFinite(intAmount) || intAmount <= 0) {
+      return res.status(400).json({ success: false, message: '지급할 별 수량(amount)은 1 이상의 정수여야 합니다.' });
+    }
+
+    const shouldCreateNotification =
+      notification &&
+      typeof notification === 'object' &&
+      typeof notification.title === 'string' &&
+      notification.title.trim().length > 0 &&
+      typeof notification.body === 'string' &&
+      notification.body.trim().length > 0;
+
+    const notifTitle = shouldCreateNotification ? notification.title.trim() : null;
+    const notifBody = shouldCreateNotification ? notification.body.trim() : null;
+    const notifLinkUrl = shouldCreateNotification
+      ? (typeof notification.linkUrl === 'string' && notification.linkUrl.trim().length > 0 ? notification.linkUrl.trim() : null)
+      : null;
+
+    // 대상 사용자 유효성/상태 확인 (비활성/정지/관리자 계정은 기본 제외)
+    const { data: users, error: usersError } = await supabase
+      .from('users')
+      .select('id, is_active, is_banned, is_admin')
+      .in('id', cleanUserIds);
+
+    if (usersError) {
+      console.error('[admin][stars/grant] 대상 사용자 조회 오류:', usersError);
+      return res.status(500).json({ success: false, message: '대상 사용자 정보를 조회하는 중 오류가 발생했습니다.' });
+    }
+
+    const eligibleIds = (users || [])
+      .filter((u) => u && u.id && u.is_active !== false && u.is_banned !== true && u.is_admin !== true)
+      .map((u) => String(u.id));
+
+    const skippedIds = cleanUserIds.filter((id) => !eligibleIds.includes(String(id)));
+
+    if (!eligibleIds.length) {
+      return res.status(400).json({
+        success: false,
+        message: '지급 가능한 대상이 없습니다. (비활성/정지/관리자 계정은 제외됩니다)',
+        requested: cleanUserIds.length,
+        eligible: 0,
+        skipped: skippedIds,
+      });
+    }
+
+    const batchId = `admin_star_grant_${Date.now()}`;
+    const adminUserId = req.user?.userId || null;
+
+    // 1) 별 지급
+    let awardSuccessCount = 0;
+    let awardFailCount = 0;
+    const awardFailures = [];
+
+    // 과도한 동시 요청 방지를 위해 20개씩 나눠 처리
+    const awardChunks = chunkArray(eligibleIds, 20);
+    for (const chunk of awardChunks) {
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.all(
+        chunk.map(async (uid) => {
+          try {
+            await awardStarsToUser(uid, intAmount, 'admin_event_reward', {
+              batchId,
+              adminUserId,
+              notification: shouldCreateNotification ? { title: notifTitle, body: notifBody, linkUrl: notifLinkUrl } : null,
+            });
+            awardSuccessCount++;
+          } catch (e) {
+            awardFailCount++;
+            awardFailures.push({ userId: uid, error: e?.message || String(e) });
+          }
+        }),
+      );
+    }
+
+    // 2) 인앱 알림 생성 (선택)
+    let notifSuccessCount = 0;
+    let notifFailCount = 0;
+    if (shouldCreateNotification) {
+      const notifPayload = {
+        type: 'admin',
+        title: notifTitle,
+        body: notifBody,
+        linkUrl: notifLinkUrl,
+        meta: { kind: 'star_reward', amount: intAmount, batchId },
+      };
+
+      const notifChunks = chunkArray(eligibleIds, 50);
+      for (const chunk of notifChunks) {
+        // eslint-disable-next-line no-await-in-loop
+        await Promise.all(
+          chunk.map(async (uid) => {
+            try {
+              await notificationRoutes.createNotification(String(uid), notifPayload);
+              notifSuccessCount++;
+            } catch (e) {
+              notifFailCount++;
+            }
+          }),
+        );
+      }
+    }
+
+    // 3) 푸시 발송 (선택: 알림 메시지가 있을 때만 의미있도록 설계)
+    let pushTokenCount = 0;
+    let pushSent = 0;
+    let pushFailed = 0;
+
+    const shouldSendPush = !!sendPush && shouldCreateNotification;
+    if (shouldSendPush) {
+      const { data: tokenRows, error: tokenError } = await supabase
+        .from('user_push_tokens')
+        .select('token')
+        .in('user_id', eligibleIds);
+
+      if (tokenError) {
+        console.error('[admin][stars/grant] 푸시 토큰 조회 오류:', tokenError);
+      } else {
+        const tokens = (tokenRows || []).map((r) => r.token).filter(Boolean);
+        pushTokenCount = tokens.length;
+
+        if (tokens.length > 0) {
+          const messaging = getMessaging();
+          const tokenChunks = chunkArray(tokens, 500); // FCM multicast max 500
+
+          for (const chunk of tokenChunks) {
+            // eslint-disable-next-line no-await-in-loop
+            const resp = await messaging.sendEachForMulticast({
+              tokens: chunk,
+              notification: {
+                title: notifTitle,
+                body: notifBody,
+              },
+              data: {
+                type: 'admin',
+                kind: 'star_reward',
+                title: notifTitle,
+                body: notifBody,
+                amount: String(intAmount),
+                batchId,
+              },
+            });
+            pushSent += resp.successCount || 0;
+            pushFailed += resp.failureCount || 0;
+          }
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      requested: cleanUserIds.length,
+      eligible: eligibleIds.length,
+      skipped: skippedIds,
+      amount: intAmount,
+      totalStarsAttempted: eligibleIds.length * intAmount,
+      awards: {
+        successCount: awardSuccessCount,
+        failCount: awardFailCount,
+        failures: awardFailures.slice(0, 50), // 과도한 payload 방지
+      },
+      notifications: shouldCreateNotification
+        ? { enabled: true, successCount: notifSuccessCount, failCount: notifFailCount }
+        : { enabled: false },
+      push: shouldSendPush
+        ? { enabled: true, tokenCount: pushTokenCount, sent: pushSent, failed: pushFailed }
+        : { enabled: false },
+      batchId,
+      message: `선택된 ${eligibleIds.length}명에게 ⭐ ${intAmount} 지급 처리했습니다.`,
+    });
+  } catch (error) {
+    console.error('[admin][stars/grant] 오류:', error);
+    return res.status(500).json({ success: false, message: '별 지급 처리 중 서버 오류가 발생했습니다.' });
+  }
+});
+
 // [수동] users 테이블 매칭 상태 초기화 (관리자용)
 router.post('/reset-users-matching-status', authenticate, async (req, res) => {
   try {
@@ -2466,6 +2742,24 @@ router.put('/reports/:id/process', authenticate, async (req, res) => {
         console.error('사용자 정지 상태 업데이트 오류:', banError);
         return res.status(500).json({ message: '사용자 상태 업데이트에 실패했습니다.' });
       }
+
+      // 정지 처리 시 모든 Refresh Token 무효화
+      if (status === 'temporary_ban' || status === 'permanent_ban') {
+        try {
+          const { error: tokenError } = await supabase
+            .from('refresh_tokens')
+            .update({ revoked_at: new Date().toISOString() })
+            .eq('user_id', reportData.reported_user_id)
+            .is('revoked_at', null);
+          if (tokenError) {
+            console.error('[신고처리] 정지 처리 - Refresh Token 무효화 오류:', tokenError);
+          } else {
+            console.log(`[신고처리] 정지 처리 - 사용자 ${reportData.reported_user_id}의 모든 Refresh Token 무효화 완료`);
+          }
+        } catch (tokenErr) {
+          console.error('[신고처리] 정지 처리 - 토큰 무효화 처리 중 오류:', tokenErr);
+        }
+      }
       
       console.log(`[신고처리] 사용자 상태 업데이트 완료: ${reportData.reported_user_id} (${status}, 신고횟수: ${reportCount})`);
     } else if (!reportData.reported_user_id) {
@@ -2563,6 +2857,24 @@ router.put('/users/:userId/report-info', authenticate, async (req, res) => {
       return res.status(500).json({ message: '신고 정보 조정에 실패했습니다.' });
     }
 
+    // 정지 처리 시 모든 Refresh Token 무효화
+    if (is_banned === true) {
+      try {
+        const { error: tokenError } = await supabase
+          .from('refresh_tokens')
+          .update({ revoked_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .is('revoked_at', null);
+        if (tokenError) {
+          console.error('[관리자] 신고 정보 조정 - Refresh Token 무효화 오류:', tokenError);
+        } else {
+          console.log(`[관리자] 신고 정보 조정 - 사용자 ${userId}의 모든 Refresh Token 무효화 완료`);
+        }
+      } catch (tokenErr) {
+        console.error('[관리자] 신고 정보 조정 - 토큰 무효화 처리 중 오류:', tokenErr);
+      }
+    }
+
     res.json({
       success: true,
       message: '신고 정보가 성공적으로 조정되었습니다.',
@@ -2586,7 +2898,7 @@ router.get('/companies', authenticate, async (req, res) => {
 
     const { data, error } = await supabase
       .from('companies')
-      .select('id, name, email_domains, is_active, created_at')
+      .select('id, name, email_domains, is_active, job_type_hold, created_at')
       .order('id', { ascending: true });
 
     if (error) {
@@ -2599,6 +2911,7 @@ router.get('/companies', authenticate, async (req, res) => {
       name: c.name,
       emailDomains: Array.isArray(c.email_domains) ? c.email_domains : [],
       isActive: !!c.is_active,
+      jobTypeHold: !!c.job_type_hold,
       createdAt: c.created_at,
     }));
 
@@ -2614,7 +2927,7 @@ router.post('/companies', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const { name, emailDomains, isActive, createNotice } = req.body || {};
+    const { name, emailDomains, isActive, jobTypeHold, createNotice } = req.body || {};
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ success: false, message: '회사명을 입력해주세요.' });
@@ -2645,6 +2958,7 @@ router.post('/companies', authenticate, async (req, res) => {
       name: trimmedName,
       email_domains: domains,
       is_active: !!isActive,
+      job_type_hold: !!jobTypeHold,
     };
 
     const { data, error } = await supabase
@@ -2713,6 +3027,7 @@ router.post('/companies', authenticate, async (req, res) => {
         name: data.name,
         emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
         isActive: !!data.is_active,
+        jobTypeHold: !!data.job_type_hold,
         createdAt: data.created_at,
       },
       noticeId,
@@ -2729,7 +3044,7 @@ router.put('/companies/:id', authenticate, async (req, res) => {
     if (!ensureAdmin(req, res)) return;
 
     const { id } = req.params;
-    const { name, emailDomains, isActive } = req.body || {};
+    const { name, emailDomains, isActive, jobTypeHold } = req.body || {};
 
     const update = {};
     if (name !== undefined) {
@@ -2747,6 +3062,9 @@ router.put('/companies/:id', authenticate, async (req, res) => {
     }
     if (isActive !== undefined) {
       update.is_active = !!isActive;
+    }
+    if (jobTypeHold !== undefined) {
+      update.job_type_hold = !!jobTypeHold;
     }
 
     if (Object.keys(update).length === 0) {
@@ -2774,6 +3092,7 @@ router.put('/companies/:id', authenticate, async (req, res) => {
         name: data.name,
         emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
         isActive: !!data.is_active,
+        jobTypeHold: !!data.job_type_hold,
         createdAt: data.created_at,
       },
     });

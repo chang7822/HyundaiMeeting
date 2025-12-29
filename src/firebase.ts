@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getMessaging, type Messaging } from 'firebase/messaging';
+import { Capacitor } from '@capacitor/core';
 
 // Firebase 설정은 전부 .env 에서만 읽도록 구성
 // (값은 Firebase 콘솔에서 발급받은 값으로 채우면 됨)
@@ -13,6 +14,13 @@ const firebaseConfig = {
 
 // VAPID Key (.env 에 REACT_APP_FIREBASE_VAPID_KEY 로 설정)
 export const FIREBASE_VAPID_KEY = process.env.REACT_APP_FIREBASE_VAPID_KEY || '';
+
+/**
+ * 네이티브 앱 환경인지 체크
+ */
+export function isNativeApp(): boolean {
+  return Capacitor.isNativePlatform();
+}
 
 let messagingPromise: Promise<Messaging | null> | null = null;
 
@@ -82,5 +90,104 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
   return messagingPromise;
 }
 
+/**
+ * 네이티브 앱에서 푸시 알림 토큰 가져오기 (Capacitor)
+ * @param skipPermissionCheck 권한 확인을 건너뛸지 여부 (이미 권한이 확인된 경우 true)
+ */
+export async function getNativePushToken(skipPermissionCheck: boolean = false): Promise<string | null> {
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    
+    // 권한 확인이 필요한 경우에만 요청
+    if (!skipPermissionCheck) {
+      const permResult = await PushNotifications.requestPermissions();
+      
+      if (permResult.receive !== 'granted') {
+        console.warn('[push] 네이티브 푸시 알림 권한이 거부되었습니다.');
+        return null;
+      }
+    }
+    
+    // 푸시 알림 등록
+    await PushNotifications.register();
+    
+    // 토큰 받기 (Promise로 감싸기)
+    return new Promise((resolve) => {
+      PushNotifications.addListener('registration', (token) => {
+        resolve(token.value);
+      });
+      
+      PushNotifications.addListener('registrationError', (error) => {
+        console.error('[push] 네이티브 푸시 토큰 등록 실패:', error);
+        resolve(null);
+      });
+      
+      // 타임아웃 (10초)
+      setTimeout(() => {
+        console.error('[push] 네이티브 푸시 토큰 대기 시간 초과');
+        resolve(null);
+      }, 10000);
+    });
+  } catch (error) {
+    console.error('[push] 네이티브 푸시 알림 초기화 실패:', error);
+    return null;
+  }
+}
 
-
+/**
+ * 네이티브 앱에서 푸시 알림 리스너 설정 (Capacitor)
+ */
+export async function setupNativePushListeners(onNotificationReceived?: (notification: any) => void) {
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const { LocalNotifications } = await import('@capacitor/local-notifications');
+    
+    // 푸시 알림 수신 시
+    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
+      console.log('[push] 푸시 알림 수신:', notification);
+      
+      // data-only 메시지인 경우 로컬 알림으로 표시
+      // Capacitor PushNotifications는 notification 필드가 없으면 자동으로 알림을 표시하지 않음
+      if (notification.data && !notification.title && !notification.body) {
+        const title = notification.data.title || '새 알림';
+        const body = notification.data.body || '';
+        const data = notification.data;
+        
+        try {
+          // 로컬 알림 권한 확인
+          const permissionStatus = await LocalNotifications.checkPermissions();
+          if (permissionStatus.display === 'granted') {
+            await LocalNotifications.schedule({
+              notifications: [
+                {
+                  title: title,
+                  body: body,
+                  id: Date.now(),
+                  extra: data,
+                  sound: 'default',
+                },
+              ],
+            });
+            console.log('[push] 로컬 알림 표시:', title, body);
+          } else {
+            console.warn('[push] 로컬 알림 권한이 없습니다.');
+          }
+        } catch (error) {
+          console.error('[push] 로컬 알림 표시 실패:', error);
+        }
+      }
+      
+      if (onNotificationReceived) {
+        onNotificationReceived(notification);
+      }
+    });
+    
+    // 푸시 알림 클릭 시
+    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+      console.log('[push] 푸시 알림 클릭:', notification);
+      // 필요시 특정 페이지로 이동하는 로직 추가 가능
+    });
+  } catch (error) {
+    console.error('[push] 네이티브 푸시 리스너 설정 실패:', error);
+  }
+}

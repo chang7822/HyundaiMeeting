@@ -21,6 +21,7 @@ import {
   FaCog,
 } from 'react-icons/fa';
 import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi } from '../../services/api.ts';
+import { isNativeApp } from '../../firebase.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -122,7 +123,7 @@ const SettingsButton = styled.button`
   justify-content: center;
   border-radius: 4px;
   transition: all 0.2s ease;
-  font-size: 0.9rem;
+  font-size: 1.8rem; /* 아이콘 크기 두 배 */
   
   &:hover {
     color: rgba(255, 255, 255, 1);
@@ -527,13 +528,18 @@ const AttendanceModalBody = styled.div`
 
 const AttendanceModalActions = styled.div`
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 8px;
   margin-top: 4px;
+  
+  @media (min-width: 480px) {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
 `;
 
 const AttendanceSecondaryButton = styled.button`
-  padding: 6px 12px;
+  padding: 8px 12px;
   border-radius: 999px;
   border: 1px solid #d1d5db;
   background: #f9fafb;
@@ -541,6 +547,11 @@ const AttendanceSecondaryButton = styled.button`
   font-weight: 500;
   color: #374151;
   cursor: pointer;
+  width: 100%;
+
+  @media (min-width: 480px) {
+    width: auto;
+  }
 
   &:hover {
     background: #f3f4f6;
@@ -553,7 +564,7 @@ const AttendanceSecondaryButton = styled.button`
 `;
 
 const AttendancePrimaryButton = styled.button`
-  padding: 6px 14px;
+  padding: 8px 14px;
   border-radius: 999px;
   border: none;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -561,15 +572,33 @@ const AttendancePrimaryButton = styled.button`
   font-weight: 600;
   color: #f9fafb;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
 
-  &:hover {
+  @media (min-width: 480px) {
+    width: auto;
+  }
+
+  &:hover:not(:disabled) {
     opacity: 0.96;
   }
 
   &:disabled {
-    opacity: 0.6;
-    cursor: default;
+    background: linear-gradient(135deg, #94a3b8 0%, #64748b 100%);
+    cursor: not-allowed;
   }
+`;
+
+const AppOnlyBadge = styled.span`
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.9);
 `;
 
 const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, onToggle }) => {
@@ -592,7 +621,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
   const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [emailNotificationEnabled, setEmailNotificationEnabled] = useState<boolean>(true);
+  const [emailNotificationEnabled, setEmailNotificationEnabled] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   // 로딩 상태: user가 null이면 true, 아니면 false
@@ -602,15 +631,22 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   useEffect(() => {
     if (user?.id && settingsModalOpen) {
       const fetchEmailNotificationSetting = async () => {
+        setSettingsLoading(true);
         try {
           const result = await userApi.getEmailNotificationSetting();
           setEmailNotificationEnabled(result.email_notification_enabled);
         } catch (error) {
           console.error('[Sidebar] 이메일 수신 설정 조회 실패:', error);
-          // 기본값 유지
+          // 기본값 true로 설정 (에러 시)
+          setEmailNotificationEnabled(true);
+        } finally {
+          setSettingsLoading(false);
         }
       };
       fetchEmailNotificationSetting();
+    } else if (!settingsModalOpen) {
+      // 모달이 닫히면 상태 초기화
+      setEmailNotificationEnabled(null);
     }
   }, [user?.id, settingsModalOpen]);
 
@@ -786,7 +822,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         setStarBalance(typeof data.balance === 'number' ? data.balance : 0);
         const dailyDone = !!data?.today?.dailyDone;
         const adDone = !!data?.today?.adDone;
-        // 오늘 중 하나라도 별을 획득했다면 사이드바에서는 "오늘 출석 완료"로 표시
+        // 오늘 중 하나라도 별을 획득했다면 사이드바에서는 "오늘 출석 완료"로 표시 (하루 1회: 둘 중 택1)
         setHasDailyToday(dailyDone || adDone);
         setHasAdToday(adDone);
       })
@@ -827,8 +863,8 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         setStarBalance(res.newBalance);
       }
       toast.success(res.message || '출석 체크가 완료되었습니다.');
-      setAttendanceModalOpen(false);
       setHasDailyToday(true);
+      setAttendanceModalOpen(false);
     } catch (error: any) {
       const msg =
         error?.response?.data?.message ||
@@ -841,23 +877,168 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
 
   const handleAdReward = async () => {
     if (!user?.id) return;
+    if (!isNativeApp()) {
+      toast.error('광고 보기는 앱에서만 사용 가능합니다.');
+      return;
+    }
+    if (hasDailyToday) return;
+    
     setAdSubmitting(true);
+    let removeListeners: (() => Promise<void>) | null = null;
     try {
-      const res = await starApi.adReward();
-      if (typeof res.newBalance === 'number') {
-        setStarBalance(res.newBalance);
+      // WebView 준비 확인
+      const waitForWebViewReady = () => {
+        return new Promise<void>((resolve) => {
+          if (document.readyState === 'complete') {
+            setTimeout(resolve, 1000);
+          } else {
+            window.addEventListener('load', () => {
+              setTimeout(resolve, 1000);
+            });
+          }
+        });
+      };
+      
+      await waitForWebViewReady();
+      
+      // AdMob 모듈 로드
+      let RewardedAd;
+      let AdMob;
+      try {
+        const admobModule = await import('@capgo/capacitor-admob');
+        RewardedAd = admobModule.RewardedAd;
+        AdMob = admobModule.AdMob;
+      } catch (importError: any) {
+        toast.error('광고 모듈을 불러올 수 없습니다.');
+        setAdSubmitting(false);
+        return;
       }
-      toast.success(res.message || '광고 보상 별이 지급되었습니다.');
-      setAttendanceModalOpen(false);
-      // 광고로 별을 받아도 오늘은 출석 완료로 취급
-      setHasAdToday(true);
-      setHasDailyToday(true);
+      
+      // 광고 ID 설정
+      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+      const adId = isTesting 
+        ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
+        : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID
+      
+      // WebView 완전 준비 확인
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 보상형 광고 생성 및 표시
+      const rewardedAd = new RewardedAd({
+        adUnitId: adId,
+      });
+
+      // 플러그인 이벤트 기반으로 "리워드 지급" 여부를 판정해야 함
+      // (RewardedAd.show()는 Promise<void> 이므로 반환값으로 완료여부 판단 불가)
+      const adInstanceId = (rewardedAd as any)?.id;
+      const getEventAdId = (event: any) => event?.adId ?? event?.id; // Android: adId, iOS: id
+
+      let rewarded = false;
+      let dismissed = false;
+      let showFailed: string | undefined;
+      let rewardPromise: Promise<void> | null = null;
+      
+      // 광고 로드
+      try {
+        await rewardedAd.load();
+      } catch (loadError: any) {
+        // 로드 실패 시 재시도
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await rewardedAd.load();
+      }
+
+      // 로드 성공 후에 리스너를 등록 (로드 실패 시 리스너 누수 방지)
+      {
+        let rewardHandle: any;
+        let dismissHandle: any;
+        let showFailHandle: any;
+
+        removeListeners = async () => {
+          try { await rewardHandle?.remove?.(); } catch {}
+          try { await dismissHandle?.remove?.(); } catch {}
+          try { await showFailHandle?.remove?.(); } catch {}
+        };
+
+        rewardPromise = new Promise<void>((resolve, reject) => {
+          const safeResolve = async () => {
+            await removeListeners?.();
+            resolve();
+          };
+          const safeReject = async (err: any) => {
+            await removeListeners?.();
+            reject(err);
+          };
+
+          (async () => {
+            try {
+              rewardHandle = await AdMob.addListener('rewarded.reward', (event: any) => {
+                const evAdId = getEventAdId(event);
+                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                rewarded = true;
+                safeResolve();
+              });
+
+              dismissHandle = await AdMob.addListener('rewarded.dismiss', (event: any) => {
+                const evAdId = getEventAdId(event);
+                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                dismissed = true;
+                safeResolve();
+              });
+
+              showFailHandle = await AdMob.addListener('rewarded.showfail', (event: any) => {
+                const evAdId = getEventAdId(event);
+                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                showFailed = event?.error || event?.message || '광고 표시 실패';
+                safeReject(new Error(showFailed || '광고 표시 실패'));
+              });
+            } catch (e) {
+              safeReject(e);
+            }
+          })();
+        });
+      }
+      
+      // 광고 표시
+      await rewardedAd.show();
+
+      // rewarded.reward(보상) 또는 rewarded.dismiss(닫힘) 이벤트를 기다림
+      // (너무 오래 걸리는 케이스 방지: 90초 타임아웃)
+      await Promise.race([
+        rewardPromise!,
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('광고 응답이 지연되었습니다. 잠시 후 다시 시도해주세요.')), 90_000)),
+      ]);
+
+      // 광고 시청 완료(리워드 지급) 확인 및 보상 지급
+      if (rewarded) {
+        try {
+          const res = await starApi.adReward();
+          if (res.success && typeof res.newBalance === 'number') {
+            setStarBalance(res.newBalance);
+            toast.success(res.message || '광고 보상 별이 지급되었습니다.');
+            setAttendanceModalOpen(false);
+            setHasAdToday(true);
+            setHasDailyToday(true);
+          } else {
+            // 백엔드에서 에러 응답 (400, 500 등)인 경우
+            toast.error(res.message || '보상 지급에 실패했습니다.');
+          }
+        } catch (rewardError: any) {
+          // 네트워크 오류 또는 기타 예외
+          const errorMessage = rewardError?.response?.data?.message || '보상 지급 중 오류가 발생했습니다.';
+          toast.error(errorMessage);
+        }
+      } else {
+        // dismissed 되었거나 타임아웃 등으로 reward가 없으면 안내
+        if (!dismissed) {
+          toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있습니다.');
+        } else {
+          toast.info('광고 보상을 받지 못했습니다. 광고를 끝까지 시청해야 보상이 지급됩니다.');
+        }
+      }
     } catch (error: any) {
-      const msg =
-        error?.response?.data?.message ||
-        '광고 보상 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-      toast.error(msg);
+      toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
     } finally {
+      try { await removeListeners?.(); } catch {}
       setAdSubmitting(false);
     }
   };
@@ -870,7 +1051,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       path: '/extra-matching',
       icon: <FaRegStar />,
       text: '추가 매칭 도전',
-      disabled: extraMatchingInWindow === false,
+      disabled: extraMatchingInWindow === false || user?.is_verified !== true,
     },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
@@ -890,6 +1071,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/matching-applications', icon: <span role="img" aria-label="list">📝</span>, text: '매칭 신청 현황' },
     { path: '/admin/user-matching-overview', icon: <span role="img" aria-label="users">👥</span>, text: '회원 매칭 조회' },
     { path: '/admin/extra-matching-status', icon: <span role="img" aria-label="star">⭐</span>, text: '추가 매칭도전 현황' },
+    { path: '/admin/star-rewards', icon: <span role="img" aria-label="gift">🎁</span>, text: '이벤트 별 지급' },
     { path: '/admin/report-management', icon: <FaExclamationTriangle />, text: '신고 관리' },
     { path: '/admin/support', icon: <FaHeadset />, text: '고객센터 관리' },
     { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
@@ -1078,10 +1260,10 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               <p style={{ marginBottom: 6 }}>
                 하루 한 번 <strong>출석 체크</strong>를 하면 별 <strong>1개</strong>를 모을 수 있어요.
               </p>
-              {/* 광고 보기 기능 - 아직 오픈 전 */}
-              {/* <p style={{ marginBottom: 6 }}>
+              <p style={{ marginBottom: 6 }}>
                 원하시면 출석 후에 <strong>광고 보기</strong>로 별 <strong>2개</strong>를 추가로 받을 수 있습니다.
-              </p> */}
+                {!isNativeApp() && <span style={{ fontSize: '0.75rem', color: '#6b7280' }}> (앱 전용)</span>}
+              </p>
             </AttendanceModalBody>
             <AttendanceModalActions>
               <AttendanceSecondaryButton
@@ -1098,19 +1280,19 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               <AttendancePrimaryButton
                 type="button"
                 onClick={handleDailyAttendance}
-                disabled={attendanceSubmitting}
+                disabled={attendanceSubmitting || hasDailyToday}
               >
                 {attendanceSubmitting ? '출석 처리 중...' : '출석 체크 (⭐1)'}
               </AttendancePrimaryButton>
-              {/* 광고 보기 버튼 - 아직 오픈 전 */}
-              {/* <AttendancePrimaryButton
+              <AttendancePrimaryButton
                 type="button"
                 onClick={handleAdReward}
-                disabled={adSubmitting}
+                disabled={adSubmitting || !isNativeApp() || hasDailyToday}
                 style={{ background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' }}
               >
-                {adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}
-              </AttendancePrimaryButton> */}
+                <span>{adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}</span>
+                {!isNativeApp() && <AppOnlyBadge>앱 전용</AppOnlyBadge>}
+              </AttendancePrimaryButton>
             </AttendanceModalActions>
           </AttendanceModalContent>
         </AttendanceModalOverlay>
@@ -1138,9 +1320,9 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               <SwitchLabel>
                 <SwitchInput
                   type="checkbox"
-                  checked={emailNotificationEnabled}
+                  checked={emailNotificationEnabled === true}
                   onChange={handleToggleEmailNotification}
-                  disabled={settingsLoading}
+                  disabled={settingsLoading || emailNotificationEnabled === null}
                 />
                 <SwitchSlider />
               </SwitchLabel>

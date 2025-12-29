@@ -2,8 +2,22 @@ import axios from 'axios';
 import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ProfileCategory, ProfileOption } from '../types/index.ts';
 import { toast } from 'react-toastify';
 
-// API Base URL을 반드시 환경변수로만 사용하도록 강제
-const API_BASE_URL = (process.env.REACT_APP_API_URL || '').replace(/\/$/, ''); // 끝 슬래시 제거
+// API Base URL 설정
+function getApiBaseUrl(): string {
+  const envUrl = process.env.REACT_APP_API_URL;
+  
+  if (envUrl) {
+    return envUrl.replace(/\/$/, ''); // 끝의 슬래시 제거
+  }
+  
+  // 환경변수가 없을 때만 fallback 사용
+  return 'https://auto-matching-way-backend.onrender.com/api';
+}
+
+const API_BASE_URL = getApiBaseUrl();
+
+// API_BASE_URL을 export하여 다른 곳에서도 사용 가능하도록 함
+export { API_BASE_URL };
 
 // fetch/axios 등에서 항상 API_BASE_URL을 prefix로 사용하도록 유틸 함수 제공
 export function apiUrl(path: string) {
@@ -18,6 +32,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  // 네이티브 앱에서 CORS 문제 해결을 위한 설정
+  withCredentials: false, // 네이티브 앱에서는 false로 설정
 });
 
 // 수동 로그아웃 이후에는 401 토스트를 막기 위한 플래그
@@ -32,10 +48,14 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Refresh Token 갱신 중 플래그 (무한 루프 방지)
+let isRefreshing = false;
+let failedQueue: Array<{ resolve: (value?: any) => void; reject: (reason?: any) => void }> = [];
+
 // Global response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     // /matching/period 엔드포인트의 404 에러는 조용히 처리
     if (error?.config?.url?.includes('/matching/period') && error?.response?.status === 404) {
       // 404를 정상적인 응답으로 변환
@@ -43,29 +63,94 @@ api.interceptors.response.use(
     }
     
     // Handle token expiration
-    const isLoginRequest = error.config && error.config.url && error.config.url.includes('/auth/login');
+    const isLoginRequest = error?.config?.url?.includes('/auth/login') ?? false;
+    const isRefreshRequest = error?.config?.url?.includes('/auth/refresh') ?? false;
+    
     if (error.response?.status === 401) {
-      if (!isLoginRequest && !suppressAuth401Toast) {
-        toast.error('로그인 인증이 만료되었습니다. 다시 로그인해 주세요.');
+      // 로그인/갱신 요청 자체가 401이면 재시도하지 않음
+      if (isLoginRequest || isRefreshRequest) {
+        if (!isLoginRequest && !suppressAuth401Toast) {
+          toast.error('로그인 인증이 만료되었습니다. 다시 로그인해 주세요.');
+        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        if (!isLoginRequest && !suppressAuth401Toast) {
+          window.location.href = '/';
+        }
+        suppressAuth401Toast = false;
+        return Promise.reject(error);
       }
-      localStorage.removeItem('token');
-      // console.log('[axios] 401 발생, localStorage token:', localStorage.getItem('token'));
 
-      // 인증 만료 시 랜딩 페이지로 이동
-      // (수동 로그아웃 suppress 플래그가 켜져 있거나, /auth/login 요청인 경우에는
-      //  토스트/리다이렉트를 생략하고 호출한 쪽에서 직접 처리하도록 둔다)
-      if (!isLoginRequest && !suppressAuth401Toast) {
-        window.location.href = '/';
+      // Refresh Token으로 자동 갱신 시도
+      const refreshToken = localStorage.getItem('refreshToken');
+      
+      if (refreshToken && !isRefreshing) {
+        isRefreshing = true;
+        
+        try {
+          // Refresh Token으로 새로운 Access Token 발급
+          const refreshResponse = await authApi.refresh(refreshToken);
+          const newAccessToken = refreshResponse.token;
+          
+          // 새로운 Access Token 저장
+          localStorage.setItem('token', newAccessToken);
+          
+          // 실패한 요청들을 재시도
+          failedQueue.forEach(({ resolve }) => {
+            resolve();
+          });
+          failedQueue = [];
+          
+          // 원래 요청을 새로운 토큰으로 재시도
+          const originalRequest = error.config;
+          originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+          return api(originalRequest);
+        } catch (refreshError) {
+          // Refresh Token 갱신 실패 - 모든 토큰 삭제 및 로그인 페이지로 이동
+          failedQueue.forEach(({ reject }) => {
+            reject(refreshError);
+          });
+          failedQueue = [];
+          
+          localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
+          
+          if (!suppressAuth401Toast) {
+            toast.error('로그인 인증이 만료되었습니다. 다시 로그인해 주세요.');
+            window.location.href = '/';
+          }
+          suppressAuth401Toast = false;
+          return Promise.reject(refreshError);
+        } finally {
+          isRefreshing = false;
+        }
+      } else if (isRefreshing) {
+        // 이미 갱신 중이면 대기열에 추가
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then(() => {
+          const originalRequest = error.config;
+          const newAccessToken = localStorage.getItem('token');
+          if (newAccessToken) {
+            originalRequest.headers['Authorization'] = `Bearer ${newAccessToken}`;
+            return api(originalRequest);
+          }
+          return Promise.reject(error);
+        });
+      } else {
+        // Refresh Token이 없거나 갱신 실패 - 로그인 페이지로 이동
+        if (!suppressAuth401Toast) {
+          toast.error('로그인 인증이 만료되었습니다. 다시 로그인해 주세요.');
+        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+        
+        if (!suppressAuth401Toast) {
+          window.location.href = '/';
+        }
+        suppressAuth401Toast = false;
+        return Promise.reject(error);
       }
-
-      // 한 번 401을 처리한 이후에는 suppress 플래그를 항상 초기화
-      // -> 수동 로그아웃 직후 발생하는 401에만 토스트/리다이렉트가 생략되고,
-      //    이후 401부터는 다시 정상적으로 동작하도록 보장
-      suppressAuth401Toast = false;
-
-      // 여기서 반드시 reject를 반환해야 호출측에서 오류로 인식하고 적절히 처리할 수 있다.
-      return Promise.reject(error);
-      // /auth/login 요청이면 아무 토스트도 띄우지 않음 (실패 안내는 LoginPage에서 따로 처리)
     }
     
     return Promise.reject(error);
@@ -80,15 +165,19 @@ export const authApi = {
     return response.data;
   },
 
-  logout: async (email?: string) => {
-    // 토큰은 프론트에서 지우고, 서버에는 로그를 남기기 위한 용도
+  logout: async (refreshToken?: string) => {
     // 수동 로그아웃 이후에는 인증 만료 토스트를 막는다.
     suppressAuth401Toast = true;
     try {
-      await api.post('/auth/logout', { email });
+      await api.post('/auth/logout', { refreshToken });
     } catch {
-      // 로그용이므로 실패해도 무시
+      // 로그아웃은 항상 성공으로 처리
     }
+  },
+
+  refresh: async (refreshToken: string): Promise<{ token: string }> => {
+    const response = await api.post('/auth/refresh', { refreshToken });
+    return response.data;
   },
 
   register: async (userData: RegisterFormData): Promise<{ user: User; token: string }> => {
@@ -105,6 +194,7 @@ export const authApi = {
     height?: number;
     residence?: string;
     company?: string;
+    customCompanyName?: string;
     maritalStatus?: string;
     jobType?: string;
     appeal?: string;
@@ -128,7 +218,7 @@ export const authApi = {
                 email: boolean;
                 agreedAt: string;
               };
-  }): Promise<{ user: User; token: string }> => {
+  }): Promise<{ user: User; token: string; refreshToken?: string }> => {
     const response = await api.post('/auth/register', userData);
     return response.data;
   },
@@ -504,6 +594,21 @@ export const adminApi = {
     };
   }): Promise<any> => {
     const response = await api.post('/admin/notifications/send', payload);
+    return response.data;
+  },
+
+  // 관리자: 이벤트 별 지급 + (선택) 알림/푸시 발송
+  grantStars: async (payload: {
+    userIds: string[];
+    amount: number;
+    notification?: {
+      title: string;
+      body: string;
+      linkUrl?: string | null;
+    };
+    sendPush?: boolean;
+  }): Promise<any> => {
+    const response = await api.post('/admin/stars/grant', payload);
     return response.data;
   },
 
@@ -1001,6 +1106,12 @@ export const pushApi = {
   unregisterToken: async (token?: string): Promise<{ success: boolean }> => {
     const payload = token ? { token } : {};
     const response = await api.post('/push/unregister-token', payload);
+    return response.data;
+  },
+
+  // 사용자의 푸시 토큰 목록 조회
+  getTokens: async (): Promise<{ success: boolean; tokens: any[]; hasToken: boolean }> => {
+    const response = await api.get('/push/tokens');
     return response.data;
   },
 

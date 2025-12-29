@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
-import { ToastContainer } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { StatusBar } from '@capacitor/status-bar';
+import { Capacitor } from '@capacitor/core';
+import { isNativeApp, getNativePushToken, setupNativePushListeners } from './firebase.ts';
+import { pushApi } from './services/api.ts';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
 import LoginPage from './pages/auth/LoginPage.tsx';
 import RegisterPage from './pages/auth/RegisterPage.tsx';
 import CompanySelectionPage from './pages/auth/CompanySelectionPage.tsx';
@@ -40,6 +45,7 @@ import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
 import ExtraMatchingPage from './pages/ExtraMatchingPage.tsx';
 import NotificationsPage from './pages/NotificationsPage.tsx';
 import AdminNotificationPage from './pages/admin/AdminNotificationPage.tsx';
+import AdminStarRewardPage from './pages/admin/AdminStarRewardPage.tsx';
 import ExtraMatchingAdminPage from './pages/admin/ExtraMatchingAdminPage.tsx';
 import UserMatchingOverviewPage from './pages/admin/UserMatchingOverviewPage.tsx';
 // ChatPage는 sidebarOpen prop을 받는 컴포넌트입니다.
@@ -121,9 +127,239 @@ const MaintenanceScreen: React.FC<{ onLogout: () => void; message?: string }> = 
 const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, isAuthenticated, logout } = useAuth();
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
+  
+  // 뒤로가기 버튼 두 번 누르면 앱 종료를 위한 ref
+  const backButtonPressCount = useRef(0);
+  const backButtonTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // 앱 초기화
+  useEffect(() => {
+    // AdMob 초기화 (네이티브 앱에서만)
+    // WebView가 완전히 로드된 후에 초기화해야 함
+    const initializeAdMob = async () => {
+      if (!isNativeApp()) return;
+      
+      // WebView가 준비될 때까지 대기
+      const waitForWebView = () => {
+        return new Promise<void>((resolve) => {
+          if (Capacitor.getPlatform() === 'android') {
+            // Android: window.load 이벤트 대기 (더 확실한 방법)
+            if (document.readyState === 'complete') {
+              // 추가 지연으로 WebView JavaScript 엔진이 완전히 준비되도록 함
+              setTimeout(resolve, 1500);
+            } else {
+              window.addEventListener('load', () => {
+                setTimeout(resolve, 1500);
+              });
+            }
+          } else {
+            resolve();
+          }
+        });
+      };
+      
+      try {
+        await waitForWebView();
+        
+        const { AdMob } = await import('@capgo/capacitor-admob');
+        await AdMob.start();
+      } catch (error) {
+        // AdMob 초기화 실패는 조용히 처리 (앱 사용에는 영향 없음)
+      }
+    };
+    
+    // 약간의 지연 후 초기화 (앱이 완전히 로드된 후)
+    const timer = setTimeout(() => {
+      initializeAdMob();
+    }, 2000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // Android 뒤로가기 버튼 처리 (두 번 누르면 앱 종료)
+  useEffect(() => {
+    if (!isNativeApp() || Capacitor.getPlatform() !== 'android') return;
+    
+    let listener: any = null;
+    
+    const setupBackButton = async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        
+        listener = await App.addListener('backButton', ({ canGoBack }) => {
+          // 루트 경로(/)나 메인 페이지에서 뒤로 갈 곳이 없을 때만 앱 종료 로직 실행
+          const isRootPath = location.pathname === '/' || location.pathname === '/main';
+          
+          if (!isRootPath) {
+            // 다른 페이지에서는 일반 뒤로가기 동작
+            navigate(-1);
+            // 카운트 리셋
+            backButtonPressCount.current = 0;
+            if (backButtonTimer.current) {
+              clearTimeout(backButtonTimer.current);
+              backButtonTimer.current = null;
+            }
+            return;
+          }
+          
+          // 루트 경로에서 뒤로 갈 곳이 없을 때
+          // 첫 번째 누름: 토스트 메시지 표시
+          if (backButtonPressCount.current === 0) {
+            backButtonPressCount.current = 1;
+            toast.info('한 번 더 누르면 앱이 종료됩니다', {
+              position: 'bottom-center',
+              autoClose: 2000,
+            });
+            
+            // 2초 후 카운트 리셋
+            backButtonTimer.current = setTimeout(() => {
+              backButtonPressCount.current = 0;
+              backButtonTimer.current = null;
+            }, 2000);
+          } 
+          // 두 번째 누름 (2초 이내): 앱 종료
+          else {
+            if (backButtonTimer.current) {
+              clearTimeout(backButtonTimer.current);
+              backButtonTimer.current = null;
+            }
+            backButtonPressCount.current = 0;
+            App.exitApp();
+          }
+        });
+      } catch (error) {
+        console.error('[App] 뒤로가기 버튼 리스너 설정 실패:', error);
+      }
+    };
+    
+    setupBackButton();
+    
+    return () => {
+      if (listener) {
+        listener.remove();
+      }
+      if (backButtonTimer.current) {
+        clearTimeout(backButtonTimer.current);
+      }
+    };
+  }, [location.pathname, navigate]);
+
+  // StatusBar 설정 (Android에서 상단바와 겹치지 않도록)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {
+        // StatusBar 플러그인이 사용 불가능한 경우 무시
+      });
+    }
+  }, []);
+
+  // 네이티브 앱에서 푸시 알림 권한 요청 및 토큰 등록
+  useEffect(() => {
+    if (!isNativeApp() || !isAuthenticated || !user?.id) return;
+
+    const setupPushNotifications = async () => {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications');
+
+        // "앱 첫 실행(권한이 prompt 상태)"에서만 1회 자동으로 권한 팝업을 띄우기 위한 플래그
+        // - 허용: 토큰 자동 발급/등록 + 토글 ON
+        // - 거부: 토글 OFF로 유지, 추가 팝업 없음
+        const PROMPTED_KEY = 'pushPermissionPrompted_v1';
+
+        const ensureTokenRegisteredAndEnabled = async () => {
+          // 토큰 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
+          const token = await getNativePushToken(true);
+
+          if (token) {
+            // 네이티브 푸시 리스너 설정
+            await setupNativePushListeners();
+
+            // 이전 토큰 확인 및 정리 (클라이언트 저장 토큰이 바뀐 경우만)
+            const previousToken = localStorage.getItem('pushFcmToken');
+            if (previousToken && previousToken !== token) {
+              try {
+                await pushApi.unregisterToken(previousToken);
+                console.log('[push] 이전 토큰 삭제 완료 (같은 기기)');
+              } catch (unregisterError) {
+                console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+              }
+            }
+
+            // 서버에 새 토큰 등록 (서버에서 user_id + device_type 기준으로 1개만 유지)
+            try {
+              await pushApi.registerToken(token);
+              localStorage.setItem('pushFcmToken', token);
+              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+              console.log('[push] 새 토큰 등록 완료 및 토글 ON 설정');
+
+              // MainPage 토글이 즉시 DB 기준으로 ON으로 갱신되도록 이벤트 브로드캐스트
+              try {
+                window.dispatchEvent(new CustomEvent('push-status-changed', {
+                  detail: { enabled: true, source: 'auto' },
+                }));
+              } catch {
+                // ignore
+              }
+            } catch (registerError) {
+              console.error('[push] 토큰 등록 실패:', registerError);
+            }
+          }
+        };
+        
+        // 현재 권한 상태 확인
+        const permissionStatus = await PushNotifications.checkPermissions();
+        const receive = (permissionStatus.receive === 'prompt-with-rationale')
+          ? 'prompt'
+          : (permissionStatus.receive || 'prompt');
+        
+        // 권한이 이미 허용된 경우 토큰 가져와서 서버에 등록
+        if (receive === 'granted') {
+          await ensureTokenRegisteredAndEnabled();
+        } else if (receive === 'prompt') {
+          // 앱 첫 실행 때만(플래그 1회) 자동 권한 요청 팝업을 띄운다.
+          const prompted = localStorage.getItem(PROMPTED_KEY) === 'true';
+          if (!prompted) {
+            localStorage.setItem(PROMPTED_KEY, 'true');
+            const result = await PushNotifications.requestPermissions();
+            const next = (result.receive === 'prompt-with-rationale') ? 'prompt' : (result.receive || 'prompt');
+
+            if (next === 'granted') {
+              await ensureTokenRegisteredAndEnabled();
+            } else {
+              // 거부/미결정: 토글 OFF 유지
+              try {
+                localStorage.setItem(`pushEnabled_${user.id}`, 'false');
+              } catch {
+                // ignore
+              }
+
+              // MainPage 토글이 즉시 OFF로 갱신되도록 이벤트 브로드캐스트
+              try {
+                window.dispatchEvent(new CustomEvent('push-status-changed', {
+                  detail: { enabled: false, source: 'auto' },
+                }));
+              } catch {
+                // ignore
+              }
+            }
+          }
+        }
+      } catch (error) {
+        // 권한 요청 실패 시 무시 (사용자가 거부했을 수 있음)
+      }
+    };
+
+    // 약간의 지연을 두고 실행 (앱 초기화 및 로그인 완료 후)
+    const timer = setTimeout(() => {
+      setupPushNotifications();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [isAuthenticated, user?.id]);
 
   // 모바일 진입 시 사이드바 자동 닫기
   useEffect(() => {
@@ -223,6 +459,7 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/register/company" element={<CompanySelectionPage />} />
@@ -472,6 +709,14 @@ const AppInner: React.FC = () => {
                   </div>
                 </AdminRoute>
               } />
+              <Route path="/admin/star-rewards" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <AdminStarRewardPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
               <Route path="/admin/extra-matching-status" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
@@ -497,6 +742,7 @@ const AppInner: React.FC = () => {
                 touchAction: 'manipulation'
               }}
             />
+            
           </div>
   );
 }

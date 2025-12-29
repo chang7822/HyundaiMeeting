@@ -108,6 +108,13 @@ const ErrorMessage = styled.span`
   margin-top: 0.25rem;
 `;
 
+const InfoMessage = styled.div`
+  color: #6b7280;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+  line-height: 1.5;
+`;
+
 const SuccessMessage = styled.div`
   color: #27ae60;
   background: #d5f4e6;
@@ -137,9 +144,10 @@ const Select = styled.select`
 const ResponsiveRow = styled.div`
   display: flex;
   gap: 8px;
+  flex-wrap: nowrap;
+  
   @media (max-width: 600px) {
-    flex-direction: column;
-    gap: 0;
+    gap: 6px;
   }
 `;
 
@@ -184,18 +192,33 @@ const EmailVerificationPage = () => {
   const [emailError, setEmailError] = useState('');
   const [companyDomains, setCompanyDomains] = useState<string[]>([]);
   const [selectedDomain, setSelectedDomain] = useState('');
+  const [isNoDomainMode, setIsNoDomainMode] = useState(false);
 
   const {
     register,
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm<{ emailId: string }>();
+  } = useForm<{ emailId: string; email?: string }>();
 
   React.useEffect(() => {
+    // 회사 타입 확인
+    const companyType = sessionStorage.getItem('userCompanyType');
+    const companyId = sessionStorage.getItem('userCompany');
+    
+    // 회사 도메인 없음 모드인지 확인
+    if (companyType === 'no-domain' || companyId === '9999' || companyId === '9998') {
+      setIsNoDomainMode(true);
+      // 복원: sessionStorage에 저장된 전체 이메일 있으면 setValue
+      const savedEmail = sessionStorage.getItem('userEmail');
+      if (savedEmail) {
+        setValue('email', savedEmail);
+      }
+      return;
+    }
+
     // 회사 id로 도메인 목록 불러오기
     const fetchDomains = async () => {
-      const companyId = sessionStorage.getItem('userCompany');
       if (!companyId) return;
       const companies = await companyApi.getCompanies();
       const company = companies.find(c => c.id === companyId);
@@ -218,18 +241,32 @@ const EmailVerificationPage = () => {
     }
   }, [setValue]);
 
-  const onSubmit = async (data: { emailId: string }) => {
+  const onSubmit = async (data: { emailId: string; email?: string }) => {
     setIsLoading(true);
     setEmailError('');
     try {
-      if (!selectedDomain) {
-        setEmailError('이메일 도메인을 선택해주세요.');
-        setIsLoading(false);
-        return;
+      let email: string;
+      
+      if (isNoDomainMode) {
+        // 개인 이메일 전체 입력 모드
+        if (!data.email || !data.email.includes('@')) {
+          setEmailError('올바른 이메일 주소를 입력해주세요.');
+          setIsLoading(false);
+          return;
+        }
+        email = data.email.trim();
+      } else {
+        // 기존 도메인 고정 모드
+        if (!selectedDomain) {
+          setEmailError('이메일 도메인을 선택해주세요.');
+          setIsLoading(false);
+          return;
+        }
+        email = `${data.emailId}@${selectedDomain}`;
+        sessionStorage.setItem('userEmailDomain', selectedDomain);
       }
-      const email = `${data.emailId}@${selectedDomain}`;
+      
       sessionStorage.setItem('userEmail', email);
-      sessionStorage.setItem('userEmailDomain', selectedDomain);
       await authApi.verifyEmail(email);
       setIsVerificationSent(true);
       toast.success('인증 메일이 발송되었습니다!');
@@ -287,32 +324,61 @@ const EmailVerificationPage = () => {
         
         {!isVerificationSent ? (
           <Form onSubmit={handleSubmit(onSubmit)}>
-            <ResponsiveRow>
-              <Input
-                type="text"
-                {...register('emailId', {
-                  required: '이메일 아이디를 입력해주세요.',
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+$/i,
-                    message: '올바른 이메일 아이디 형식이어야 합니다.',
-                  },
-                })}
-                className={errors.emailId || emailError ? 'error' : ''}
-                placeholder="이메일 아이디"
-                style={{ flex: 2 }}
-              />
-              <Select
-                value={selectedDomain}
-                onChange={e => setSelectedDomain(e.target.value)}
-                style={{ flex: 2 }}
-              >
-                {companyDomains.map(domain => (
-                  <option key={domain} value={domain}>@{domain}</option>
-                ))}
-              </Select>
-            </ResponsiveRow>
-            {errors.emailId && <ErrorMessage>{errors.emailId.message}</ErrorMessage>}
-            {emailError && <ErrorMessage>{emailError}</ErrorMessage>}
+            {isNoDomainMode ? (
+              // 개인 이메일 전체 입력 모드
+              <>
+                <Input
+                  type="email"
+                  {...register('email', {
+                    required: '이메일 주소를 입력해주세요.',
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: '올바른 이메일 주소 형식이어야 합니다.',
+                    },
+                  })}
+                  className={errors.email || emailError ? 'error' : ''}
+                  placeholder="ex) example@gmail.com"
+                />
+                {errors.email && <ErrorMessage>{errors.email.message}</ErrorMessage>}
+                {emailError && <ErrorMessage>{emailError}</ErrorMessage>}
+                <InfoMessage>
+                  해당 메일주소는 로그인을 위한 ID로 활용됩니다.
+                </InfoMessage>
+              </>
+            ) : (
+              // 기존 도메인 고정 모드
+              <>
+                <ResponsiveRow>
+                  <Input
+                    type="text"
+                    {...register('emailId', {
+                      required: '이메일 아이디를 입력해주세요.',
+                      pattern: {
+                        value: /^[A-Z0-9._%+-]+$/i,
+                        message: '올바른 이메일 아이디 형식이어야 합니다.',
+                      },
+                    })}
+                    className={errors.emailId || emailError ? 'error' : ''}
+                    placeholder="이메일 아이디"
+                    style={{ flex: 2 }}
+                  />
+                  <Select
+                    value={selectedDomain}
+                    onChange={e => setSelectedDomain(e.target.value)}
+                    style={{ flex: 2 }}
+                  >
+                    {companyDomains.map(domain => (
+                      <option key={domain} value={domain}>@{domain}</option>
+                    ))}
+                  </Select>
+                </ResponsiveRow>
+                {errors.emailId && <ErrorMessage>{errors.emailId.message}</ErrorMessage>}
+                {emailError && <ErrorMessage>{emailError}</ErrorMessage>}
+                <InfoMessage>
+                  해당 메일주소는 로그인을 위한 ID로 활용됩니다.
+                </InfoMessage>
+              </>
+            )}
             
             <Button type="submit" disabled={isLoading}>
               {isLoading ? '발송 중...' : '인증 메일 발송'}

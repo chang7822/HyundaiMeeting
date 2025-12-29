@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "14798026674",
+    "project_id": "solomeeting-cb35b",
+    "storage_bucket": "solomeeting-cb35b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:14798026674:android:7e9fa31761e3e9df0796ab",
+        "android_client_info": {
+          "package_name": "com.solo.meeting"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_Cd0hHG5khPIBWxjgaP8XyDdFK1KBemo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

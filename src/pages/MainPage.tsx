@@ -3,13 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi, starApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY } from '../firebase.ts';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners } from '../firebase.ts';
+import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import { Capacitor, registerPlugin } from '@capacitor/core';
 
 // 액션 타입 정의
 type ActionItem = {
@@ -836,6 +838,7 @@ const ModalContent = styled.div`
 
 
 const cancelTime = 1;
+const MAIN_MATCH_STAR_COST = 5;
 
 const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
@@ -853,6 +856,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [partnerProfileError, setPartnerProfileError] = useState(false);
   const [partnerProfileLoading, setPartnerProfileLoading] = useState(false);
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
+  const [showMatchingStarConfirmModal, setShowMatchingStarConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -862,9 +866,28 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [isLoadingNotice, setIsLoadingNotice] = useState(false);
   const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
   const [isPushBusy, setIsPushBusy] = useState(false);
+  const [pushPermissionStatus, setPushPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | null>(null);
   const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
   const [showIosGuideModal, setShowIosGuideModal] = useState(false);
+  const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
   const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
+
+  // 사이드바 별 잔액 즉시 반영 (Sidebar.tsx가 stars-updated 이벤트를 구독)
+  const syncSidebarStarBalance = useCallback(async (nextBalance?: number) => {
+    try {
+      if (typeof nextBalance === 'number') {
+        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: nextBalance } }));
+        return;
+      }
+      const data = await starApi.getMyStars();
+      const balance = typeof data?.balance === 'number' ? data.balance : null;
+      if (typeof balance === 'number') {
+        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+      }
+    } catch {
+      // ignore: 즉시 반영 실패 시 Sidebar의 재로딩/다른 갱신 로직에 맡김
+    }
+  }, []);
 
   // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
   // 기능이 비활성화되어 있으면 false 반환
@@ -878,35 +901,93 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return nowTime >= announce.getTime() && nowTime <= finish.getTime();
   }, [extraMatchingFeatureEnabled, period?.matching_announce, period?.finish]);
 
-  // user.id가 변경될 때마다 해당 사용자의 푸시 상태를 localStorage에서 불러오기
+  // user.id가 변경될 때마다 권한 상태와 토큰 등록 상태를 확인하여 토글 동기화
   useEffect(() => {
     if (!user?.id) {
       setIsPushEnabled(false);
+      setPushPermissionStatus(null);
       return;
     }
     
     if (typeof window === 'undefined') return;
     
-    try {
-      const stored = localStorage.getItem(`pushEnabled_${user.id}`);
-      setIsPushEnabled(stored === 'true');
-    } catch {
-      setIsPushEnabled(false);
-    }
+    const checkPermissionAndTokenStatus = async () => {
+      const isNative = isNativeApp();
+      
+      if (isNative) {
+        // 네이티브 앱: 권한 상태와 토큰 등록 상태 확인
+        try {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
+          const permStatus = await PushNotifications.checkPermissions();
+          const permission = permStatus.receive || 'prompt';
+          // 'prompt-with-rationale'를 'prompt'로 변환
+          const normalizedPermission = permission === 'prompt-with-rationale' ? 'prompt' : permission;
+          setPushPermissionStatus(normalizedPermission as 'granted' | 'denied' | 'prompt' | null);
+          
+          // 권한이 granted인 경우 서버에서 실제 토큰 존재 여부 확인
+          if (permission === 'granted') {
+            try {
+              const tokenResult = await pushApi.getTokens();
+              // 서버에 토큰이 있으면 ON, 없으면 OFF
+              setIsPushEnabled(tokenResult.hasToken || false);
+            } catch (tokenError) {
+              // 토큰 조회 실패 시 localStorage 확인 (폴백)
+              const storedToken = localStorage.getItem('pushFcmToken');
+              setIsPushEnabled(!!storedToken);
+            }
+          } else {
+            // 권한이 없으면 OFF
+            setIsPushEnabled(false);
+          }
+        } catch (error) {
+          console.error('[push] 권한 상태 확인 실패:', error);
+          setIsPushEnabled(false);
+          setPushPermissionStatus(null);
+        }
+      } else {
+        // 웹: localStorage 기반 (기존 로직 유지)
+        try {
+          const stored = localStorage.getItem(`pushEnabled_${user.id}`);
+          setIsPushEnabled(stored === 'true');
+          // 웹에서는 권한 상태를 확인할 수 없으므로 null
+          setPushPermissionStatus(null);
+        } catch {
+          setIsPushEnabled(false);
+          setPushPermissionStatus(null);
+        }
+      }
+    };
+    
+    checkPermissionAndTokenStatus();
+
+    // App.tsx(자동 권한/자동 등록)에서 푸시 상태 변경 이벤트를 쏘면 즉시 반영
+    const onPushStatusChanged = async () => {
+      try {
+        // DB 기준으로 다시 동기화
+        await checkPermissionAndTokenStatus();
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('push-status-changed', onPushStatusChanged as any);
+
+    return () => {
+      window.removeEventListener('push-status-changed', onPushStatusChanged as any);
+    };
   }, [user?.id]);
 
   const handleTogglePush = useCallback(async () => {
-    if (isPushBusy) return;
+    if (isPushBusy) {
+      toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
+      return;
+    }
 
     if (!user?.id) {
       toast.error('로그인이 필요합니다.');
       return;
     }
 
-    if (typeof window === 'undefined' || typeof Notification === 'undefined') {
-      toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
-      return;
-    }
+    const isNative = isNativeApp();
 
     const next = !isPushEnabled;
 
@@ -915,93 +996,244 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       try {
         setIsPushBusy(true);
 
-        let permission = Notification.permission;
-        if (permission === 'default') {
-          permission = await Notification.requestPermission();
-        }
+        let token: string | null = null;
 
-        if (permission !== 'granted') {
-          toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
-          setIsPushBusy(false);
-          return;
-        }
+        // 네이티브 앱 환경
+        if (isNative) {
+          const { PushNotifications } = await import('@capacitor/push-notifications');
 
-        const messaging = await getFirebaseMessaging();
-        if (!messaging) {
-          console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
-          console.error('[push] Notification.permission:', Notification.permission);
-          console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
-          toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
+          const normalize = (p: any) => (p === 'prompt-with-rationale' ? 'prompt' : (p || 'prompt'));
+          const DENIED_BY_TOGGLE_KEY = `pushDeniedByToggle_v1_${user.id}`;
 
-        if (!FIREBASE_VAPID_KEY) {
-          console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
-        }
+          // 현재 권한 상태 확인 → granted가 아니면 "무조건" requestPermissions() 한번 시도
+          const currentPerm = await PushNotifications.checkPermissions();
+          let perm = normalize(currentPerm.receive);
+          const prePerm = perm; // requestPermissions() 호출 "전" 상태
 
-        const { getToken } = await import('firebase/messaging');
+          if (perm !== 'granted') {
+            const permResult = await PushNotifications.requestPermissions();
+            perm = normalize(permResult.receive);
+          }
 
-        // 서비스워커를 명시적으로 등록
-        let registration: ServiceWorkerRegistration | undefined;
-        try {
-          registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          // console.info('[push] service worker 등록 성공:', registration.scope);
-        } catch (swErr) {
-          console.error('[push] service worker 등록 실패:', swErr);
-          toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
+          setPushPermissionStatus(perm as any);
 
-        // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
-        let readyRegistration: ServiceWorkerRegistration;
-        try {
-          readyRegistration = await navigator.serviceWorker.ready;
-          // console.info('[push] service worker ready:', readyRegistration.scope);
-        } catch (readyErr) {
-          console.error('[push] service worker ready 대기 중 오류:', readyErr);
-          toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
-          setIsPushBusy(false);
-          return;
-        }
+          // 여전히 거부/미허용이면:
+          // - prePerm이 'prompt'였다면: "사용자가 방금 거부"한 케이스라 설정 모달은 과함 → 토스트만
+          // - prePerm이 'denied'였다면: OS가 더 이상 팝업을 띄우지 않는 상태일 가능성이 큼 → 설정 모달 안내
+          if (perm !== 'granted') {
+            toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
 
-        const token = await getToken(messaging, {
-          vapidKey: FIREBASE_VAPID_KEY || undefined,
-          serviceWorkerRegistration: readyRegistration,
-        });
+            // Android에서는 'denied' 대신 'prompt-with-rationale'가 계속 내려오는 경우가 있어
+            // "토글에서 거부를 한 번이라도 한 이후"에는 다음 시도부터 설정 모달을 띄운다.
+            let deniedByToggle = false;
+            try {
+              deniedByToggle = localStorage.getItem(DENIED_BY_TOGGLE_KEY) === 'true';
+            } catch {
+              // ignore
+            }
 
-        if (!token) {
-          toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
-          setIsPushBusy(false);
-          return;
-        }
-
-        // 서버에 토큰 등록
-        try {
-          const registerResult = await pushApi.registerToken(token);
-          if (!registerResult || !registerResult.success) {
-            console.error('[push] 토큰 등록 실패:', registerResult);
-            toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+            const shouldShowSettingsModal = prePerm === 'denied' || deniedByToggle;
+            if (shouldShowSettingsModal) {
+              setShowPushSettingsModal(true);
+            } else {
+              // 방금(토글에서) 거부한 첫 케이스: 다음 시도부터는 설정 모달을 띄우기 위해 플래그 저장
+              try {
+                localStorage.setItem(DENIED_BY_TOGGLE_KEY, 'true');
+              } catch {
+                // ignore
+              }
+            }
+            setIsPushEnabled(false);
             setIsPushBusy(false);
             return;
           }
-        } catch (registerError) {
-          console.error('[push] 토큰 등록 API 호출 실패:', registerError);
-          toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-          setIsPushBusy(false);
-          return;
-        }
 
-        try {
-          localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-          localStorage.setItem('pushFcmToken', token);
-        } catch {
-          // ignore
-        }
+          // 권한이 허용된 경우
+          {
+            // 권한이 허용되면 "토글 거부 플래그"는 해제
+            try {
+              localStorage.removeItem(DENIED_BY_TOGGLE_KEY);
+            } catch {
+              // ignore
+            }
 
-        setIsPushEnabled(true);
-        toast.success('웹 푸시 알림이 활성화되었습니다.');
+            // localStorage에 이미 토큰이 있는지 확인
+            const existingToken = localStorage.getItem('pushFcmToken');
+            
+            if (existingToken) {
+              // 이미 토큰이 있으면 그것을 사용 (서버에 재등록만 시도)
+              token = existingToken;
+              console.log('[push] 기존 토큰 사용:', token.substring(0, 20) + '...');
+            } else {
+              // 토큰이 없으면 새로 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
+              token = await getNativePushToken(true);
+              
+              if (!token) {
+                toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
+            }
+
+            // 네이티브 푸시 리스너 설정
+            await setupNativePushListeners();
+
+            // 이전 토큰 확인 및 정리
+            const previousToken = localStorage.getItem('pushFcmToken');
+            
+            // 토큰이 변경된 경우 (앱 재설치 등)
+            if (previousToken && previousToken !== token) {
+              try {
+                // 서버에서 이전 토큰 삭제
+                await pushApi.unregisterToken(previousToken);
+                // console.log('[push] 이전 토큰 삭제 완료');
+              } catch (unregisterError) {
+                // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
+                // console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+              }
+            }
+
+            // 서버에 새 토큰 등록
+            try {
+              const registerResult = await pushApi.registerToken(token);
+              if (!registerResult || !registerResult.success) {
+                console.error('[push] 토큰 등록 실패:', registerResult);
+                toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+                setIsPushBusy(false);
+                return;
+              }
+            } catch (registerError) {
+              console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+              toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
+
+            try {
+              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+              localStorage.setItem('pushFcmToken', token);
+            } catch {
+              // ignore
+            }
+
+            setIsPushEnabled(true);
+            toast.success('푸시 알림이 활성화되었습니다.');
+          }
+        } 
+        // 웹 브라우저 환경
+        else {
+          if (typeof window === 'undefined' || typeof Notification === 'undefined') {
+            toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          let permission = Notification.permission;
+          if (permission === 'default') {
+            permission = await Notification.requestPermission();
+          }
+
+          if (permission !== 'granted') {
+            // 이미 거부된 경우 브라우저 설정에서 직접 허용해야 함
+            if (permission === 'denied') {
+              toast.error('브라우저 설정에서 알림 권한을 직접 허용해주세요.');
+            } else {
+              toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
+            }
+            setIsPushBusy(false);
+            return;
+          }
+
+          const messaging = await getFirebaseMessaging();
+          if (!messaging) {
+            console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
+            console.error('[push] Notification.permission:', Notification.permission);
+            console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
+            toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          if (!FIREBASE_VAPID_KEY) {
+            console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
+          }
+
+          const { getToken } = await import('firebase/messaging');
+
+          // 서비스워커를 명시적으로 등록
+          let registration: ServiceWorkerRegistration | undefined;
+          try {
+            registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+          } catch (swErr) {
+            console.error('[push] service worker 등록 실패:', swErr);
+            toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
+          let readyRegistration: ServiceWorkerRegistration;
+          try {
+            readyRegistration = await navigator.serviceWorker.ready;
+          } catch (readyErr) {
+            console.error('[push] service worker ready 대기 중 오류:', readyErr);
+            toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          token = await getToken(messaging, {
+            vapidKey: FIREBASE_VAPID_KEY || undefined,
+            serviceWorkerRegistration: readyRegistration,
+          });
+
+          if (!token) {
+            toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          // 이전 토큰 확인 및 정리
+          const previousToken = localStorage.getItem('pushFcmToken');
+          
+          // 토큰이 변경된 경우 (앱 재설치 등)
+          if (previousToken && previousToken !== token) {
+            try {
+              // 서버에서 이전 토큰 삭제
+              await pushApi.unregisterToken(previousToken);
+              console.log('[push] 이전 토큰 삭제 완료');
+            } catch (unregisterError) {
+              // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
+              console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+            }
+          }
+
+          // 서버에 새 토큰 등록
+          try {
+            const registerResult = await pushApi.registerToken(token);
+            if (!registerResult || !registerResult.success) {
+              console.error('[push] 토큰 등록 실패:', registerResult);
+              toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+              setIsPushBusy(false);
+              return;
+            }
+          } catch (registerError) {
+            console.error('[push] 토큰 등록 API 호출 실패:', registerError);
+            toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+            setIsPushBusy(false);
+            return;
+          }
+
+          try {
+            localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+            localStorage.setItem('pushFcmToken', token);
+          } catch {
+            // ignore
+          }
+
+          setIsPushEnabled(true);
+          toast.success('웹 푸시 알림이 활성화되었습니다.');
+        }
       } catch (e) {
         console.error('[push] 푸시 활성화 중 오류:', e);
         toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
@@ -1014,15 +1246,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     // ON → OFF
     try {
       setIsPushBusy(true);
-      let token: string | undefined;
-      try {
-        const storedToken = localStorage.getItem('pushFcmToken');
-        if (storedToken) token = storedToken;
-      } catch {
-        // ignore
-      }
-
-      await pushApi.unregisterToken(token);
+      // ✅ 정책: 토글 OFF 시 같은 device_type 토큰을 전부 삭제 (서버가 UA로 device_type 판단)
+      await pushApi.unregisterToken();
 
       try {
         localStorage.setItem(`pushEnabled_${user.id}`, 'false');
@@ -1031,14 +1256,34 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }
 
       setIsPushEnabled(false);
-      toast.success('웹 푸시 알림이 비활성화되었습니다.');
+      const msg = isNative ? '푸시 알림이 비활성화되었습니다.' : '웹 푸시 알림이 비활성화되었습니다.';
+      toast.success(msg);
     } catch (e) {
       console.error('[push] 푸시 비활성화 중 오류:', e);
       toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
     } finally {
       setIsPushBusy(false);
     }
-  }, [isPushEnabled, isPushBusy, user?.id]);
+  }, [isPushEnabled, isPushBusy, user?.id, pushPermissionStatus]);
+
+  const openNativeAppSettings = useCallback(async () => {
+    try {
+      if (!isNativeApp()) return;
+
+      const platform = Capacitor.getPlatform();
+      if (platform === 'android') {
+        const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
+        await AppSettings.open();
+      } else {
+        // iOS 등: 현재 프로젝트에는 iOS 네이티브가 없어서 설정 화면 딥링크를 제공하지 않음
+        // (iOS 네이티브를 추가하는 경우 별도 구현 가능)
+        toast.info('기기 설정 앱에서 직쏠공 알림 권한을 허용해주세요.');
+      }
+    } catch (e) {
+      console.error('[push] 앱 설정 열기 실패:', e);
+      toast.error('설정 화면을 열 수 없습니다. 기기 설정에서 직접 알림 권한을 허용해주세요.');
+    }
+  }, []);
   
   // 이메일 인증 관련 상태
   const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
@@ -1297,14 +1542,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 모달이 열릴 때 body 스크롤 막기
   useEffect(() => {
-    const isAnyModalOpen = showProfileModal || showPartnerModal || showMatchingConfirmModal || showCancelConfirmModal;
+    const isAnyModalOpen =
+      showProfileModal ||
+      showPartnerModal ||
+      showMatchingConfirmModal ||
+      showMatchingStarConfirmModal ||
+      showCancelConfirmModal;
     if (isAnyModalOpen) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
     }
     return () => { document.body.classList.remove('modal-open'); };
-  }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showCancelConfirmModal]);
+  }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showMatchingStarConfirmModal, showCancelConfirmModal]);
 
   // 모든 useState, useEffect 선언 이후
   // useEffect는 항상 최상단에서 호출
@@ -1342,7 +1592,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       try {
         const res = await notificationApi.getUnreadCount();
         const count = res.unreadCount || 0;
-        // console.log('[MainPage] 알림 미읽음 개수:', count);
         setNotificationUnreadCount(count);
       } catch (error) {
         // console.error('[MainPage] 알림 개수 조회 실패:', error);
@@ -1605,7 +1854,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [리팩터링] 버튼 상태/표기 결정 (is_applied, is_matched 기준)
   let buttonDisabled = true;
-  let buttonLabel = '매칭 신청하기';
+  let buttonLabel = '매칭 신청하기 (⭐5)';
   let periodLabel = '';
   let showCancel = false;
 
@@ -1668,7 +1917,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       } else if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
         if (!isApplied || isCancelled) {
           buttonDisabled = !canReapply;
-          buttonLabel = '매칭 신청하기';
+          buttonLabel = '매칭 신청하기 (⭐5)';
           showCancel = false;
         } else {
           buttonDisabled = true;
@@ -1941,23 +2190,43 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     setShowMatchingConfirmModal(true);
   };
 
-  const handleMatchingConfirm = async () => {
+  // 1) 첫 번째 모달: "이 정보로 신청" 클릭 시 → ⭐ 차감 확인 모달로 이동
+  const handleMatchingConfirm = () => {
+    setShowMatchingConfirmModal(false);
+    setShowMatchingStarConfirmModal(true);
+  };
+
+  // 2) 두 번째 모달: 확인 클릭 시 실제 신청(⭐5 차감 포함)
+  const handleMatchingStarConfirm = async () => {
     if (!user?.id) return;
     setActionLoading(true);
     try {
-      await matchingApi.requestMatching(user.id);
+      const res = await matchingApi.requestMatching(user.id);
+      // ✅ 사이드바 별 잔액 즉시 반영
+      await syncSidebarStarBalance(res?.newStarBalance);
       toast.success('매칭 신청이 완료되었습니다!');
-      
+
       // 백엔드 업데이트 완료를 위한 지연 시간 증가
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // 순차적으로 상태 업데이트 (users 테이블 우선 업데이트)
       await fetchUser(true);
       await fetchMatchingStatus();
-      
-      setShowMatchingConfirmModal(false);
+
+      setShowMatchingStarConfirmModal(false);
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || '매칭 신청에 실패했습니다.');
+      const code = error?.response?.data?.code;
+      const msg = error?.response?.data?.message || '매칭 신청에 실패했습니다.';
+
+      // ⭐ 부족 시: 안내 토스트 후 모달 닫기
+      if (code === 'INSUFFICIENT_STARS') {
+        toast.error(msg);
+        setShowMatchingStarConfirmModal(false);
+        setShowMatchingConfirmModal(false);
+        return;
+      }
+
+      toast.error(msg);
     } finally {
       setActionLoading(false);
     }
@@ -1968,8 +2237,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!user?.id) return;
     setActionLoading(true);
     try {
-      await matchingApi.cancelMatching(user.id);
-      toast.success('매칭 신청이 취소되었습니다.');
+      const res = await matchingApi.cancelMatching(user.id);
+      // ✅ 사이드바 별 잔액 즉시 반영
+      await syncSidebarStarBalance(res?.newStarBalance);
+      const msg = res?.message || '매칭 신청이 취소되었습니다.';
+      toast.success(msg);
       
       // 백엔드 업데이트 완료를 위한 지연 시간 증가
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -2024,7 +2296,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 <button
                   type="button"
                   onClick={() => {
-                    console.log('[MainPage] 알림 아이콘 클릭, 현재 미읽음:', notificationUnreadCount);
                     navigate('/notifications');
                   }}
                   style={{
@@ -2078,7 +2349,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </TopWelcomeSubtitle>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
               <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
-                <span>아이폰 푸시알림 안내</span>
+                <span>{isNativeApp() ? '푸시알림이 필요한 이유' : '아이폰 푸시알림 안내'}</span>
                 <FaInfoCircle size={10} />
               </IosGuideButton>
               <PushToggleBlock style={{ margin: 0 }}>
@@ -2088,16 +2359,37 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
+                      // 토큰 등록/해제 진행 중이면 안내 후 무시
+                      if (isPushBusy) {
+                        toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
+                        return;
+                      }
+                      
                       if (!isPushEnabled) {
-                        setShowPushConfirmModal(true);
+                        // 네이티브 앱에서는 안내 모달 표시 안함
+                        if (!isNativeApp()) {
+                          setShowPushConfirmModal(true);
+                        } else {
+                          handleTogglePush();
+                        }
                       } else {
                         handleTogglePush();
                       }
                     }}
-                    disabled={isLoading || isPushBusy}
+                    // denied 상태여도 사용자가 다시 토글하면 requestPermissions()를 재시도하고,
+                    // OS가 팝업을 막는 경우 "설정으로 이동" 모달로 안내한다.
+                    // NOTE: disabled로 막으면 모바일에서 "아무 반응 없음" 체감이 생길 수 있어,
+                    // 로딩 상태만 막고(아주 예외), 나머지는 핸들러에서 안내한다.
+                    disabled={isLoading}
+                    title={isLoading ? '로딩 중입니다...' : ''}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
+                {isNativeApp() && pushPermissionStatus === 'denied' && (
+                  <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
+                    (알림 권한 필요)
+                  </span>
+                )}
               </PushToggleBlock>
             </div>
           </div>
@@ -2304,30 +2596,49 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </TopWelcomeSubtitle>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
             <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
-              <span>아이폰 푸시알림 안내</span>
+              <span>{isNativeApp() ? '푸시알림이 필요한 이유' : '아이폰 푸시알림 안내'}</span>
               <FaInfoCircle size={10} />
             </IosGuideButton>
             <PushToggleBlock style={{ margin: 0 }}>
               <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
               <SwitchLabel>
-                <SwitchInput
-                  type="checkbox"
-                  checked={isPushEnabled}
-                  onChange={() => {
-                    if (!isPushEnabled) {
-                      setShowPushConfirmModal(true);
-                    } else {
-                      handleTogglePush();
-                    }
-                  }}
-                  disabled={isLoading || isPushBusy}
-                />
-                <SwitchSlider />
-              </SwitchLabel>
-            </PushToggleBlock>
+                  <SwitchInput
+                    type="checkbox"
+                    checked={isPushEnabled}
+                    onChange={() => {
+                      // 토큰 등록/해제 진행 중이면 안내 후 무시
+                      if (isPushBusy) {
+                        toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
+                        return;
+                      }
+                      
+                      if (!isPushEnabled) {
+                        // 네이티브 앱에서는 안내 모달 표시 안함
+                        if (!isNativeApp()) {
+                          setShowPushConfirmModal(true);
+                        } else {
+                          handleTogglePush();
+                        }
+                      } else {
+                        handleTogglePush();
+                      }
+                    }}
+                    // disabled로 막으면 모바일에서 "아무 반응 없음" 체감이 생길 수 있어,
+                    // 로딩 상태만 막고(아주 예외), 나머지는 핸들러에서 안내한다.
+                    disabled={isLoading}
+                    title={isLoading ? '로딩 중입니다...' : ''}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+                {isNativeApp() && pushPermissionStatus === 'denied' && (
+                  <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
+                    (알림 권한 필요)
+                  </span>
+                )}
+              </PushToggleBlock>
+            </div>
           </div>
-        </div>
-      </TopHeaderRow>
+        </TopHeaderRow>
       <WelcomeSection>
         {/* 최신 공지사항 카드 */}
         {latestNotice && (
@@ -2352,8 +2663,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </LatestNoticeCard>
         )}
         
-        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출) */}
-        {period && isExtraMatchingWindow && (
+        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출, 이메일 인증 완료된 사용자만) */}
+        {period && isExtraMatchingWindow && user?.is_verified === true && (
           <ExtraMatchingNoticeCard>
             <div style={{ fontSize: '0.9rem', color: '#111827', fontWeight: 600 }}>
               추가 매칭 도전 기회가 열렸습니다.
@@ -2495,7 +2806,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               birthYear={profile?.birth_year || 0}
               gender={profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
               job={profile?.job_type || '-'}
-              company={profile?.company || undefined}
+              company={getDisplayCompanyName(profile?.company, profile?.custom_company_name)}
               mbti={profile?.mbti}
               maritalStatus={profile?.marital_status}
               appeal={profile?.appeal}
@@ -2524,7 +2835,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               birthYear={partnerProfile.birth_year}
               gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : '-'}
               job={partnerProfile.job_type || '-'}
-              company={partnerProfile.company || undefined}
+              company={getDisplayCompanyName(partnerProfile.company, partnerProfile.custom_company_name)}
               mbti={partnerProfile.mbti}
               maritalStatus={partnerProfile.marital_status}
               appeal={partnerProfile.appeal}
@@ -2643,7 +2954,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   <div style={{fontWeight:700,fontSize:'1.18rem',color:'#4F46E5',marginBottom:2}}>{profile?.nickname || displayName}</div>
                   <div style={{fontSize:'0.98rem',color:'#666'}}>
                     {profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
-                    {profile?.company ? ` · ${profile.company}` : ''}
+                    {getDisplayCompanyName(profile?.company, profile?.custom_company_name) ? ` · ${getDisplayCompanyName(profile?.company, profile?.custom_company_name)}` : ''}
                     {' · '}{profile?.job_type || '-'}
                   </div>
                 </div>
@@ -2804,6 +3115,106 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </ModalContent>
         </ModalOverlay>
       )}
+
+      {/* ⭐ 차감 확인 모달 */}
+      {showMatchingStarConfirmModal && (
+        <ModalOverlay
+          onClick={() => {
+            setShowMatchingStarConfirmModal(false);
+            setShowMatchingConfirmModal(true);
+          }}
+        >
+          <ModalContent
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 380,
+              minWidth: 220,
+              maxWidth: '95vw',
+              height: 'auto',
+              minHeight: 0,
+              maxHeight: '80vh',
+              padding: '28px 20px 22px 20px',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              position: 'relative',
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+            }}
+          >
+            <div style={{ width: '100%' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'rgba(124, 58, 237, 0.10)',
+                  color: '#4F46E5',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  fontWeight: 800,
+                  fontSize: '1.05rem',
+                  gap: 8,
+                }}
+              >
+                매칭 신청 ⭐ 차감 안내
+              </div>
+              <div
+                style={{
+                  marginTop: 12,
+                  color: '#333',
+                  lineHeight: 1.6,
+                  fontSize: '0.98rem',
+                }}
+              >
+                매칭 신청 시 보유하신 <b>⭐{MAIN_MATCH_STAR_COST}개</b>가 사용되며,<br />
+                추 후 신청 마감 전 신청 취소 시 다시 환불됩니다.<br/>
+                매칭을 신청하시겠습니까?
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center' }}>
+              <button
+                onClick={handleMatchingStarConfirm}
+                style={{
+                  padding: '10px 28px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#7C3AED',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: '1.06rem',
+                  cursor: actionLoading ? 'not-allowed' : 'pointer',
+                  opacity: actionLoading ? 0.7 : 1,
+                }}
+                disabled={actionLoading}
+              >
+                {actionLoading ? '신청 중...' : '확인'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowMatchingStarConfirmModal(false);
+                  setShowMatchingConfirmModal(true);
+                }}
+                style={{
+                  padding: '10px 28px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#eee',
+                  color: '#333',
+                  fontWeight: 700,
+                  fontSize: '1.06rem',
+                  cursor: 'pointer',
+                }}
+              >
+                취소
+              </button>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
       {/* 신청 취소 커스텀 모달 */}
       {showCancelConfirmModal && (
         <ModalOverlay onClick={() => setShowCancelConfirmModal(false)}>
@@ -2863,6 +3274,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 marginTop: 0,
               }}>
                 신청 취소 후 <b style={{color:'#e74c3c'}}>{cancelTime}분 동안 재신청이 불가</b>합니다.<br/>
+                취소 시 <b style={{color:'#7C3AED'}}>⭐{MAIN_MATCH_STAR_COST}개</b>가 환불됩니다.<br/>
                 정말로 취소하시려면 아래 버튼을 눌러주세요.
               </div>
             </div>
@@ -3331,25 +3743,103 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         </ModalOverlay>
       )}
 
-      {/* 아이폰 푸시 알림 안내 모달 */}
+      {/* 푸시 권한이 차단되어 더 이상 팝업이 뜨지 않을 때: 앱 설정으로 이동 안내 */}
+      {showPushSettingsModal && (
+        <ModalOverlay onClick={() => setShowPushSettingsModal(false)}>
+          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
+            <div style={{ width: '100%', maxWidth: '420px' }}>
+              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                알림 권한이 꺼져 있어요
+              </h2>
+              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                {'기기에서 알림 권한이 거부되어, 더 이상 권한 팝업이 뜨지 않을 수 있습니다.\n\n' +
+                  '아래 버튼을 눌러 설정으로 이동한 뒤,\n' +
+                  '설정 > 애플리케이션 > 직쏠공 > 알림에서 "허용"으로 변경해주세요.'}
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowPushSettingsModal(false)}
+                  style={{
+                    padding: '10px 18px',
+                    borderRadius: 8,
+                    border: '1px solid #d1d5db',
+                    background: '#f9fafb',
+                    color: '#4b5563',
+                    fontSize: '0.9rem',
+                    cursor: 'pointer',
+                    minWidth: 90,
+                  }}
+                >
+                  닫기
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setShowPushSettingsModal(false);
+                    await openNativeAppSettings();
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: 8,
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                    color: 'white',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    minWidth: 130,
+                  }}
+                >
+                  설정으로 이동
+                </button>
+              </div>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
+      {/* 푸시알림 안내 모달 (플랫폼별로 다른 내용) */}
       {showIosGuideModal && (
         <ModalOverlay onClick={() => setShowIosGuideModal(false)}>
           <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
             <div style={{ width: '100%', maxWidth: '420px' }}>
-              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
-                아이폰(iOS) 푸시 알림 안내
-              </h2>
-              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n' +
-                  '아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n' +
-                  '1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n' +
-                  '2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n' +
-                  '3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n' +
-                  '4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
-              </p>
-              <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-                위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.
-              </p>
+              {isNativeApp() ? (
+                <>
+                  <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                    푸시알림이 필요한 이유
+                  </h2>
+                  <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                    {'푸시 알림을 켜시면 중요한 순간을 놓치지 않고 실시간으로 소통할 수 있습니다.\n\n' +
+                      '📌 매칭 결과 발표\n' +
+                      '매칭 결과가 나온 시점을 놓치면 상대방이 오랫동안 기다릴 수 있습니다. 푸시 알림을 통해 즉시 확인하고 상대방과 연락을 시작할 수 있습니다.\n\n' +
+                      '💬 채팅 메시지 알림\n' +
+                      '채팅을 통해 메시지를 주고받을 때 알림을 받지 못하면 서로 연락이 어려워 오해를 살 수 있습니다. 푸시 알림을 통해 상대방의 메시지를 빠르게 확인하고 답변할 수 있어 더 원활한 소통이 가능합니다.\n\n' +
+                      '🔔 기타 중요한 알림\n' +
+                      '매칭 신청 시작, 시스템 공지 등 중요한 정보도 실시간으로 받아보실 수 있습니다.'}
+                  </p>
+                  <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                    푸시 알림을 켜시면 더욱 편리하고 빠른 소통이 가능합니다.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
+                    아이폰(iOS) 푸시 알림 안내
+                  </h2>
+                  <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+                    {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n' +
+                      '아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n' +
+                      '1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n' +
+                      '2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n' +
+                      '3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n' +
+                      '4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
+                  </p>
+                  <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
+                    위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.
+                  </p>
+                </>
+              )}
               <div style={{ textAlign: 'center' }}>
                 <button
                   type="button"

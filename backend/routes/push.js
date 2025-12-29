@@ -127,7 +127,23 @@ router.post('/register-token', authenticate, async (req, res) => {
     
     // User-Agent에서 기기 타입 감지
     const userAgent = req.headers['user-agent'] || '';
-    const deviceType = getDeviceTypeFromUA(userAgent);
+    const deviceType = getDeviceTypeFromUA(userAgent) || 'unknown';
+
+    // ✅ 정책: 같은 계정 + 같은 device_type 은 토큰을 1개만 유지
+    // - 재설치/토큰 갱신으로 토큰이 바뀌어도 이전 토큰들이 누적되지 않도록 기존 토큰을 정리
+    // - (요청사항) 같은 device_type 토큰은 전부 삭제하고 1개만 재생성
+    {
+      const { error: cleanupError } = await supabase
+        .from('user_push_tokens')
+        .delete()
+        .eq('user_id', userId)
+        .eq('device_type', deviceType);
+
+      if (cleanupError) {
+        console.error('[push][register-token] 기존 device_type 토큰 정리 오류:', cleanupError);
+        return res.status(500).json({ success: false, message: '푸시 토큰 정리 중 오류가 발생했습니다.' });
+      }
+    }
 
     // upsert 시 onConflict 명시 (복합 기본 키: user_id, token)
     const { error } = await supabase
@@ -166,15 +182,28 @@ router.post('/register-token', authenticate, async (req, res) => {
 router.post('/unregister-token', authenticate, async (req, res) => {
   try {
     const userId = req.user && req.user.userId;
-    const { token } = req.body || {};
+    const { token, deviceType: deviceTypeFromBody } = req.body || {};
 
     if (!userId) {
       return res.status(401).json({ success: false, message: '인증 정보가 없습니다.' });
     }
 
+    // ✅ 정책
+    // - token이 있으면 해당 토큰만 삭제
+    // - token이 없으면 "현재 요청 기기(device_type)"의 토큰들을 전부 삭제 (토글 OFF 용도)
     let query = supabase.from('user_push_tokens').delete().eq('user_id', userId);
     if (token && typeof token === 'string' && token.trim().length > 0) {
       query = query.eq('token', token.trim());
+    } else {
+      const ua = req.headers['user-agent'] || '';
+      const deviceType = (deviceTypeFromBody && typeof deviceTypeFromBody === 'string' && deviceTypeFromBody.trim())
+        ? deviceTypeFromBody.trim()
+        : (getDeviceTypeFromUA(ua) || 'unknown');
+
+      // device_type 추정이 불가능하면 기존처럼 전체 삭제(안전한 fallback)
+      if (deviceType && deviceType !== 'unknown') {
+        query = query.eq('device_type', deviceType);
+      }
     }
 
     const { error } = await query;
@@ -202,10 +231,22 @@ router.get('/tokens', authenticate, async (req, res) => {
       return res.status(401).json({ success: false, message: '인증 정보가 없습니다.' });
     }
 
-    const { data: tokens, error } = await supabase
+    // ✅ 기본: "현재 요청 기기(device_type)"에 해당하는 토큰만 반환
+    // (토글 ON/OFF 상태를 내 기기 기준으로 정확히 표시하기 위함)
+    const ua = req.headers['user-agent'] || '';
+    const deviceType = getDeviceTypeFromUA(ua) || 'unknown';
+    let query = supabase
       .from('user_push_tokens')
       .select('token, device_type, created_at')
       .eq('user_id', userId);
+
+    // ?all=true 이면 전체 반환(관리/디버깅용)
+    const all = String(req.query?.all || '').toLowerCase() === 'true';
+    if (!all && deviceType !== 'unknown') {
+      query = query.eq('device_type', deviceType);
+    }
+
+    const { data: tokens, error } = await query;
 
     if (error) {
       console.error('[push][tokens] 조회 오류:', error);

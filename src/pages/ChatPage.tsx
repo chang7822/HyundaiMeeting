@@ -6,6 +6,7 @@ import ChatHeader from '../components/Chat/ChatHeader.tsx';
 import ChatWindow from '../components/Chat/ChatWindow.tsx';
 import ChatInput from '../components/Chat/ChatInput.tsx';
 import { toast } from 'react-toastify';
+import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 
 import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
@@ -13,10 +14,22 @@ import ProfileCard from '../components/ProfileCard.tsx';
 import Modal from 'react-modal';
 import InlineSpinner from '../components/InlineSpinner.tsx';
 import ReportModal from '../components/ReportModal.tsx';
+import { API_BASE_URL } from '../services/api.ts';
 
+// Socket URL: API URL에서 /api를 제거하여 생성
+// 환경변수 REACT_APP_SOCKET_URL이 있으면 우선 사용, 없으면 API URL 기반으로 생성
+function getSocketUrl(): string {
+  if (process.env.REACT_APP_SOCKET_URL) {
+    return process.env.REACT_APP_SOCKET_URL;
+  }
+  
+  // API URL에서 /api 제거하여 Socket URL 생성
+  const socketUrl = API_BASE_URL.replace(/\/api\/?$/, '');
+  console.log('[ChatPage] Socket URL (API 기반):', socketUrl);
+  return socketUrl;
+}
 
-
-const SOCKET_URL = process.env.REACT_APP_SOCKET_URL || 'http://192.168.0.13:3001';
+const SOCKET_URL = getSocketUrl();
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -470,7 +483,7 @@ const ChatPage: React.FC = () => {
             birthYear: partnerProfile?.birth_year,
             gender: partnerProfile?.gender,
             job: partnerProfile?.job_type,
-            company: partnerProfile?.company,
+            company: getDisplayCompanyName(partnerProfile?.company, partnerProfile?.custom_company_name),
             residence: partnerProfile?.residence,
             mbti: partnerProfile?.mbti,
           }}
@@ -562,7 +575,7 @@ const ChatPage: React.FC = () => {
             birthYear={partnerProfile.birth_year}
             gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : partnerProfile.gender || ''}
             job={partnerProfile.job_type}
-            company={partnerProfile.company || undefined}
+            company={getDisplayCompanyName(partnerProfile.company, partnerProfile.custom_company_name)}
             mbti={partnerProfile.mbti}
             maritalStatus={partnerProfile.marital_status}
             appeal={partnerProfile.appeal}

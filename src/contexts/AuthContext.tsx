@@ -36,9 +36,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const profileData = await userApi.getUserProfile(userWithCamel.id);
           // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
           setAuthState({ user: userWithCamel, profile: profileData });
-        } catch (err) {
+        } catch (err: any) {
           console.error('[AuthContext] 인증 복원 실패:', err);
+          
+          // 네트워크 에러인 경우 상세 로그 출력
+          if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network') || err?.message?.includes('network')) {
+            console.error('[AuthContext] 네트워크 연결 실패');
+            console.error('[AuthContext] API URL:', process.env.REACT_APP_API_URL);
+            console.error('[AuthContext] 에러 상세:', {
+              message: err?.message,
+              code: err?.code,
+              response: err?.response?.status,
+              config: err?.config?.url
+            });
+          }
+          
+          // CORS 에러인 경우
+          if (err?.message?.includes('CORS') || err?.code === 'ERR_CORS') {
+            console.error('[AuthContext] CORS 에러 발생 - 서버 CORS 설정 확인 필요');
+          }
+          
           localStorage.removeItem('token');
+          localStorage.removeItem('refreshToken');
           setAuthState({ user: null, profile: null });
         } finally {
           setIsLoading(false);
@@ -56,7 +75,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true);
     try {
       const response = await authApi.login(credentials);
-      localStorage.setItem('token', response.token);
+      // Access Token과 Refresh Token 모두 저장
+      localStorage.setItem('token', response.token); // Access Token
+      if (response.refreshToken) {
+        localStorage.setItem('refreshToken', response.refreshToken); // Refresh Token
+      }
       // console.log('[AuthContext] 로그인 성공, 토큰 저장:', response.token);
       // console.log('[AuthContext] localStorage token:', localStorage.getItem('token'));
       if (!response.user.id) {
@@ -79,14 +102,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    // 서버 쪽에도 간단한 로그를 남기기 위해 호출 (실패해도 무시)
+  const logout = async () => {
+    // Refresh Token 무효화 요청
+    const refreshToken = localStorage.getItem('refreshToken');
     try {
-      authApi.logout(authState.user?.email);
+      await authApi.logout(refreshToken || undefined);
     } catch {
-      // ignore
+      // ignore - 로그아웃은 항상 성공으로 처리
     }
+    // 토큰 삭제
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     sessionStorage.clear();
     setAuthState({ user: null, profile: null });
     // console.log('[AuthContext] 로그아웃, localStorage token:', localStorage.getItem('token'));

@@ -18,6 +18,23 @@ build/
 dist/
 *.log
 
+# Android build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Android signing keys (중요: 절대 Git에 커밋하지 마세요!)
+android/keystore.properties
+android/app/release-key.jks
+*.jks
+*.keystore
+
 # IDE
 .vscode/
 .idea/
@@ -40,20 +57,4 @@ coverage/
 .tmp
 
 backend/firebase-service-account.json
-
-# Android build outputs
-android/app/build/
-android/build/
-android/.gradle/
-android/.idea/
 android/local.properties
-*.apk
-*.aab
-*.ap_
-*.dex
-
-# Android signing keys (중요: 절대 Git에 커밋하지 마세요!)
-android/keystore.properties
-android/app/release-key.jks
-*.jks
-*.keystore

@@ -202,6 +202,9 @@ const AppealPage = () => {
         return;
       }
 
+      // custom_company_name 가져오기 (프리랜서/자영업, 기타 회사 선택 시)
+      const customCompanyName = sessionStorage.getItem('customCompanyName') || undefined;
+
       // 통합 회원가입 API 호출
       const result = await authApi.registerComplete({
         email,
@@ -212,6 +215,7 @@ const AppealPage = () => {
         height: height ? parseInt(height) : undefined,
         residence: residence || undefined,
         company: company || undefined,
+        customCompanyName,
         maritalStatus: maritalStatus || undefined,
         jobType: profileData.jobType || undefined,
         appeal: data.appeal,
@@ -222,7 +226,10 @@ const AppealPage = () => {
       
       // 성공 시 sessionStorage 정리 및 토큰 저장
       sessionStorage.clear();
-      localStorage.setItem('token', result.token);
+      localStorage.setItem('token', result.token); // Access Token
+      if (result.refreshToken) {
+        localStorage.setItem('refreshToken', result.refreshToken); // Refresh Token
+      }
       
       // 자동 로그인 처리
       try {
