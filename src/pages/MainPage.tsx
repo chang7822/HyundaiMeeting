@@ -1063,7 +1063,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             if (existingToken) {
               // 이미 토큰이 있으면 그것을 사용 (서버에 재등록만 시도)
               token = existingToken;
-              console.log('[push] 기존 토큰 사용:', token.substring(0, 20) + '...');
+              // console.log('[push] 기존 토큰 사용:', token.substring(0, 20) + '...');
             } else {
               // 토큰이 없으면 새로 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
               token = await getNativePushToken(true);
@@ -1201,7 +1201,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             try {
               // 서버에서 이전 토큰 삭제
               await pushApi.unregisterToken(previousToken);
-              console.log('[push] 이전 토큰 삭제 완료');
+              // console.log('[push] 이전 토큰 삭제 완료');
             } catch (unregisterError) {
               // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
               console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
@@ -2542,7 +2542,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               <button
                 type="button"
                 onClick={() => {
-                  console.log('[MainPage] 알림 아이콘 클릭, 현재 미읽음:', notificationUnreadCount);
+                  // console.log('[MainPage] 알림 아이콘 클릭, 현재 미읽음:', notificationUnreadCount);
                   navigate('/notifications');
                 }}
                 style={{
