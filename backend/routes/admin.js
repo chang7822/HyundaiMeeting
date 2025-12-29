@@ -2009,7 +2009,7 @@ router.post('/stars/grant', authenticate, async (req, res) => {
     }
 
     const eligibleIds = (users || [])
-      .filter((u) => u && u.id && u.is_active !== false && u.is_banned !== true && u.is_admin !== true)
+      .filter((u) => u && u.id && u.is_active !== false && u.is_banned !== true)
       .map((u) => String(u.id));
 
     const skippedIds = cleanUserIds.filter((id) => !eligibleIds.includes(String(id)));
