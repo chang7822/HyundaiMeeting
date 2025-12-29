@@ -371,6 +371,57 @@ const FormTextarea = styled.textarea`
   }
 `;
 
+const Footer = styled.div`
+  margin-top: 3rem;
+  padding-top: 2rem;
+  text-align: center;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  width: 100%;
+  max-width: 1200px;
+  
+  @media (max-width: 768px) {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+  }
+  
+  @media (max-width: 480px) {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+  }
+`;
+
+const FooterLink = styled.button`
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.9rem;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0.5rem;
+  
+  &:hover {
+    color: white;
+    text-decoration: none;
+  }
+  
+  @media (max-width: 480px) {
+    font-size: 0.85rem;
+  }
+`;
+
+const FooterText = styled.p`
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0;
+  
+  @media (max-width: 480px) {
+    font-size: 0.7rem;
+    margin-top: 0.4rem;
+  }
+`;
+
 const FormActions = styled.div`
   margin-top: 16px;
   display: flex;
@@ -555,6 +606,15 @@ const LandingPage = () => {
           <p>사진 공개 없이! 주선자없이! 진심어린 소통으로 새로운 인연을 만들어보세요.</p>
         </FeatureCard>
       </Features>
+
+      <Footer>
+        <FooterLink onClick={() => navigate('/privacy-policy')}>
+          개인정보 처리방침
+        </FooterLink>
+        <FooterText>
+          문의처: automatchingway@gmail.com
+        </FooterText>
+      </Footer>
 
       {showIntro && (
         <IntroModalOverlay onClick={() => setShowIntro(false)}>

@@ -10,6 +10,7 @@ import { pushApi } from './services/api.ts';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
 import LoginPage from './pages/auth/LoginPage.tsx';
 import RegisterPage from './pages/auth/RegisterPage.tsx';
 import CompanySelectionPage from './pages/auth/CompanySelectionPage.tsx';
@@ -458,6 +459,7 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/register/company" element={<CompanySelectionPage />} />

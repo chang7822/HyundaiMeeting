@@ -45,7 +45,7 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-            debuggable true  // WebView 디버깅을 위해 활성화
+            debuggable false  // Release 빌드는 반드시 false (Google Play 정책)
         }
         debug {
             // Debug 빌드 설정
