@@ -4,8 +4,14 @@ const config: CapacitorConfig = {
   appId: 'com.solo.meeting',
   appName: '직쏠공',
   webDir: 'build',
-  // server 설정을 명시하지 않으면 Capacitor가 기본적으로 로컬 파일을 사용함
-  // server.url이 설정되지 않으면 로컬 파일(assets/public)을 사용
+  // 원격 서버 모드: 앱이 Render 서버에서 웹 파일을 로드
+  // main 브랜치 변경 시 자동으로 앱에 반영됨
+  //server 부분 주석처리시 로컬 서버 모드로 변경
+  server: {
+    url: 'https://automatchingway.com',
+    cleartext: false, // HTTPS 사용
+  },
+
   android: {
     allowMixedContent: true, // WebView Mixed Content 허용
     // Android WebView의 origin을 명시적으로 설정

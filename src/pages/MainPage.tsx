@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi, starApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -838,6 +838,7 @@ const ModalContent = styled.div`
 
 
 const cancelTime = 1;
+const MAIN_MATCH_STAR_COST = 5;
 
 const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
@@ -855,6 +856,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [partnerProfileError, setPartnerProfileError] = useState(false);
   const [partnerProfileLoading, setPartnerProfileLoading] = useState(false);
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
+  const [showMatchingStarConfirmModal, setShowMatchingStarConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
@@ -869,6 +871,23 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showIosGuideModal, setShowIosGuideModal] = useState(false);
   const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
   const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
+
+  // 사이드바 별 잔액 즉시 반영 (Sidebar.tsx가 stars-updated 이벤트를 구독)
+  const syncSidebarStarBalance = useCallback(async (nextBalance?: number) => {
+    try {
+      if (typeof nextBalance === 'number') {
+        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: nextBalance } }));
+        return;
+      }
+      const data = await starApi.getMyStars();
+      const balance = typeof data?.balance === 'number' ? data.balance : null;
+      if (typeof balance === 'number') {
+        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+      }
+    } catch {
+      // ignore: 즉시 반영 실패 시 Sidebar의 재로딩/다른 갱신 로직에 맡김
+    }
+  }, []);
 
   // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
   // 기능이 비활성화되어 있으면 false 반환
@@ -1523,14 +1542,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // 모달이 열릴 때 body 스크롤 막기
   useEffect(() => {
-    const isAnyModalOpen = showProfileModal || showPartnerModal || showMatchingConfirmModal || showCancelConfirmModal;
+    const isAnyModalOpen =
+      showProfileModal ||
+      showPartnerModal ||
+      showMatchingConfirmModal ||
+      showMatchingStarConfirmModal ||
+      showCancelConfirmModal;
     if (isAnyModalOpen) {
       document.body.classList.add('modal-open');
     } else {
       document.body.classList.remove('modal-open');
     }
     return () => { document.body.classList.remove('modal-open'); };
-  }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showCancelConfirmModal]);
+  }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showMatchingStarConfirmModal, showCancelConfirmModal]);
 
   // 모든 useState, useEffect 선언 이후
   // useEffect는 항상 최상단에서 호출
@@ -1830,7 +1854,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   // [리팩터링] 버튼 상태/표기 결정 (is_applied, is_matched 기준)
   let buttonDisabled = true;
-  let buttonLabel = '매칭 신청하기';
+  let buttonLabel = '매칭 신청하기 (⭐5)';
   let periodLabel = '';
   let showCancel = false;
 
@@ -1893,7 +1917,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       } else if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
         if (!isApplied || isCancelled) {
           buttonDisabled = !canReapply;
-          buttonLabel = '매칭 신청하기';
+          buttonLabel = '매칭 신청하기 (⭐5)';
           showCancel = false;
         } else {
           buttonDisabled = true;
@@ -2166,23 +2190,43 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     setShowMatchingConfirmModal(true);
   };
 
-  const handleMatchingConfirm = async () => {
+  // 1) 첫 번째 모달: "이 정보로 신청" 클릭 시 → ⭐ 차감 확인 모달로 이동
+  const handleMatchingConfirm = () => {
+    setShowMatchingConfirmModal(false);
+    setShowMatchingStarConfirmModal(true);
+  };
+
+  // 2) 두 번째 모달: 확인 클릭 시 실제 신청(⭐5 차감 포함)
+  const handleMatchingStarConfirm = async () => {
     if (!user?.id) return;
     setActionLoading(true);
     try {
-      await matchingApi.requestMatching(user.id);
+      const res = await matchingApi.requestMatching(user.id);
+      // ✅ 사이드바 별 잔액 즉시 반영
+      await syncSidebarStarBalance(res?.newStarBalance);
       toast.success('매칭 신청이 완료되었습니다!');
-      
+
       // 백엔드 업데이트 완료를 위한 지연 시간 증가
       await new Promise(resolve => setTimeout(resolve, 1000));
-      
+
       // 순차적으로 상태 업데이트 (users 테이블 우선 업데이트)
       await fetchUser(true);
       await fetchMatchingStatus();
-      
-      setShowMatchingConfirmModal(false);
+
+      setShowMatchingStarConfirmModal(false);
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || '매칭 신청에 실패했습니다.');
+      const code = error?.response?.data?.code;
+      const msg = error?.response?.data?.message || '매칭 신청에 실패했습니다.';
+
+      // ⭐ 부족 시: 안내 토스트 후 모달 닫기
+      if (code === 'INSUFFICIENT_STARS') {
+        toast.error(msg);
+        setShowMatchingStarConfirmModal(false);
+        setShowMatchingConfirmModal(false);
+        return;
+      }
+
+      toast.error(msg);
     } finally {
       setActionLoading(false);
     }
@@ -2193,8 +2237,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!user?.id) return;
     setActionLoading(true);
     try {
-      await matchingApi.cancelMatching(user.id);
-      toast.success('매칭 신청이 취소되었습니다.');
+      const res = await matchingApi.cancelMatching(user.id);
+      // ✅ 사이드바 별 잔액 즉시 반영
+      await syncSidebarStarBalance(res?.newStarBalance);
+      const msg = res?.message || '매칭 신청이 취소되었습니다.';
+      toast.success(msg);
       
       // 백엔드 업데이트 완료를 위한 지연 시간 증가
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -3068,6 +3115,106 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </ModalContent>
         </ModalOverlay>
       )}
+
+      {/* ⭐ 차감 확인 모달 */}
+      {showMatchingStarConfirmModal && (
+        <ModalOverlay
+          onClick={() => {
+            setShowMatchingStarConfirmModal(false);
+            setShowMatchingConfirmModal(true);
+          }}
+        >
+          <ModalContent
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 380,
+              minWidth: 220,
+              maxWidth: '95vw',
+              height: 'auto',
+              minHeight: 0,
+              maxHeight: '80vh',
+              padding: '28px 20px 22px 20px',
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              position: 'relative',
+              boxSizing: 'border-box',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+            }}
+          >
+            <div style={{ width: '100%' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  background: 'rgba(124, 58, 237, 0.10)',
+                  color: '#4F46E5',
+                  borderRadius: 12,
+                  padding: '12px 14px',
+                  fontWeight: 800,
+                  fontSize: '1.05rem',
+                  gap: 8,
+                }}
+              >
+                매칭 신청 ⭐ 차감 안내
+              </div>
+              <div
+                style={{
+                  marginTop: 12,
+                  color: '#333',
+                  lineHeight: 1.6,
+                  fontSize: '0.98rem',
+                }}
+              >
+                매칭 신청 시 보유하신 <b>⭐{MAIN_MATCH_STAR_COST}개</b>가 사용되며,<br />
+                추 후 신청 마감 전 신청 취소 시 다시 환불됩니다.<br/>
+                매칭을 신청하시겠습니까?
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center' }}>
+              <button
+                onClick={handleMatchingStarConfirm}
+                style={{
+                  padding: '10px 28px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#7C3AED',
+                  color: '#fff',
+                  fontWeight: 800,
+                  fontSize: '1.06rem',
+                  cursor: actionLoading ? 'not-allowed' : 'pointer',
+                  opacity: actionLoading ? 0.7 : 1,
+                }}
+                disabled={actionLoading}
+              >
+                {actionLoading ? '신청 중...' : '확인'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowMatchingStarConfirmModal(false);
+                  setShowMatchingConfirmModal(true);
+                }}
+                style={{
+                  padding: '10px 28px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#eee',
+                  color: '#333',
+                  fontWeight: 700,
+                  fontSize: '1.06rem',
+                  cursor: 'pointer',
+                }}
+              >
+                취소
+              </button>
+            </div>
+          </ModalContent>
+        </ModalOverlay>
+      )}
+
       {/* 신청 취소 커스텀 모달 */}
       {showCancelConfirmModal && (
         <ModalOverlay onClick={() => setShowCancelConfirmModal(false)}>
@@ -3127,6 +3274,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 marginTop: 0,
               }}>
                 신청 취소 후 <b style={{color:'#e74c3c'}}>{cancelTime}분 동안 재신청이 불가</b>합니다.<br/>
+                취소 시 <b style={{color:'#7C3AED'}}>⭐{MAIN_MATCH_STAR_COST}개</b>가 환불됩니다.<br/>
                 정말로 취소하시려면 아래 버튼을 눌러주세요.
               </div>
             </div>

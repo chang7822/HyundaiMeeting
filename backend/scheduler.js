@@ -425,7 +425,8 @@ cron.schedule(scheduleInterval, async () => {
           try {
             const { data: apps, error: appsError } = await supabase
               .from('matching_applications')
-              .select('user_id, is_matched, partner_user_id')
+              // NOTE: matching_applications에는 is_matched 컬럼이 없고 matched 컬럼을 사용한다.
+              .select('user_id, matched, partner_user_id')
               .eq('period_id', current.id)
               .eq('applied', true)
               .eq('cancelled', false);
@@ -451,7 +452,7 @@ cron.schedule(scheduleInterval, async () => {
               await Promise.all(
                 apps.map(async (app) => {
                   try {
-                    const isMatched = app.is_matched === true;
+                    const isMatched = app.matched === true;
                     if (isMatched) {
                       await notificationRoutes.createNotification(String(app.user_id), {
                         type: 'match',

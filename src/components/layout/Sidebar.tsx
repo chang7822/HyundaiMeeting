@@ -864,6 +864,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       }
       toast.success(res.message || '출석 체크가 완료되었습니다.');
       setHasDailyToday(true);
+      setAttendanceModalOpen(false);
     } catch (error: any) {
       const msg =
         error?.response?.data?.message ||

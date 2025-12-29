@@ -2,7 +2,6 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config({ path: __dirname + '/config.env' });
 const fs = require('fs');
 const { sendMatchingResultEmail, sendAdminNotificationEmail } = require('./utils/emailService');
-const notificationRoutes = require('./routes/notifications');
 
 // Supabase 연결
 const supabase = createClient(
@@ -255,6 +254,11 @@ async function sendMatchingResultEmails(periodIdOverride) {
               });
             } else {
               totalFail++;
+              // 마지막 시도에서도 실패한 대상은 관리자 요약 메일을 위해 남겨둔다.
+              nextPending.push({
+                ...app,
+                attempts: app.attempts + 1,
+              });
             }
           }
         } catch (error) {
@@ -266,20 +270,26 @@ async function sendMatchingResultEmails(periodIdOverride) {
             });
           } else {
             totalFail++;
+            // 마지막 시도에서도 실패한 대상은 관리자 요약 메일을 위해 남겨둔다.
+            nextPending.push({
+              ...app,
+              attempts: app.attempts + 1,
+            });
           }
         }
       }
 
-      if (nextPending.length === 0) {
+      // 다음 라운드 대상 갱신 (성공이면 0명, 실패면 실패자만 남음)
+      pending = nextPending;
+
+      if (pending.length === 0) {
         break; // 더 이상 재시도할 대상 없음
       }
 
       if (attempt < maxAttempts) {
-        console.log(`📧 이번 시도에서 실패한 대상: ${nextPending.length}명, 10초 후 재시도 예정...`);
+        console.log(`📧 이번 시도에서 실패한 대상: ${pending.length}명, 10초 후 재시도 예정...`);
         await new Promise(resolve => setTimeout(resolve, 10_000));
       }
-
-      pending = nextPending;
     }
 
     console.log(`📧 매칭 결과 이메일 발송 완료: 성공 ${totalSuccess}건, 실패 ${totalFail}건`);
@@ -1143,21 +1153,6 @@ async function main() {
       }
       // [추가] users 테이블 is_matched false로 업데이트 (실패)
       await supabase.from('users').update({ is_matched: false }).eq('id', userId);
-
-      // [알림] 매칭 실패자 알림 (정규 매칭)
-      try {
-        await notificationRoutes.createNotification(String(userId), {
-          type: 'match',
-          title: '[매칭결과] 이번 회차 매칭에 아쉽게도 실패했습니다',
-          body:
-            '아쉽게도 이번 회차 정규 매칭에서는 인연을 찾지 못했어요.\n' +
-            '하지만 추가 매칭 도전에서 별 10개로 다시 한 번 도전해 보실 수 있습니다.',
-          linkUrl: '/extra-matching',
-          meta: { period_id: periodId, result: 'fail' },
-        });
-      } catch (e) {
-        console.error('[matching-algorithm] 매칭 실패 알림 생성 오류:', e);
-      }
     }
   }
 
