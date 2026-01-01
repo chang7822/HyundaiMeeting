@@ -236,6 +236,7 @@ router.post('/attendance/ad', async (req, res) => {
       return res.status(500).json({ message: '별을 지급하는 중 오류가 발생했습니다.' });
     }
 
+    console.log(`✅ [출석체크 - 광고] ${nickname} 출석체크 완료!`);
     return res.json({
       success: true,
       message: '광고를 통해 ⭐ 2개가 지급되었습니다.',

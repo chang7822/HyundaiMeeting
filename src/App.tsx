@@ -11,6 +11,8 @@ import { pushApi } from './services/api.ts';
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage.tsx';
+import DeleteAccountPage from './pages/DeleteAccountPage.tsx';
+import ChildSafetyPage from './pages/ChildSafetyPage.tsx';
 import LoginPage from './pages/auth/LoginPage.tsx';
 import RegisterPage from './pages/auth/RegisterPage.tsx';
 import CompanySelectionPage from './pages/auth/CompanySelectionPage.tsx';
@@ -460,6 +462,8 @@ const AppInner: React.FC = () => {
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/delete-account" element={<DeleteAccountPage />} />
+              <Route path="/child-safety" element={<ChildSafetyPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/register/company" element={<CompanySelectionPage />} />
