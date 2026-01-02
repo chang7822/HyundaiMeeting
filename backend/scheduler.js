@@ -274,15 +274,16 @@ cron.schedule(scheduleInterval, async () => {
     }
     
     // [추가] 회차 종료(마감) 시 users 테이블 초기화 (다음 회차 존재 여부 무관)
-    if (current.finish) {
-      const finishTime = new Date(current.finish);
+    // ✅ current가 아닌, 종료된 모든 회차를 대상으로 초기화 여부 확인
+    const finishedLogs = logs.filter(log => log.status === '종료' && log.finish);
+    
+    if (finishedLogs.length > 0) {
+      // 가장 최근에 종료된 회차부터 확인 (이미 id DESC로 정렬되어 있음)
+      const latestFinished = finishedLogs[0];
+      const finishTime = new Date(latestFinished.finish);
       
-      // ✅ 안전장치: 회차 종료 시각이 지났고, status가 '종료'일 때만 초기화
-      // - 다음 회차가 이미 진행중/발표완료 상태라면 current가 다음 회차로 변경되므로 이 로직은 실행 안 됨
-      // - 종료된 회차가 current인 경우에만 실행됨
-      const canResetByStatus = current.status === '종료';
-      
-      if (now > finishTime && canResetByStatus) {
+      // 회차 종료 시각이 지난 경우
+      if (now > finishTime) {
         // DB에서 마지막으로 종료 초기화된 회차 ID 조회
         let lastPeriodFinishResetId = null;
         try {
@@ -299,18 +300,18 @@ cron.schedule(scheduleInterval, async () => {
           console.error('[스케줄러] last_period_finish_reset_id 조회 오류:', infoErr);
         }
 
-        if (lastPeriodFinishResetId !== current.id) {
+        if (lastPeriodFinishResetId !== latestFinished.id) {
           // 초기화 사유 정리 (로그용)
           let reason = '';
           if (lastPeriodFinishResetId == null) {
             reason = 'app_settings에 기록 없음';
           } else {
-            reason = `last_period_finish_reset_id=${lastPeriodFinishResetId} → current.id=${current.id} 불일치`;
+            reason = `last_period_finish_reset_id=${lastPeriodFinishResetId} → latestFinished.id=${latestFinished.id} 불일치`;
           }
 
           console.log(
-            `[스케줄러] 회차 ${current.id} 종료 감지 - users 테이블 초기화 실행` +
-              ` (사유: ${reason}, status=${current.status}, now=${now.toISOString()}, finish=${finishTime.toISOString()})`
+            `[스케줄러] 회차 ${latestFinished.id} 종료 감지 - users 테이블 초기화 실행` +
+              ` (사유: ${reason}, status=${latestFinished.status}, now=${now.toISOString()}, finish=${finishTime.toISOString()})`
           );
 
           const { data: resetResult, error: resetError } = await supabase
@@ -323,11 +324,11 @@ cron.schedule(scheduleInterval, async () => {
             console.error('[스케줄러] users 테이블 종료 초기화 실패:', resetError);
           } else {
             console.log(
-              `[스케줄러] users 테이블 종료 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋 (회차 ${current.id} 종료)`
+              `[스케줄러] users 테이블 종료 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋 (회차 ${latestFinished.id} 종료)`
             );
             // 초기화 완료 후 app_settings에 기록
             try {
-              const value = { periodId: current.id };
+              const value = { periodId: latestFinished.id };
               await supabase
                 .from('app_settings')
                 .upsert(
@@ -345,7 +346,7 @@ cron.schedule(scheduleInterval, async () => {
         } else {
           // 동일 회차에 대해 이미 종료 초기화가 완료된 경우 스킵 (디버그용)
           console.log(
-            `[스케줄러] 회차 ${current.id} 종료 초기화 스킵` +
+            `[스케줄러] 회차 ${latestFinished.id} 종료 초기화 스킵` +
               ` (사유: 이미 last_period_finish_reset_id=${lastPeriodFinishResetId})`
           );
         }
