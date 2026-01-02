@@ -273,30 +273,82 @@ cron.schedule(scheduleInterval, async () => {
       }
     }
     
-    // [추가] 회차 종료(마감) 시 users 테이블 초기화
-    if (current.finish) {
-      const finishTime = new Date(current.finish);
-      // 회차 종료 시각이 지났고, 다음 회차가 아직 생성되지 않은 경우
+    // [추가] 회차 종료(마감) 시 users 테이블 초기화 (다음 회차 존재 여부 무관)
+    // ✅ current가 아닌, 종료된 모든 회차를 대상으로 초기화 여부 확인
+    const finishedLogs = logs.filter(log => log.status === '종료' && log.finish);
+    
+    if (finishedLogs.length > 0) {
+      // 가장 최근에 종료된 회차부터 확인 (이미 id DESC로 정렬되어 있음)
+      const latestFinished = finishedLogs[0];
+      const finishTime = new Date(latestFinished.finish);
+      
+      // 회차 종료 시각이 지난 경우
       if (now > finishTime) {
-        // matching_log에 finish가 더 큰 row가 있는지 확인(다음 회차)
-        const { data: nextLog, error: nextLogError } = await supabase
-          .from('matching_log')
-          .select('id')
-          .gt('id', current.id)
-          .limit(1)
-          .maybeSingle();
-        if (!nextLog) {
-          // 다음 회차가 없으면 무조건 초기화 실행
-          console.log('[스케줄러] 회차 종료 감지, users 테이블 is_applied, is_matched 초기화');
-          const { error: resetError } = await supabase
+        // DB에서 마지막으로 종료 초기화된 회차 ID 조회
+        let lastPeriodFinishResetId = null;
+        try {
+          const { data: settingRow, error: settingError } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'last_period_finish_reset_id')
+            .maybeSingle();
+
+          if (!settingError && settingRow && settingRow.value && typeof settingRow.value.periodId === 'number') {
+            lastPeriodFinishResetId = settingRow.value.periodId;
+          }
+        } catch (infoErr) {
+          console.error('[스케줄러] last_period_finish_reset_id 조회 오류:', infoErr);
+        }
+
+        if (lastPeriodFinishResetId !== latestFinished.id) {
+          // 초기화 사유 정리 (로그용)
+          let reason = '';
+          if (lastPeriodFinishResetId == null) {
+            reason = 'app_settings에 기록 없음';
+          } else {
+            reason = `last_period_finish_reset_id=${lastPeriodFinishResetId} → latestFinished.id=${latestFinished.id} 불일치`;
+          }
+
+          console.log(
+            `[스케줄러] 회차 ${latestFinished.id} 종료 감지 - users 테이블 초기화 실행` +
+              ` (사유: ${reason}, status=${latestFinished.status}, now=${now.toISOString()}, finish=${finishTime.toISOString()})`
+          );
+
+          const { data: resetResult, error: resetError } = await supabase
             .from('users')
             .update({ is_applied: false, is_matched: null })
-            .not('id', 'is', null); // 모든 행을 업데이트하기 위한 WHERE 절
+            .not('id', 'is', null)
+            .select('id');
+
           if (resetError) {
-            console.error('[스케줄러] users 테이블 초기화 오류:', resetError);
+            console.error('[스케줄러] users 테이블 종료 초기화 실패:', resetError);
           } else {
-            console.log('[스케줄러] users 테이블 초기화 완료');
+            console.log(
+              `[스케줄러] users 테이블 종료 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋 (회차 ${latestFinished.id} 종료)`
+            );
+            // 초기화 완료 후 app_settings에 기록
+            try {
+              const value = { periodId: latestFinished.id };
+              await supabase
+                .from('app_settings')
+                .upsert(
+                  {
+                    key: 'last_period_finish_reset_id',
+                    value,
+                    updated_at: new Date().toISOString(),
+                  },
+                  { onConflict: 'key' }
+                );
+            } catch (upsertErr) {
+              console.error('[스케줄러] last_period_finish_reset_id 업데이트 오류:', upsertErr);
+            }
           }
+        } else {
+          // 동일 회차에 대해 이미 종료 초기화가 완료된 경우 스킵 (디버그용)
+          console.log(
+            `[스케줄러] 회차 ${latestFinished.id} 종료 초기화 스킵` +
+              ` (사유: 이미 last_period_finish_reset_id=${lastPeriodFinishResetId})`
+          );
         }
       }
     }
