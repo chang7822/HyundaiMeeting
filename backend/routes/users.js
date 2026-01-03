@@ -652,22 +652,21 @@ router.delete('/me', authenticate, async (req, res) => {
       throw error6;
     }
     
-    // 3-1. Refresh Token 무효화 (CASCADE로 자동 삭제되지만 명시적으로 무효화)
+    // 3-1. Refresh Token 삭제 (users 삭제 전에 먼저 처리하여 Foreign Key 에러 방지)
     try {
       const { error: tokenError } = await supabase
         .from('refresh_tokens')
-        .update({ revoked_at: new Date().toISOString() })
-        .eq('user_id', userId)
-        .is('revoked_at', null);
+        .delete()
+        .eq('user_id', userId);
       if (tokenError) {
-        console.error('[회원탈퇴] Refresh Token 무효화 오류:', tokenError);
-        // 에러가 나도 계속 진행 (CASCADE로 삭제됨)
+        console.error('[회원탈퇴] Refresh Token 삭제 오류:', tokenError);
+        // 에러가 나도 계속 진행
       }
     } catch (tokenErr) {
       console.error('[회원탈퇴] Refresh Token 처리 중 오류:', tokenErr);
     }
     
-    // 4. users 삭제 (마지막에, CASCADE로 refresh_tokens도 자동 삭제됨)
+    // 4. users 삭제 (마지막에 실행)
     const { error: error7 } = await supabase.from('users').delete().eq('id', userId);
     if (error7) {
       console.error('[회원탈퇴] users 삭제 오류:', error7);

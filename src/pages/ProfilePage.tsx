@@ -484,16 +484,27 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         return;
       }
       
-      // 실제로는 별도 deleteMe API 필요
+      // 비밀번호 확인
       await authApi.login({ email: profile.email!, password: delPw });
+      
+      // 탈퇴 API 호출 (서버에서 users 삭제)
       await userApi.deleteMe();
-      toast.success('회원 탈퇴가 완료되었습니다.');
+      
+      // 탈퇴 성공 - 즉시 토큰 삭제 및 로그아웃 처리
       localStorage.clear();
       sessionStorage.clear();
-      // console.log('[ProfilePage] 회원탈퇴, localStorage token:', localStorage.getItem('token'));
-      navigate('/');
-    } catch {
-      toast.error('비밀번호가 올바르지 않거나 탈퇴 실패');
+      
+      toast.success('회원 탈퇴가 완료되었습니다.');
+      
+      // 홈으로 이동 (약간의 딜레이 추가하여 토스트 메시지 확인 가능)
+      setTimeout(() => {
+        navigate('/');
+      }, 500);
+    } catch (error: any) {
+      // 탈퇴 실패 시에도 에러 내용에 따라 처리
+      const errorMsg = error?.response?.data?.error || error?.message || '비밀번호가 올바르지 않거나 탈퇴 실패';
+      toast.error(errorMsg);
+      setDelPw('');
     }
   };
 
