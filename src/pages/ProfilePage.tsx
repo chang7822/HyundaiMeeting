@@ -246,7 +246,7 @@ const BodyTypeButton = styled.button<{ selected: boolean }>`
 
 const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
-  const { isLoading, isAuthenticated, fetchUser, user } = useAuth();
+  const { isLoading, isAuthenticated, fetchUser, user, logout } = useAuth();
   const [categories, setCategories] = useState<ProfileCategory[]>([]);
   const [options, setOptions] = useState<ProfileOption[]>([]);
   const [profile, setProfile] = useState<Partial<UserProfile & User>>({});
@@ -487,12 +487,29 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       // 비밀번호 확인
       await authApi.login({ email: profile.email!, password: delPw });
       
-      // 탈퇴 API 호출 (서버에서 users 삭제)
-      await userApi.deleteMe();
+      // 탈퇴 API 호출 전에 현재 토큰 백업 (API 호출용)
+      const currentToken = localStorage.getItem('token');
       
-      // 탈퇴 성공 - 즉시 토큰 삭제 및 로그아웃 처리
-      localStorage.clear();
-      sessionStorage.clear();
+      // 즉시 로그아웃 처리 (AuthContext 초기화 + 폴링 중단)
+      await logout();
+      
+      // 백업한 토큰으로 탈퇴 API 호출
+      if (currentToken) {
+        // 임시로 토큰 복원하여 탈퇴 API 호출
+        localStorage.setItem('token', currentToken);
+        try {
+          await userApi.deleteMe();
+        } finally {
+          // 탈퇴 API 호출 후 토큰 완전 삭제
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+      } else {
+        // 토큰이 없으면 그냥 탈퇴 API 호출 시도
+        await userApi.deleteMe();
+        localStorage.clear();
+        sessionStorage.clear();
+      }
       
       toast.success('회원 탈퇴가 완료되었습니다.');
       
