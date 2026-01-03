@@ -1378,20 +1378,32 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   useEffect(() => {
     if (!user?.id) return;
     
+    let timerRef: number | null = null;
+    
     const fetchExtraMatchingFeature = async () => {
       try {
         const res = await extraMatchingApi.getStatus();
         setExtraMatchingFeatureEnabled(res?.featureEnabled !== false);
-      } catch (e) {
+      } catch (e: any) {
         console.error('[MainPage] 추가 매칭 도전 기능 설정 조회 오류:', e);
         setExtraMatchingFeatureEnabled(false); // 에러 시 기본값 false (안전하게)
+        
+        // 401 에러 발생 시 인터벌 중지
+        if (e?.response?.status === 401 && timerRef) {
+          window.clearInterval(timerRef);
+          timerRef = null;
+        }
       }
     };
 
     fetchExtraMatchingFeature();
     // 30초마다 갱신
-    const timer = window.setInterval(fetchExtraMatchingFeature, 30000);
-    return () => window.clearInterval(timer);
+    timerRef = window.setInterval(fetchExtraMatchingFeature, 30000);
+    return () => {
+      if (timerRef) {
+        window.clearInterval(timerRef);
+      }
+    };
   }, [user?.id]);
 
   // 선호 회사 이름 매핑용 회사 목록 로드
@@ -1514,12 +1526,16 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   // 새로고침 없이도 성공/실패, 신청 여부가 자동으로 반영되도록 폴링
   useEffect(() => {
     if (!user?.id) return;
-    const interval = window.setInterval(() => {
-      // 로딩 스피너 없이 조용히 상태만 갱신
-      fetchMatchingStatus(false);
-      
-      // period 정보도 함께 업데이트 (추가 매칭 배너 등 실시간 반영)
-      matchingApi.getMatchingPeriod().then(data => {
+    
+    let intervalRef: number | null = null;
+    
+    const pollStatus = async () => {
+      try {
+        // 로딩 스피너 없이 조용히 상태만 갱신
+        await fetchMatchingStatus(false);
+        
+        // period 정보도 함께 업데이트 (추가 매칭 배너 등 실시간 반영)
+        const data = await matchingApi.getMatchingPeriod();
         if (!data) {
           setPeriod(null);
           setNextPeriod(null);
@@ -1530,11 +1546,24 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           setPeriod(data);
           setNextPeriod(null);
         }
-      }).catch((err) => {
+      } catch (err: any) {
         console.error('[MainPage] 매칭 기간 자동 갱신 오류:', err);
-      });
-    }, 5000); // 5초마다 최신 상태 확인
-    return () => window.clearInterval(interval);
+        
+        // 401 에러 발생 시 인터벌 중지
+        if (err?.response?.status === 401 && intervalRef) {
+          window.clearInterval(intervalRef);
+          intervalRef = null;
+        }
+      }
+    };
+    
+    intervalRef = window.setInterval(pollStatus, 5000); // 5초마다 최신 상태 확인
+    
+    return () => {
+      if (intervalRef) {
+        window.clearInterval(intervalRef);
+      }
+    };
   }, [user?.id, fetchMatchingStatus]);
 
 
@@ -1570,39 +1599,64 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   useEffect(() => {
     if (!user?.id) return;
     
-    const interval = window.setInterval(async () => {
+    let intervalRef: number | null = null;
+    
+    const updateUnreadCount = async () => {
       try {
         const result = await chatApi.getUnreadCount(user.id);
         const newCount = result.unreadCount || 0;
         // 개수가 실제로 변경된 경우에만 업데이트
         setUnreadCount(prev => prev !== newCount ? newCount : prev);
-      } catch (error) {
+      } catch (error: any) {
+        // 401 에러 발생 시 인터벌 중지
+        if (error?.response?.status === 401 && intervalRef) {
+          window.clearInterval(intervalRef);
+          intervalRef = null;
+        }
         // 에러 시 조용히 무시 (깜빡임 방지)
       }
-    }, 5000); // 5초마다 업데이트
+    };
+    
+    intervalRef = window.setInterval(updateUnreadCount, 5000); // 5초마다 업데이트
 
-    return () => window.clearInterval(interval);
+    return () => {
+      if (intervalRef) {
+        window.clearInterval(intervalRef);
+      }
+    };
   }, [user?.id]);
 
   // 알림 미읽음 개수 조회 (5초마다)
   useEffect(() => {
     if (!user?.id) return;
     
+    let intervalRef: number | null = null;
+    
     const fetchNotificationUnreadCount = async () => {
       try {
         const res = await notificationApi.getUnreadCount();
         const count = res.unreadCount || 0;
         setNotificationUnreadCount(count);
-      } catch (error) {
+      } catch (error: any) {
         // console.error('[MainPage] 알림 개수 조회 실패:', error);
         setNotificationUnreadCount(0);
+        
+        // 401 에러 발생 시 인터벌 중지
+        if (error?.response?.status === 401 && intervalRef) {
+          window.clearInterval(intervalRef);
+          intervalRef = null;
+        }
       }
     };
 
     fetchNotificationUnreadCount(); // 초기 로드
-    const interval = window.setInterval(fetchNotificationUnreadCount, 5000);
+    intervalRef = window.setInterval(fetchNotificationUnreadCount, 5000);
 
-    return () => window.clearInterval(interval);
+    return () => {
+      if (intervalRef) {
+        window.clearInterval(intervalRef);
+      }
+    };
   }, [user?.id]);
 
   // 카운트다운 계산 함수 (조건부 렌더링 이전에 선언)
