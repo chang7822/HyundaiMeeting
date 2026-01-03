@@ -345,10 +345,10 @@ cron.schedule(scheduleInterval, async () => {
           }
         } else {
           // 동일 회차에 대해 이미 종료 초기화가 완료된 경우 스킵 (디버그용)
-          console.log(
-            `[스케줄러] 회차 ${latestFinished.id} 종료 초기화 스킵` +
-              ` (사유: 이미 last_period_finish_reset_id=${lastPeriodFinishResetId})`
-          );
+          // console.log(
+          //   `[스케줄러] 회차 ${latestFinished.id} 종료 초기화 스킵` +
+          //     ` (사유: 이미 last_period_finish_reset_id=${lastPeriodFinishResetId})`
+          // );
         }
       }
     }
