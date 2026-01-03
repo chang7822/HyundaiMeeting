@@ -704,14 +704,23 @@ const LandingPage = () => {
 
       {showCompanies && (
         <IntroModalOverlay onClick={() => setShowCompanies(false)}>
-          <IntroModalContent onClick={e => e.stopPropagation()}>
-            <IntroModalHeader>
+          <IntroModalContent onClick={e => e.stopPropagation()} style={{ padding: 0 }}>
+            <IntroModalHeader style={{ padding: '22px 22px 12px' }}>
               <IntroTitle>
                 가입 가능 회사 목록
               </IntroTitle>
               <IntroCloseButton onClick={() => setShowCompanies(false)}>×</IntroCloseButton>
             </IntroModalHeader>
-            <IntroBody>
+            
+            {/* 스크롤 가능한 회사 리스트 영역 */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '8px 22px',
+                borderTop: '1px solid #e5e7eb',
+              }}
+            >
               {activeCompanies.length === 0 ? (
                 <p style={{ fontSize: '0.9rem', color: '#6b7280' }}>
                   현재 가입 가능한 회사 정보가 없습니다. 추후 공지를 통해 추가 안내드리겠습니다.
@@ -774,8 +783,17 @@ const LandingPage = () => {
                   ))}
                 </ul>
               )}
+            </div>
 
-              <CompanyFooter>
+            {/* 고정된 Footer 영역 */}
+            <div
+              style={{
+                padding: '16px 22px 18px',
+                borderTop: '1px solid #e5e7eb',
+                background: '#f9fafb',
+              }}
+            >
+              <CompanyFooter style={{ marginTop: 0, paddingTop: 0, borderTop: 'none' }}>
                 <div
                   style={{
                     display: 'flex',
@@ -855,7 +873,7 @@ const LandingPage = () => {
               >
                 회사 도메인이 없는 경우 회원가입 시 <strong style={{ color: '#6b7280' }}>프리랜서/자영업</strong> 또는 <strong style={{ color: '#6b7280' }}>기타 회사</strong>를 선택하실 수 있습니다.
               </div>
-            </IntroBody>
+            </div>
           </IntroModalContent>
         </IntroModalOverlay>
       )}

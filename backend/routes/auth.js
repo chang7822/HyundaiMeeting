@@ -8,6 +8,7 @@ const { sendAdminNotificationEmail } = require('../utils/emailService');
 const { sendPushToAdmin } = require('../pushService');
 const router = express.Router();
 const authenticate = require('../middleware/authenticate');
+const notificationsRouter = require('./notifications');
 
 // ==================== Refresh Token 헬퍼 함수 ====================
 
@@ -744,7 +745,8 @@ router.post('/register', async (req, res) => {
         is_matched: null,  // 매칭 결과 없음(기본값)
         terms_agreed_at: termsAgreement.agreedAt || new Date().toISOString(), // 약관 동의 시간
         email_verification_status: alreadyPreVerified ? 'verified' : 'pending',
-        email_notification_enabled: true // 이메일 수신 허용 기본값
+        email_notification_enabled: true, // 이메일 수신 허용 기본값
+        star_balance: 3 // 회원가입 감사 별 3개 기본 지급
       }])
       .select('id, email, is_verified, is_active, is_admin')
       .single();
@@ -1254,6 +1256,21 @@ router.post('/register', async (req, res) => {
       });
     } catch (e) {
       console.error('[회원가입] 관리자 알림 메일 처리 중 오류:', e);
+    }
+
+    // 회원가입 환영 알림 발송
+    try {
+      await notificationsRouter.createNotification(user.id, {
+        type: 'welcome',
+        title: '직장인 솔로 공모에 오신 것을 환영합니다! 🎉',
+        body: `${nickname}님, 가입해주셔서 감사합니다!\n\n회원가입 감사의 의미로 ⭐3개를 지급해드렸습니다. \n\n 매칭 신청을 위해선 ⭐5개가 필요합니다.\n\n⭐을 더 모으려면 사이드바의 출석체크 버튼을 이용해주세요!`,
+        linkUrl: null,
+        meta: { starGiven: 3 }
+      });
+      console.log(`[회원가입] 환영 알림 발송 완료: ${email}`);
+    } catch (notifError) {
+      console.error('[회원가입] 환영 알림 발송 실패:', notifError);
+      // 알림 발송 실패해도 회원가입은 정상 처리
     }
 
     res.json({

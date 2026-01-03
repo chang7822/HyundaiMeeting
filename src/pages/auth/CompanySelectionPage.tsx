@@ -6,6 +6,7 @@ import { companyApi } from '../../services/api.ts';
 import { Company } from '../../types/index.ts';
 import { FaArrowLeft } from 'react-icons/fa';
 import CustomCompanyNameModal from '../../components/CustomCompanyNameModal.tsx';
+import { toast } from 'react-toastify';
 
 const Container = styled.div`
   min-height: 100vh;
@@ -120,6 +121,209 @@ const InfoBox = styled.div`
   }
 `;
 
+const CompanyFooter = styled.div`
+  margin-top: 16px;
+  padding-top: 10px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.85rem;
+  color: #6b7280;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+`;
+
+const TextLinkButton = styled.button`
+  border: 1px solid rgba(129, 140, 248, 0.7);
+  background: rgba(79, 70, 229, 0.06);
+  padding: 6px 12px;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #4f46e5;
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.18s ease;
+
+  &::before {
+    content: '+';
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: rgba(79, 70, 229, 0.12);
+    font-size: 0.85rem;
+    font-weight: 700;
+  }
+
+  &:hover {
+    background: rgba(79, 70, 229, 0.12);
+    border-color: rgba(79, 70, 229, 0.9);
+    transform: translateY(-1px);
+  }
+`;
+
+const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 120;
+`;
+
+const ModalContent = styled.div`
+  background: #f9fafb;
+  border-radius: 18px;
+  padding: 22px 22px 18px;
+  width: 95vw;
+  max-width: 420px;
+  max-height: 85vh;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+`;
+
+const ModalHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+`;
+
+const ModalTitle = styled.h2`
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #111827;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ModalCloseButton = styled.button`
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 999px;
+
+  &:hover {
+    background: rgba(209, 213, 219, 0.5);
+    color: #111827;
+  }
+`;
+
+const ModalBody = styled.div`
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+  color: #374151;
+  line-height: 1.6;
+  overflow-y: auto;
+  text-align: left;
+`;
+
+const FormField = styled.div`
+  margin-bottom: 12px;
+`;
+
+const FormLabel = styled.label`
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+`;
+
+const FormInput = styled.input`
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 1px #4f46e5;
+  }
+`;
+
+const FormTextarea = styled.textarea`
+  width: 100%;
+  min-height: 80px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.9rem;
+  resize: vertical;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 1px #4f46e5;
+  }
+`;
+
+const FormActions = styled.div`
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const SecondaryButton = styled.button`
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
+const PrimaryActionButton = styled.button`
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #f9fafb;
+  cursor: pointer;
+
+  &:hover {
+    opacity: 0.95;
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+`;
+
 const SubSelectionContainer = styled.div`
   margin-top: 1rem;
   padding: 1rem;
@@ -169,6 +373,12 @@ const CompanySelectionPage = () => {
   const [selectedSubType, setSelectedSubType] = useState<'freelance' | 'other' | null>(null);
   const [showCustomCompanyModal, setShowCustomCompanyModal] = useState(false);
   const [customCompanyName, setCustomCompanyName] = useState('');
+  const [showCompanyGuideTooltip, setShowCompanyGuideTooltip] = useState(false);
+  const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newCompanyDomain, setNewCompanyDomain] = useState('');
+  const [newCompanyMessage, setNewCompanyMessage] = useState('');
+  const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
   
   const {
     register,
@@ -269,6 +479,40 @@ const CompanySelectionPage = () => {
     }
   };
 
+  const handleSubmitNewCompany = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const name = newCompanyName.trim();
+    const domain = newCompanyDomain.trim();
+    const message = newCompanyMessage.trim();
+
+    if (!name || !domain) {
+      toast.error('회사명과 이메일 도메인 주소를 입력해주세요.');
+      return;
+    }
+
+    setIsSubmittingCompanyRequest(true);
+    try {
+      await companyApi.requestNewCompany({
+        companyName: name,
+        emailDomain: domain,
+        message,
+      });
+      toast.success('관리자에게 요청이 전송되었습니다.');
+      setShowAddCompanyModal(false);
+      setNewCompanyName('');
+      setNewCompanyDomain('');
+      setNewCompanyMessage('');
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message ||
+        '요청 전송 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+      toast.error(msg);
+    } finally {
+      setIsSubmittingCompanyRequest(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Container>
@@ -288,13 +532,71 @@ const CompanySelectionPage = () => {
         <Title>회사 선택</Title>
         <InfoBox>
           <strong>가입 가능 회사 안내</strong><br />
-          회사 이메일 도메인이 있는 경우 해당 회사를 선택해주세요.<br />
-          회사 도메인이 없는 경우 <strong>프리랜서/자영업</strong> 또는 <strong>기타 회사</strong>를 선택하실 수 있습니다.
+          회사 이메일 도메인이 있는 경우 해당 회사를 선택해주세요.<br /><br/>
+          
+          회사 도메인이 없는 경우<br/>
+          <strong>프리랜서/자영업</strong> 또는 <strong>기타 회사</strong>를 선택하실 수 있습니다.<br/>
+          
+          <CompanyFooter>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              {/* 회사 추가 가이드 안내 아이콘 (툴팁) */}
+              <button
+                type="button"
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: '999px',
+                  border: 'none',
+                  backgroundColor: '#e5e7eb',
+                  color: '#4b5563',
+                  fontSize: '0.9rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                }}
+                title="회사 추가 관련 안내"
+                aria-label="회사 추가 관련 안내"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCompanyGuideTooltip(true);
+                }}
+              >
+                i
+              </button>
+
+              <span
+                style={{
+                  fontSize: '0.8rem',
+                  color: '#6b7280',
+                  lineHeight: 1.4,
+                }}
+              >
+                회사 추가 안내
+              </span>
+            </div>
+
+            <TextLinkButton
+              type="button"
+              onClick={() => {
+                setShowAddCompanyModal(true);
+              }}
+            >
+              내 회사 추가하기
+            </TextLinkButton>
+          </CompanyFooter>
+
         </InfoBox>
         <Form onSubmit={handleSubmit(onSubmit)}>
           <Select {...register('company', { required: '회사를 선택해주세요.' })}>
             <option value="">회사를 선택하세요</option>
-            <option value="no-domain">회사 도메인 없음</option>
+            <option value="no-domain">프리랜서/자영업 및 기타회사</option>
             {companies.map((company) => (
               <option key={company.id} value={company.id}>
                 {company.name}
@@ -321,6 +623,21 @@ const CompanySelectionPage = () => {
                   기타 회사
                 </SubSelectionButton>
               </SubSelectionButtons>
+              <div
+                style={{
+                  marginTop: '12px',
+                  paddingTop: '10px',
+                  borderTop: '1px solid rgba(102, 126, 234, 0.2)',
+                  fontSize: '0.75rem',
+                  color: '#666',
+                  lineHeight: 1.5,
+                  textAlign: 'left',
+                }}
+              >
+                일반적으로 알려진 대기업, 공기업 및 의료기관의 경우<br />
+                회사추가를 하셔서 회사 등록 후 가입 바랍니다.<br/><br/>
+                이메일 주소가 있는 회사라도<br/> 회사 추가 등록이 거절될 수 있는 점 양해바랍니다..
+              </div>
             </SubSelectionContainer>
           )}
           
@@ -339,6 +656,112 @@ const CompanySelectionPage = () => {
           onClose={() => setShowCustomCompanyModal(false)}
           onConfirm={handleCustomCompanyConfirm}
         />
+        
+        {showAddCompanyModal && (
+          <ModalOverlay
+            onClick={() => {
+              if (!isSubmittingCompanyRequest) {
+                setShowAddCompanyModal(false);
+              }
+            }}
+          >
+            <ModalContent onClick={e => e.stopPropagation()}>
+              <ModalHeader>
+                <ModalTitle>
+                  내 회사 추가 요청
+                </ModalTitle>
+                <ModalCloseButton
+                  onClick={() => {
+                    if (!isSubmittingCompanyRequest) {
+                      setShowAddCompanyModal(false);
+                    }
+                  }}
+                >
+                  ×
+                </ModalCloseButton>
+              </ModalHeader>
+              <ModalBody>
+                <form onSubmit={handleSubmitNewCompany}>
+                  <FormField>
+                    <FormLabel>회사명</FormLabel>
+                    <FormInput
+                      type="text"
+                      value={newCompanyName}
+                      onChange={(e) => setNewCompanyName(e.target.value)}
+                      placeholder="예: 현대자동차, S-OIL 등"
+                      disabled={isSubmittingCompanyRequest}
+                    />
+                  </FormField>
+                  <FormField>
+                    <FormLabel>이메일 도메인 주소</FormLabel>
+                    <FormInput
+                      type="text"
+                      value={newCompanyDomain}
+                      onChange={(e) => setNewCompanyDomain(e.target.value)}
+                      placeholder="예: hyundai.com"
+                      disabled={isSubmittingCompanyRequest}
+                    />
+                  </FormField>
+                  <FormField>
+                    <FormLabel>기타 요청사항 (선택)</FormLabel>
+                    <FormTextarea
+                      value={newCompanyMessage}
+                      onChange={(e) => setNewCompanyMessage(e.target.value)}
+                      placeholder={
+                        '예 : 기존 메일주소가 잘못됐어요, 다른 도메인주소가 더 필요해요 등\n' +
+                        '회사 추가 여부에 대한 회신을 받고 싶으시면 연락 받을 이메일 주소도 함께 남겨주세요.'
+                      }
+                      disabled={isSubmittingCompanyRequest}
+                    />
+                  </FormField>
+                  <FormActions>
+                    <SecondaryButton
+                      type="button"
+                      onClick={() => {
+                        if (!isSubmittingCompanyRequest) {
+                          setShowAddCompanyModal(false);
+                        }
+                      }}
+                      disabled={isSubmittingCompanyRequest}
+                    >
+                      취소
+                    </SecondaryButton>
+                    <PrimaryActionButton
+                      type="submit"
+                      disabled={isSubmittingCompanyRequest}
+                    >
+                      {isSubmittingCompanyRequest ? '전송 중...' : '관리자에게 전송'}
+                    </PrimaryActionButton>
+                  </FormActions>
+                </form>
+              </ModalBody>
+            </ModalContent>
+          </ModalOverlay>
+        )}
+
+        {showCompanyGuideTooltip && (
+          <ModalOverlay onClick={() => setShowCompanyGuideTooltip(false)}>
+            <ModalContent onClick={e => e.stopPropagation()}>
+              <ModalHeader>
+                <ModalTitle>
+                  회사 추가 관련 안내
+                </ModalTitle>
+                <ModalCloseButton onClick={() => setShowCompanyGuideTooltip(false)}>
+                  ×
+                </ModalCloseButton>
+              </ModalHeader>
+              <ModalBody>
+                <p style={{ fontSize: '0.9rem', color: '#111827', lineHeight: 1.6 }}>
+                  현재 공기업·공무원·의료기관 및 일부 대기업을 중심으로 우선 운영 중입니다.
+                  무분별한 확대로 관리가 어려워질 수 있어, 검토 후 순차적으로 회사 도메인을 등록하고 있습니다.
+                </p>
+                <p style={{ fontSize: '0.9rem', color: '#4b5563', lineHeight: 1.6, marginTop: 8 }}>
+                  회사 추가를 신청하셔도 모든 요청이 바로 등록되지는 않을 수 있는 점 양해 부탁드립니다.
+                </p>
+              </ModalBody>
+            </ModalContent>
+          </ModalOverlay>
+        )}
       </Card>
     </Container>
   );

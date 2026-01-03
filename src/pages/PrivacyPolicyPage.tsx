@@ -148,7 +148,7 @@ const PrivacyPolicyPage = () => {
         </BackButton>
         
         <Title>개인정보처리방침</Title>
-        <Subtitle>최종 수정일: {new Date().toLocaleDateString('ko-KR')}</Subtitle>
+        {/* <Subtitle>최종 수정일: {new Date().toLocaleDateString('ko-KR')}</Subtitle> */}
 
         <Section>
           <SectionTitle>1. 개인정보의 수집 및 이용목적</SectionTitle>
