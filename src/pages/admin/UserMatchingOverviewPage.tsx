@@ -15,9 +15,16 @@ const Container = styled.div<{ $sidebarOpen: boolean }>`
   box-shadow: 0 2px 16px rgba(80,60,180,0.08);
   padding: 32px 24px;
   max-width: 1200px;
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
   margin-left: ${props => (window.innerWidth > 768 && props.$sidebarOpen) ? '280px' : '0'};
+  
   @media (max-width: 768px) {
-    margin-left: 0;
+    margin: 1rem auto;
+    margin-left: 0 !important;
+    padding: 1.5rem 1rem;
+    border-radius: 12px;
   }
 `;
 
@@ -25,6 +32,11 @@ const Title = styled.h2`
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 24px;
+  
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+  }
 `;
 
 const SummaryRow = styled.div`
@@ -32,6 +44,11 @@ const SummaryRow = styled.div`
   flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 16px;
+  
+  @media (max-width: 768px) {
+    gap: 12px;
+    margin-bottom: 12px;
+  }
 `;
 
 const SummaryCard = styled.div`
@@ -44,28 +61,52 @@ const SummaryCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  box-sizing: border-box;
+  
+  @media (max-width: 768px) {
+    min-width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+  }
 `;
 
 const SummaryLabel = styled.div`
   font-size: 0.9rem;
   font-weight: 600;
   color: #4b5563;
+  
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+  }
 `;
 
 const SummaryValue = styled.div`
   font-size: 1.5rem;
   font-weight: 800;
   color: #111827;
+  
+  @media (max-width: 768px) {
+    font-size: 1.3rem;
+  }
 `;
 
 const SummarySub = styled.div`
   font-size: 0.85rem;
   color: #6b7280;
+  
+  @media (max-width: 768px) {
+    font-size: 0.8rem;
+  }
 `;
 
 const TableWrapper = styled.div`
   width: 100%;
   overflow-x: auto;
+  box-sizing: border-box;
+  
+  @media (max-width: 768px) {
+    overflow-x: visible;
+  }
 `;
 
 const Table = styled.table`
@@ -83,6 +124,78 @@ const Table = styled.table`
     font-weight: 600;
     cursor: pointer;
   }
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const MobileCardList = styled.div`
+  display: none;
+  
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+`;
+
+const MobileCard = styled.div`
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.75rem;
+  box-sizing: border-box;
+  width: 100%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+`;
+
+const MobileCardTopRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+`;
+
+const MobileCardBottomRow = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+  flex-wrap: wrap;
+  
+  span {
+    &:not(:last-child)::after {
+      content: '·';
+      margin-left: 0.5rem;
+    }
+  }
+`;
+
+const MobileButtonGroup = styled.div`
+  display: flex;
+  gap: 0.35rem;
+`;
+
+const CompactButton = styled.button`
+  background: #7C3AED;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+  &:hover { background: #5b21b6; }
+  
+  &:nth-child(2) {
+    background: #4F46E5;
+    &:hover { background: #4338ca; }
+  }
 `;
 
 const Button = styled.button`
@@ -95,7 +208,15 @@ const Button = styled.button`
   margin: 0 2px;
   cursor: pointer;
   font-size: 0.9rem;
+  transition: all 0.2s;
   &:hover { background: #5b21b6; }
+  
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    flex: 1;
+    margin: 0;
+  }
 `;
 
 const NicknameBtn = styled.button`
@@ -106,12 +227,21 @@ const NicknameBtn = styled.button`
   cursor: pointer;
   text-decoration: underline;
   &:hover { color: #7C3AED; }
+  
+  @media (max-width: 768px) {
+    font-size: 1rem;
+  }
 `;
 
 const TabWrapper = styled.div`
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  
+  @media (max-width: 768px) {
+    gap: 6px;
+    margin-bottom: 12px;
+  }
 `;
 
 const TabButton = styled.button<{ $active: boolean }>`
@@ -124,12 +254,21 @@ const TabButton = styled.button<{ $active: boolean }>`
   color: ${props => props.$active ? '#fff' : '#4F46E5'};
   background: ${props => props.$active ? '#7C3AED' : '#ede7f6'};
   transition: all 0.2s ease;
+  
+  @media (max-width: 768px) {
+    padding: 8px 10px;
+    font-size: 0.9rem;
+  }
 `;
 
 const CompatibilityList = styled.div`
   max-height: 360px;
   overflow-y: auto;
   padding-right: 4px;
+  
+  @media (max-width: 768px) {
+    max-height: 280px;
+  }
 `;
 
 const CompatibilityRow = styled.div<{ $mutual: boolean }>`
@@ -144,6 +283,20 @@ const CompatibilityRow = styled.div<{ $mutual: boolean }>`
   & + & {
     margin-top: 10px;
   }
+  
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px 12px;
+    
+    & > div:first-child {
+      margin-bottom: 6px;
+    }
+    
+    & > span {
+      justify-self: start;
+    }
+  }
 `;
 
 const Badge = styled.span<{ $positive?: boolean }>`
@@ -153,20 +306,106 @@ const Badge = styled.span<{ $positive?: boolean }>`
   background: ${props => props.$positive ? 'rgba(45,212,191,0.2)' : '#e5e7eb'};
   border-radius: 999px;
   padding: 4px 10px;
+  white-space: nowrap;
+  display: inline-block;
+  
+  @media (max-width: 768px) {
+    font-size: 0.75rem;
+    padding: 3px 8px;
+  }
 `;
 
 const EmptyRow = styled.div`
   text-align: center;
   color: #6b7280;
   padding: 40px 0;
+  
+  @media (max-width: 768px) {
+    padding: 2rem 0;
+    font-size: 0.9rem;
+  }
 `;
 
 Modal.setAppElement('#root');
+
+const FilterBar = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  
+  @media (max-width: 768px) {
+    gap: 0.5rem;
+  }
+`;
+
+const SearchInput = styled.input`
+  flex: 1;
+  min-width: 200px;
+  padding: 0.6rem 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  
+  &:focus {
+    outline: none;
+    border-color: #7C3AED;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+  
+  @media (max-width: 768px) {
+    min-width: 100%;
+    font-size: 0.85rem;
+  }
+`;
+
+const SortSelect = styled.select`
+  padding: 0.6rem 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: white;
+  cursor: pointer;
+  
+  &:focus {
+    outline: none;
+    border-color: #7C3AED;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+  
+  @media (max-width: 768px) {
+    flex: 1;
+    font-size: 0.85rem;
+  }
+`;
+
+const SortDirectionButton = styled.button`
+  padding: 0.6rem 0.875rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4F46E5;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #f3f4f6;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 0.6rem 0.75rem;
+    font-size: 0.85rem;
+  }
+`;
 
 const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) => {
   const [users, setUsers] = useState<any[]>([]);
   const [sortKey, setSortKey] = useState<string>('nickname');
   const [sortAsc, setSortAsc] = useState<boolean>(true);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
@@ -344,20 +583,35 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
     toast.success('전체 회원 매칭 호환성 조회가 완료되었습니다!');
   };
 
-  const sortedUsers = [...users].sort((a, b) => {
-    let v1: any = a[sortKey];
-    let v2: any = b[sortKey];
-    if (sortKey === 'nickname') {
-      v1 = a.nickname || '';
-      v2 = b.nickname || '';
+  const sortedAndFilteredUsers = React.useMemo(() => {
+    // 먼저 검색 필터 적용
+    let filtered = users;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = users.filter(user => {
+        const nickname = (user.nickname || '').toLowerCase();
+        const email = (user.email || '').toLowerCase();
+        const gender = user.gender === 'male' ? '남성' : user.gender === 'female' ? '여성' : '';
+        return nickname.includes(query) || email.includes(query) || gender.includes(query);
+      });
     }
-    if (v1 === undefined || v1 === null) v1 = '';
-    if (v2 === undefined || v2 === null) v2 = '';
-    if (typeof v1 === 'string' && typeof v2 === 'string') {
-      return sortAsc ? v1.localeCompare(v2) : v2.localeCompare(v1);
-    }
-    return sortAsc ? (v1 > v2 ? 1 : -1) : (v1 < v2 ? 1 : -1);
-  });
+    
+    // 정렬 적용
+    return [...filtered].sort((a, b) => {
+      let v1: any = a[sortKey];
+      let v2: any = b[sortKey];
+      if (sortKey === 'nickname') {
+        v1 = a.nickname || '';
+        v2 = b.nickname || '';
+      }
+      if (v1 === undefined || v1 === null) v1 = '';
+      if (v2 === undefined || v2 === null) v2 = '';
+      if (typeof v1 === 'string' && typeof v2 === 'string') {
+        return sortAsc ? v1.localeCompare(v2) : v2.localeCompare(v1);
+      }
+      return sortAsc ? (v1 > v2 ? 1 : -1) : (v1 < v2 ? 1 : -1);
+    });
+  }, [users, sortKey, sortAsc, searchQuery]);
 
   const openProfileModal = (user: any) => {
     setSelectedUser(user);
@@ -453,8 +707,28 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
         </SummaryCard>
       </SummaryRow>
 
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-        <div style={{ flex: 1 }}>
+      {/* 검색 및 정렬 필터 */}
+      <FilterBar>
+        <SearchInput
+          type="text"
+          placeholder="닉네임, 이메일, 성별로 검색..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <SortSelect value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+          <option value="nickname">닉네임</option>
+          <option value="gender">성별</option>
+          <option value="email">이메일</option>
+          <option value="created_at">가입일</option>
+        </SortSelect>
+        <SortDirectionButton onClick={() => setSortAsc(prev => !prev)}>
+          {sortAsc ? '↑ 오름차순' : '↓ 내림차순'}
+        </SortDirectionButton>
+      </FilterBar>
+
+      {/* 프로그레스 바 및 버튼 */}
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '200px' }}>
           {loadingCompat && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ fontSize: '0.9rem', color: '#6b7280' }}>
@@ -473,17 +747,17 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
             </div>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', width: window.innerWidth <= 768 ? '100%' : 'auto' }}>
           <Button
             onClick={fetchAllCompatCounts}
             disabled={loadingCompat || loading}
-            style={{ padding: '8px 14px', fontSize: '0.9rem', background: loadingCompat ? '#9ca3af' : '#7C3AED' }}
+            style={{ padding: '8px 14px', fontSize: '0.9rem', background: loadingCompat ? '#9ca3af' : '#7C3AED', margin: 0 }}
           >
             {loadingCompat ? '조회 중...' : '전체 조회'}
           </Button>
           <Button
             onClick={handleVirtualMatchCurrent}
-            style={{ padding: '8px 14px', fontSize: '0.9rem', background: '#0EA5E9' }}
+            style={{ padding: '8px 14px', fontSize: '0.9rem', background: '#0EA5E9', margin: 0 }}
           >
             가상 매칭
           </Button>
@@ -495,7 +769,8 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
             <InlineSpinner text="회원 목록을 불러오는 중입니다..." />
           </div>
         ) : (
-          <Table>
+          <>
+            <Table>
             <thead>
               <tr>
                 <th onClick={() => { setSortKey('nickname'); setSortAsc(k => !k); }}>
@@ -515,7 +790,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
               </tr>
             </thead>
             <tbody>
-              {sortedUsers.map(user => {
+              {sortedAndFilteredUsers.map(user => {
                 const counts = compatCounts[String(user.user_id)] || { iPrefer: 0, preferMe: 0 };
                 return (
                 <tr key={user.id}>
@@ -552,9 +827,51 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                     </Button>
                   </td>
                 </tr>
-              );})}
+              );
+              })}
             </tbody>
           </Table>
+          
+          {/* 모바일 카드 뷰 */}
+          <MobileCardList>
+            {sortedAndFilteredUsers.map(user => {
+              const counts = compatCounts[String(user.user_id)] || { iPrefer: 0, preferMe: 0 };
+              return (
+                <MobileCard key={user.id}>
+                  {/* 첫 줄: 닉네임 + 버튼 2개 */}
+                  <MobileCardTopRow>
+                    <NicknameBtn onClick={() => openProfileModal(user)} style={{ fontSize: '0.9rem', fontWeight: '600' }}>
+                      {user.nickname || '-'}
+                    </NicknameBtn>
+                    <MobileButtonGroup>
+                      <CompactButton onClick={() => openCompatibilityModal(user, 'iPrefer')}>
+                        내가({counts.iPrefer})
+                      </CompactButton>
+                      <CompactButton onClick={() => openCompatibilityModal(user, 'preferMe')}>
+                        나를({counts.preferMe})
+                      </CompactButton>
+                    </MobileButtonGroup>
+                  </MobileCardTopRow>
+                  
+                  {/* 둘째 줄: 성별, 이메일, 가입일 */}
+                  <MobileCardBottomRow>
+                    <span>{user.gender === 'male' ? '남성' : user.gender === 'female' ? '여성' : '-'}</span>
+                    <span>{user.email || '-'}</span>
+                    <span>
+                      {user.created_at
+                        ? new Date(user.created_at).toLocaleDateString('ko-KR', {
+                            year: '2-digit',
+                            month: '2-digit',
+                            day: '2-digit',
+                          })
+                        : '-'}
+                    </span>
+                  </MobileCardBottomRow>
+                </MobileCard>
+              );
+            })}
+          </MobileCardList>
+          </>
         )}
       </TableWrapper>
 
