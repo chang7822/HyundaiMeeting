@@ -361,6 +361,49 @@ router.get('/matches', authenticate, (req, res) => {
   }
 });
 
+// 특정 사용자 조회 (관리자용)
+router.get('/users/:userId', authenticate, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // 계정 정보 조회
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, email, is_verified, is_active, is_admin, is_banned, banned_until, report_count, created_at, updated_at')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      console.error('사용자 조회 오류:', userError);
+      return res.status(404).json({ message: '사용자를 찾을 수 없습니다.' });
+    }
+
+    // 프로필 정보 조회
+    const { data: profile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (profileError) {
+      console.error('프로필 조회 오류:', profileError);
+      return res.status(404).json({ message: '프로필을 찾을 수 없습니다.' });
+    }
+
+    // 계정 정보와 프로필 정보를 합쳐서 반환
+    const userData = {
+      ...profile,
+      ...user,
+      user_id: user.id // user_id 필드 명시적으로 추가
+    };
+
+    res.json(userData);
+  } catch (error) {
+    console.error('사용자 조회 오류:', error);
+    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // 사용자 상태 업데이트
 router.put('/users/:userId/status', authenticate, async (req, res) => {
   try {

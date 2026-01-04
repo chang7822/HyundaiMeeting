@@ -969,6 +969,12 @@ export const adminReportApi = {
     const response = await api.put(`/admin/users/${userId}/report-info`, data);
     return response.data;
   },
+
+  // 사용자 프로필 조회 (관리자용)
+  getUserProfile: async (userId: string): Promise<any> => {
+    const response = await api.get(`/admin/users/${userId}`);
+    return response.data;
+  },
 };
 
 // 관리자 매칭 관리 API
