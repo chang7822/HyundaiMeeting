@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { supabase } = require('../database');
-const { sendMatchingResultEmail, sendAdminBroadcastEmail } = require('../utils/emailService');
+const { sendMatchingResultEmail, sendAdminBroadcastEmail, sendNewCompanyNotificationEmail } = require('../utils/emailService');
 const { computeMatchesForPeriod, computeMatchesForAllUsers } = require('../matching-algorithm');
 const authenticate = require('../middleware/authenticate');
 const notificationRoutes = require('./notifications');
 const { getMessaging } = require('../firebaseAdmin');
+const { sendPushToAllUsers } = require('../pushService');
 
 // 임시 데이터 (다른 라우트와 공유)
 const users = [];
@@ -2992,7 +2993,7 @@ router.post('/companies', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const { name, emailDomains, isActive, jobTypeHold, createNotice } = req.body || {};
+    const { name, emailDomains, isActive, jobTypeHold, createNotice, sendNotification, sendPush, applyPreferCompany, sendEmail, emailRecipient, emailSubject, emailContent } = req.body || {};
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ success: false, message: '회사명을 입력해주세요.' });
@@ -3040,6 +3041,46 @@ router.post('/companies', authenticate, async (req, res) => {
     // 회사 목록 캐시 초기화 (선호 회사 필터링용)
     adminCompanyIdNameMap = null;
 
+    const createdCompanyId = data.id;
+
+    // 옵션: 전체 회원의 선호 회사에 바로 추가
+    if (applyPreferCompany && createdCompanyId) {
+      try {
+        const { data: profiles, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('user_id, prefer_company');
+
+        if (profileError) {
+          console.error('[admin][companies] 선호 회사 자동 추가 - 프로필 조회 오류:', profileError);
+        } else {
+          const updates = [];
+          for (const row of profiles || []) {
+            const existing = Array.isArray(row.prefer_company) ? row.prefer_company.filter((n) => Number.isInteger(n)) : [];
+            if (!existing.includes(createdCompanyId)) {
+              updates.push({
+                user_id: row.user_id,
+                prefer_company: [...existing, createdCompanyId],
+              });
+            }
+          }
+
+          if (updates.length > 0) {
+            const { error: updateError } = await supabase
+              .from('user_profiles')
+              .upsert(updates, { onConflict: 'user_id' });
+
+            if (updateError) {
+              console.error('[admin][companies] 선호 회사 자동 추가 - 업데이트 오류:', updateError);
+            } else {
+              console.log(`[admin][companies] 선호 회사 자동 추가 완료: ${updates.length}명`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[admin][companies] 선호 회사 자동 추가 예외:', e);
+      }
+    }
+
     // 옵션: 회사 추가 안내 공지사항 자동 등록
     let noticeId = null;
     if (createNotice) {
@@ -3061,17 +3102,33 @@ router.post('/companies', authenticate, async (req, res) => {
           '감사합니다 :)',
         ];
 
+        // notice 테이블의 다음 ID 조회 (ID 중복 방지)
+        let nextNoticeId = null;
+        try {
+          const { count, error: countError } = await supabase
+            .from('notice')
+            .select('id', { count: 'exact', head: true });
+          if (countError) {
+            console.error('[admin][companies] 공지사항 개수 조회 오류:', countError);
+          } else if (typeof count === 'number') {
+            nextNoticeId = count + 1;
+          }
+        } catch (e) {
+          console.error('[admin][companies] 공지사항 개수 조회 예외:', e);
+        }
+
+        const noticePayload = {
+          ...(nextNoticeId != null ? { id: nextNoticeId } : {}),
+          title: noticeTitle,
+          content: noticeContentLines.join('\n'),
+          author: '관리자',
+          is_important: false,
+          view_count: 0,
+        };
+
         const { data: noticeData, error: noticeError } = await supabase
           .from('notice')
-          .insert([
-            {
-              title: noticeTitle,
-              content: noticeContentLines.join('\n'),
-              author: '관리자',
-              is_important: false,
-              view_count: 0,
-            },
-          ])
+          .insert([noticePayload])
           .select('id')
           .single();
 
@@ -3079,9 +3136,85 @@ router.post('/companies', authenticate, async (req, res) => {
           console.error('[admin][companies] 회사 추가 공지사항 생성 오류:', noticeError);
         } else if (noticeData && noticeData.id != null) {
           noticeId = noticeData.id;
+          console.log(`[admin][companies] 회사 추가 공지사항 생성 완료: ID=${noticeId}, 제목="${noticeTitle}"`);
+
+          // 옵션: 알림 메시지 및 푸시 알림 발송
+          if (sendNotification || sendPush) {
+            try {
+              const { data: activeUsers, error: usersError } = await supabase
+                .from('users')
+                .select('id, is_active, is_banned')
+                .order('created_at', { ascending: false });
+
+              if (usersError) {
+                console.error('[admin][companies] 공지 알림용 사용자 조회 오류:', usersError);
+              } else if (activeUsers && activeUsers.length > 0) {
+                const targets = activeUsers.filter(
+                  (u) => u.is_active !== false && u.is_banned !== true && u.id,
+                );
+
+                // 알림 메시지 생성
+                if (sendNotification) {
+                  const payload = {
+                    type: 'notice',
+                    title: '[공지] 새 공지사항이 등록되었습니다',
+                    body: `새 공지사항 "${noticeTitle}" 이(가) 등록되었습니다.\n메인 페이지 또는 공지사항 메뉴에서 자세한 내용을 확인해 주세요.`,
+                    linkUrl: `/notice/${noticeId}`,
+                    meta: { notice_id: noticeId },
+                  };
+                  
+                  await Promise.all(
+                    targets.map((u) =>
+                      notificationRoutes
+                        .createNotification(String(u.id), payload)
+                        .catch((e) => console.error('[admin][companies] 공지 알림 생성 오류:', e)),
+                    ),
+                  );
+                  console.log(`[admin][companies] 공지 알림 메시지 발송 완료: ${targets.length}명`);
+                }
+
+                // 푸시 알림 발송
+                if (sendPush) {
+                  try {
+                    await sendPushToAllUsers({
+                      type: 'notice',
+                      title: '[직쏠공]',
+                      body: '새 공지사항이 등록되었습니다.',
+                    });
+                    console.log('[admin][companies] 공지 푸시 알림 발송 완료');
+                  } catch (pushErr) {
+                    console.error('[admin][companies] 공지 푸시 알림 발송 오류:', pushErr);
+                  }
+                }
+              }
+            } catch (e) {
+              console.error('[admin][companies] 공지 알림/푸시 처리 중 예외:', e);
+            }
+          }
         }
       } catch (e) {
         console.error('[admin][companies] 회사 추가 공지사항 생성 예외:', e);
+      }
+    }
+
+    // 옵션: 신규 회사 추가 알림 메일 발송
+    if (sendEmail && emailRecipient && emailSubject && emailContent) {
+      try {
+        const emailResult = await sendNewCompanyNotificationEmail(
+          emailRecipient,
+          trimmedName,
+          domains,
+          emailSubject,
+          emailContent
+        );
+        
+        if (emailResult.success) {
+          console.log(`[admin][companies] 신규 회사 추가 알림 메일 발송 완료: ${emailRecipient}`);
+        } else {
+          console.error(`[admin][companies] 신규 회사 추가 알림 메일 발송 실패: ${emailRecipient}`, emailResult.error);
+        }
+      } catch (e) {
+        console.error('[admin][companies] 신규 회사 추가 알림 메일 발송 예외:', e);
       }
     }
 

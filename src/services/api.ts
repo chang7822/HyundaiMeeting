@@ -733,6 +733,13 @@ export const adminCompanyApi = {
     emailDomains: string[];
     isActive: boolean;
     createNotice?: boolean;
+    sendNotification?: boolean;
+    sendPush?: boolean;
+    applyPreferCompany?: boolean;
+    sendEmail?: boolean;
+    emailRecipient?: string;
+    emailSubject?: string;
+    emailContent?: string;
   }): Promise<any> => {
     const res = await api.post('/admin/companies', payload);
     return res.data;

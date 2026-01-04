@@ -235,6 +235,47 @@ const DangerButton = styled.button`
   }
 `;
 
+const Textarea = styled.textarea`
+  width: 100%;
+  min-height: 180px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.9rem;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.5;
+  &:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25);
+  }
+`;
+
+const PreviewCard = styled.div`
+  margin-top: 12px;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid #e5e7eb;
+`;
+
+const PreviewLabel = styled.div`
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 6px;
+  font-weight: 600;
+`;
+
+const PreviewFrame = styled.div`
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  max-height: 420px;
+  overflow: auto;
+  background: white;
+`;
+
 interface Company {
   id: number;
   name: string;
@@ -260,6 +301,14 @@ const CompanyManagerPage: React.FC<CompanyManagerPageProps> = ({ sidebarOpen = t
   const [saving, setSaving] = useState(false);
   const [applying, setApplying] = useState(false);
   const [createNotice, setCreateNotice] = useState(false);
+  const [sendNotification, setSendNotification] = useState(false);
+  const [sendPush, setSendPush] = useState(false);
+  const [applyPreferCompany, setApplyPreferCompany] = useState(false);
+  const [sendEmail, setSendEmail] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState('');
+  const [emailSubject, setEmailSubject] = useState('신규 회사 추가 접수 안내');
+  const [emailContent, setEmailContent] = useState('');
+  const [showEmailPreview, setShowEmailPreview] = useState(false);
 
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === selectedId) || null,
@@ -267,6 +316,54 @@ const CompanyManagerPage: React.FC<CompanyManagerPageProps> = ({ sidebarOpen = t
   );
 
   const canBulkApply = selectedForBulk.length > 0 && !applying;
+
+  const renderEmailPreviewHtml = () => {
+    const safeContent = (emailContent || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/(?:\r\n|\r|\n)/g, '<br/>');
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px; background-color: #f3f4f6;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px 28px; border-radius: 18px 18px 0 0; text-align: left;">
+          <h1 style="margin: 0; font-size: 22px;">[직장인 솔로 공모] 공지 메일</h1>
+          <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">
+            직장인 솔로 공모 서비스를 이용해주시는 회원님께 안내드립니다.
+          </p>
+        </div>
+
+        <div style="background: #ffffff; padding: 22px 24px 24px 24px; border-radius: 0 0 18px 18px; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);">
+          <div style="color: #111827; font-size: 14px; line-height: 1.7; word-break: break-word;">
+            ${safeContent}
+          </div>
+
+          <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
+            <p style="margin: 0 0 6px 0;">
+              이 메일은 직장인 솔로 공모 서비스 안내를 위해 발송되었습니다.
+            </p>
+            <div style="text-align: center; margin-top: 10px;">
+              <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
+                 style="display: inline-block; padding: 10px 22px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 13px;">
+                직쏠공 (직장인 솔로 공모)<br/>바로가기
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return { __html: html };
+  };
+
+  const finalEmailSubject =
+    emailSubject && emailSubject.startsWith('[직장인 솔로 공모]')
+      ? emailSubject
+      : emailSubject
+      ? `[직장인 솔로 공모] ${emailSubject}`
+      : '[직장인 솔로 공모] (제목 미입력)';
 
   const loadCompanies = async () => {
     setLoading(true);
@@ -299,13 +396,54 @@ const CompanyManagerPage: React.FC<CompanyManagerPageProps> = ({ sidebarOpen = t
       setEditDomains((selectedCompany.emailDomains || []).join(', '));
       setEditActive(selectedCompany.isActive);
       setCreateNotice(false);
+      setSendNotification(false);
+      setSendPush(false);
+      setApplyPreferCompany(false);
+      setSendEmail(false);
+      setEmailRecipient('');
+      setEmailSubject('신규 회사 추가 접수 안내');
+      setEmailContent('');
+      setShowEmailPreview(false);
     } else {
       setEditName('');
       setEditDomains('');
       setEditActive(true);
       setCreateNotice(false);
+      setSendNotification(false);
+      setSendPush(false);
+      setApplyPreferCompany(false);
+      setSendEmail(false);
+      setEmailRecipient('');
+      setEmailSubject('신규 회사 추가 접수 안내');
+      setEmailContent('');
+      setShowEmailPreview(false);
     }
   }, [selectedCompany]);
+
+  // 회사명이 변경되면 메일 내용 자동 업데이트
+  useEffect(() => {
+    if (!selectedCompany && editName.trim()) {
+      const domains = editDomains
+        .split(',')
+        .map((d) => d.trim().toLowerCase())
+        .filter((d) => d.length > 0);
+      const domainText = domains.length > 0 ? `@${domains[0]}` : '@도메인.com';
+      
+      const defaultContent = [
+        '안녕하십니까 직쏠공입니다.',
+        '',
+        `가입가능 회사 추가 관련 신청하신 [${editName.trim()}] 가 추가 등록 되어 안내드립니다.`,
+        '',
+        `요청하신 도메인주소 ( ${domainText} )으로 이메일 인증 및 가입이 가능합니다.`,
+        '',
+        '많은 이용 부탁드립니다.',
+        '',
+        '감사합니다.',
+      ].join('\n');
+      
+      setEmailContent(defaultContent);
+    }
+  }, [editName, editDomains, selectedCompany]);
 
   const handleSelectForBulk = (companyId: number) => {
     setSelectedForBulk((prev) =>
@@ -319,6 +457,14 @@ const CompanyManagerPage: React.FC<CompanyManagerPageProps> = ({ sidebarOpen = t
     setEditDomains('');
     setEditActive(true);
     setCreateNotice(false);
+    setSendNotification(false);
+    setSendPush(false);
+    setApplyPreferCompany(false);
+    setSendEmail(false);
+    setEmailRecipient('');
+    setEmailSubject('신규 회사 추가 접수 안내');
+    setEmailContent('');
+    setShowEmailPreview(false);
   };
 
   const handleSave = async () => {
@@ -348,14 +494,33 @@ const CompanyManagerPage: React.FC<CompanyManagerPageProps> = ({ sidebarOpen = t
         }
       } else {
         // 생성
+        if (sendEmail && !emailRecipient.trim()) {
+          toast.warn('메일 수신자 주소를 입력해주세요.');
+          return;
+        }
+        
         const res = await adminCompanyApi.createCompany({
           name: editName.trim(),
           emailDomains: domains,
           isActive: editActive,
           createNotice,
-        });
+          sendNotification: createNotice ? sendNotification : false,
+          sendPush: createNotice ? sendPush : false,
+          applyPreferCompany,
+          sendEmail,
+          emailRecipient: sendEmail ? emailRecipient.trim() : undefined,
+          emailSubject: sendEmail ? emailSubject.trim() : undefined,
+          emailContent: sendEmail ? emailContent : undefined,
+        } as any);
         if (res?.success) {
-          toast.success('새 회사가 추가되었습니다.');
+          let successMsg = '새 회사가 추가되었습니다.';
+          if (applyPreferCompany) {
+            successMsg = '새 회사가 추가되고 전체 회원의 선호 회사에 등록되었습니다.';
+          }
+          if (sendEmail) {
+            successMsg += ' 알림 메일도 발송되었습니다.';
+          }
+          toast.success(successMsg);
           await loadCompanies();
         } else {
           toast.error(res?.message || '회사 추가에 실패했습니다.');
@@ -502,18 +667,116 @@ const CompanyManagerPage: React.FC<CompanyManagerPageProps> = ({ sidebarOpen = t
             </SwitchRow>
           </FormRow>
           {!selectedCompany && (
-            <FormRow>
-              <Label>공지사항 자동 등록</Label>
-              <SwitchRow>
-                <Checkbox
-                  checked={createNotice}
-                  onChange={(e) => setCreateNotice(e.target.checked)}
+            <>
+              <FormRow>
+                <Label>공지사항 자동 등록</Label>
+                <SwitchRow>
+                  <Checkbox
+                    checked={createNotice}
+                    onChange={(e) => setCreateNotice(e.target.checked)}
+                  />
+                  <span>
+                    새 회사를 추가할 때 회사 추가 안내 공지사항을 자동으로 등록합니다.
+                  </span>
+                </SwitchRow>
+                {createNotice && (
+                  <div style={{ marginLeft: '28px', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <SwitchRow>
+                      <Checkbox
+                        checked={sendNotification}
+                        onChange={(e) => setSendNotification(e.target.checked)}
+                      />
+                      <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                        알림 메시지 송부 (앱 내 알림)
+                      </span>
+                    </SwitchRow>
+                    <SwitchRow>
+                      <Checkbox
+                        checked={sendPush}
+                        onChange={(e) => setSendPush(e.target.checked)}
+                      />
+                      <span style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                        푸시 알림 송부 (기기 푸시 알림)
+                      </span>
+                    </SwitchRow>
+                  </div>
+                )}
+              </FormRow>
+              <FormRow>
+                <Label>전체 회원 선호 회사에 추가</Label>
+                <SwitchRow>
+                  <Checkbox
+                    checked={applyPreferCompany}
+                    onChange={(e) => setApplyPreferCompany(e.target.checked)}
+                  />
+                  <span>
+                    새 회사를 추가할 때 모든 회원의 선호 회사(prefer_company)에 자동으로 추가합니다.
+                  </span>
+                </SwitchRow>
+              </FormRow>
+              <FormRow>
+                <Label>신규회사 추가 알림 메일 송부</Label>
+                <SwitchRow>
+                  <Checkbox
+                    checked={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.checked)}
+                  />
+                  <span>
+                    회사 추가를 요청한 분에게 가입 가능 안내 메일을 발송합니다.
+                  </span>
+                </SwitchRow>
+              </FormRow>
+            </>
+          )}
+          {!selectedCompany && sendEmail && (
+            <>
+              <FormRow>
+                <Label>수신자 이메일 주소</Label>
+                <Input
+                  type="email"
+                  value={emailRecipient}
+                  onChange={(e) => setEmailRecipient(e.target.value)}
+                  placeholder="예: user@example.com"
                 />
-                <span>
-                  새 회사를 추가할 때 회사 추가 안내 공지사항을 자동으로 등록합니다.
-                </span>
-              </SwitchRow>
-            </FormRow>
+              </FormRow>
+              <FormRow>
+                <Label>메일 제목</Label>
+                <Input
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  placeholder="[직장인 솔로 공모] 를 제외한 제목을 입력해 주세요"
+                />
+                <DomainsHint>
+                  실제 발송 시 제목 앞에 자동으로 <strong>[직장인 솔로 공모]</strong>가 붙습니다.
+                </DomainsHint>
+              </FormRow>
+              <FormRow>
+                <Label>메일 내용</Label>
+                <Textarea
+                  value={emailContent}
+                  onChange={(e) => setEmailContent(e.target.value)}
+                  placeholder="회사명이 입력되면 자동으로 작성됩니다."
+                />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <PrimaryButton
+                    type="button"
+                    onClick={() => setShowEmailPreview(!showEmailPreview)}
+                    style={{ fontSize: '0.85rem', padding: '6px 14px' }}
+                  >
+                    {showEmailPreview ? '미리보기 닫기' : '미리보기'}
+                  </PrimaryButton>
+                </div>
+              </FormRow>
+              {showEmailPreview && (
+                <PreviewCard>
+                  <PreviewLabel>미리보기 (실제 이메일 레이아웃)</PreviewLabel>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: 8, color: '#111827' }}>
+                    {finalEmailSubject}
+                  </div>
+                  <PreviewFrame dangerouslySetInnerHTML={renderEmailPreviewHtml()} />
+                </PreviewCard>
+              )}
+            </>
           )}
           <FormActions>
             {selectedCompany && (

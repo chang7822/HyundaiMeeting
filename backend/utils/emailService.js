@@ -242,9 +242,72 @@ async function sendAdminBroadcastEmail(toEmail, subject, content) {
   }
 }
 
+/**
+ * 신규 회사 추가 알림 메일 발송
+ */
+async function sendNewCompanyNotificationEmail(recipientEmail, companyName, domains, subject, content) {
+  const safeContent = (content || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/(?:\r\n|\r|\n)/g, '<br/>');
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px; background-color: #f3f4f6;">
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px 28px; border-radius: 18px 18px 0 0; text-align: left;">
+        <h1 style="margin: 0; font-size: 22px;">[직장인 솔로 공모] 공지 메일</h1>
+        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">
+          직장인 솔로 공모 서비스를 이용해주시는 회원님께 안내드립니다.
+        </p>
+      </div>
+
+      <div style="background: #ffffff; padding: 22px 24px 24px 24px; border-radius: 0 0 18px 18px; box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);">
+        <div style="color: #111827; font-size: 14px; line-height: 1.7; word-break: break-word;">
+          ${safeContent}
+        </div>
+
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #6b7280;">
+          <p style="margin: 0 0 6px 0;">
+            이 메일은 직장인 솔로 공모 서비스 안내를 위해 발송되었습니다.
+          </p>
+          <div style="text-align: center; margin-top: 10px;">
+            <a href="https://automatchingway.com" target="_blank" rel="noopener noreferrer"
+               style="display: inline-block; padding: 10px 22px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #ffffff; text-decoration: none; border-radius: 999px; font-weight: 600; line-height: 1.5; font-size: 13px;">
+              직쏠공 (직장인 솔로 공모)<br/>바로가기
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const finalSubject = subject && subject.startsWith('[직장인 솔로 공모]')
+    ? subject
+    : `[직장인 솔로 공모] ${subject || '신규 회사 추가 안내'}`;
+
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: recipientEmail,
+    subject: finalSubject,
+    html: htmlContent
+  };
+
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`[emailService] 신규 회사 추가 알림 메일 발송 완료: ${recipientEmail}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error(`[emailService] 신규 회사 추가 알림 메일 발송 실패 (${recipientEmail}):`, error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   sendMatchingResultEmail,
   sendAdminBroadcastEmail,
   buildAdminBroadcastEmailHtml,
   sendAdminNotificationEmail,
+  sendNewCompanyNotificationEmail,
 };
