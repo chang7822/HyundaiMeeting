@@ -26,6 +26,7 @@ const notificationRoutes = require('./routes/notifications');
 const pushRoutes = require('./routes/push');
 const { supabase } = require('./database');
 const { encrypt, decrypt } = require('./utils/encryption');
+const { sendPushToUsers } = require('./pushService');
 
 // 환경 변수 로드 (절대 경로 사용)
 dotenv.config({ path: path.join(__dirname, 'config.env') });
@@ -329,6 +330,58 @@ io.on('connection', (socket) => {
           plainContent = '[복호화 실패]';
         }
         io.to(roomId).emit('chat message', { ...dbData, content: plainContent });
+
+        // 3초 후에도 읽지 않았다면 수신자에게 푸시 알림 전송
+        try {
+          const insertedId = dbData.id;
+          const receiverId = dbData.receiver_id;
+          const senderNickname = data.sender_nickname || '상대방';
+
+          setTimeout(async () => {
+            console.log(`[SOCKET-CHAT] setTimeout 실행됨 - 메시지ID=${insertedId}, 수신자=${receiverId}`);
+            try {
+              const { data: msgRow, error: msgError } = await supabase
+                .from('chat_messages')
+                .select('id, is_read, receiver_id, sender_id, period_id')
+                .eq('id', insertedId)
+                .maybeSingle();
+
+              if (msgError) {
+                console.error('[SOCKET-CHAT] 안읽은 메시지 푸시 체크 중 조회 오류:', msgError);
+                return;
+              }
+
+              if (!msgRow) {
+                console.log(`[SOCKET-CHAT] 푸시 스킵 - 메시지ID=${insertedId}: 메시지 없음`);
+                return;
+              }
+
+              if (msgRow.is_read) {
+                console.log(`[SOCKET-CHAT] 푸시 스킵 - 메시지ID=${insertedId}: 이미 읽음`);
+                return;
+              }
+
+              console.log(`[SOCKET-CHAT] 푸시 발송 시작 - 메시지ID=${insertedId}, 수신자=${receiverId}`);
+              const pushResult = await sendPushToUsers([receiverId], {
+                type: 'chat_unread',
+                periodId: String(msgRow.period_id),
+                senderId: String(msgRow.sender_id),
+                title: '[직쏠공]',
+                body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
+              });
+              
+              if (pushResult.success) {
+                console.log(`[SOCKET-CHAT] 푸시 발송 완료 - 메시지ID=${insertedId}`);
+              } else {
+                console.log(`[SOCKET-CHAT] 푸시 발송 실패 - 메시지ID=${insertedId}, 사유=${pushResult.reason}`);
+              }
+            } catch (pushErr) {
+              console.error('[SOCKET-CHAT] 안읽은 메시지 푸시 전송 중 오류:', pushErr);
+            }
+          }, 3000);
+        } catch (scheduleErr) {
+          console.error('[SOCKET-CHAT] 안읽은 메시지 푸시 스케줄링 중 오류:', scheduleErr);
+        }
       }
     } catch (e) {
       console.error('[SOCKET][server] [채팅 DB 저장 예외]', e);
