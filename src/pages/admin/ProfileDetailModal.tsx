@@ -47,21 +47,43 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
       style={{
         content: {
           maxWidth: 440,
-          minWidth: 260,
+          minWidth: 280,
           width: 'fit-content',
           maxHeight: '80vh',
           margin: 'auto',
           borderRadius: 16,
-          padding: 20,
-          overflowY: 'auto',
-          overflowX: 'visible',
+          padding: 0,
+          overflow: 'hidden',
           boxShadow: '0 4px 24px rgba(80,60,180,0.13)',
+          display: 'flex',
+          flexDirection: 'column',
         }
       }}
       contentLabel="프로필 상세"
     >
-      <div style={{maxWidth:380, minWidth:220, width:'fit-content', margin:'0 auto', padding:0}}>
-        <h3 style={{marginBottom:14, fontSize:'1.25rem', color:'#4F46E5', fontWeight:700}}>{user.nickname} 님 프로필</h3>
+      {/* 고정 헤더 */}
+      <div style={{
+        padding: '20px 24px 16px',
+        borderBottom: '1px solid #e5e7eb',
+        flexShrink: 0
+      }}>
+        <h3 style={{
+          margin: 0,
+          fontSize: '1.25rem',
+          color: '#4F46E5',
+          fontWeight: 700
+        }}>
+          {user.nickname} 님 프로필
+        </h3>
+      </div>
+
+      {/* 스크롤 가능한 내용 영역 */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: '20px 24px',
+        minHeight: 0
+      }}>
         <div style={{marginBottom:8}}><b>이메일:</b> {user.email}</div>
         <div style={{marginBottom:8}}><b>성별:</b> {user.gender}</div>
         <div style={{marginBottom:8}}><b>생년:</b> {user.birth_year}</div>
@@ -73,7 +95,8 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
         <div style={{marginBottom:8}}><b>MBTI:</b> {user.mbti}</div>
         <div style={{marginBottom:8}}><b>자기소개:</b> {user.appeal}</div>
         <div style={{marginBottom:8}}><b>체형:</b> {user.body_type}</div>
-        <hr style={{margin:'10px 0'}}/>
+        <hr style={{margin:'16px 0', border:'none', borderTop:'1px solid #e5e7eb'}}/>
+        <div style={{marginBottom:8, fontSize:'0.95rem', color:'#6b7280', fontWeight:600}}>선호 조건</div>
         <div style={{marginBottom:8}}><b>선호 나이:</b> {user.preferred_age_min} ~ {user.preferred_age_max}</div>
         <div style={{marginBottom:8}}><b>선호 키:</b> {user.preferred_height_min} ~ {user.preferred_height_max}</div>
         <div style={{marginBottom:8}}><b>선호 체형:</b> {parseArray(user.preferred_body_types).join(', ')}</div>
@@ -81,7 +104,32 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
         <div style={{marginBottom:8}}><b>선호 직군:</b> {parseArray(user.preferred_job_types).join(', ')}</div>
         <div style={{marginBottom:8}}><b>선호 지역:</b> {preferRegions}</div>
         <div style={{marginBottom:8}}><b>선호 결혼상태:</b> {parseArray(user.preferred_marital_statuses).join(', ')}</div>
-        <button onClick={onRequestClose} style={{marginTop:12, width:'100%',background:'#7C3AED',color:'#fff',border:'none',borderRadius:8,padding:'10px 0',fontWeight:600}}>닫기</button>
+      </div>
+
+      {/* 고정 푸터 */}
+      <div style={{
+        padding: '16px 24px 20px',
+        borderTop: '1px solid #e5e7eb',
+        flexShrink: 0
+      }}>
+        <button 
+          onClick={onRequestClose} 
+          style={{
+            width: '100%',
+            background: '#7C3AED',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 8,
+            padding: '10px 0',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'background 0.2s'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#5b21b6'}
+          onMouseLeave={(e) => e.currentTarget.style.background = '#7C3AED'}
+        >
+          닫기
+        </button>
       </div>
     </Modal>
   );

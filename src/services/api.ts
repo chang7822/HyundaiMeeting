@@ -566,6 +566,12 @@ export const adminApi = {
     return response.data;
   },
 
+  // 회차 초기화 복구
+  restorePeriodUsers: async (periodId: number): Promise<any> => {
+    const response = await api.post('/admin/restore-period-users', { periodId });
+    return response.data;
+  },
+
   // 전체 회원 공지 메일 발송
   sendBroadcastEmail: async (payload: { subject: string; content: string; targets?: string[] }): Promise<any> => {
     const response = await api.post('/admin/broadcast-email', payload);

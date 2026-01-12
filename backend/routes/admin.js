@@ -3423,4 +3423,114 @@ router.post('/companies/apply-prefer-company', authenticate, async (req, res) =>
   }
 });
 
+// [관리자] 회차 초기화 복구
+router.post('/restore-period-users', authenticate, async (req, res) => {
+  try {
+    const { periodId } = req.body;
+    
+    if (!periodId || typeof periodId !== 'number') {
+      return res.status(400).json({ success: false, message: '유효한 회차 ID를 입력해주세요.' });
+    }
+
+    console.log(`[admin] 회차 ${periodId} users 테이블 복구 시작`);
+
+    // 1) is_applied 갱신: 해당 회차에서 신청 완료(취소 아님)한 사용자만 true
+    const { error: appliedError } = await supabase.rpc('restore_is_applied', { target_period_id: periodId });
+    
+    if (appliedError) {
+      console.error('[admin] is_applied 복구 오류:', appliedError);
+      // RPC 함수가 없으면 직접 SQL 실행
+      try {
+        // is_applied = true로 설정할 user_id 목록 조회
+        const { data: appliedUsers, error: selectError } = await supabase
+          .from('matching_applications')
+          .select('user_id')
+          .eq('period_id', periodId)
+          .eq('applied', true)
+          .eq('cancelled', false);
+
+        if (selectError) throw selectError;
+
+        const appliedUserIds = appliedUsers ? appliedUsers.map(u => u.user_id) : [];
+
+        // 모든 사용자의 is_applied를 false로 초기화
+        await supabase
+          .from('users')
+          .update({ is_applied: false })
+          .not('id', 'is', null);
+
+        // 신청한 사용자만 is_applied를 true로 설정
+        if (appliedUserIds.length > 0) {
+          await supabase
+            .from('users')
+            .update({ is_applied: true })
+            .in('id', appliedUserIds);
+        }
+
+        console.log(`[admin] is_applied 복구 완료: ${appliedUserIds.length}명`);
+      } catch (e) {
+        console.error('[admin] is_applied 복구 중 오류:', e);
+        return res.status(500).json({ success: false, message: 'is_applied 복구 중 오류가 발생했습니다.' });
+      }
+    } else {
+      console.log('[admin] is_applied 복구 완료 (RPC)');
+    }
+
+    // 2) is_matched 갱신: 해당 회차 매칭 성공 커플에 포함된 사용자만 true
+    const { error: matchedError } = await supabase.rpc('restore_is_matched', { target_period_id: periodId });
+    
+    if (matchedError) {
+      console.error('[admin] is_matched 복구 오류:', matchedError);
+      // RPC 함수가 없으면 직접 SQL 실행
+      try {
+        // is_matched = true로 설정할 user_id 목록 조회
+        const { data: matchedHistory, error: selectError } = await supabase
+          .from('matching_history')
+          .select('male_user_id, female_user_id')
+          .eq('period_id', periodId)
+          .eq('matched', true);
+
+        if (selectError) throw selectError;
+
+        const matchedUserIds = new Set();
+        if (matchedHistory) {
+          matchedHistory.forEach(h => {
+            if (h.male_user_id) matchedUserIds.add(h.male_user_id);
+            if (h.female_user_id) matchedUserIds.add(h.female_user_id);
+          });
+        }
+
+        // 모든 사용자의 is_matched를 null로 초기화
+        await supabase
+          .from('users')
+          .update({ is_matched: null })
+          .not('id', 'is', null);
+
+        // 매칭된 사용자만 is_matched를 true로 설정
+        if (matchedUserIds.size > 0) {
+          await supabase
+            .from('users')
+            .update({ is_matched: true })
+            .in('id', Array.from(matchedUserIds));
+        }
+
+        console.log(`[admin] is_matched 복구 완료: ${matchedUserIds.size}명`);
+      } catch (e) {
+        console.error('[admin] is_matched 복구 중 오류:', e);
+        return res.status(500).json({ success: false, message: 'is_matched 복구 중 오류가 발생했습니다.' });
+      }
+    } else {
+      console.log('[admin] is_matched 복구 완료 (RPC)');
+    }
+
+    res.json({ 
+      success: true, 
+      message: `회차 ${periodId}의 users 테이블이 복구되었습니다.` 
+    });
+  } catch (error) {
+    console.error('[admin] 회차 복구 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 module.exports = router;

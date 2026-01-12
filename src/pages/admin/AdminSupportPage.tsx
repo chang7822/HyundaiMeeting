@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { FaSyncAlt } from 'react-icons/fa';
 import { getAdminSupportInquiries } from '../../services/api.ts';
 
 // ===================================
@@ -40,11 +41,60 @@ const Header = styled.div`
   }
 `;
 
+const TitleRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  
+  @media (max-width: 768px) {
+    flex-direction: row;
+    align-items: center;
+  }
+`;
+
 const Title = styled.h1`
   font-size: 28px;
   font-weight: 700;
   color: #1a1a1a;
   margin: 0;
+`;
+
+const RefreshButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #7C3AED;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #5b21b6;
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  svg {
+    transition: transform 0.3s;
+  }
+  
+  &:hover svg {
+    transform: rotate(180deg);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
 `;
 
 const FilterBar = styled.div`
@@ -404,7 +454,13 @@ const AdminSupportPage: React.FC<AdminSupportPageProps> = ({ sidebarOpen = true 
         ) : (
           <>
             <Header>
-              <Title>🎧 고객센터 관리</Title>
+              <TitleRow>
+                <Title>🎧 고객센터 관리</Title>
+                <RefreshButton onClick={() => window.location.reload()}>
+                  <FaSyncAlt />
+                  새로고침
+                </RefreshButton>
+              </TitleRow>
             </Header>
 
             <StatsBar>

@@ -55,10 +55,9 @@ router.post('/inquiries', authenticate, async (req, res) => {
 
     // 관리자 알림 메일 발송 (비동기)
     try {
-      // 문의자 정보 조회 (이메일, 닉네임, 성별)
+      // 문의자 정보 조회 (전체 프로필 - 관리자 메일용)
       let userEmail = '';
-      let nickname = '';
-      let gender = '';
+      let profile = null;
 
       try {
         const { data: userRow, error: userError } = await supabase
@@ -72,32 +71,83 @@ router.post('/inquiries', authenticate, async (req, res) => {
 
         const { data: profileRow, error: profileError } = await supabase
           .from('user_profiles')
-          .select('nickname, gender')
+          .select('*')
           .eq('user_id', user_id)
           .single();
         if (!profileError && profileRow) {
-          nickname = profileRow.nickname || '';
-          gender = profileRow.gender || '';
+          profile = profileRow;
         }
       } catch (infoErr) {
         console.error('[문의 등록] 문의자 정보 조회 오류:', infoErr);
       }
 
       const adminSubject = '신규 고객센터 문의 접수';
+      
+      // JSON 배열 파싱 헬퍼 함수
+      const parseJsonArray = (value) => {
+        if (!value) return null;
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(parsed) ? parsed.join(', ') : parsed;
+        } catch {
+          return value;
+        }
+      };
+
+      // 선호 회사명 조회
+      let preferCompanyNames = [];
+      if (profile && Array.isArray(profile.prefer_company) && profile.prefer_company.length > 0) {
+        try {
+          const { data: companies } = await supabase
+            .from('companies')
+            .select('id, name')
+            .in('id', profile.prefer_company);
+          if (companies && companies.length > 0) {
+            preferCompanyNames = companies.map(c => c.name).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('[문의 등록] 선호 회사명 조회 오류:', e);
+        }
+      }
+
       const adminBodyLines = [
         '새로운 고객센터 문의가 등록되었습니다.',
         '',
         `문의 ID: ${data.id}`,
-        `작성자 ID: ${user_id}`,
-        `이메일: ${userEmail || '알 수 없음'}`,
-        `닉네임: ${nickname || '알 수 없음'}`,
-        `성별: ${gender || '알 수 없음'}`,
         `카테고리: ${category}`,
         `제목: ${title.trim()}`,
         '',
-        '문의 내용:',
+        '=== 문의자 기본 정보 ===',
+        `이메일: ${userEmail || '알 수 없음'}`,
+        `닉네임: ${profile?.nickname || '-'}`,
+        `성별: ${profile?.gender || '-'}`,
+        `출생연도: ${profile?.birth_year || '-'}`,
+        `키: ${profile?.height ? `${profile.height}cm` : '-'}`,
+        `거주지: ${profile?.residence || '-'}`,
+        '',
+        '=== 문의자 회사 정보 ===',
+        `회사: ${profile?.company || '-'}`,
+        profile?.custom_company_name 
+          ? `사용자 입력 회사명: ${profile.custom_company_name}`
+          : '',
+        `직군: ${profile?.job_type || '-'}`,
+        '',
+        '=== 문의자 프로필 정보 ===',
+        `자기소개: ${profile?.appeal || '-'}`,
+        `결혼상태: ${profile?.marital_status || '-'}`,
+        `종교: ${profile?.religion || '-'}`,
+        `흡연: ${profile?.smoking || '-'}`,
+        `음주: ${profile?.drinking || '-'}`,
+        `MBTI: ${profile?.mbti || '-'}`,
+        `체형: ${parseJsonArray(profile?.body_type) || '-'}`,
+        `관심사: ${parseJsonArray(profile?.interests) || '-'}`,
+        `외모: ${parseJsonArray(profile?.appearance) || '-'}`,
+        `성격: ${parseJsonArray(profile?.personality) || '-'}`,
+        '',
+        '=== 문의 내용 ===',
         content.trim(),
-      ];
+      ].filter(line => line !== ''); // 빈 줄 제거
+      
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[문의 등록] 관리자 알림 메일 발송 실패:', err);
       });
@@ -105,7 +155,7 @@ router.post('/inquiries', authenticate, async (req, res) => {
       // 관리자 푸시 알림 발송
       sendPushToAdmin(
         '[직쏠공 관리자] 고객센터 문의',
-        `${nickname || '회원'}님의 문의: ${title.trim()}`
+        `${profile?.nickname || '회원'}님의 문의: ${title.trim()}`
       ).catch(err => {
         console.error('[문의 등록] 관리자 푸시 알림 발송 실패:', err);
       });

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
+import { FaSyncAlt } from 'react-icons/fa';
 import { adminReportApi } from '../../services/api.ts';
 import InlineSpinner from '../../components/InlineSpinner.tsx';
 
@@ -26,15 +27,62 @@ const Container = styled.div<{ $sidebarOpen: boolean }>`
   }
 `;
 
+const TitleRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  
+  @media (max-width: 768px) {
+    margin-bottom: 1.5rem;
+  }
+`;
+
 const Title = styled.h1`
   color: #333;
-  margin-bottom: 2rem;
+  margin: 0;
   font-size: 2rem;
   font-weight: 700;
   
   @media (max-width: 768px) {
     font-size: 1.5rem;
-    margin-bottom: 1.5rem;
+  }
+`;
+
+const RefreshButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #7C3AED;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #5b21b6;
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  svg {
+    transition: transform 0.3s;
+  }
+  
+  &:hover svg {
+    transform: rotate(180deg);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    font-size: 0.85rem;
   }
 `;
 
@@ -621,7 +669,13 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
 
   return (
     <Container $sidebarOpen={sidebarOpen}>
-      <Title>신고 관리</Title>
+      <TitleRow>
+        <Title>신고 관리</Title>
+        <RefreshButton onClick={() => window.location.reload()}>
+          <FaSyncAlt />
+          새로고침
+        </RefreshButton>
+      </TitleRow>
       
       <FilterSection>
         <Label>상태 필터:</Label>

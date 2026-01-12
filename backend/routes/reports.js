@@ -108,19 +108,17 @@ router.post('/', authenticate, async (req, res) => {
       });
     }
 
-    // 신고자 프로필 정보 조회 (닉네임, 성별)
-    let reporterNickname = '';
-    let reporterGender = '';
+    // 신고자 프로필 정보 조회 (전체 프로필 - 관리자 메일용)
+    let reporterProfile = null;
     try {
-      const { data: reporterProfile, error: reporterProfileError } = await supabase
+      const { data: profileData, error: reporterProfileError } = await supabase
         .from('user_profiles')
-        .select('nickname, gender')
+        .select('*')
         .eq('user_id', reporter_id)
         .single();
 
-      if (!reporterProfileError && reporterProfile) {
-        reporterNickname = reporterProfile.nickname || '';
-        reporterGender = reporterProfile.gender || '';
+      if (!reporterProfileError && profileData) {
+        reporterProfile = profileData;
       }
     } catch (e) {
       console.error('신고자 프로필 정보 조회 오류:', e);
@@ -199,20 +197,73 @@ router.post('/', authenticate, async (req, res) => {
     // 관리자 알림 메일 발송 (비동기, 실패해도 신고 등록은 유지)
     try {
       const adminSubject = '신규 신고 접수';
+      
+      // JSON 배열 파싱 헬퍼 함수
+      const parseJsonArray = (value) => {
+        if (!value) return null;
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(parsed) ? parsed.join(', ') : parsed;
+        } catch {
+          return value;
+        }
+      };
+
+      // 선호 회사명 조회
+      let preferCompanyNames = [];
+      if (reporterProfile && Array.isArray(reporterProfile.prefer_company) && reporterProfile.prefer_company.length > 0) {
+        try {
+          const { data: companies } = await supabase
+            .from('companies')
+            .select('id, name')
+            .in('id', reporterProfile.prefer_company);
+          if (companies && companies.length > 0) {
+            preferCompanyNames = companies.map(c => c.name).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('[신고 등록] 선호 회사명 조회 오류:', e);
+        }
+      }
+
       const adminBodyLines = [
         '새로운 신고가 접수되었습니다.',
         '',
         `신고 ID: ${data.id}`,
         `회차 ID: ${data.period_id}`,
         `신고 유형: ${data.report_type}`,
-        `신고자 이메일: ${reporterUser.email}`,
-        `신고자 닉네임: ${reporterNickname || '알 수 없음'}`,
-        `신고자 성별: ${reporterGender || '알 수 없음'}`,
         `신고 대상자 이메일: ${reportedUserEmail || '알 수 없음'}`,
         '',
-        '신고 내용:',
+        '=== 신고자 기본 정보 ===',
+        `이메일: ${reporterUser.email}`,
+        `닉네임: ${reporterProfile?.nickname || '-'}`,
+        `성별: ${reporterProfile?.gender || '-'}`,
+        `출생연도: ${reporterProfile?.birth_year || '-'}`,
+        `키: ${reporterProfile?.height ? `${reporterProfile.height}cm` : '-'}`,
+        `거주지: ${reporterProfile?.residence || '-'}`,
+        '',
+        '=== 신고자 회사 정보 ===',
+        `회사: ${reporterProfile?.company || '-'}`,
+        reporterProfile?.custom_company_name 
+          ? `사용자 입력 회사명: ${reporterProfile.custom_company_name}`
+          : '',
+        `직군: ${reporterProfile?.job_type || '-'}`,
+        '',
+        '=== 신고자 프로필 정보 ===',
+        `자기소개: ${reporterProfile?.appeal || '-'}`,
+        `결혼상태: ${reporterProfile?.marital_status || '-'}`,
+        `종교: ${reporterProfile?.religion || '-'}`,
+        `흡연: ${reporterProfile?.smoking || '-'}`,
+        `음주: ${reporterProfile?.drinking || '-'}`,
+        `MBTI: ${reporterProfile?.mbti || '-'}`,
+        `체형: ${parseJsonArray(reporterProfile?.body_type) || '-'}`,
+        `관심사: ${parseJsonArray(reporterProfile?.interests) || '-'}`,
+        `외모: ${parseJsonArray(reporterProfile?.appearance) || '-'}`,
+        `성격: ${parseJsonArray(reporterProfile?.personality) || '-'}`,
+        '',
+        '=== 신고 내용 ===',
         report_details || '(내용 없음)',
-      ];
+      ].filter(line => line !== ''); // 빈 줄 제거
+      
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[신고 등록] 관리자 알림 메일 발송 실패:', err);
       });
@@ -220,7 +271,7 @@ router.post('/', authenticate, async (req, res) => {
       // 관리자 푸시 알림 발송
       sendPushToAdmin(
         '[직쏠공 관리자] 신고 접수',
-        `${reporterNickname || '회원'}님이 신고를 접수했습니다. (${data.report_type})`
+        `${reporterProfile?.nickname || '회원'}님이 신고를 접수했습니다. (${data.report_type})`
       ).catch(err => {
         console.error('[신고 등록] 관리자 푸시 알림 발송 실패:', err);
       });

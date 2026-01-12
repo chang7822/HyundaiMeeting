@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import Modal from 'react-modal';
-import { FaSort } from 'react-icons/fa';
+import { FaSort, FaSyncAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { adminApi, adminMatchingApi, matchingApi } from '../../services/api.ts';
@@ -28,14 +28,61 @@ const Container = styled.div<{ $sidebarOpen: boolean }>`
   }
 `;
 
-const Title = styled.h2`
-  font-size: 2rem;
-  font-weight: 700;
+const TitleRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 24px;
   
   @media (max-width: 768px) {
-    font-size: 1.5rem;
     margin-bottom: 1rem;
+  }
+`;
+
+const Title = styled.h2`
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0;
+  
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+  }
+`;
+
+const RefreshButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #7C3AED;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #5b21b6;
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  svg {
+    transition: transform 0.3s;
+  }
+  
+  &:hover svg {
+    transform: rotate(180deg);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    font-size: 0.85rem;
   }
 `;
 
@@ -273,7 +320,7 @@ const CompatibilityList = styled.div`
 
 const CompatibilityRow = styled.div<{ $mutual: boolean }>`
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
@@ -285,33 +332,31 @@ const CompatibilityRow = styled.div<{ $mutual: boolean }>`
   }
   
   @media (max-width: 768px) {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr auto;
     gap: 8px;
     padding: 10px 12px;
-    
-    & > div:first-child {
-      margin-bottom: 6px;
-    }
-    
-    & > span {
-      justify-self: start;
-    }
   }
 `;
 
+const BadgeGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+`;
+
 const Badge = styled.span<{ $positive?: boolean }>`
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: ${props => props.$positive ? '#0f766e' : '#6b7280'};
   background: ${props => props.$positive ? 'rgba(45,212,191,0.2)' : '#e5e7eb'};
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 3px 9px;
   white-space: nowrap;
-  display: inline-block;
   
   @media (max-width: 768px) {
-    font-size: 0.75rem;
-    padding: 3px 8px;
+    font-size: 0.7rem;
+    padding: 2px 8px;
   }
 `;
 
@@ -678,7 +723,13 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
 
   return (
     <Container $sidebarOpen={sidebarOpen}>
-      <Title>회원 매칭 조회 (전체 회원 기준)</Title>
+      <TitleRow>
+        <Title>회원 매칭 조회 (전체 회원 기준)</Title>
+        <RefreshButton onClick={() => window.location.reload()}>
+          <FaSyncAlt />
+          새로고침
+        </RefreshButton>
+      </TitleRow>
 
       <SummaryRow>
         <SummaryCard>
@@ -920,25 +971,41 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
             {(compatModal.data?.[compatModal.activeTab] || []).length === 0 ? (
               <EmptyRow>해당되는 회원이 없습니다.</EmptyRow>
             ) : (
-              compatModal.data?.[compatModal.activeTab].map((item: any) => (
-                <CompatibilityRow
-                  key={item.user_id}
-                  $mutual={item.mutual}
-                  onClick={() => {
-                    if (!item.mutual) {
-                      setReasonModal({ open: true, item });
-                    }
-                  }}
-                  style={{ cursor: !item.mutual ? 'pointer' : 'default' }}
-                >
-                  <div>
-                    <strong>{item.nickname}</strong>
-                    <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
-                  </div>
-                  <Badge $positive={item.applied}>신청 {item.applied ? 'O' : 'X'}</Badge>
-                  <Badge $positive={item.hasHistory}>매칭이력 {item.hasHistory ? 'O' : 'X'}</Badge>
-                </CompatibilityRow>
-              ))
+              compatModal.data?.[compatModal.activeTab].map((item: any) => {
+                const foundUser = users.find(u => u.user_id === item.user_id);
+                return (
+                  <CompatibilityRow
+                    key={item.user_id}
+                    $mutual={item.mutual}
+                    onClick={(e) => {
+                      // Shift+클릭: 매칭 실패 사유 보기 (mutual이 false일 때만)
+                      if (e.shiftKey && !item.mutual) {
+                        setReasonModal({ open: true, item });
+                      } else {
+                        // 일반 클릭: 프로필 보기
+                        if (foundUser) {
+                          openProfileModal(foundUser);
+                        }
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div>
+                      <strong>{item.nickname}</strong>
+                      <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
+                      {!item.mutual && (
+                        <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '2px' }}>
+                          💡 Shift+클릭: 매칭 실패 사유
+                        </div>
+                      )}
+                    </div>
+                    <BadgeGroup>
+                      <Badge $positive={item.applied}>신청 {item.applied ? 'O' : 'X'}</Badge>
+                      <Badge $positive={item.hasHistory}>매칭이력 {item.hasHistory ? 'O' : 'X'}</Badge>
+                    </BadgeGroup>
+                  </CompatibilityRow>
+                );
+              })
             )}
           </CompatibilityList>
         )}

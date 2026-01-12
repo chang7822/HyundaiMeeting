@@ -429,15 +429,78 @@ router.post('/request', authenticate, async (req, res) => {
     // 관리자 알림 메일 발송 (비동기)
     try {
       const adminSubject = '매칭 신청';
+      
+      // JSON 배열 파싱 헬퍼 함수
+      const parseJsonArray = (value) => {
+        if (!value) return null;
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(parsed) ? parsed.join(', ') : parsed;
+        } catch {
+          return value;
+        }
+      };
+
+      // 선호 회사명 조회
+      let preferCompanyNames = [];
+      if (Array.isArray(profile.prefer_company) && profile.prefer_company.length > 0) {
+        try {
+          const { data: companies } = await supabase
+            .from('companies')
+            .select('id, name')
+            .in('id', profile.prefer_company);
+          if (companies && companies.length > 0) {
+            preferCompanyNames = companies.map(c => c.name).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('[매칭 신청] 선호 회사명 조회 오류:', e);
+        }
+      }
+
       const adminBodyLines = [
         '새로운 매칭 신청이 접수되었습니다.',
         '',
-        `사용자 ID: ${userId}`,
-        `이메일: ${user?.email || '알 수 없음'}`,
-        `닉네임: ${profile.nickname || '알 수 없음'}`,
-        `성별: ${profile.gender || '알 수 없음'}`,
         `회차 ID: ${periodId}`,
-      ];
+        '',
+        '=== 기본 정보 ===',
+        `이메일: ${user?.email || '알 수 없음'}`,
+        `닉네임: ${profile.nickname || '-'}`,
+        `성별: ${profile.gender || '-'}`,
+        `출생연도: ${profile.birth_year || '-'}`,
+        `키: ${profile.height ? `${profile.height}cm` : '-'}`,
+        `거주지: ${profile.residence || '-'}`,
+        '',
+        '=== 회사 정보 ===',
+        `회사: ${profile.company || '-'}`,
+        profile.custom_company_name 
+          ? `사용자 입력 회사명: ${profile.custom_company_name}`
+          : '',
+        `직군: ${profile.job_type || '-'}`,
+        '',
+        '=== 프로필 정보 ===',
+        `자기소개: ${profile.appeal || '-'}`,
+        `결혼상태: ${profile.marital_status || '-'}`,
+        `종교: ${profile.religion || '-'}`,
+        `흡연: ${profile.smoking || '-'}`,
+        `음주: ${profile.drinking || '-'}`,
+        `MBTI: ${profile.mbti || '-'}`,
+        `체형: ${parseJsonArray(profile.body_type) || '-'}`,
+        `관심사: ${parseJsonArray(profile.interests) || '-'}`,
+        `외모: ${parseJsonArray(profile.appearance) || '-'}`,
+        `성격: ${parseJsonArray(profile.personality) || '-'}`,
+        '',
+        '=== 선호 스타일 ===',
+        `선호 연령: ${profile.preferred_age_min || '-'}세 ~ ${profile.preferred_age_max || '-'}세`,
+        `선호 키: ${profile.preferred_height_min || '-'}cm ~ ${profile.preferred_height_max || '-'}cm`,
+        `선호 체형: ${parseJsonArray(profile.preferred_body_types) || '-'}`,
+        `선호 직군: ${parseJsonArray(profile.preferred_job_types) || '-'}`,
+        `선호 결혼상태: ${parseJsonArray(profile.preferred_marital_statuses) || '-'}`,
+        `선호 회사: ${preferCompanyNames.length > 0 ? preferCompanyNames.join(', ') : '-'}`,
+        `선호 지역: ${Array.isArray(profile.prefer_region) && profile.prefer_region.length > 0 
+          ? profile.prefer_region.join(', ') 
+          : '-'}`,
+      ].filter(line => line !== ''); // 빈 줄 제거
+      
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[매칭 신청] 관리자 알림 메일 발송 실패:', err);
       });

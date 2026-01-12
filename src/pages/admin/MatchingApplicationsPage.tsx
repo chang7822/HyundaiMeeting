@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import Modal from 'react-modal';
-import { FaSort, FaCheck, FaTimes } from 'react-icons/fa';
+import { FaSort, FaCheck, FaTimes, FaSyncAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 import { adminMatchingApi } from '../../services/api.ts';
@@ -16,20 +16,92 @@ const Container = styled.div<{ $sidebarOpen: boolean }>`
   padding: 32px 24px;
   max-width: 1200px;
   margin-left: ${props => (window.innerWidth > 768 && props.$sidebarOpen) ? '280px' : '0'};
+  
   @media (max-width: 768px) {
-    margin-left: 0;
+    margin: 0;
+    margin-top: 5rem;
+    padding: 1.25rem;
+    border-radius: 0;
+    width: 100%;
+    max-width: 100vw;
+    box-sizing: border-box;
   }
 `;
+const TitleRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  
+  @media (max-width: 768px) {
+    margin-bottom: 16px;
+  }
+`;
+
 const Title = styled.h2`
   font-size: 2rem;
   font-weight: 700;
-  margin-bottom: 24px;
+  margin: 0;
+  
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+  }
+`;
+
+const RefreshButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #7C3AED;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #5b21b6;
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  svg {
+    transition: transform 0.3s;
+  }
+  
+  &:hover svg {
+    transform: rotate(180deg);
+  }
+  
+  @media (max-width: 768px) {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
 `;
 const FilterRow = styled.div`
   display: flex;
   gap: 16px;
   align-items: center;
   margin-bottom: 18px;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    
+    & > div {
+      width: 100%;
+      margin-left: 0 !important;
+      display: flex;
+      gap: 8px;
+    }
+  }
 `;
 
 const SummaryRow = styled.div`
@@ -49,6 +121,11 @@ const SummaryCard = styled.div`
   display: flex;
   flex-direction: column;
   gap: 4px;
+  
+  @media (max-width: 768px) {
+    min-width: 100%;
+    padding: 12px 14px;
+  }
 `;
 
 const SummaryLabel = styled.div`
@@ -87,6 +164,107 @@ const Table = styled.table`
     font-weight: 600;
     cursor: pointer;
   }
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
+`;
+
+const MobileCardList = styled.div`
+  display: none;
+  
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 1.5rem;
+  }
+`;
+
+const MobileCard = styled.div<{ $cancelled?: boolean }>`
+  background: ${props => props.$cancelled ? '#f3f4f6' : '#f9fafb'};
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  box-sizing: border-box;
+  width: 100%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  opacity: ${props => props.$cancelled ? 0.6 : 1};
+`;
+
+const MobileCardTopRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+`;
+
+const MobileCardLeftGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 1;
+  min-width: 0;
+`;
+
+const MobileCardBottomRow = styled.div`
+  display: flex;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: #6b7280;
+  flex-wrap: wrap;
+  line-height: 1.3;
+  
+  span {
+    &:not(:last-child)::after {
+      content: '·';
+      margin-left: 0.4rem;
+    }
+  }
+`;
+
+const MobileButtonGroup = styled.div`
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+`;
+
+const CompactButton = styled.button`
+  background: #7C3AED;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 0.25rem 0.45rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.7rem;
+  transition: all 0.2s;
+  white-space: nowrap;
+  line-height: 1.2;
+  
+  &:hover {
+    background: #5b21b6;
+  }
+  
+  &:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+`;
+
+const MobileBadge = styled.span<{ $matched?: boolean; $cancelled?: boolean }>`
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: ${props => 
+    props.$cancelled ? '#ef4444' : 
+    props.$matched ? '#10b981' : 
+    '#6b7280'};
+  color: white;
+  white-space: nowrap;
+  flex-shrink: 0;
 `;
 const Button = styled.button`
   background: #7C3AED;
@@ -98,6 +276,13 @@ const Button = styled.button`
   margin: 0 4px;
   cursor: pointer;
   &:hover { background: #5b21b6; }
+  
+  @media (max-width: 768px) {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    margin: 0 2px;
+    flex: 1;
+  }
 `;
 const NicknameBtn = styled.button`
   background: none;
@@ -126,6 +311,12 @@ const StyledSelect = styled.select`
     box-shadow: 0 2px 8px rgba(80,60,180,0.10);
     background-color: #ede7f6;
   }
+  
+  @media (max-width: 768px) {
+    width: 100%;
+    font-size: 0.9rem;
+    padding: 8px 32px 8px 12px;
+  }
 `;
 const TabWrapper = styled.div`
   display: flex;
@@ -153,7 +344,7 @@ const CompatibilityList = styled.div`
 
 const CompatibilityRow = styled.div<{ $mutual: boolean }>`
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
@@ -165,13 +356,21 @@ const CompatibilityRow = styled.div<{ $mutual: boolean }>`
   }
 `;
 
+const BadgeGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+`;
+
 const Badge = styled.span<{ $positive?: boolean }>`
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: ${props => props.$positive ? '#0f766e' : '#6b7280'};
   background: ${props => props.$positive ? 'rgba(45,212,191,0.2)' : '#e5e7eb'};
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 3px 9px;
+  white-space: nowrap;
 `;
 
 const EmptyRow = styled.div`
@@ -228,7 +427,7 @@ function formatKST(dateStr: string | null) {
 const MatchingApplicationsPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) => {
   const [logs, setLogs] = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
-  const [periodId, setPeriodId] = useState<string>('all');
+  const [periodId, setPeriodId] = useState<string>('');
   const [sortKey, setSortKey] = useState<string>('applied_at');
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -266,7 +465,7 @@ const [compatModal, setCompatModal] = useState<{
 
   // 현재 선택 회차 기준 성별 신청 인원 요약
   const genderSummary = React.useMemo(() => {
-    if (periodId === 'all') return null;
+    if (!periodId || periodId === 'all') return null;
     const activeApps = applications.filter(app => app.applied && !app.cancelled);
     let male = 0;
     let female = 0;
@@ -300,10 +499,9 @@ const [compatModal, setCompatModal] = useState<{
     loadLogs();
   }, []);
 
-  // 회차 목록이 로드되면 기본 선택값을 "전체"가 아니라
-  // 가장 마지막 인덱스(가장 최근 회차)의 id로 설정
+  // 회차 목록이 로드되면 기본 선택값을 가장 최근 회차로 설정
   useEffect(() => {
-    if (logs.length > 0 && periodId === 'all') {
+    if (logs.length > 0 && !periodId) {
       const lastLog = logs[logs.length - 1];
       if (lastLog?.id != null) {
         setPeriodId(String(lastLog.id));
@@ -312,6 +510,11 @@ const [compatModal, setCompatModal] = useState<{
   }, [logs, periodId]);
   // 신청 현황 불러오기
   useEffect(() => {
+    // periodId가 설정되지 않았으면 스킵 (초기 로딩 상태 유지)
+    if (!periodId) {
+      return;
+    }
+    
     const loadApplications = async () => {
       setLoading(true);
       try {
@@ -481,7 +684,13 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
 
   return (
     <Container $sidebarOpen={sidebarOpen}>
-      <Title>매칭 신청 현황</Title>
+      <TitleRow>
+        <Title>매칭 신청 현황</Title>
+        <RefreshButton onClick={() => window.location.reload()}>
+          <FaSyncAlt />
+          새로고침
+        </RefreshButton>
+      </TitleRow>
       <FilterRow>
         <span>회차:</span>
         <StyledSelect value={periodId} onChange={e=>setPeriodId(e.target.value)}>
@@ -621,6 +830,81 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             </tbody>
           </Table>
         )}
+          
+        {/* 모바일 카드 뷰 */}
+        <MobileCardList>
+            {sortedApps.map(app => {
+              const profile = buildSnapshotPayload(app);
+              const counts = compatCounts[String(app.user_id)] || { iPrefer: 0, preferMe: 0 };
+              return (
+                <MobileCard key={app.id} $cancelled={app.cancelled}>
+                  {/* 첫 줄: 닉네임 + 상태 + 버튼 */}
+                  <MobileCardTopRow>
+                    <MobileCardLeftGroup>
+                      <NicknameBtn 
+                        onClick={() => openModal(app)} 
+                        style={{ 
+                          fontSize: '0.85rem', 
+                          fontWeight: '600',
+                          textDecoration: app.cancelled ? 'line-through' : 'underline',
+                          color: app.cancelled ? '#9ca3af' : '#4F46E5',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {profile?.nickname || '-'}
+                      </NicknameBtn>
+                      
+                      {app.cancelled ? (
+                        <MobileBadge $cancelled>취소</MobileBadge>
+                      ) : app.matched ? (
+                        <MobileBadge $matched>매칭성공</MobileBadge>
+                      ) : (
+                        <MobileBadge>신청중</MobileBadge>
+                      )}
+                    </MobileCardLeftGroup>
+                    
+                    {!app.cancelled && (
+                      <MobileButtonGroup>
+                        <CompactButton
+                          onClick={() => openCompatibilityModal(app, 'iPrefer')}
+                          disabled={periodId === 'all'}
+                        >
+                          내가({counts.iPrefer})
+                        </CompactButton>
+                        <CompactButton
+                          onClick={() => openCompatibilityModal(app, 'preferMe')}
+                          disabled={periodId === 'all'}
+                        >
+                          나를({counts.preferMe})
+                        </CompactButton>
+                      </MobileButtonGroup>
+                    )}
+                  </MobileCardTopRow>
+                  
+                  {/* 둘째 줄: 성별, 이메일, 회차, 신청일 */}
+                  <MobileCardBottomRow>
+                    <span>
+                      {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
+                    </span>
+                    <span>{app.user?.email || '-'}</span>
+                    <span>{getPeriodDisplayNumber(app.period_id)}회차</span>
+                    <span>
+                      {app.applied_at
+                        ? new Date(app.applied_at).toLocaleDateString('ko-KR', {
+                            month: 'numeric',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })
+                        : '-'}
+                    </span>
+                  </MobileCardBottomRow>
+                </MobileCard>
+              );
+            })}
+        </MobileCardList>
       </TableWrapper>
       {/* 프로필/선호 모달 */}
       <ProfileDetailModal isOpen={modalOpen} onRequestClose={closeModal} user={modalProfile ? { ...modalProfile, email: modalUser?.user?.email } : null} />
@@ -753,25 +1037,41 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             {(compatModal.data?.[compatModal.activeTab] || []).length === 0 ? (
               <EmptyRow>해당되는 회원이 없습니다.</EmptyRow>
             ) : (
-              compatModal.data?.[compatModal.activeTab].map(item => (
-                <CompatibilityRow
-                  key={item.user_id}
-                  $mutual={item.mutual}
-                  onClick={() => {
-                    if (!item.mutual) {
-                      setReasonModal({ open: true, item });
-                    }
-                  }}
-                  style={{ cursor: !item.mutual ? 'pointer' : 'default' }}
-                >
-                  <div>
-                    <strong>{item.nickname}</strong>
-                    <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
-                  </div>
-                  <Badge $positive={item.applied}>신청 {item.applied ? 'O' : 'X'}</Badge>
-                  <Badge $positive={item.hasHistory}>매칭이력 {item.hasHistory ? 'O' : 'X'}</Badge>
-                </CompatibilityRow>
-              ))
+              compatModal.data?.[compatModal.activeTab].map(item => {
+                const foundApp = applications.find(app => app.user_id === item.user_id);
+                return (
+                  <CompatibilityRow
+                    key={item.user_id}
+                    $mutual={item.mutual}
+                    onClick={(e) => {
+                      // Shift+클릭: 매칭 실패 사유 보기 (mutual이 false일 때만)
+                      if (e.shiftKey && !item.mutual) {
+                        setReasonModal({ open: true, item });
+                      } else {
+                        // 일반 클릭: 프로필 보기
+                        if (foundApp) {
+                          openModal(foundApp);
+                        }
+                      }
+                    }}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div>
+                      <strong>{item.nickname}</strong>
+                      <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
+                      {!item.mutual && (
+                        <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '2px' }}>
+                          💡 Shift+클릭: 매칭 실패 사유
+                        </div>
+                      )}
+                    </div>
+                    <BadgeGroup>
+                      <Badge $positive={item.applied}>신청 {item.applied ? 'O' : 'X'}</Badge>
+                      <Badge $positive={item.hasHistory}>매칭이력 {item.hasHistory ? 'O' : 'X'}</Badge>
+                    </BadgeGroup>
+                  </CompatibilityRow>
+                );
+              })
             )}
           </CompatibilityList>
         )}

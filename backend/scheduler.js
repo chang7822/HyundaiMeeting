@@ -234,11 +234,68 @@ cron.schedule(scheduleInterval, async () => {
               ` (사유: ${reason}, status=${current.status}, now=${now.toISOString()}, window=[${resetExecutionTime.toISOString()} ~ ${startTime.toISOString()}])`
           );
 
+          // ✅ 개선: 초기화 시도 전에 먼저 app_settings 기록 (중복 실행 방지)
+          try {
+            const value = { periodId: current.id };
+            const { error: upsertError } = await supabase
+              .from('app_settings')
+              .upsert(
+                {
+                  key: 'last_period_start_reset_id',
+                  value,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'key' }
+              );
+            
+            if (upsertError) {
+              console.error('[스케줄러] last_period_start_reset_id 업데이트 실패:', upsertError);
+            } else {
+              console.log(`[스케줄러] last_period_start_reset_id → ${current.id} 기록 완료`);
+            }
+          } catch (upsertErr) {
+            console.error('[스케줄러] last_period_start_reset_id 업데이트 예외:', upsertErr);
+          }
+
+          // users 테이블 초기화 실행
           const { data: resetResult, error: resetError } = await supabase
             .from('users')
             .update({ is_applied: false, is_matched: null })
             .not('id', 'is', null)
             .select('id');
+
+          // 관리자에게 초기화 결과 푸시 알림
+          try {
+            const { data: admins, error: adminError } = await supabase
+              .from('users')
+              .select('id')
+              .eq('is_admin', true)
+              .eq('is_active', true);
+
+            if (!adminError && admins && admins.length > 0) {
+              const adminIds = admins.map(a => a.id);
+              
+              if (resetError) {
+                // 초기화 실패 알림
+                await sendPushToUsers(adminIds, {
+                  type: 'system',
+                  title: '[직쏠공 관리자]',
+                  body: `회차 ${current.id} 시작 초기화 실패\n사유: ${resetError.message || '알 수 없음'}`,
+                });
+                console.log(`[스케줄러] 관리자에게 초기화 실패 알림 발송 (회차 ${current.id})`);
+              } else {
+                // 초기화 성공 알림
+                await sendPushToUsers(adminIds, {
+                  type: 'system',
+                  title: '[직쏠공 관리자]',
+                  body: `회차 ${current.id} 시작 초기화 완료\n${resetResult?.length || 0}명 사용자 상태 리셋`,
+                });
+                console.log(`[스케줄러] 관리자에게 초기화 성공 알림 발송 (회차 ${current.id})`);
+              }
+            }
+          } catch (pushErr) {
+            console.error('[스케줄러] 관리자 푸시 알림 발송 오류:', pushErr);
+          }
 
           if (resetError) {
             console.error(`[스케줄러] users 테이블 초기화 실패:`, resetError);
@@ -246,22 +303,6 @@ cron.schedule(scheduleInterval, async () => {
             console.log(
               `[스케줄러] users 테이블 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋 (회차 ${current.id})`
             );
-            // 초기화 완료 후 app_settings에 기록
-            try {
-              const value = { periodId: current.id };
-              await supabase
-                .from('app_settings')
-                .upsert(
-                  {
-                    key: 'last_period_start_reset_id',
-                    value,
-                    updated_at: new Date().toISOString(),
-                  },
-                  { onConflict: 'key' }
-                );
-            } catch (upsertErr) {
-              console.error('[스케줄러] last_period_start_reset_id 업데이트 오류:', upsertErr);
-            }
           }
         } else {
           // 동일 회차에 대해 이미 초기화가 완료된 경우 스킵 로그 (디버그용)
@@ -282,8 +323,12 @@ cron.schedule(scheduleInterval, async () => {
       const latestFinished = finishedLogs[0];
       const finishTime = new Date(latestFinished.finish);
       
-      // 회차 종료 시각이 지난 경우
-      if (now > finishTime) {
+      // ✅ 안전장치: 종료 후 1시간 이내에만 초기화 실행 (과거 회차 초기화 방지)
+      const oneHourAfterFinish = new Date(finishTime.getTime() + 60 * 60 * 1000);
+      const inFinishResetWindow = now > finishTime && now <= oneHourAfterFinish;
+      
+      // 회차 종료 시각이 지났고, 1시간 이내인 경우에만 초기화
+      if (inFinishResetWindow) {
         // DB에서 마지막으로 종료 초기화된 회차 ID 조회
         let lastPeriodFinishResetId = null;
         try {
@@ -311,14 +356,71 @@ cron.schedule(scheduleInterval, async () => {
 
           console.log(
             `[스케줄러] 회차 ${latestFinished.id} 종료 감지 - users 테이블 초기화 실행` +
-              ` (사유: ${reason}, status=${latestFinished.status}, now=${now.toISOString()}, finish=${finishTime.toISOString()})`
+              ` (사유: ${reason}, status=${latestFinished.status}, finish=${finishTime.toISOString()}, window=[${finishTime.toISOString()} ~ ${oneHourAfterFinish.toISOString()}])`
           );
 
+          // ✅ 개선: 초기화 시도 전에 먼저 app_settings 기록 (중복 실행 방지)
+          try {
+            const value = { periodId: latestFinished.id };
+            const { error: upsertError } = await supabase
+              .from('app_settings')
+              .upsert(
+                {
+                  key: 'last_period_finish_reset_id',
+                  value,
+                  updated_at: new Date().toISOString(),
+                },
+                { onConflict: 'key' }
+              );
+            
+            if (upsertError) {
+              console.error('[스케줄러] last_period_finish_reset_id 업데이트 실패:', upsertError);
+            } else {
+              console.log(`[스케줄러] last_period_finish_reset_id → ${latestFinished.id} 기록 완료`);
+            }
+          } catch (upsertErr) {
+            console.error('[스케줄러] last_period_finish_reset_id 업데이트 예외:', upsertErr);
+          }
+
+          // users 테이블 초기화 실행
           const { data: resetResult, error: resetError } = await supabase
             .from('users')
             .update({ is_applied: false, is_matched: null })
             .not('id', 'is', null)
             .select('id');
+
+          // 관리자에게 초기화 결과 푸시 알림
+          try {
+            const { data: admins, error: adminError } = await supabase
+              .from('users')
+              .select('id')
+              .eq('is_admin', true)
+              .eq('is_active', true);
+
+            if (!adminError && admins && admins.length > 0) {
+              const adminIds = admins.map(a => a.id);
+              
+              if (resetError) {
+                // 초기화 실패 알림
+                await sendPushToUsers(adminIds, {
+                  type: 'system',
+                  title: '[직쏠공 관리자]',
+                  body: `회차 ${latestFinished.id} 종료 초기화 실패\n사유: ${resetError.message || '알 수 없음'}`,
+                });
+                console.log(`[스케줄러] 관리자에게 종료 초기화 실패 알림 발송 (회차 ${latestFinished.id})`);
+              } else {
+                // 초기화 성공 알림
+                await sendPushToUsers(adminIds, {
+                  type: 'system',
+                  title: '[직쏠공 관리자]',
+                  body: `회차 ${latestFinished.id} 종료 초기화 완료\n${resetResult?.length || 0}명 사용자 상태 리셋`,
+                });
+                console.log(`[스케줄러] 관리자에게 종료 초기화 성공 알림 발송 (회차 ${latestFinished.id})`);
+              }
+            }
+          } catch (pushErr) {
+            console.error('[스케줄러] 관리자 푸시 알림 발송 오류:', pushErr);
+          }
 
           if (resetError) {
             console.error('[스케줄러] users 테이블 종료 초기화 실패:', resetError);
@@ -326,22 +428,6 @@ cron.schedule(scheduleInterval, async () => {
             console.log(
               `[스케줄러] users 테이블 종료 초기화 성공: ${resetResult?.length || 0}명 사용자 상태 리셋 (회차 ${latestFinished.id} 종료)`
             );
-            // 초기화 완료 후 app_settings에 기록
-            try {
-              const value = { periodId: latestFinished.id };
-              await supabase
-                .from('app_settings')
-                .upsert(
-                  {
-                    key: 'last_period_finish_reset_id',
-                    value,
-                    updated_at: new Date().toISOString(),
-                  },
-                  { onConflict: 'key' }
-                );
-            } catch (upsertErr) {
-              console.error('[스케줄러] last_period_finish_reset_id 업데이트 오류:', upsertErr);
-            }
           }
         } else {
           // 동일 회차에 대해 이미 종료 초기화가 완료된 경우 스킵 (디버그용)

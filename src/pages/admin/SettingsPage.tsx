@@ -184,6 +184,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [pushMessage, setPushMessage] = useState('');
   const [pushSending, setPushSending] = useState(false);
 
+  // 회차 초기화 복구 관련 상태
+  const [restorePeriodId, setRestorePeriodId] = useState<number>(0);
+  const [restoring, setRestoring] = useState(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
       setLoading(true);
@@ -214,6 +218,29 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
     };
     fetchUsers();
   }, []);
+
+  // 회차 초기화 복구 핸들러
+  const handleRestorePeriod = async () => {
+    if (!restorePeriodId || restorePeriodId <= 0) {
+      toast.error('유효한 회차 ID를 입력해주세요.');
+      return;
+    }
+
+    if (!window.confirm(`회차 ${restorePeriodId}의 users 테이블을 복구하시겠습니까?\n\nis_applied와 is_matched가 해당 회차 데이터 기준으로 복구됩니다.`)) {
+      return;
+    }
+
+    setRestoring(true);
+    try {
+      const res = await adminApi.restorePeriodUsers(restorePeriodId);
+      toast.success(res.message || '회차 초기화가 복구되었습니다.');
+    } catch (e: any) {
+      console.error('[SettingsPage] 회차 복구 오류:', e);
+      toast.error(e.response?.data?.message || '회차 복구 중 오류가 발생했습니다.');
+    } finally {
+      setRestoring(false);
+    }
+  };
 
   const handleToggleMaintenance = async () => {
     const next = !maintenance;
@@ -524,6 +551,71 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
               >
                 {pushSending ? '전송 중...' : '푸시 알림 전송'}
               </button>
+            </div>
+          </Section>
+
+          <Section>
+            <SectionTitle>회차 초기화 복구</SectionTitle>
+            <SectionDescription>
+              잘못된 초기화로 인해 users 테이블의 is_applied, is_matched가 손상된 경우 복구합니다.
+              {'\n'}해당 회차의 matching_applications와 matching_history 데이터를 기준으로 복구됩니다.
+            </SectionDescription>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  회차 ID
+                </label>
+                <input
+                  type="number"
+                  value={restorePeriodId || ''}
+                  onChange={(e) => setRestorePeriodId(Number(e.target.value))}
+                  placeholder="복구할 회차 ID를 입력하세요 (예: 116)"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                  disabled={restoring}
+                />
+              </div>
+
+              <button
+                onClick={handleRestorePeriod}
+                disabled={restoring || !restorePeriodId || restorePeriodId <= 0}
+                style={{
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: restoring || !restorePeriodId || restorePeriodId <= 0
+                    ? '#cbd5e0' 
+                    : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: restoring || !restorePeriodId || restorePeriodId <= 0
+                    ? 'not-allowed' 
+                    : 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {restoring ? '복구 중...' : '회차 초기화 복구 적용'}
+              </button>
+
+              <div style={{
+                padding: '0.75rem 1rem',
+                borderRadius: 8,
+                background: '#fff3cd',
+                border: '1px solid #ffc107',
+                fontSize: '0.85rem',
+                color: '#856404',
+              }}>
+                ⚠️ 주의: 이 기능은 잘못된 초기화를 복구하는 긴급 기능입니다. 신중하게 사용하세요.
+              </div>
             </div>
           </Section>
 

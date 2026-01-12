@@ -579,19 +579,17 @@ router.delete('/me', authenticate, async (req, res) => {
     const userEmail = userData.email;
     console.log(`[회원탈퇴] 탈퇴 시작: ${userEmail} (ID: ${userId})`);
 
-    // 0-0. 프로필 정보 조회 (닉네임, 성별)
-    let nickname = '';
-    let gender = '';
+    // 0-0. 프로필 정보 조회 (전체 프로필 정보 - 관리자 메일용)
+    let profile = null;
     try {
       const { data: profileData, error: profileError } = await supabase
         .from('user_profiles')
-        .select('nickname, gender')
+        .select('*')
         .eq('user_id', userId)
         .single();
 
       if (!profileError && profileData) {
-        nickname = profileData.nickname || '';
-        gender = profileData.gender || '';
+        profile = profileData;
       }
     } catch (e) {
       console.error('[회원탈퇴] 프로필 정보 조회 오류:', e);
@@ -679,13 +677,80 @@ router.delete('/me', authenticate, async (req, res) => {
     // 6. 관리자 알림 메일 발송 (비동기)
     try {
       const adminSubject = '회원 탈퇴';
+      
+      // JSON 배열 파싱 헬퍼 함수
+      const parseJsonArray = (value) => {
+        if (!value) return null;
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(parsed) ? parsed.join(', ') : parsed;
+        } catch {
+          return value;
+        }
+      };
+
+      // 선호 회사명 조회
+      let preferCompanyNames = [];
+      if (profile && Array.isArray(profile.prefer_company) && profile.prefer_company.length > 0) {
+        try {
+          const { data: companies } = await supabase
+            .from('companies')
+            .select('id, name')
+            .in('id', profile.prefer_company);
+          if (companies && companies.length > 0) {
+            preferCompanyNames = companies.map(c => c.name).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('[회원탈퇴] 선호 회사명 조회 오류:', e);
+        }
+      }
+
       const adminBodyLines = [
         '회원이 탈퇴했습니다.',
         '',
+        '=== 기본 정보 ===',
         `이메일: ${userEmail}`,
-        `닉네임: ${nickname || '알 수 없음'}`,
-        `성별: ${gender || '알 수 없음'}`,
-      ];
+        `닉네임: ${profile?.nickname || '-'}`,
+        `성별: ${profile?.gender || '-'}`,
+        `출생연도: ${profile?.birth_year || '-'}`,
+        `키: ${profile?.height ? `${profile.height}cm` : '-'}`,
+        `거주지: ${profile?.residence || '-'}`,
+        '',
+        '=== 회사 정보 ===',
+        `회사: ${profile?.company || '-'}`,
+        profile?.custom_company_name 
+          ? `사용자 입력 회사명: ${profile.custom_company_name}`
+          : '',
+        `직군: ${profile?.job_type || '-'}`,
+        '',
+        '=== 프로필 정보 ===',
+        `자기소개: ${profile?.appeal || '-'}`,
+        `결혼상태: ${profile?.marital_status || '-'}`,
+        `종교: ${profile?.religion || '-'}`,
+        `흡연: ${profile?.smoking || '-'}`,
+        `음주: ${profile?.drinking || '-'}`,
+        `MBTI: ${profile?.mbti || '-'}`,
+        `체형: ${parseJsonArray(profile?.body_type) || '-'}`,
+        `관심사: ${parseJsonArray(profile?.interests) || '-'}`,
+        `외모: ${parseJsonArray(profile?.appearance) || '-'}`,
+        `성격: ${parseJsonArray(profile?.personality) || '-'}`,
+        '',
+        '=== 선호 스타일 ===',
+        `선호 연령: ${profile?.preferred_age_min || '-'}세 ~ ${profile?.preferred_age_max || '-'}세`,
+        `선호 키: ${profile?.preferred_height_min || '-'}cm ~ ${profile?.preferred_height_max || '-'}cm`,
+        `선호 체형: ${parseJsonArray(profile?.preferred_body_types) || '-'}`,
+        `선호 직군: ${parseJsonArray(profile?.preferred_job_types) || '-'}`,
+        `선호 결혼상태: ${parseJsonArray(profile?.preferred_marital_statuses) || '-'}`,
+        `선호 회사: ${preferCompanyNames.length > 0 ? preferCompanyNames.join(', ') : '-'}`,
+        `선호 지역: ${Array.isArray(profile?.prefer_region) && profile.prefer_region.length > 0 
+          ? profile.prefer_region.join(', ') 
+          : '-'}`,
+        '',
+        '=== 계정 정보 ===',
+        `정지 상태: ${userData.is_banned ? 'YES' : 'NO'}`,
+        `신고 횟수: ${userData.report_count || 0}회`,
+      ].filter(line => line !== ''); // 빈 줄 제거
+      
       sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
         console.error('[회원탈퇴] 관리자 알림 메일 발송 실패:', err);
       });
@@ -693,7 +758,7 @@ router.delete('/me', authenticate, async (req, res) => {
       // 관리자 푸시 알림 발송
       sendPushToAdmin(
         '[직쏠공 관리자] 회원 탈퇴',
-        `${nickname || '회원'}(${userEmail})님이 탈퇴했습니다.`
+        `${profile?.nickname || '회원'}(${userEmail})님이 탈퇴했습니다.`
       ).catch(err => {
         console.error('[회원탈퇴] 관리자 푸시 알림 발송 실패:', err);
       });
