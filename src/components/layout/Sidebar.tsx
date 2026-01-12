@@ -1103,6 +1103,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     { path: '/admin/broadcast-email', icon: <span role="img" aria-label="mail">✉️</span>, text: '메일 공지' },
     { path: '/admin/notifications', icon: <span role="img" aria-label="bell">🔔</span>, text: '알림 보내기' },
     { path: '/admin/settings', icon: <span role="img" aria-label="settings">⚙️</span>, text: '설정' },
+    { path: '/admin/logs', icon: <span role="img" aria-label="logs">📊</span>, text: '서버 로그' },
   ] : [];
   // console.log('[Sidebar] adminMenuItems 배열:', adminMenuItems);
 

@@ -61,6 +61,7 @@ import AdminSupportPage from './pages/admin/AdminSupportPage.tsx';
 import AdminSupportDetailPage from './pages/admin/AdminSupportDetailPage.tsx';
 import SettingsPage from './pages/admin/SettingsPage.tsx';
 import BroadcastEmailPage from './pages/admin/BroadcastEmailPage.tsx';
+import LogsPage from './pages/admin/LogsPage.tsx';
 
 // Components
 import Sidebar from './components/layout/Sidebar.tsx';
@@ -669,6 +670,14 @@ const AppInner: React.FC = () => {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <SettingsPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </AdminRoute>
+              } />
+              <Route path="/admin/logs" element={
+                <AdminRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <LogsPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
               } />

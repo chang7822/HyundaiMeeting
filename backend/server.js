@@ -6,6 +6,10 @@ console.log('envPath:', envPath, 'exists:', fs.existsSync(envPath));
 dotenv.config({ path: envPath });
 console.log('dotenv.config() 직후 EMAIL_USER:', process.env.EMAIL_USER);
 
+// 로그 수집기 초기화 (가능한 빨리 실행)
+const logCollector = require('./utils/logCollector');
+logCollector.interceptConsole();
+
 const express = require('express');
 const cors = require('cors');
 const authRoutes = require('./routes/auth');
@@ -24,6 +28,7 @@ const starRoutes = require('./routes/stars');
 const extraMatchingRoutes = require('./routes/extra-matching');
 const notificationRoutes = require('./routes/notifications');
 const pushRoutes = require('./routes/push');
+const logsRoutes = require('./routes/logs');
 const { supabase } = require('./database');
 const { encrypt, decrypt } = require('./utils/encryption');
 const { sendPushToUsers } = require('./pushService');
@@ -87,6 +92,7 @@ app.use('/api/stars', starRoutes);
 app.use('/api/extra-matching', extraMatchingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/logs', logsRoutes);
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, '../public')));

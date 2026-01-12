@@ -8,6 +8,13 @@ const dotenv = require('dotenv');
 // - Render 운영 서버에서는 config.env 파일이 없어도, Render Environment 변수에서 값을 읽기 때문에 문제 없음
 dotenv.config({ path: path.join(__dirname, 'config.env') });
 
+// 로그 수집기 초기화
+const logCollector = require('./utils/logCollector');
+if (typeof logCollector.interceptConsole === 'function' && !global.__logCollectorIntercepted) {
+  logCollector.interceptConsole();
+  global.__logCollectorIntercepted = true;
+}
+
 const { supabase } = require('./database');
 const { sendPushToAllUsers, sendPushToUsers } = require('./pushService');
 const notificationRoutes = require('./routes/notifications');

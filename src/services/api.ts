@@ -1147,4 +1147,21 @@ export const pushApi = {
   },
 };
 
+// Logs API
+export const logsApi = {
+  // 서버 로그 조회
+  getServerLogs: async (limit?: number): Promise<{ logs: any[]; count: number }> => {
+    const params = limit ? { limit } : {};
+    const response = await api.get('/logs/server', { params });
+    return response.data;
+  },
+
+  // 스케줄러 로그 조회
+  getSchedulerLogs: async (limit?: number): Promise<{ logs: any[]; count: number }> => {
+    const params = limit ? { limit } : {};
+    const response = await api.get('/logs/scheduler', { params });
+    return response.data;
+  },
+};
+
 export default api;
