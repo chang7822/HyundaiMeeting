@@ -72,6 +72,7 @@ router.post('/:periodId/:partnerUserId/messages', async (req, res) => {
       const senderNickname = sender_nickname || '상대방';
 
       setTimeout(async () => {
+        console.log(`[chat] setTimeout 실행됨 - 메시지ID=${insertedId}, 수신자=${receiverId}`);
         try {
           const { data: msgRow, error: msgError } = await supabase
             .from('chat_messages')
@@ -84,18 +85,30 @@ router.post('/:periodId/:partnerUserId/messages', async (req, res) => {
             return;
           }
 
-          if (!msgRow || msgRow.is_read) {
-            // 이미 읽었거나 메시지가 없음 → 푸시 불필요
+          if (!msgRow) {
+            console.log(`[chat] 푸시 스킵 - 메시지ID=${insertedId}: 메시지 없음`);
             return;
           }
 
-          await sendPushToUsers([receiverId], {
+          if (msgRow.is_read) {
+            console.log(`[chat] 푸시 스킵 - 메시지ID=${insertedId}: 이미 읽음`);
+            return;
+          }
+
+          console.log(`[chat] 푸시 발송 시작 - 메시지ID=${insertedId}, 수신자=${receiverId}`);
+          const pushResult = await sendPushToUsers([receiverId], {
             type: 'chat_unread',
             periodId: String(msgRow.period_id),
             senderId: String(msgRow.sender_id),
             title: '[직쏠공]',
             body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
           });
+          
+          if (pushResult.success) {
+            console.log(`[chat] 푸시 발송 완료 - 메시지ID=${insertedId}`);
+          } else {
+            console.log(`[chat] 푸시 발송 실패 - 메시지ID=${insertedId}, 사유=${pushResult.reason}`);
+          }
         } catch (pushErr) {
           console.error('[chat] 안읽은 메시지 푸시 전송 중 오류:', pushErr);
         }
