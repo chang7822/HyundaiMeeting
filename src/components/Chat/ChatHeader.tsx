@@ -88,6 +88,10 @@ const SubRow = styled.div`
   font-size: 0.98rem;
   color: #888;
   flex-wrap: wrap;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
 const SubItem = styled.span`
   background: #f3f0fa;

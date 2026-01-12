@@ -72,7 +72,6 @@ router.post('/:periodId/:partnerUserId/messages', async (req, res) => {
       const senderNickname = sender_nickname || '상대방';
 
       setTimeout(async () => {
-        console.log(`[chat] setTimeout 실행됨 - 메시지ID=${insertedId}, 수신자=${receiverId}`);
         try {
           const { data: msgRow, error: msgError } = await supabase
             .from('chat_messages')
@@ -81,21 +80,15 @@ router.post('/:periodId/:partnerUserId/messages', async (req, res) => {
             .maybeSingle();
 
           if (msgError) {
-            console.error('[chat] 안읽은 메시지 푸시 체크 중 조회 오류:', msgError);
+            console.error('푸시알림 실패 : DB 조회 오류');
             return;
           }
 
-          if (!msgRow) {
-            console.log(`[chat] 푸시 스킵 - 메시지ID=${insertedId}: 메시지 없음`);
+          if (!msgRow || msgRow.is_read) {
+            // 메시지 없거나 이미 읽음 → 조용히 스킵
             return;
           }
 
-          if (msgRow.is_read) {
-            console.log(`[chat] 푸시 스킵 - 메시지ID=${insertedId}: 이미 읽음`);
-            return;
-          }
-
-          console.log(`[chat] 푸시 발송 시작 - 메시지ID=${insertedId}, 수신자=${receiverId}`);
           const pushResult = await sendPushToUsers([receiverId], {
             type: 'chat_unread',
             periodId: String(msgRow.period_id),
@@ -105,12 +98,12 @@ router.post('/:periodId/:partnerUserId/messages', async (req, res) => {
           });
           
           if (pushResult.success) {
-            console.log(`[chat] 푸시 발송 완료 - 메시지ID=${insertedId}`);
+            console.log('푸시알림 성공');
           } else {
-            console.log(`[chat] 푸시 발송 실패 - 메시지ID=${insertedId}, 사유=${pushResult.reason}`);
+            console.log(`푸시알림 실패 : ${pushResult.reason}`);
           }
         } catch (pushErr) {
-          console.error('[chat] 안읽은 메시지 푸시 전송 중 오류:', pushErr);
+          console.error('푸시알림 실패 : 예외 발생', pushErr);
         }
       }, 3000);
     } catch (scheduleErr) {
