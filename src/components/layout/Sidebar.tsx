@@ -727,24 +727,35 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       return;
     }
     let cancelled = false;
+    let timer: number | null = null;
+    
     const load = async () => {
       try {
         const res = await notificationApi.getUnreadCount();
         if (!cancelled) {
           setNotificationUnreadCount(res.unreadCount || 0);
         }
-      } catch (e) {
+      } catch (e: any) {
         if (!cancelled) {
-          console.error('[Sidebar] 알림 unread-count 조회 오류:', e);
+          // 401 에러 시 폴링 중단
+          if (e?.response?.status === 401) {
+            // console.warn('[Sidebar] 알림 조회 인증 실패 - 폴링 중단');
+            if (timer) window.clearInterval(timer);
+            setNotificationUnreadCount(0);
+            return;
+          }
+          // 그 외 에러는 로그만 출력하고 계속 시도
           setNotificationUnreadCount(0);
         }
       }
     };
+    
     load();
-    const timer = window.setInterval(load, 15000);
+    timer = window.setInterval(load, 15000);
+    
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (timer) window.clearInterval(timer);
     };
   }, [user?.id]);
 
@@ -755,6 +766,8 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       return;
     }
     let cancelled = false;
+    let timer: number | null = null;
+    
     const loadExtraStatus = async () => {
       try {
         const res = await extraMatchingApi.getStatus();
@@ -779,18 +792,27 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           return;
         }
         setExtraMatchingInWindow(nowTime >= announce && nowTime <= finish);
-      } catch (e) {
+      } catch (e: any) {
         if (!cancelled) {
-          console.error('[Sidebar] 추가 매칭 도전 상태 조회 오류:', e);
+          // 401 에러 시 폴링 중단
+          if (e?.response?.status === 401) {
+            console.warn('[Sidebar] 추가 매칭 상태 조회 인증 실패 - 폴링 중단');
+            if (timer) window.clearInterval(timer);
+            setExtraMatchingInWindow(false);
+            return;
+          }
+          // 그 외 에러는 로그만 출력하고 계속 시도
           setExtraMatchingInWindow(false);
         }
       }
     };
+    
     loadExtraStatus();
-    const timer = window.setInterval(loadExtraStatus, 30000);
+    timer = window.setInterval(loadExtraStatus, 30000);
+    
     return () => {
       cancelled = true;
-      window.clearInterval(timer);
+      if (timer) window.clearInterval(timer);
     };
   }, [user?.id]);
 
