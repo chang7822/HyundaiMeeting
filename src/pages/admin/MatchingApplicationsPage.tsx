@@ -253,7 +253,7 @@ const CompactButton = styled.button`
   }
 `;
 
-const MobileBadge = styled.span<{ $matched?: boolean; $cancelled?: boolean }>`
+const MobileBadge = styled.span<{ $matched?: boolean; $cancelled?: boolean; $failed?: boolean }>`
   font-size: 0.65rem;
   font-weight: 600;
   padding: 0.15rem 0.4rem;
@@ -261,6 +261,7 @@ const MobileBadge = styled.span<{ $matched?: boolean; $cancelled?: boolean }>`
   background: ${props => 
     props.$cancelled ? '#ef4444' : 
     props.$matched ? '#10b981' : 
+    props.$failed ? '#f59e0b' :
     '#6b7280'};
   color: white;
   white-space: nowrap;
@@ -580,6 +581,14 @@ const [compatModal, setCompatModal] = useState<{
     toast.success('전체 신청자 매칭 호환성 조회가 완료되었습니다!');
   };
 
+  // 매칭 상태 판별 함수
+  const getMatchingStatus = (app: any) => {
+    if (app.cancelled) return 'cancelled';
+    if (app.matched === true) return 'matched';
+    if (app.matched === false) return 'failed';
+    return 'pending'; // matched가 null이거나 undefined인 경우 (아직 매칭 안 돌림)
+  };
+
   // 소팅
   const sortedApps = [...applications].sort((a, b) => {
     let v1 = a[sortKey], v2 = b[sortKey];
@@ -785,6 +794,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
               {sortedApps.map(app => {
                 const profile = buildSnapshotPayload(app);
                 const counts = compatCounts[String(app.user_id)] || { iPrefer: 0, preferMe: 0 };
+                const status = getMatchingStatus(app);
                 return (
                 <tr key={app.id} style={app.cancelled ? { color: '#aaa' } : {}}>
                   <td>
@@ -800,7 +810,17 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                   <td>{app.user?.email || '-'}</td>
                   <td>{formatKST(app.applied_at)}</td>
                   <td>{app.cancelled ? formatKST(app.cancelled_at) : '-'}</td>
-                  <td>{app.matched ? <FaCheck color="#4F46E5"/> : <FaTimes color="#aaa"/>}</td>
+                  <td>
+                    {status === 'matched' ? (
+                      <FaCheck color="#10b981" title="매칭성공"/>
+                    ) : status === 'failed' ? (
+                      <FaTimes color="#f59e0b" title="매칭실패"/>
+                    ) : status === 'pending' ? (
+                      <span style={{ color: '#6b7280', fontSize: '0.9rem' }}>-</span>
+                    ) : (
+                      <FaTimes color="#aaa"/>
+                    )}
+                  </td>
                   <td>{app.partner ? (app.partner.email || app.partner.id) : '-'}</td>
                   <td>{getPeriodDisplayNumber(app.period_id)}</td>
                   <td>
@@ -836,6 +856,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             {sortedApps.map(app => {
               const profile = buildSnapshotPayload(app);
               const counts = compatCounts[String(app.user_id)] || { iPrefer: 0, preferMe: 0 };
+              const status = getMatchingStatus(app);
               return (
                 <MobileCard key={app.id} $cancelled={app.cancelled}>
                   {/* 첫 줄: 닉네임 + 상태 + 버튼 */}
@@ -856,10 +877,12 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                         {profile?.nickname || '-'}
                       </NicknameBtn>
                       
-                      {app.cancelled ? (
+                      {status === 'cancelled' ? (
                         <MobileBadge $cancelled>취소</MobileBadge>
-                      ) : app.matched ? (
+                      ) : status === 'matched' ? (
                         <MobileBadge $matched>매칭성공</MobileBadge>
+                      ) : status === 'failed' ? (
+                        <MobileBadge $failed>매칭실패</MobileBadge>
                       ) : (
                         <MobileBadge>신청중</MobileBadge>
                       )}

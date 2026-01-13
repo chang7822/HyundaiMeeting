@@ -1164,4 +1164,13 @@ export const logsApi = {
   },
 };
 
+// Admin Chat API
+export const adminChatApi = {
+  // 두 사용자 간의 채팅 내역 조회 (관리자용)
+  getChatMessages: async (user1Id: string | number, user2Id: string | number): Promise<{ messages: any[]; users: any; isDevMode?: boolean }> => {
+    const response = await api.get(`/admin/chat-messages/${user1Id}/${user2Id}`);
+    return response.data;
+  },
+};
+
 export default api;

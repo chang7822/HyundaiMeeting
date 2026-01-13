@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import styled from 'styled-components';
 import { FaSyncAlt, FaServer, FaClock, FaFilter } from 'react-icons/fa';
 import { toast } from 'react-toastify';
@@ -301,8 +301,33 @@ const LogsPage: React.FC<LogsPageProps> = ({ sidebarOpen }) => {
   const [schedulerLogs, setSchedulerLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [timeFilter, setTimeFilter] = useState<'realtime' | '1h' | '4h' | '24h' | '3d' | '7d'>('realtime');
+  const [isPageVisible, setIsPageVisible] = useState(true);
+  const lastErrorTimeRef = useRef<number>(0);
 
-  const loadLogs = async () => {
+  // Page Visibility API: 페이지가 보이는지 감지
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = !document.hidden;
+      setIsPageVisible(visible);
+      
+      // 페이지가 다시 보이게 되면 즉시 로그 새로고침
+      if (visible && timeFilter === 'realtime') {
+        loadLogs();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [timeFilter]);
+
+  const loadLogs = useCallback(async () => {
+    // 페이지가 보이지 않으면 API 호출 건너뛰기
+    if (!isPageVisible) {
+      return true;
+    }
+
     setLoading(true);
     try {
       if (activeTab === 'server') {
@@ -312,28 +337,50 @@ const LogsPage: React.FC<LogsPageProps> = ({ sidebarOpen }) => {
         const response = await logsApi.getSchedulerLogs(500);
         setSchedulerLogs(response.logs);
       }
-    } catch (error) {
+      // 성공 시 에러 시간 초기화
+      lastErrorTimeRef.current = 0;
+    } catch (error: any) {
       console.error('로그 조회 오류:', error);
-      toast.error('로그를 불러오는데 실패했습니다.');
+      
+      // 401 Unauthorized 에러면 더 이상 요청하지 않음
+      if (error?.response?.status === 401) {
+        return false; // interval 중지 신호
+      }
+      
+      // 페이지가 보일 때만 토스트 표시 + 5초 이내 중복 방지
+      const now = Date.now();
+      if (isPageVisible && (now - lastErrorTimeRef.current > 5000)) {
+        toast.error('로그를 불러오는데 실패했습니다.');
+        lastErrorTimeRef.current = now;
+      }
     } finally {
       setLoading(false);
     }
-  };
+    return true; // 계속 진행
+  }, [activeTab, isPageVisible]);
 
   useEffect(() => {
-    loadLogs();
+    (async () => {
+      await loadLogs();
+    })();
   }, [activeTab]);
 
   // 실시간 모드일 때만 자동 새로고침
   useEffect(() => {
     if (timeFilter !== 'realtime') return;
 
-    const interval = setInterval(() => {
-      loadLogs();
+    const interval = setInterval(async () => {
+      // 페이지가 보일 때만 실행
+      if (isPageVisible) {
+        const shouldContinue = await loadLogs();
+        if (!shouldContinue) {
+          clearInterval(interval);
+        }
+      }
     }, 5000); // 5초마다
 
     return () => clearInterval(interval);
-  }, [timeFilter, activeTab]);
+  }, [timeFilter, activeTab, isPageVisible]);
 
   // 시간 필터에 따라 로그 필터링
   const filteredLogs = useMemo(() => {

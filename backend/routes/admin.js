@@ -7,6 +7,7 @@ const authenticate = require('../middleware/authenticate');
 const notificationRoutes = require('./notifications');
 const { getMessaging } = require('../firebaseAdmin');
 const { sendPushToAllUsers } = require('../pushService');
+const { decrypt } = require('../utils/encryption');
 
 // 임시 데이터 (다른 라우트와 공유)
 const users = [];
@@ -1598,15 +1599,46 @@ router.get('/matching-history', authenticate, async (req, res) => {
         }
       }
 
+      // 메시지 개수 조회
+      let maleMessageCount = 0;
+      let femaleMessageCount = 0;
+      
+      if (row.male_user_id && row.female_user_id) {
+        // 남성이 보낸 메시지 개수
+        const { count: maleCount } = await supabase
+          .from('chat_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('sender_id', row.male_user_id)
+          .eq('receiver_id', row.female_user_id);
+        
+        // 여성이 보낸 메시지 개수
+        const { count: femaleCount } = await supabase
+          .from('chat_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('sender_id', row.female_user_id)
+          .eq('receiver_id', row.male_user_id);
+        
+        maleMessageCount = maleCount || 0;
+        femaleMessageCount = femaleCount || 0;
+      }
+
       return {
         ...row,
-        male: maleInfo || {
+        male: maleInfo ? {
+          ...maleInfo,
+          message_count: maleMessageCount
+        } : {
           nickname: row.male_nickname || '탈퇴한 사용자',
-          user: { id: null, email: row.male_user_email || '탈퇴한 사용자' }
+          user: { id: null, email: row.male_user_email || '탈퇴한 사용자' },
+          message_count: 0
         },
-        female: femaleInfo || {
+        female: femaleInfo ? {
+          ...femaleInfo,
+          message_count: femaleMessageCount
+        } : {
           nickname: row.female_nickname || '탈퇴한 사용자',
-          user: { id: null, email: row.female_user_email || '탈퇴한 사용자' }
+          user: { id: null, email: row.female_user_email || '탈퇴한 사용자' },
+          message_count: 0
         }
       };
     }));
@@ -3530,6 +3562,105 @@ router.post('/restore-period-users', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[admin] 회차 복구 오류:', error);
     res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 관리자용 채팅 내역 조회 (두 사용자 간)
+router.get('/chat-messages/:user1Id/:user2Id', authenticate, async (req, res) => {
+  try {
+    const { user1Id, user2Id } = req.params;
+    
+    // 관리자 권한 확인
+    const { data: adminUser } = await supabase
+      .from('users')
+      .select('is_admin')
+      .eq('id', req.user.userId)
+      .single();
+    
+    if (!adminUser || !adminUser.is_admin) {
+      return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
+    }
+
+    // is_dev 모드 확인 (운영 환경에서는 채팅 내용 비공개)
+    const { data: devModeSetting } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'is_dev')
+      .maybeSingle();
+    
+    const isDevMode = devModeSetting?.value?.enabled === true;
+
+    // 두 사용자 간의 모든 채팅 메시지 조회
+    const { data: messages, error: messagesError } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .or(`and(sender_id.eq.${user1Id},receiver_id.eq.${user2Id}),and(sender_id.eq.${user2Id},receiver_id.eq.${user1Id})`)
+      .order('timestamp', { ascending: true });
+
+    if (messagesError) {
+      console.error('[admin] 채팅 조회 오류:', messagesError);
+      return res.status(500).json({ error: '채팅 내역 조회 실패', details: messagesError.message });
+    }
+
+    // 사용자 프로필 정보 조회
+    const { data: profiles, error: profilesError } = await supabase
+      .from('user_profiles')
+      .select('user_id, nickname')
+      .in('user_id', [user1Id, user2Id]);
+
+    if (profilesError) {
+      console.error('[admin] 프로필 조회 오류:', profilesError);
+    }
+
+    const profileMap = {};
+    if (profiles) {
+      profiles.forEach(p => {
+        profileMap[p.user_id] = p.nickname;
+      });
+    }
+
+    // 메시지 복호화 및 닉네임 추가
+    const messagesWithNicknames = (messages || []).map(msg => {
+      let content = '';
+      
+      // 운영 모드에서는 채팅 내용 비공개 처리
+      if (!isDevMode) {
+        content = '[비공개]';
+      } else {
+        // 개발 모드에서만 복호화
+        try {
+          content = decrypt(msg.content);
+        } catch (e) {
+          content = '[복호화 실패]';
+          console.warn('[admin] 메시지 복호화 실패:', e);
+        }
+      }
+      
+      return {
+        ...msg,
+        content: content,
+        sender_nickname: profileMap[msg.sender_id] || '알 수 없음',
+        receiver_nickname: profileMap[msg.receiver_id] || '알 수 없음'
+      };
+    });
+
+    res.json({
+      messages: messagesWithNicknames,
+      users: {
+        user1: {
+          id: user1Id,
+          nickname: profileMap[user1Id] || '알 수 없음'
+        },
+        user2: {
+          id: user2Id,
+          nickname: profileMap[user2Id] || '알 수 없음'
+        }
+      },
+      isDevMode: isDevMode
+    });
+  } catch (error) {
+    console.error('[admin] 채팅 조회 오류:', error);
+    res.status(500).json({ error: '서버 오류' });
   }
 });
 
