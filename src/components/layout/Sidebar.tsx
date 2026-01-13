@@ -727,20 +727,21 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       return;
     }
     let cancelled = false;
-    let timer: number | null = null;
+    let shouldStop = false;
     
     const load = async () => {
+      if (shouldStop || cancelled) return;
+      
       try {
         const res = await notificationApi.getUnreadCount();
-        if (!cancelled) {
+        if (!cancelled && !shouldStop) {
           setNotificationUnreadCount(res.unreadCount || 0);
         }
       } catch (e: any) {
         if (!cancelled) {
           // 401 에러 시 폴링 중단
           if (e?.response?.status === 401) {
-            // console.warn('[Sidebar] 알림 조회 인증 실패 - 폴링 중단');
-            if (timer) window.clearInterval(timer);
+            shouldStop = true;
             setNotificationUnreadCount(0);
             return;
           }
@@ -751,11 +752,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     };
     
     load();
-    timer = window.setInterval(load, 15000);
+    const timer = window.setInterval(load, 15000);
     
     return () => {
       cancelled = true;
-      if (timer) window.clearInterval(timer);
+      shouldStop = true;
+      window.clearInterval(timer);
     };
   }, [user?.id]);
 
@@ -766,12 +768,14 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       return;
     }
     let cancelled = false;
-    let timer: number | null = null;
+    let shouldStop = false;
     
     const loadExtraStatus = async () => {
+      if (shouldStop || cancelled) return;
+      
       try {
         const res = await extraMatchingApi.getStatus();
-        if (cancelled) return;
+        if (cancelled || shouldStop) return;
         
         // 기능이 비활성화되어 있으면 false로 설정
         if (res?.featureEnabled === false) {
@@ -796,8 +800,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         if (!cancelled) {
           // 401 에러 시 폴링 중단
           if (e?.response?.status === 401) {
-            console.warn('[Sidebar] 추가 매칭 상태 조회 인증 실패 - 폴링 중단');
-            if (timer) window.clearInterval(timer);
+            shouldStop = true;
             setExtraMatchingInWindow(false);
             return;
           }
@@ -808,11 +811,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     };
     
     loadExtraStatus();
-    timer = window.setInterval(loadExtraStatus, 30000);
+    const timer = window.setInterval(loadExtraStatus, 30000);
     
     return () => {
       cancelled = true;
-      if (timer) window.clearInterval(timer);
+      shouldStop = true;
+      window.clearInterval(timer);
     };
   }, [user?.id]);
 
