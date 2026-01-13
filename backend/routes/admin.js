@@ -3581,11 +3581,11 @@ router.get('/chat-messages/:user1Id/:user2Id', authenticate, async (req, res) =>
       return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
     }
 
-    // is_dev 모드 확인 (운영 환경에서는 채팅 내용 비공개)
+    // dev_mode 확인 (운영 환경에서는 채팅 내용 비공개)
     const { data: devModeSetting } = await supabase
       .from('app_settings')
       .select('value')
-      .eq('key', 'is_dev')
+      .eq('key', 'dev_mode')
       .maybeSingle();
     
     const isDevMode = devModeSetting?.value?.enabled === true;
