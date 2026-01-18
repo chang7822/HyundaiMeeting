@@ -228,6 +228,7 @@ const LogsContainer = styled.div`
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   max-height: calc(100vh - 400px);
   overflow-y: auto;
+  user-select: text;
   
   @media (max-width: 768px) {
     padding: 12px;
@@ -250,6 +251,7 @@ const LogEntry = styled.div<{ $level: string }>`
   font-family: 'Courier New', monospace;
   font-size: 0.85rem;
   word-break: break-all;
+  user-select: text;
   
   @media (max-width: 768px) {
     padding: 10px;
@@ -282,6 +284,7 @@ const LogMessage = styled.div`
   margin-top: 4px;
   color: #1f2937;
   line-height: 1.5;
+  user-select: text;
 `;
 
 const EmptyState = styled.div`
@@ -369,17 +372,17 @@ const LogsPage: React.FC<LogsPageProps> = ({ sidebarOpen }) => {
   useEffect(() => {
     if (timeFilter !== 'realtime') return;
 
-    const interval = setInterval(async () => {
+    const interval = window.setInterval(async () => {
       // 페이지가 보일 때만 실행
       if (isPageVisible) {
         const shouldContinue = await loadLogs();
         if (!shouldContinue) {
-          clearInterval(interval);
+          window.clearInterval(interval);
         }
       }
     }, 5000); // 5초마다
 
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
   }, [timeFilter, activeTab, isPageVisible]);
 
   // 시간 필터에 따라 로그 필터링

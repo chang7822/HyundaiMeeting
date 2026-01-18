@@ -826,7 +826,8 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
                         month: 'short',
                         day: 'numeric',
                         hour: '2-digit',
-                        minute: '2-digit'
+                        minute: '2-digit',
+                        timeZone: 'Asia/Seoul'
                       })}
                       {msg.is_read && msg.read_at && (
                         <span style={{ marginLeft: '8px', color: '#10b981' }}>
@@ -834,7 +835,8 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
                             month: 'short',
                             day: 'numeric',
                             hour: '2-digit',
-                            minute: '2-digit'
+                            minute: '2-digit',
+                            timeZone: 'Asia/Seoul'
                           })})
                         </span>
                       )}

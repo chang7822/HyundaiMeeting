@@ -48,5 +48,17 @@ router.get('/scheduler', authenticate, requireAdmin, (req, res) => {
   }
 });
 
+// 스케줄러 로그 수집 (내부용)
+router.post('/scheduler/ingest', (req, res) => {
+  const { level, message } = req.body || {};
+  if (!message || typeof message !== 'string') {
+    return res.status(400).json({ error: 'message가 필요합니다.' });
+  }
+
+  const normalizedLevel = typeof level === 'string' ? level : 'info';
+  logCollector.addLog('scheduler', normalizedLevel, message);
+  return res.json({ success: true });
+});
+
 module.exports = router;
 
