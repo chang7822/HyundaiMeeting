@@ -3372,7 +3372,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         >
                           <div style={{ position: 'relative', display: 'inline-block' }}>
                             {/* 안읽은 메시지 뱃지 */}
-                            {unreadCount > 0 && (
+                            {canChat && unreadCount > 0 && (
                               <div
                                 style={{
                                   position: 'absolute',
@@ -3623,7 +3623,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       {/* 안읽은 메시지 뱃지 */}
-                      {unreadCount > 0 && (
+                      {canChat && unreadCount > 0 && (
                         <div style={{
                           position: 'absolute',
                           top: '-8px',
