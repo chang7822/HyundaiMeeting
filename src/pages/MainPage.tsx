@@ -1379,8 +1379,22 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!user?.id) return;
     
     let timerRef: number | null = null;
+    let shouldStop = false;
     
     const fetchExtraMatchingFeature = async () => {
+      if (shouldStop) return;
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        shouldStop = true;
+        setExtraMatchingFeatureEnabled(false);
+        if (timerRef) {
+          window.clearInterval(timerRef);
+          timerRef = null;
+        }
+        return;
+      }
+      
       try {
         const res = await extraMatchingApi.getStatus();
         setExtraMatchingFeatureEnabled(res?.featureEnabled !== false);
@@ -1389,9 +1403,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         setExtraMatchingFeatureEnabled(false); // 에러 시 기본값 false (안전하게)
         
         // 401 에러 발생 시 인터벌 중지
-        if (e?.response?.status === 401 && timerRef) {
-          window.clearInterval(timerRef);
-          timerRef = null;
+        if (e?.response?.status === 401) {
+          shouldStop = true;
+          if (timerRef) {
+            window.clearInterval(timerRef);
+            timerRef = null;
+          }
         }
       }
     };
@@ -1400,6 +1417,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     // 30초마다 갱신
     timerRef = window.setInterval(fetchExtraMatchingFeature, 30000);
     return () => {
+      shouldStop = true;
       if (timerRef) {
         window.clearInterval(timerRef);
       }
@@ -1631,8 +1649,22 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!user?.id) return;
     
     let intervalRef: number | null = null;
+    let shouldStop = false;
     
     const fetchNotificationUnreadCount = async () => {
+      if (shouldStop) return;
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        shouldStop = true;
+        setNotificationUnreadCount(0);
+        if (intervalRef) {
+          window.clearInterval(intervalRef);
+          intervalRef = null;
+        }
+        return;
+      }
+      
       try {
         const res = await notificationApi.getUnreadCount();
         const count = res.unreadCount || 0;
@@ -1642,9 +1674,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         setNotificationUnreadCount(0);
         
         // 401 에러 발생 시 인터벌 중지
-        if (error?.response?.status === 401 && intervalRef) {
-          window.clearInterval(intervalRef);
-          intervalRef = null;
+        if (error?.response?.status === 401) {
+          shouldStop = true;
+          if (intervalRef) {
+            window.clearInterval(intervalRef);
+            intervalRef = null;
+          }
         }
       }
     };
@@ -1653,6 +1688,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     intervalRef = window.setInterval(fetchNotificationUnreadCount, 5000);
 
     return () => {
+      shouldStop = true;
       if (intervalRef) {
         window.clearInterval(intervalRef);
       }

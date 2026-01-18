@@ -728,9 +728,18 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     }
     let cancelled = false;
     let shouldStop = false;
+    let timer: number | null = null;
     
     const load = async () => {
       if (shouldStop || cancelled) return;
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        shouldStop = true;
+        setNotificationUnreadCount(0);
+        if (timer) window.clearInterval(timer);
+        return;
+      }
       
       try {
         const res = await notificationApi.getUnreadCount();
@@ -743,6 +752,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           if (e?.response?.status === 401) {
             shouldStop = true;
             setNotificationUnreadCount(0);
+            if (timer) window.clearInterval(timer);
             return;
           }
           // 그 외 에러는 로그만 출력하고 계속 시도
@@ -752,12 +762,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     };
     
     load();
-    const timer = window.setInterval(load, 15000);
+    timer = window.setInterval(load, 15000);
     
     return () => {
       cancelled = true;
       shouldStop = true;
-      window.clearInterval(timer);
+      if (timer) window.clearInterval(timer);
     };
   }, [user?.id]);
 
@@ -769,9 +779,18 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     }
     let cancelled = false;
     let shouldStop = false;
+    let timer: number | null = null;
     
     const loadExtraStatus = async () => {
       if (shouldStop || cancelled) return;
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        shouldStop = true;
+        setExtraMatchingInWindow(false);
+        if (timer) window.clearInterval(timer);
+        return;
+      }
       
       try {
         const res = await extraMatchingApi.getStatus();
@@ -802,6 +821,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           if (e?.response?.status === 401) {
             shouldStop = true;
             setExtraMatchingInWindow(false);
+            if (timer) window.clearInterval(timer);
             return;
           }
           // 그 외 에러는 로그만 출력하고 계속 시도
@@ -811,12 +831,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     };
     
     loadExtraStatus();
-    const timer = window.setInterval(loadExtraStatus, 30000);
+    timer = window.setInterval(loadExtraStatus, 30000);
     
     return () => {
       cancelled = true;
       shouldStop = true;
-      window.clearInterval(timer);
+      if (timer) window.clearInterval(timer);
     };
   }, [user?.id]);
 
