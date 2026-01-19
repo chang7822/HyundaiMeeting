@@ -1140,7 +1140,16 @@ router.post('/comments', authenticate, async (req, res) => {
 
         console.log(`[community] 댓글 알림 전송 완료: post_id=${post_id}, user_id=${post.user_id}`);
       } catch (notifError) {
-        console.error('[community] 댓글 알림 전송 실패:', notifError);
+        const errorMessage = notifError?.message || String(notifError);
+        const errorCode = notifError?.code || notifError?.responseCode || null;
+        const errorDetails = notifError?.error || notifError?.response || null;
+        console.error('[community] 댓글 알림 전송 실패:', {
+          message: errorMessage,
+          code: errorCode,
+          details: errorDetails,
+          post_id: post_id,
+          user_id: post.user_id
+        });
         // 알림 실패해도 댓글 작성은 정상 처리
       }
     }
