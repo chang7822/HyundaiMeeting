@@ -589,13 +589,13 @@ router.post('/posts', authenticate, async (req, res) => {
 
     // 작성자 정보 조회 및 콘솔 로그
     try {
-      const { data: author } = await supabase
-        .from('users')
+      const { data: authorProfile } = await supabase
+        .from('user_profiles')
         .select('nickname')
-        .eq('id', userId)
-        .single();
+        .eq('user_id', userId)
+        .maybeSingle();
       
-      const authorNickname = author?.nickname || '알 수 없음';
+      const authorNickname = authorProfile?.nickname || '알 수 없음';
       console.log(`[커뮤니티 게시글] ${authorNickname}(익명${anonymousNumber}) : ${content}`);
     } catch (logError) {
       console.error('[community] 작성자 정보 조회 오류:', logError);
@@ -1090,13 +1090,13 @@ router.post('/comments', authenticate, async (req, res) => {
 
     // 작성자 정보 조회 및 콘솔 로그
     try {
-      const { data: author } = await supabase
-        .from('users')
+      const { data: authorProfile } = await supabase
+        .from('user_profiles')
         .select('nickname')
-        .eq('id', userId)
-        .single();
+        .eq('user_id', userId)
+        .maybeSingle();
       
-      const authorNickname = author?.nickname || '알 수 없음';
+      const authorNickname = authorProfile?.nickname || '알 수 없음';
       console.log(`[커뮤니티 댓글] ${authorNickname}(익명${anonymousNumber}) : ${content}`);
     } catch (logError) {
       console.error('[community] 작성자 정보 조회 오류:', logError);
