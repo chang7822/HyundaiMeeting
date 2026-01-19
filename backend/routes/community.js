@@ -137,6 +137,93 @@ router.post('/admin/identities', authenticate, async (req, res) => {
 });
 
 /**
+ * [관리자 전용] 익명 ID 일괄 생성 (N개)
+ * POST /api/community/admin/identities/bulk
+ * Body: { period_id, count }
+ */
+router.post('/admin/identities/bulk', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const isAdmin = req.user.isAdmin;
+    const { period_id, count } = req.body;
+
+    if (!isAdmin) {
+      return res.status(403).json({ error: '관리자만 접근 가능합니다.' });
+    }
+
+    if (!period_id) {
+      return res.status(400).json({ error: 'period_id가 필요합니다.' });
+    }
+
+    const createCount = parseInt(count, 10);
+    if (!createCount || createCount < 1 || createCount > 100) {
+      return res.status(400).json({ error: '생성 개수는 1개 이상 100개 이하여야 합니다.' });
+    }
+
+    // 해당 회차에서 가장 큰 익명 번호 찾기 (전체 사용자 기준)
+    const { data: maxNumberData, error: maxError } = await supabase
+      .from('community_user_identities')
+      .select('anonymous_number')
+      .eq('period_id', period_id)
+      .order('anonymous_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (maxError && maxError.code !== 'PGRST116') {
+      console.error('[community] 최대 번호 조회 오류:', maxError);
+      return res.status(500).json({ error: '익명 번호 조회 실패' });
+    }
+
+    // 시작 번호 결정
+    const startNumber = maxNumberData ? maxNumberData.anonymous_number + 1 : 1;
+
+    if (startNumber + createCount - 1 > 9999) {
+      return res.status(400).json({ error: '익명 번호는 9999까지만 생성 가능합니다.' });
+    }
+
+    // 일괄 생성할 데이터 준비
+    const identitiesToInsert = [];
+    for (let i = 0; i < createCount; i++) {
+      const anonymousNumber = startNumber + i;
+      const colorIndex = (anonymousNumber - 1) % COLOR_POOL.length;
+      const colorCode = COLOR_POOL[colorIndex];
+
+      identitiesToInsert.push({
+        period_id: period_id,
+        user_id: userId,
+        anonymous_number: anonymousNumber,
+        color_code: colorCode
+      });
+    }
+
+    // 일괄 insert
+    const { data: newIdentities, error: insertError } = await supabase
+      .from('community_user_identities')
+      .insert(identitiesToInsert)
+      .select();
+
+    if (insertError) {
+      console.error('[community] 관리자 익명 ID 일괄 생성 오류:', insertError);
+      return res.status(500).json({ error: '익명 ID 일괄 생성 실패' });
+    }
+
+    const tag = await getUserMatchingTag(userId, period_id);
+
+    res.json({
+      identities: newIdentities.map(identity => ({
+        anonymousNumber: identity.anonymous_number,
+        colorCode: identity.color_code,
+        tag
+      })),
+      message: `익명${startNumber}부터 ${startNumber + createCount - 1}까지 총 ${createCount}개의 익명 ID가 생성되었습니다.`
+    });
+  } catch (error) {
+    console.error('[community] 관리자 익명 ID 일괄 생성 예외:', error);
+    res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+/**
  * 내 익명 ID 조회 (없으면 자동 생성)
  * GET /api/community/my-identity/:periodId
  * 여러 개가 있으면 가장 작은 번호(첫 번째) 반환

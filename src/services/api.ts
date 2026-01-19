@@ -1215,6 +1215,12 @@ export const communityApi = {
     return response.data;
   },
 
+  // [관리자 전용] 익명 ID 일괄 생성 (N개)
+  createAdminIdentitiesBulk: async (periodId: number, count: number): Promise<{ identities: Array<{ anonymousNumber: number; colorCode: string; tag: string }>; message: string }> => {
+    const response = await api.post('/community/admin/identities/bulk', { period_id: periodId, count });
+    return response.data;
+  },
+
   // [관리자 전용] 게시글 강제 삭제
   adminDeletePost: async (postId: number): Promise<{ success: boolean; message: string }> => {
     const response = await api.post(`/community/admin/delete-post/${postId}`);

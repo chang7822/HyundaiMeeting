@@ -985,6 +985,8 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [adminIdentities, setAdminIdentities] = useState<Array<{ anonymousNumber: number; colorCode: string; tag: string }>>([]);
   const [selectedAnonymousNumber, setSelectedAnonymousNumber] = useState<number | null>(null);
   const [creatingIdentity, setCreatingIdentity] = useState(false);
+  const [bulkCreateCount, setBulkCreateCount] = useState<string>('1');
+  const [creatingBulkIdentity, setCreatingBulkIdentity] = useState(false);
 
   // 정렬 옵션
   const [sortOrder, setSortOrder] = useState<'latest' | 'popular'>('latest');
@@ -1170,6 +1172,34 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       toast.error(error?.response?.data?.error || '익명 ID 생성에 실패했습니다.');
     } finally {
       setCreatingIdentity(false);
+    }
+  };
+
+  // [관리자 전용] 익명 ID 일괄 생성 (N개)
+  const handleCreateBulkIdentities = async () => {
+    if (!currentPeriodId) return;
+    
+    const count = parseInt(bulkCreateCount, 10);
+    if (!count || count < 1 || count > 100) {
+      toast.error('생성 개수는 1개 이상 100개 이하여야 합니다.');
+      return;
+    }
+    
+    setCreatingBulkIdentity(true);
+    try {
+      const result = await communityApi.createAdminIdentitiesBulk(currentPeriodId, count);
+      toast.success(result.message);
+      await loadAdminIdentities(); // 목록 새로고침
+      setBulkCreateCount('1'); // 입력 필드 초기화
+      // 마지막 생성된 ID를 선택
+      if (result.identities && result.identities.length > 0) {
+        const lastIdentity = result.identities[result.identities.length - 1];
+        setSelectedAnonymousNumber(lastIdentity.anonymousNumber);
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || '익명 ID 일괄 생성에 실패했습니다.');
+    } finally {
+      setCreatingBulkIdentity(false);
     }
   };
 
@@ -1671,27 +1701,71 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
             </select>
             <button
               onClick={handleCreateIdentity}
-              disabled={creatingIdentity}
+              disabled={creatingIdentity || creatingBulkIdentity}
               style={{
                 padding: '0.5rem 1rem',
                 borderRadius: '8px',
                 border: '2px solid #10B981',
-                background: creatingIdentity ? '#9CA3AF' : '#10B981',
+                background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#10B981',
                 color: 'white',
-                cursor: creatingIdentity ? 'not-allowed' : 'pointer',
+                cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
                 fontSize: '0.9rem',
                 fontWeight: 600,
                 transition: 'all 0.2s'
               }}
               onMouseEnter={(e) => {
-                if (!creatingIdentity) e.currentTarget.style.background = '#059669';
+                if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#059669';
               }}
               onMouseLeave={(e) => {
-                if (!creatingIdentity) e.currentTarget.style.background = '#10B981';
+                if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#10B981';
               }}
             >
               {creatingIdentity ? '생성 중...' : '+ 새 익명 ID 생성'}
             </button>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={bulkCreateCount}
+                onChange={(e) => setBulkCreateCount(e.target.value)}
+                disabled={creatingIdentity || creatingBulkIdentity}
+                placeholder="개수"
+                style={{
+                  width: '60px',
+                  padding: '0.5rem',
+                  borderRadius: '8px',
+                  border: '2px solid #7C3AED',
+                  background: 'white',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  textAlign: 'center'
+                }}
+              />
+              <button
+                onClick={handleCreateBulkIdentities}
+                disabled={creatingIdentity || creatingBulkIdentity}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: '8px',
+                  border: '2px solid #7C3AED',
+                  background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#7C3AED',
+                  color: 'white',
+                  cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#6D28D9';
+                }}
+                onMouseLeave={(e) => {
+                  if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#7C3AED';
+                }}
+              >
+                {creatingBulkIdentity ? '생성 중...' : '다중 생성'}
+              </button>
+            </div>
           </div>
         </AdminIdentitySection>
       )}
