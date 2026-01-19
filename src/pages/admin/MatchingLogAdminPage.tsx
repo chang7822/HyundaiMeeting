@@ -48,34 +48,62 @@ const Container = styled.div<{ $sidebarOpen: boolean }>`
   padding: 32px 24px;
   max-width: 1200px;
   margin-left: ${props => (window.innerWidth > 768 && props.$sidebarOpen) ? '280px' : '0'};
+  
   @media (max-width: 768px) {
+    margin: 0;
+    padding: 16px 12px;
     margin-left: 0;
+    border-radius: 0;
+    box-shadow: none;
+    max-width: 100%;
+    width: 100%;
   }
 `;
+
 const Title = styled.h2`
   font-size: 2rem;
   font-weight: 700;
   margin-bottom: 24px;
+  
+  @media (max-width: 768px) {
+    font-size: 1.5rem;
+    margin-bottom: 16px;
+  }
 `;
+
 const TableWrapper = styled.div`
   width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  
+  @media (max-width: 768px) {
+    display: none;
+  }
 `;
+
 const Table = styled.table`
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 32px;
+  
   th, td {
     border-bottom: 1px solid #eee;
     padding: 12px 8px;
     text-align: center;
     white-space: nowrap;
   }
+  
   th {
     background: #f7f7fa;
     font-weight: 600;
+    font-size: 0.9rem;
+  }
+  
+  td {
+    font-size: 0.85rem;
   }
 `;
+
 const Button = styled.button`
   background: #7C3AED;
   color: #fff;
@@ -85,13 +113,136 @@ const Button = styled.button`
   font-weight: 600;
   margin: 0 4px;
   cursor: pointer;
-  &:hover { background: #5b21b6; }
+  transition: all 0.2s;
+  
+  &:hover { 
+    background: #5b21b6; 
+  }
+  
+  &:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+  
+  @media (max-width: 768px) {
+    padding: 10px 14px;
+    font-size: 0.85rem;
+    margin: 4px 2px;
+  }
 `;
+
 const Input = styled.input`
   padding: 6px 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
   margin-right: 8px;
+`;
+
+const DatePickerWrapper = styled.div`
+  .react-datepicker-wrapper {
+    width: 100%;
+  }
+  
+  .react-datepicker__input-container input {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    width: 100%;
+    box-sizing: border-box;
+    
+    @media (max-width: 768px) {
+      font-size: 0.85rem;
+      padding: 10px;
+    }
+  }
+`;
+
+const CardList = styled.div`
+  display: none;
+  
+  @media (max-width: 768px) {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 20px;
+    width: 100%;
+  }
+`;
+
+const PeriodCard = styled.div`
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  box-sizing: border-box;
+`;
+
+const CardHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const CardTitle = styled.div`
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #7C3AED;
+`;
+
+const CardBadge = styled.span`
+  background: #10b981;
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+`;
+
+const CardContent = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+`;
+
+const CardRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+`;
+
+const CardLabel = styled.span`
+  color: #6b7280;
+  font-weight: 500;
+  min-width: 80px;
+`;
+
+const CardValue = styled.span`
+  color: #1f2937;
+  font-weight: 600;
+  text-align: right;
+  flex: 1;
+  font-size: 0.75rem;
+`;
+
+const CardActions = styled.div`
+  display: flex;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  
+  button {
+    padding: 8px 12px !important;
+    font-size: 0.85rem !important;
+    height: auto !important;
+  }
 `;
 
 Modal.setAppElement('#root');
@@ -240,9 +391,9 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
     matchingAnnounce.setDate(matchingAnnounce.getDate() + 7);
     matchingAnnounce.setHours(10, 0, 0, 0);
 
-    // 회차 종료: 매칭 공지 3일 후 22:00
+    // 회차 종료: 매칭 공지 5일 후 22:00
     const finish = new Date(matchingAnnounce);
-    finish.setDate(finish.getDate() + 3);
+    finish.setDate(finish.getDate() + 5);
     finish.setHours(22, 0, 0, 0);
 
     setForm((prev: any) => ({
@@ -263,6 +414,72 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
         </div>
       ) : (
         <>
+          {/* 새 회차 추가 버튼 (최상단) */}
+          <Button 
+            onClick={() => { 
+              setModalOpen(true); 
+              setEditing(null); 
+              setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); 
+            }}
+            style={{ 
+              width: '100%', 
+              marginBottom: '24px',
+              padding: '12px',
+              fontSize: '1rem'
+            }}
+          >
+            새 회차 추가
+          </Button>
+
+          {/* 모바일: 카드 리스트 */}
+          <CardList>
+            {logs.map((log, idx) => (
+              <PeriodCard key={log.id}>
+                <CardHeader>
+                  <CardTitle>회차 {idx + 1} <span style={{ fontSize: '0.85rem', color: '#9ca3af', fontWeight: '500' }}>(ID: {log.id})</span></CardTitle>
+                  {log.executed && <CardBadge>✅ 실행됨</CardBadge>}
+                </CardHeader>
+                <CardContent>
+                  <CardRow>
+                    <CardLabel>신청 시작</CardLabel>
+                    <CardValue>{formatKST(log.application_start)}</CardValue>
+                  </CardRow>
+                  <CardRow>
+                    <CardLabel>신청 마감</CardLabel>
+                    <CardValue>{formatKST(log.application_end)}</CardValue>
+                  </CardRow>
+                  <CardRow>
+                    <CardLabel>매칭 실행</CardLabel>
+                    <CardValue>{formatKST(log.matching_run)}</CardValue>
+                  </CardRow>
+                  <CardRow>
+                    <CardLabel>결과 발표</CardLabel>
+                    <CardValue>{formatKST(log.matching_announce)}</CardValue>
+                  </CardRow>
+                  <CardRow>
+                    <CardLabel>회차 종료</CardLabel>
+                    <CardValue>{formatKST(log.finish)}</CardValue>
+                  </CardRow>
+                </CardContent>
+                <CardActions>
+                  <Button 
+                    onClick={() => handleEdit(log)}
+                    style={{ flex: 1, margin: 0 }}
+                  >
+                    수정
+                  </Button>
+                  <Button 
+                    style={{ flex: 1, background: '#e74c3c', margin: 0 }} 
+                    onClick={() => handleDelete(log.id)}
+                  >
+                    삭제
+                  </Button>
+                </CardActions>
+              </PeriodCard>
+            ))}
+          </CardList>
+
+          {/* 데스크톱: 테이블 */}
           <TableWrapper>
             <Table>
               <thead>
@@ -288,27 +505,51 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
                     <td>{formatKST(log.finish)}</td>
                     <td>{log.executed ? '✅' : ''}</td>
                     <td>
-                      <Button onClick={() => handleEdit(log)}>수정</Button>
-                      <Button style={{ background: '#e74c3c' }} onClick={() => handleDelete(log.id)}>삭제</Button>
+                      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                        <Button onClick={() => handleEdit(log)} style={{ margin: 0 }}>수정</Button>
+                        <Button style={{ background: '#e74c3c', margin: 0 }} onClick={() => handleDelete(log.id)}>삭제</Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </Table>
           </TableWrapper>
-          <Button onClick={() => { setModalOpen(true); setEditing(null); setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); }}>새 회차 추가</Button>
         </>
       )}
       <Modal
         isOpen={modalOpen || !!editing}
         onRequestClose={() => { setModalOpen(false); setEditing(null); }}
-        style={{ content: { maxWidth: 480, margin: 'auto', borderRadius: 12, padding: 32 } }}
+        style={{
+          content: {
+            maxWidth: window.innerWidth <= 768 ? '90%' : 480,
+            width: window.innerWidth <= 768 ? '90%' : 'auto',
+            margin: 'auto',
+            borderRadius: 12,
+            padding: window.innerWidth <= 768 ? 20 : 32,
+            maxHeight: '90vh',
+            overflow: 'auto',
+            inset: window.innerWidth <= 768 ? '10px' : '40px'
+          },
+          overlay: {
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 1000
+          }
+        }}
         contentLabel="매칭 회차 추가/수정"
       >
-        <h3 style={{ marginBottom: 18 }}>{editing ? '회차 수정' : '새 회차 추가'}</h3>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>신청 시작</div>
+        <h3 style={{ marginBottom: 18, fontSize: window.innerWidth <= 768 ? '1.2rem' : '1.5rem' }}>
+          {editing ? '회차 수정' : '새 회차 추가'}
+        </h3>
+        <div style={{ 
+          display: 'flex', 
+          gap: 16, 
+          flexWrap: 'wrap', 
+          alignItems: 'flex-start', 
+          marginBottom: 16 
+        }}>
+          <DatePickerWrapper style={{ minWidth: window.innerWidth <= 768 ? '100%' : 'auto' }}>
+            <div style={{ fontSize: 13, marginBottom: 4, fontWeight: 500 }}>신청 시작</div>
             <DatePicker
               selected={form.application_start ? new Date(form.application_start) : null}
               onChange={date => handleChange('application_start', date ? date.toISOString() : null)}
@@ -317,9 +558,9 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
               placeholderText="날짜/시간 선택"
               popperPlacement="bottom-start"
             />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>신청 마감</div>
+          </DatePickerWrapper>
+          <DatePickerWrapper style={{ minWidth: window.innerWidth <= 768 ? '100%' : 'auto' }}>
+            <div style={{ fontSize: 13, marginBottom: 4, fontWeight: 500 }}>신청 마감</div>
             <DatePicker
               selected={form.application_end ? new Date(form.application_end) : null}
               onChange={date => handleChange('application_end', date ? date.toISOString() : null)}
@@ -328,9 +569,9 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
               placeholderText="날짜/시간 선택"
               popperPlacement="bottom-start"
             />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>매칭 실행</div>
+          </DatePickerWrapper>
+          <DatePickerWrapper style={{ minWidth: window.innerWidth <= 768 ? '100%' : 'auto' }}>
+            <div style={{ fontSize: 13, marginBottom: 4, fontWeight: 500 }}>매칭 실행</div>
             <DatePicker
               selected={form.matching_run ? new Date(form.matching_run) : null}
               onChange={date => handleChange('matching_run', date ? date.toISOString() : null)}
@@ -339,9 +580,9 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
               placeholderText="날짜/시간 선택"
               popperPlacement="bottom-start"
             />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>결과 발표</div>
+          </DatePickerWrapper>
+          <DatePickerWrapper style={{ minWidth: window.innerWidth <= 768 ? '100%' : 'auto' }}>
+            <div style={{ fontSize: 13, marginBottom: 4, fontWeight: 500 }}>결과 발표</div>
             <DatePicker
               selected={form.matching_announce ? new Date(form.matching_announce) : null}
               onChange={date => handleChange('matching_announce', date ? date.toISOString() : null)}
@@ -350,9 +591,9 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
               placeholderText="날짜/시간 선택"
               popperPlacement="bottom-start"
             />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>회차 종료</div>
+          </DatePickerWrapper>
+          <DatePickerWrapper style={{ minWidth: window.innerWidth <= 768 ? '100%' : 'auto' }}>
+            <div style={{ fontSize: 13, marginBottom: 4, fontWeight: 500 }}>회차 종료</div>
             <DatePicker
               selected={form.finish ? new Date(form.finish) : null}
               onChange={date => handleChange('finish', date ? date.toISOString() : null)}
@@ -361,16 +602,34 @@ const MatchingLogAdminPage = ({ isSidebarOpen, setSidebarOpen }: { isSidebarOpen
               placeholderText="날짜/시간 선택"
               popperPlacement="bottom-start"
             />
-          </div>
-          <div>
-            <div style={{ fontSize: 13, marginBottom: 4 }}>실행됨</div>
+          </DatePickerWrapper>
+          <div style={{ minWidth: window.innerWidth <= 768 ? '100%' : 'auto' }}>
+            <div style={{ fontSize: 13, marginBottom: 4, fontWeight: 500 }}>실행됨</div>
             <input type="checkbox" checked={form.executed} onChange={e => handleChange('executed', e.target.checked)} />
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
-          <Button onClick={handleSave} disabled={!isFormValid}>{editing ? '수정 완료' : '추가'}</Button>
-          <Button style={{ background: '#888' }} onClick={() => { setModalOpen(false); setEditing(null); setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); }}>취소</Button>
-          <Button style={{ background: '#27ae60' }} onClick={handleTestData}>테스트</Button>
+        <div style={{ 
+          display: 'flex', 
+          gap: 12, 
+          marginTop: 16,
+          flexWrap: 'wrap'
+        }}>
+          <Button onClick={handleSave} disabled={!isFormValid}>
+            {editing ? '수정 완료' : '추가'}
+          </Button>
+          <Button 
+            style={{ background: '#888' }} 
+            onClick={() => { 
+              setModalOpen(false); 
+              setEditing(null); 
+              setForm({ application_start: null, application_end: null, matching_announce: null, matching_run: null, finish: null, executed: false }); 
+            }}
+          >
+            취소
+          </Button>
+          <Button style={{ background: '#27ae60' }} onClick={handleTestData}>
+            테스트
+          </Button>
           <Button
             style={{
               background: form.application_start ? '#10b981' : '#9ca3af',

@@ -11,7 +11,11 @@ const transporter = nodemailer.createTransport({
 
 // 매칭 결과 이메일 발송 함수
 async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null) {
+  // 한국 시간(KST, UTC+9)으로 변환
   const now = new Date();
+  const kstOffset = 9 * 60; // UTC+9 (분 단위)
+  const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  const kstTime = new Date(utcTime + (kstOffset * 60 * 1000));
 
   const formatDateYMD = (date) => {
     const yy = String(date.getFullYear()).slice(2);
@@ -20,9 +24,9 @@ async function sendMatchingResultEmail(userEmail, isMatched, partnerInfo = null)
     return `${yy}. ${m}. ${d}`;
   };
 
-  const hh = now.getHours().toString().padStart(2, '0');
-  const mm = now.getMinutes().toString().padStart(2, '0');
-  const koreanTime = `${formatDateYMD(now)} ${hh}:${mm}`;
+  const hh = kstTime.getHours().toString().padStart(2, '0');
+  const mm = kstTime.getMinutes().toString().padStart(2, '0');
+  const koreanTime = `${formatDateYMD(kstTime)} ${hh}:${mm}`;
 
   const subject = '[직장인 솔로 공모] 매칭 결과 발표';
   const htmlContent = `

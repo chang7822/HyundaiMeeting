@@ -1060,18 +1060,25 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     return () => clearInterval(timer);
   }, []);
 
-  // 현재 회차 정보 조회
+  // 현재 회차 정보 조회 (커뮤니티 전용: 준비중 상태 제외)
   useEffect(() => {
     const fetchPeriod = async () => {
       try {
-        const data = await matchingApi.getMatchingPeriod();
-        const period = data?.current || data;
+        const data = await matchingApi.getMatchingPeriodForCommunity();
+        const period = data?.current || null;
         if (period?.id) {
           setCurrentPeriodId(period.id);
           setCurrentPeriod(period);
+        } else {
+          // 회차가 없거나 준비중 상태만 있는 경우
+          setCurrentPeriodId(null);
+          setCurrentPeriod(null);
         }
       } catch (error) {
+        console.error('[CommunityPage] 회차 정보 조회 오류:', error);
         toast.error('회차 정보를 불러올 수 없습니다.');
+        setCurrentPeriodId(null);
+        setCurrentPeriod(null);
       }
     };
 
@@ -1493,7 +1500,10 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
             </WarningButton>
           </HeaderTitleRow>
           
-          <HeaderSubtitle>현재 진행 중인 매칭 회차가 없습니다.</HeaderSubtitle>
+          <HeaderSubtitle>
+            아직 커뮤니티를 사용할 수 있는 회차가 없습니다.<br/>
+            매칭 신청이 시작되면 커뮤니티를 이용하실 수 있습니다.
+          </HeaderSubtitle>
         </HeaderSection>
       </Container>
     );

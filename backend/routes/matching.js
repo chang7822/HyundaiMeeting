@@ -257,6 +257,67 @@ router.get('/period', async (req, res) => {
   }
 });
 
+// 커뮤니티 페이지용 매칭 회차 조회 (준비중 상태 제외)
+router.get('/period-for-community', async (req, res) => {
+  try {
+    const { data: logs, error } = await supabase
+      .from('matching_log')
+      .select('*')
+      .order('id', { ascending: false });
+    
+    if (error) {
+      console.error('[matching] 커뮤니티용 회차 조회 오류:', error);
+      return res.status(500).json({
+        success: false,
+        error: '회차 정보 조회 실패',
+      });
+    }
+
+    if (!logs || logs.length === 0) {
+      return res.json({
+        success: true,
+        current: null,
+        message: '아직 생성된 매칭 회차가 없습니다.',
+      });
+    }
+
+    // 준비중 상태 제외, 진행중/발표완료/종료 상태만 고려
+    const availableLogs = logs.filter(log => 
+      log.status === '진행중' || 
+      log.status === '발표완료' || 
+      log.status === '종료'
+    );
+
+    if (availableLogs.length === 0) {
+      return res.json({
+        success: true,
+        current: null,
+        message: '아직 커뮤니티를 사용할 수 있는 회차가 없습니다.',
+      });
+    }
+
+    // 가장 최신 회차 선택 (id DESC로 정렬되어 있으므로 첫 번째가 가장 최신)
+    const current = availableLogs[0];
+
+    // 회차 번호 추가
+    const sortedLogs = [...logs].sort((a, b) => a.id - b.id);
+    const periodIndex = sortedLogs.findIndex(log => log.id === current.id);
+    current.periodNumber = periodIndex >= 0 ? periodIndex + 1 : logs.length;
+
+    return res.json({
+      success: true,
+      current,
+      message: null,
+    });
+  } catch (error) {
+    console.error('[matching] 커뮤니티용 회차 조회 예외:', error);
+    res.status(500).json({
+      success: false,
+      error: '회차 정보 조회 실패',
+    });
+  }
+});
+
 // 매칭 요청
 router.post('/request', authenticate, async (req, res) => {
   try {

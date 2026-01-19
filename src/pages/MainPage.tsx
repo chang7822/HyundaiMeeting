@@ -1451,8 +1451,14 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     };
   }, [user?.id]);
 
-  // 커뮤니티 기능 활성화 여부 조회
+  // 커뮤니티 기능 활성화 여부 조회 (관리자만)
   useEffect(() => {
+    // 관리자가 아닌 경우 기본값(true) 사용, API 호출 안 함
+    if (!user?.isAdmin) {
+      setCommunityEnabled(true);
+      return;
+    }
+
     let cancelled = false;
     
     const fetchCommunitySettings = async () => {
@@ -1462,6 +1468,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         setCommunityEnabled(res?.community?.enabled !== false);
       } catch (e) {
         if (cancelled) return;
+        // 403 에러는 조용히 처리 (관리자가 아닌 경우)
+        if (e?.response?.status === 403) {
+          setCommunityEnabled(true); // 기본값 사용
+          return;
+        }
         console.error('[MainPage] 커뮤니티 설정 조회 오류:', e);
         setCommunityEnabled(true); // 오류 시 기본값 true
       }
@@ -1472,7 +1483,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.isAdmin]);
 
   // 선호 회사 이름 매핑용 회사 목록 로드
   useEffect(() => {

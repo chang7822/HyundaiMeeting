@@ -395,6 +395,22 @@ export const matchingApi = {
     // 과거 호환: 단일 회차 객체만 내려오는 경우 그대로 반환
     return data;
   },
+
+  // 커뮤니티 페이지용 매칭 회차 조회 (준비중 상태 제외)
+  getMatchingPeriodForCommunity: async () => {
+    const response = await api.get('/matching/period-for-community');
+    const data = response.data;
+
+    // 백엔드가 { success, current, message } 형태로 내려주는 경우
+    if (data && typeof data === 'object' && 'success' in data) {
+      if (!data.current) {
+        return null;
+      }
+      return { current: data.current };
+    }
+
+    return data;
+  },
 };
 
 // Chat API
