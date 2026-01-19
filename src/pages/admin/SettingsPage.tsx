@@ -176,6 +176,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [devSaving, setDevSaving] = useState(false);
   const [extraMatching, setExtraMatching] = useState(true);
   const [extraMatchingSaving, setExtraMatchingSaving] = useState(false);
+  const [community, setCommunity] = useState(true);
+  const [communitySaving, setCommunitySaving] = useState(false);
 
   // 푸시 알림 전송 관련 상태
   const [users, setUsers] = useState<any[]>([]);
@@ -197,6 +199,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         setMaintenanceMessage(res?.maintenance?.message || '');
         setDevMode(!!res?.devMode?.enabled);
         setExtraMatching(res?.extraMatching?.enabled !== false);
+        setCommunity(res?.community?.enabled !== false);
       } catch (e) {
         console.error('[SettingsPage] 시스템 설정 조회 오류:', e);
         toast.error('시스템 설정을 불러오지 못했습니다.');
@@ -300,6 +303,22 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       toast.error('추가 매칭 도전 설정을 변경하지 못했습니다.');
     } finally {
       setExtraMatchingSaving(false);
+    }
+  };
+
+  const handleToggleCommunity = async () => {
+    const next = !community;
+    setCommunity(next);
+    setCommunitySaving(true);
+    try {
+      await adminApi.updateCommunity(next);
+      toast.success(next ? '커뮤니티 기능이 활성화되었습니다.' : '커뮤니티 기능이 비활성화되었습니다.');
+    } catch (e) {
+      console.error('[SettingsPage] 커뮤니티 업데이트 오류:', e);
+      setCommunity(!next); // 롤백
+      toast.error('커뮤니티 설정을 변경하지 못했습니다.');
+    } finally {
+      setCommunitySaving(false);
     }
   };
 
@@ -444,6 +463,33 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                   checked={extraMatching}
                   onChange={handleToggleExtraMatching}
                   disabled={loading || extraMatchingSaving}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </ToggleRow>
+          </Section>
+
+          <Section>
+            <SectionTitle>커뮤니티 기능</SectionTitle>
+            <SectionDescription>
+              커뮤니티 기능을 활성화/비활성화할 수 있습니다.
+              {'\n'}비활성화 시 사이드바 메뉴가 비활성화되며 접근이 차단됩니다. (문제 발생 시 디버깅용)
+            </SectionDescription>
+            <ToggleRow>
+              <ToggleLabel>
+                <span>커뮤니티 기능</span>
+                <ToggleDescription>
+                  {community
+                    ? '커뮤니티 기능이 활성화되어 있습니다. (회원들이 기능을 사용할 수 있음)'
+                    : '커뮤니티 기능이 비활성화되어 있습니다. (회원들에게 접근이 차단됨)'}
+                </ToggleDescription>
+              </ToggleLabel>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={community}
+                  onChange={handleToggleCommunity}
+                  disabled={loading || communitySaving}
                 />
                 <SwitchSlider />
               </SwitchLabel>

@@ -29,6 +29,7 @@ const extraMatchingRoutes = require('./routes/extra-matching');
 const notificationRoutes = require('./routes/notifications');
 const pushRoutes = require('./routes/push');
 const logsRoutes = require('./routes/logs');
+const communityRoutes = require('./routes/community');
 const { supabase } = require('./database');
 const { encrypt, decrypt } = require('./utils/encryption');
 const { sendPushToUsers } = require('./pushService');
@@ -93,6 +94,7 @@ app.use('/api/extra-matching', extraMatchingRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/community', communityRoutes);
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, '../public')));

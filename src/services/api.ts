@@ -543,6 +543,7 @@ export const adminApi = {
     maintenance: { enabled: boolean; message?: string };
     devMode?: { enabled: boolean };
     extraMatching?: { enabled: boolean };
+    community?: { enabled: boolean };
   }> => {
     const response = await api.get('/admin/system-settings');
     return response.data;
@@ -563,6 +564,11 @@ export const adminApi = {
   // 추가 매칭 도전 기능 토글
   updateExtraMatching: async (enabled: boolean): Promise<any> => {
     const response = await api.put('/admin/system-settings/extra-matching', { enabled });
+    return response.data;
+  },
+
+  updateCommunity: async (enabled: boolean): Promise<any> => {
+    const response = await api.put('/admin/system-settings/community', { enabled });
     return response.data;
   },
 
@@ -1169,6 +1175,110 @@ export const adminChatApi = {
   // 두 사용자 간의 채팅 내역 조회 (관리자용)
   getChatMessages: async (user1Id: string | number, user2Id: string | number): Promise<{ messages: any[]; users: any; isDevMode?: boolean }> => {
     const response = await api.get(`/admin/chat-messages/${user1Id}/${user2Id}`);
+    return response.data;
+  },
+};
+
+// Community API
+export const communityApi = {
+  // 내 익명 ID 조회
+  getMyIdentity: async (periodId: number): Promise<{ anonymousNumber: number; colorCode: string; tag: string }> => {
+    const response = await api.get(`/community/my-identity/${periodId}`);
+    return response.data;
+  },
+
+  // [관리자 전용] 모든 익명 ID 조회
+  getAdminIdentities: async (periodId: number): Promise<{ identities: Array<{ anonymousNumber: number; colorCode: string; tag: string }> }> => {
+    const response = await api.get(`/community/admin/identities/${periodId}`);
+    return response.data;
+  },
+
+  // [관리자 전용] 익명 ID 자동 생성 (마지막 번호 + 1)
+  createAdminIdentity: async (periodId: number): Promise<{ anonymousNumber: number; colorCode: string; tag: string; message: string }> => {
+    const response = await api.post('/community/admin/identities', { period_id: periodId });
+    return response.data;
+  },
+
+  // [관리자 전용] 게시글 강제 삭제
+  adminDeletePost: async (postId: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post(`/community/admin/delete-post/${postId}`);
+    return response.data;
+  },
+
+  // [관리자 전용] 댓글 강제 삭제
+  adminDeleteComment: async (commentId: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post(`/community/admin/delete-comment/${commentId}`);
+    return response.data;
+  },
+
+  // 게시글 목록 조회
+  getPosts: async (periodId: number, limit = 20, offset = 0, sortBy: 'latest' | 'popular' = 'latest', filter: 'all' | 'mine' = 'all'): Promise<{ posts: any[]; hasMore: boolean; totalCount: number }> => {
+    const response = await api.get(`/community/posts/${periodId}`, { params: { limit, offset, sortBy, filter } });
+    return response.data;
+  },
+
+  // 게시글 작성
+  createPost: async (periodId: number, content: string, preferredAnonymousNumber?: number): Promise<{ post: any }> => {
+    const response = await api.post('/community/posts', { 
+      period_id: periodId, 
+      content,
+      ...(preferredAnonymousNumber && { preferred_anonymous_number: preferredAnonymousNumber })
+    });
+    return response.data;
+  },
+
+  // 게시글 삭제
+  deletePost: async (postId: number): Promise<{ success: boolean }> => {
+    const response = await api.delete(`/community/posts/${postId}`);
+    return response.data;
+  },
+
+  // 댓글 목록 조회
+  getComments: async (postId: number): Promise<{ comments: any[] }> => {
+    const response = await api.get(`/community/posts/${postId}/comments`);
+    return response.data;
+  },
+
+  // 댓글 작성
+  createComment: async (postId: number, content: string, preferredAnonymousNumber?: number): Promise<{ comment: any }> => {
+    const response = await api.post('/community/comments', { 
+      post_id: postId, 
+      content,
+      ...(preferredAnonymousNumber && { preferred_anonymous_number: preferredAnonymousNumber })
+    });
+    return response.data;
+  },
+
+  // 댓글 삭제
+  deleteComment: async (commentId: number): Promise<{ success: boolean }> => {
+    const response = await api.delete(`/community/comments/${commentId}`);
+    return response.data;
+  },
+
+  // 좋아요 토글
+  toggleLike: async (postId: number, anonymousNumber?: number): Promise<{ liked: boolean }> => {
+    const response = await api.post(`/community/posts/${postId}/like`, { 
+      ...(anonymousNumber && { anonymous_number: anonymousNumber })
+    });
+    return response.data;
+  },
+
+  // 내가 좋아요한 게시글 ID 목록
+  getMyLikes: async (periodId: number, anonymousNumber?: number): Promise<{ likedPostIds: number[] }> => {
+    const response = await api.get(`/community/posts/my-likes/${periodId}`, {
+      params: anonymousNumber ? { anonymous_number: anonymousNumber } : {}
+    });
+    return response.data;
+  },
+
+  // 신고
+  reportContent: async (targetType: 'post' | 'comment', targetId: number, reason: string, anonymousNumber?: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/community/reports', { 
+      target_type: targetType, 
+      target_id: targetId, 
+      reason,
+      ...(anonymousNumber && { anonymous_number: anonymousNumber })
+    });
     return response.data;
   },
 };

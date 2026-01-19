@@ -20,7 +20,7 @@ import {
   FaBell,
   FaCog,
 } from 'react-icons/fa';
-import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi } from '../../services/api.ts';
+import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi } from '../../services/api.ts';
 import { isNativeApp } from '../../firebase.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
@@ -620,6 +620,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
   const [adSubmitting, setAdSubmitting] = useState(false);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
   const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
+  const [communityEnabled, setCommunityEnabled] = useState<boolean | null>(null);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [emailNotificationEnabled, setEmailNotificationEnabled] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -900,6 +901,29 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     };
   }, []);
 
+  // 커뮤니티 기능 활성화 여부 로드
+  useEffect(() => {
+    let cancelled = false;
+    
+    const loadCommunitySettings = async () => {
+      try {
+        const res = await adminApi.getSystemSettings();
+        if (cancelled) return;
+        setCommunityEnabled(res?.community?.enabled !== false);
+      } catch (err) {
+        if (cancelled) return;
+        console.error('[Sidebar] 커뮤니티 설정 조회 오류:', err);
+        setCommunityEnabled(true); // 오류 시 기본값 true
+      }
+    };
+    
+    loadCommunitySettings();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleDailyAttendance = async () => {
     if (!user?.id) return;
     setAttendanceSubmitting(true);
@@ -1100,6 +1124,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       disabled: extraMatchingInWindow === false || user?.is_verified !== true,
     },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
+    { 
+      path: '/community', 
+      icon: <FaComments />, 
+      text: '커뮤니티',
+      disabled: communityEnabled === false
+    },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
     { path: '/faq', icon: <FaQuestionCircle />, text: 'FAQ' },
     { path: '/support/my-inquiries', icon: <FaHeadset />, text: '고객센터' },

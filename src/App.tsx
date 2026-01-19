@@ -44,6 +44,7 @@ import NoticeManagerPage from './pages/admin/NoticeManagerPage.tsx';
 import FaqManagerPage from './pages/admin/FaqManagerPage.tsx';
 import ReportManagementPage from './pages/admin/ReportManagementPage.tsx';
 import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
+import CommunityPage from './pages/CommunityPage.tsx';
 import ExtraMatchingPage from './pages/ExtraMatchingPage.tsx';
 import NotificationsPage from './pages/NotificationsPage.tsx';
 import AdminNotificationPage from './pages/admin/AdminNotificationPage.tsx';
@@ -545,6 +546,14 @@ const AppInner: React.FC = () => {
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
                     <MatchingHistoryPage sidebarOpen={sidebarOpen} />
+                  </div>
+                </ProtectedRoute>
+              } />
+              <Route path="/community" element={
+                <ProtectedRoute>
+                  <div style={{ display: 'flex' }}>
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <CommunityPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
               } />

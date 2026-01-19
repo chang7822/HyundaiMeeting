@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi, starApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi, starApi, adminApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -44,6 +44,32 @@ type NoticeFaqAction = {
 };
 
 type QuickAction = BaseQuickAction | ProfilePreferenceAction | NoticeFaqAction;
+
+// Pulse animation for NEW badge
+const pulse = keyframes`
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+`;
+
+const NewBadge = styled.span`
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.4);
+  animation: ${pulse} 2s ease-in-out infinite;
+`;
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
@@ -871,6 +897,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showIosGuideModal, setShowIosGuideModal] = useState(false);
   const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
   const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
+  const [communityEnabled, setCommunityEnabled] = useState<boolean>(true);
 
   // 사이드바 별 잔액 즉시 반영 (Sidebar.tsx가 stars-updated 이벤트를 구독)
   const syncSidebarStarBalance = useCallback(async (nextBalance?: number) => {
@@ -1423,6 +1450,29 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       }
     };
   }, [user?.id]);
+
+  // 커뮤니티 기능 활성화 여부 조회
+  useEffect(() => {
+    let cancelled = false;
+    
+    const fetchCommunitySettings = async () => {
+      try {
+        const res = await adminApi.getSystemSettings();
+        if (cancelled) return;
+        setCommunityEnabled(res?.community?.enabled !== false);
+      } catch (e) {
+        if (cancelled) return;
+        console.error('[MainPage] 커뮤니티 설정 조회 오류:', e);
+        setCommunityEnabled(true); // 오류 시 기본값 true
+      }
+    };
+    
+    fetchCommunitySettings();
+    
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 선호 회사 이름 매핑용 회사 목록 로드
   useEffect(() => {
@@ -2484,6 +2534,78 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </div>
           </div>
         </TopHeaderRow>
+
+        {/* 커뮤니티 바로가기 카드 (별도) */}
+        {communityEnabled && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(124, 58, 237, 0.15)',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ 
+                color: '#7C3AED', 
+                fontSize: '0.75rem',
+                fontWeight: '500',
+                margin: 0,
+                lineHeight: '1.3',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                💬 매칭 되기 전까지 심심하시죠?
+              </p>
+              <p style={{ 
+                color: '#9ca3af', 
+                fontSize: '0.7rem',
+                margin: '2px 0 0 0',
+                lineHeight: '1.2',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                커뮤니티에서 익명으로 자유롭게 소통해보세요
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/community')}
+              style={{
+                position: 'relative',
+                background: 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 4px rgba(124, 58, 237, 0.2)',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(124, 58, 237, 0.3)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 1px 4px rgba(124, 58, 237, 0.2)';
+              }}
+            >
+              <NewBadge>NEW!</NewBadge>
+              커뮤니티
+            </button>
+          </div>
+        )}
+
         <WelcomeSection>
           {/* 이메일 인증 알림 */}
           {user?.is_verified === false && (
@@ -2729,6 +2851,78 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </div>
           </div>
         </TopHeaderRow>
+
+        {/* 커뮤니티 바로가기 카드 (별도) */}
+        {communityEnabled && (
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(124, 58, 237, 0.15)',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            marginBottom: '1rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ 
+                color: '#7C3AED', 
+                fontSize: '0.75rem',
+                fontWeight: '500',
+                margin: 0,
+                lineHeight: '1.3',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                💬 매칭 되기 전까지 심심하시죠?
+              </p>
+              <p style={{ 
+                color: '#9ca3af', 
+                fontSize: '0.7rem',
+                margin: '2px 0 0 0',
+                lineHeight: '1.2',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}>
+                커뮤니티에서 익명으로 자유롭게 소통해보세요
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/community')}
+              style={{
+                position: 'relative',
+                background: 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)',
+                color: 'white',
+                border: 'none',
+                padding: '6px 12px',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 4px rgba(124, 58, 237, 0.2)',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(124, 58, 237, 0.3)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 1px 4px rgba(124, 58, 237, 0.2)';
+              }}
+            >
+              <NewBadge>NEW!</NewBadge>
+              커뮤니티
+            </button>
+          </div>
+        )}
+
       <WelcomeSection>
         {/* 최신 공지사항 카드 */}
         {latestNotice && (

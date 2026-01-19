@@ -16,7 +16,7 @@ if (!global.__schedulerConsoleForwarded) {
 }
 
 const { supabase } = require('./database');
-const { sendPushToAllUsers, sendPushToUsers } = require('./pushService');
+const { sendPushToAllUsers, sendPushToUsers, sendPushToAdmin } = require('./pushService');
 const notificationRoutes = require('./routes/notifications');
 
 // 추가 매칭 도전 기능 활성화 여부 확인
@@ -110,36 +110,177 @@ cron.schedule(scheduleInterval, async () => {
 
     try {
       // 0-1) 종료 처리: finish 시각이 지난 진행중/발표완료 회차는 종료
-      const { error: finishUpdateError } = await supabase
+      const { data: finishedPeriods, error: finishUpdateError } = await supabase
         .from('matching_log')
         .update({ status: '종료' })
         .neq('status', '종료')
         .not('finish', 'is', null)
-        .lte('finish', nowIso);
+        .lte('finish', nowIso)
+        .select('id');
       if (finishUpdateError) {
         console.error('[스케줄러] matching_log status 종료 업데이트 오류:', finishUpdateError);
+      } else if (finishedPeriods && finishedPeriods.length > 0) {
+        // 매칭 종료된 회차의 커뮤니티 데이터 초기화
+        for (const period of finishedPeriods) {
+          try {
+            // 게시글, 댓글, 좋아요, 신고, 익명 ID 모두 삭제
+            await supabase.from('community_posts').delete().eq('period_id', period.id);
+            await supabase.from('community_user_identities').delete().eq('period_id', period.id);
+            console.log(`[스케줄러] 회차 ${period.id} 매칭종료 - 커뮤니티 초기화 완료`);
+
+            // 관리자에게 푸시 알림 발송
+            try {
+              await sendPushToAdmin(
+                '[커뮤니티 초기화]',
+                `회차 ${period.id} 매칭 종료로 커뮤니티가 초기화되었습니다.`
+              );
+
+              // 관리자에게 인앱 알림 생성
+              const { data: admins, error: adminError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('is_admin', true)
+                .eq('is_active', true);
+
+              if (!adminError && admins && admins.length > 0) {
+                await Promise.all(
+                  admins.map((admin) =>
+                    notificationRoutes
+                      .createNotification(admin.id, {
+                        type: 'system',
+                        title: '🔄 커뮤니티 초기화',
+                        body: `회차 ${period.id} 매칭 종료로 커뮤니티가 초기화되었습니다.`,
+                        linkUrl: '/community',
+                        meta: { period_id: period.id, reason: 'finish' }
+                      })
+                      .catch((e) => console.error('[스케줄러] 관리자 알림 생성 오류:', e))
+                  )
+                );
+              }
+              console.log(`[스케줄러] 회차 ${period.id} 커뮤니티 초기화 관리자 알림 발송 완료`);
+            } catch (notifErr) {
+              console.error(`[스케줄러] 회차 ${period.id} 관리자 알림 발송 오류:`, notifErr);
+            }
+          } catch (communityErr) {
+            console.error(`[스케줄러] 회차 ${period.id} 커뮤니티 초기화 오류:`, communityErr);
+          }
+        }
       }
 
       // 0-2) 발표완료 처리: matching_announce 시각이 지난 진행중 회차
-      const { error: announceUpdateError } = await supabase
+      const { data: announcedPeriods, error: announceUpdateError } = await supabase
         .from('matching_log')
         .update({ status: '발표완료' })
         .eq('status', '진행중')
         .not('matching_announce', 'is', null)
-        .lte('matching_announce', nowIso);
+        .lte('matching_announce', nowIso)
+        .select('id');
       if (announceUpdateError) {
         console.error('[스케줄러] matching_log status 발표완료 업데이트 오류:', announceUpdateError);
+      } else if (announcedPeriods && announcedPeriods.length > 0) {
+        // 매칭 결과 발표된 회차의 커뮤니티 데이터 초기화
+        for (const period of announcedPeriods) {
+          try {
+            // 게시글, 댓글, 좋아요, 신고, 익명 ID 모두 삭제
+            await supabase.from('community_posts').delete().eq('period_id', period.id);
+            await supabase.from('community_user_identities').delete().eq('period_id', period.id);
+            console.log(`[스케줄러] 회차 ${period.id} 매칭발표 - 커뮤니티 초기화 완료`);
+
+            // 관리자에게 푸시 알림 발송
+            try {
+              await sendPushToAdmin(
+                '[커뮤니티 초기화]',
+                `회차 ${period.id} 매칭 발표로 커뮤니티가 초기화되었습니다.`
+              );
+
+              // 관리자에게 인앱 알림 생성
+              const { data: admins, error: adminError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('is_admin', true)
+                .eq('is_active', true);
+
+              if (!adminError && admins && admins.length > 0) {
+                await Promise.all(
+                  admins.map((admin) =>
+                    notificationRoutes
+                      .createNotification(admin.id, {
+                        type: 'system',
+                        title: '🔄 커뮤니티 초기화',
+                        body: `회차 ${period.id} 매칭 발표로 커뮤니티가 초기화되었습니다.`,
+                        linkUrl: '/community',
+                        meta: { period_id: period.id, reason: 'announce' }
+                      })
+                      .catch((e) => console.error('[스케줄러] 관리자 알림 생성 오류:', e))
+                  )
+                );
+              }
+              console.log(`[스케줄러] 회차 ${period.id} 커뮤니티 초기화 관리자 알림 발송 완료`);
+            } catch (notifErr) {
+              console.error(`[스케줄러] 회차 ${period.id} 관리자 알림 발송 오류:`, notifErr);
+            }
+          } catch (communityErr) {
+            console.error(`[스케줄러] 회차 ${period.id} 커뮤니티 초기화 오류:`, communityErr);
+          }
+        }
       }
 
       // 0-3) 진행중 처리: 신청 시작~마감 사이의 준비중 회차
-      const { error: runningUpdateError } = await supabase
+      const { data: runningPeriods, error: runningUpdateError } = await supabase
         .from('matching_log')
         .update({ status: '진행중' })
         .eq('status', '준비중')
         .not('application_start', 'is', null)
-        .lte('application_start', nowIso);
+        .lte('application_start', nowIso)
+        .select('id');
       if (runningUpdateError) {
         console.error('[스케줄러] matching_log status 진행중 업데이트 오류:', runningUpdateError);
+      } else if (runningPeriods && runningPeriods.length > 0) {
+        // 매칭 신청 시작된 회차의 커뮤니티 데이터 초기화
+        for (const period of runningPeriods) {
+          try {
+            // 게시글, 댓글, 좋아요, 신고, 익명 ID 모두 삭제
+            await supabase.from('community_posts').delete().eq('period_id', period.id);
+            await supabase.from('community_user_identities').delete().eq('period_id', period.id);
+            console.log(`[스케줄러] 회차 ${period.id} 매칭신청시작 - 커뮤니티 초기화 완료`);
+
+            // 관리자에게 푸시 알림 발송
+            try {
+              await sendPushToAdmin(
+                '[커뮤니티 초기화]',
+                `회차 ${period.id} 매칭 신청 시작으로 커뮤니티가 초기화되었습니다.`
+              );
+
+              // 관리자에게 인앱 알림 생성
+              const { data: admins, error: adminError } = await supabase
+                .from('users')
+                .select('id')
+                .eq('is_admin', true)
+                .eq('is_active', true);
+
+              if (!adminError && admins && admins.length > 0) {
+                await Promise.all(
+                  admins.map((admin) =>
+                    notificationRoutes
+                      .createNotification(admin.id, {
+                        type: 'system',
+                        title: '🔄 커뮤니티 초기화',
+                        body: `회차 ${period.id} 매칭 신청 시작으로 커뮤니티가 초기화되었습니다.`,
+                        linkUrl: '/community',
+                        meta: { period_id: period.id, reason: 'application_start' }
+                      })
+                      .catch((e) => console.error('[스케줄러] 관리자 알림 생성 오류:', e))
+                  )
+                );
+              }
+              console.log(`[스케줄러] 회차 ${period.id} 커뮤니티 초기화 관리자 알림 발송 완료`);
+            } catch (notifErr) {
+              console.error(`[스케줄러] 회차 ${period.id} 관리자 알림 발송 오류:`, notifErr);
+            }
+          } catch (communityErr) {
+            console.error(`[스케줄러] 회차 ${period.id} 커뮤니티 초기화 오류:`, communityErr);
+          }
+        }
       }
     } catch (statusErr) {
       console.error('[스케줄러] matching_log status 자동 갱신 중 오류:', statusErr);

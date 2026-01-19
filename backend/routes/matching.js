@@ -195,7 +195,23 @@ async function getCurrentAndNextPeriod() {
     throw error;
   }
 
-  return computeCurrentAndNextFromLogs(logs);
+  const result = computeCurrentAndNextFromLogs(logs);
+  
+  // 회차 번호 추가: logs 배열의 전체 길이가 실제 회차 수
+  if (result.current && logs) {
+    // current의 id를 기준으로 몇 번째 회차인지 계산
+    const sortedLogs = [...logs].sort((a, b) => a.id - b.id); // id 오름차순 정렬
+    const periodIndex = sortedLogs.findIndex(log => log.id === result.current.id);
+    result.current.periodNumber = periodIndex >= 0 ? periodIndex + 1 : logs.length;
+  }
+  
+  if (result.next && logs) {
+    const sortedLogs = [...logs].sort((a, b) => a.id - b.id);
+    const periodIndex = sortedLogs.findIndex(log => log.id === result.next.id);
+    result.next.periodNumber = periodIndex >= 0 ? periodIndex + 1 : logs.length;
+  }
+
+  return result;
 }
 
 // 매칭 기간(신청/마감/알고리즘/발표) 정보 조회
