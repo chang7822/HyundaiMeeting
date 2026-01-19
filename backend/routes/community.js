@@ -704,7 +704,7 @@ router.post('/posts', authenticate, async (req, res) => {
             type: 'community_post',
             title: '📝 커뮤니티 신규 게시글',
             body: '커뮤니티에 새로운 게시글이 작성되었습니다.',
-            linkUrl: '/community',
+            linkUrl: `/community?postId=${post.id}&openComments=true`,
             meta: { post_id: post.id, period_id }
           });
         }
@@ -712,7 +712,12 @@ router.post('/posts', authenticate, async (req, res) => {
         // 푸시 알림 전송
         await sendPushToAdmin(
           '📝 커뮤니티 신규 게시글',
-          '커뮤니티에 새로운 게시글이 작성되었습니다.'
+          '커뮤니티에 새로운 게시글이 작성되었습니다.',
+          {
+            linkUrl: `/community?postId=${post.id}&openComments=true`,
+            postId: String(post.id),
+            type: 'community_post'
+          }
         );
 
         console.log(`[community] 신규 게시글 알림 전송 완료: post_id=${post.id}`);

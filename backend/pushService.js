@@ -102,8 +102,9 @@ async function sendPushToAllUsers(data) {
  * 관리자 이메일로 등록된 토큰에 푸시 알림 전송
  * @param {string} title - 알림 제목
  * @param {string} body - 알림 내용
+ * @param {object} extraData - 추가 데이터 (linkUrl, postId 등)
  */
-async function sendPushToAdmin(title, body) {
+async function sendPushToAdmin(title, body, extraData = {}) {
   try {
     const adminEmail = 'hhggom@hyundai.com';
     
@@ -156,6 +157,7 @@ async function sendPushToAdmin(title, body) {
       data: {
         title: title || '[직쏠공 관리자]',
         body: body || '새로운 알림이 있습니다.',
+        ...extraData, // linkUrl, postId 등 추가 데이터 포함
       },
     };
 
