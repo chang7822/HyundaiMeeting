@@ -949,7 +949,7 @@ router.post('/comments', authenticate, async (req, res) => {
     // 게시글 정보 조회
     const { data: post, error: postError } = await supabase
       .from('community_posts')
-      .select('period_id, is_deleted')
+      .select('period_id, is_deleted, user_id')
       .eq('id', post_id)
       .single();
 
@@ -1120,7 +1120,7 @@ router.post('/comments', authenticate, async (req, res) => {
     const tag = await getUserMatchingTag(userId, post.period_id);
 
     // 댓글 작성자가 게시글 작성자가 아닐 경우 알림 전송
-    if (post.user_id !== userId) {
+    if (post.user_id && post.user_id !== userId) {
       try {
         // 인앱 알림 메시지 생성
         await notificationRoutes.createNotification(post.user_id, {
