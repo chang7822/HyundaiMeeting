@@ -31,16 +31,21 @@ if (messaging) {
   messaging.onBackgroundMessage(function (payload) {
     console.log('[firebase-messaging-sw.js] Received background message ', payload);
 
-    // 서버에서 data-only 메시지로 내려보내므로, 우선 data의 title/body를 사용하고
-    // 없을 경우 notification 필드를 fallback 으로 사용한다.
+    // notification 필드가 있으면 FCM이 자동으로 알림을 표시하므로 중복 방지
+    // notification 필드가 없을 때만 수동으로 알림 표시
+    if (payload.notification && payload.notification.title) {
+      // FCM이 자동으로 알림을 표시하므로 여기서는 아무것도 하지 않음
+      console.log('[firebase-messaging-sw.js] notification 필드가 있어 FCM이 자동으로 알림을 표시합니다.');
+      return;
+    }
+
+    // data-only 메시지인 경우에만 수동으로 알림 표시
     const notificationTitle =
       (payload.data && payload.data.title) ||
-      (payload.notification && payload.notification.title) ||
       '새 알림';
 
     const notificationBody =
       (payload.data && payload.data.body) ||
-      (payload.notification && payload.notification.body) ||
       '';
 
     const notificationOptions = {
