@@ -1363,7 +1363,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               <AttendancePrimaryButton
                 type="button"
                 onClick={handleDailyAttendance}
-                disabled={attendanceSubmitting || hasDailyToday}
+                disabled={attendanceSubmitting || adSubmitting || hasDailyToday}
               >
                 {attendanceSubmitting ? '출석 처리 중...' : '출석 체크 (⭐1)'}
               </AttendancePrimaryButton>
