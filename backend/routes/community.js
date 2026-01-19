@@ -1249,7 +1249,7 @@ router.post('/comments', authenticate, async (req, res) => {
                 body: targetUserId === post.user_id 
                   ? `회원님의 게시글에 새 댓글이 달렸습니다.`
                   : `회원님이 댓글을 단 게시글에 새 댓글이 달렸습니다.`,
-                linkUrl: '/community',
+                linkUrl: `/community?postId=${post_id}&openComments=true`,
                 meta: { post_id: post_id, comment_id: comment.id }
               });
             } catch (notifErr) {
@@ -1262,7 +1262,9 @@ router.post('/comments', authenticate, async (req, res) => {
         await sendPushToUsers(userIdsArray, {
           type: 'community_comment',
           title: '💬 새 댓글',
-          body: '게시글에 새 댓글이 달렸습니다.'
+          body: '게시글에 새 댓글이 달렸습니다.',
+          linkUrl: `/community?postId=${post_id}&openComments=true`,
+          postId: String(post_id)
         });
 
         console.log(`[community] 댓글 알림 전송 완료: post_id=${post_id}, 대상 ${userIdsArray.length}명`);

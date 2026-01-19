@@ -185,7 +185,16 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     // 푸시 알림 클릭 시
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
       console.log('[push] 푸시 알림 클릭:', notification);
-      // 필요시 특정 페이지로 이동하는 로직 추가 가능
+      
+      // 커스텀 이벤트로 알림 클릭 정보 전달 (App.tsx에서 처리)
+      const data = notification.notification?.data || notification.data || {};
+      const linkUrl = data.linkUrl || (data.postId ? `/community?postId=${data.postId}&openComments=true` : null);
+      
+      if (linkUrl) {
+        window.dispatchEvent(new CustomEvent('push-notification-clicked', {
+          detail: { linkUrl, data }
+        }));
+      }
     });
   } catch (error) {
     console.error('[push] 네이티브 푸시 리스너 설정 실패:', error);

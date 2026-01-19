@@ -906,6 +906,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     let cancelled = false;
     
     const loadCommunitySettings = async () => {
+      // 관리자가 아닌 경우 기본값(true) 사용, API 호출 안 함
+      if (!user?.isAdmin) {
+        setCommunityEnabled(true);
+        return;
+      }
+      
       try {
         const res = await adminApi.getSystemSettings();
         if (cancelled) return;
@@ -922,7 +928,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user?.isAdmin]);
 
   const handleDailyAttendance = async () => {
     if (!user?.id) return;

@@ -372,6 +372,22 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
+  // 네이티브 앱 푸시 알림 클릭 처리
+  useEffect(() => {
+    const handlePushNotificationClick = (event: CustomEvent) => {
+      const { linkUrl } = event.detail || {};
+      if (linkUrl && isAuthenticated) {
+        navigate(linkUrl);
+      }
+    };
+
+    window.addEventListener('push-notification-clicked', handlePushNotificationClick as EventListener);
+
+    return () => {
+      window.removeEventListener('push-notification-clicked', handlePushNotificationClick as EventListener);
+    };
+  }, [navigate, isAuthenticated]);
+
   // 회원가입 단계 이동 시마다 스크롤을 최상단으로 이동
   useEffect(() => {
     if (location.pathname.startsWith('/register')) {

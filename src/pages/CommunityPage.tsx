@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevronDown, FaChevronUp, FaBan, FaSyncAlt } from 'react-icons/fa';
 import { communityApi, matchingApi, adminApi } from '../services/api.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
@@ -956,7 +956,9 @@ const Modal: React.FC<ModalProps> = ({ show, onClose, onConfirm, title, children
 const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const postRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [currentPeriodId, setCurrentPeriodId] = useState<number | null>(null);
   const [myIdentity, setMyIdentity] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
@@ -1003,6 +1005,11 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     let cancelled = false;
     
     const checkCommunityEnabled = async () => {
+      // 관리자가 아닌 경우 기본값(true) 사용, API 호출 안 함
+      if (!user?.isAdmin) {
+        return; // 접근 허용
+      }
+      
       try {
         const res = await adminApi.getSystemSettings();
         if (cancelled) return;
@@ -1022,7 +1029,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [navigate, user?.isAdmin]);
 
   // 상대 시간 포맷 함수
   const getRelativeTime = (dateString: string) => {
@@ -1117,6 +1124,119 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // URL 파라미터로 특정 게시글로 이동 및 댓글창 열기
+  useEffect(() => {
+    const postIdParam = searchParams.get('postId');
+    const openComments = searchParams.get('openComments') === 'true';
+    
+    if (!postIdParam || !posts.length) return;
+    
+    const targetPostId = parseInt(postIdParam, 10);
+    if (isNaN(targetPostId)) return;
+    
+    // 게시글이 현재 로드된 목록에 있는지 확인
+    const targetPost = posts.find(p => p.id === targetPostId);
+    
+    if (targetPost) {
+      // 게시글이 있으면 댓글창 열기 및 스크롤
+      if (openComments && !expandedPosts.has(targetPostId)) {
+        // 댓글 로드 및 댓글창 열기
+        const loadAndOpenComments = async () => {
+          try {
+            const { comments: fetchedComments } = await communityApi.getComments(targetPostId);
+            setComments(prev => ({ ...prev, [targetPostId]: fetchedComments }));
+            setExpandedPosts(prev => new Set(prev).add(targetPostId));
+            
+            // 스크롤 (약간의 딜레이를 두어 DOM 업데이트 후 실행)
+            setTimeout(() => {
+              const postElement = postRefs.current[targetPostId];
+              if (postElement) {
+                postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 300);
+          } catch (error) {
+            toast.error('댓글을 불러오는데 실패했습니다.');
+          }
+        };
+        
+        loadAndOpenComments();
+      } else if (!openComments) {
+        // 댓글창은 열지 않고 스크롤만
+        setTimeout(() => {
+          const postElement = postRefs.current[targetPostId];
+          if (postElement) {
+            postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }
+      
+      // URL 파라미터 제거 (한 번만 실행되도록)
+      setSearchParams({}, { replace: true });
+    } else {
+      // 게시글이 현재 목록에 없으면 더 로드 시도 (최대 5페이지까지)
+      const tryLoadMore = async () => {
+        let currentOffset = offset;
+        let attempts = 0;
+        const maxAttempts = 5; // 최대 5페이지 (100개 게시글)
+        
+        while (attempts < maxAttempts) {
+          try {
+            const { posts: morePosts, hasMore: more } = await communityApi.getPosts(
+              currentPeriodId!,
+              20,
+              currentOffset,
+              sortOrder,
+              filter
+            );
+            
+            if (morePosts.length === 0) break;
+            
+            setPosts(prev => [...prev, ...morePosts]);
+            currentOffset += 20;
+            setOffset(currentOffset);
+            setHasMore(more);
+            
+            // 찾는 게시글이 있는지 확인
+            const found = morePosts.find(p => p.id === targetPostId);
+            if (found) {
+              // 찾았으면 댓글창 열기
+              if (openComments) {
+                try {
+                  const { comments: fetchedComments } = await communityApi.getComments(targetPostId);
+                  setComments(prev => ({ ...prev, [targetPostId]: fetchedComments }));
+                  setExpandedPosts(prev => new Set(prev).add(targetPostId));
+                } catch (error) {
+                  // 댓글 로드 실패는 무시
+                }
+              }
+              
+              // 스크롤
+              setTimeout(() => {
+                const postElement = postRefs.current[targetPostId];
+                if (postElement) {
+                  postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              }, 300);
+              
+              // URL 파라미터 제거
+              setSearchParams({}, { replace: true });
+              break;
+            }
+            
+            if (!more) break; // 더 이상 로드할 게시글이 없으면 중단
+            attempts++;
+          } catch (error) {
+            break;
+          }
+        }
+      };
+      
+      if (currentPeriodId && hasMore) {
+        tryLoadMore();
+      }
+    }
+  }, [posts, searchParams, expandedPosts, currentPeriodId, offset, sortOrder, filter, hasMore, setSearchParams]);
 
   // [관리자 전용] 익명 ID 목록 조회
   const loadAdminIdentities = useCallback(async () => {
@@ -1819,7 +1939,12 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
           {posts.map(post => {
             if (post.is_deleted) {
               return (
-                <DeletedPostCard key={post.id}>
+                <DeletedPostCard 
+                  key={post.id}
+                  ref={(el) => {
+                    postRefs.current[post.id] = el;
+                  }}
+                >
                   {post.is_author_deleted 
                     ? '작성자에 의해 삭제된 글입니다.'
                     : post.is_admin_deleted 
@@ -1838,7 +1963,12 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
             const needsExpand = lineBreaks > 2 || post.content.length > 90;
 
             return (
-              <PostCard key={post.id}>
+              <PostCard 
+                key={post.id}
+                ref={(el) => {
+                  postRefs.current[post.id] = el;
+                }}
+              >
                 <PostHeader>
                   <PostAuthor>
                     <AnonymousName $color={post.color_code}>
