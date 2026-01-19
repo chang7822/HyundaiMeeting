@@ -1119,26 +1119,66 @@ router.post('/comments', authenticate, async (req, res) => {
 
     const tag = await getUserMatchingTag(userId, post.period_id);
 
-    // 댓글 작성자가 게시글 작성자가 아닐 경우 알림 전송
-    if (post.user_id && post.user_id !== userId) {
-      try {
-        // 인앱 알림 메시지 생성
-        await notificationRoutes.createNotification(post.user_id, {
-          type: 'community_comment',
-          title: '💬 새 댓글이 달렸습니다',
-          body: `회원님의 게시글에 새 댓글이 달렸습니다.`,
-          linkUrl: '/community',
-          meta: { post_id: post_id, comment_id: comment.id }
-        });
+    // 알림을 받을 사용자 목록 수집
+    const notificationUserIds = new Set();
 
-        // 푸시 알림 전송
-        await sendPushToUsers([post.user_id], {
+    // 1. 게시글 작성자에게 알림 (본인이 아닌 경우)
+    if (post.user_id && post.user_id !== userId) {
+      notificationUserIds.add(post.user_id);
+    }
+
+    // 2. 해당 게시글에 댓글을 단 다른 사용자들에게도 알림
+    try {
+      const { data: previousComments } = await supabase
+        .from('community_comments')
+        .select('user_id')
+        .eq('post_id', post_id)
+        .neq('user_id', userId); // 현재 댓글 작성자 제외
+
+      if (previousComments && previousComments.length > 0) {
+        previousComments.forEach(comment => {
+          // 게시글 작성자도 제외 (이미 위에서 추가됨)
+          if (comment.user_id && comment.user_id !== post.user_id) {
+            notificationUserIds.add(comment.user_id);
+          }
+        });
+      }
+    } catch (commentQueryError) {
+      console.error('[community] 이전 댓글 조회 오류:', commentQueryError);
+      // 조회 실패해도 게시글 작성자에게는 알림 전송
+    }
+
+    // 알림 전송
+    if (notificationUserIds.size > 0) {
+      const userIdsArray = Array.from(notificationUserIds);
+      try {
+        // 인앱 알림 메시지 생성 (각 사용자별)
+        await Promise.all(
+          userIdsArray.map(async (targetUserId) => {
+            try {
+              await notificationRoutes.createNotification(targetUserId, {
+                type: 'community_comment',
+                title: '💬 새 댓글이 달렸습니다',
+                body: targetUserId === post.user_id 
+                  ? `회원님의 게시글에 새 댓글이 달렸습니다.`
+                  : `회원님이 댓글을 단 게시글에 새 댓글이 달렸습니다.`,
+                linkUrl: '/community',
+                meta: { post_id: post_id, comment_id: comment.id }
+              });
+            } catch (notifErr) {
+              console.error(`[community] 인앱 알림 생성 실패 (user_id: ${targetUserId}):`, notifErr);
+            }
+          })
+        );
+
+        // 푸시 알림 전송 (일괄)
+        await sendPushToUsers(userIdsArray, {
           type: 'community_comment',
           title: '💬 새 댓글',
-          body: '회원님의 게시글에 새 댓글이 달렸습니다.'
+          body: '게시글에 새 댓글이 달렸습니다.'
         });
 
-        console.log(`[community] 댓글 알림 전송 완료: post_id=${post_id}, user_id=${post.user_id}`);
+        console.log(`[community] 댓글 알림 전송 완료: post_id=${post_id}, 대상 ${userIdsArray.length}명`);
       } catch (notifError) {
         const errorMessage = notifError?.message || String(notifError);
         const errorCode = notifError?.code || notifError?.responseCode || null;
@@ -1148,7 +1188,7 @@ router.post('/comments', authenticate, async (req, res) => {
           code: errorCode,
           details: errorDetails,
           post_id: post_id,
-          user_id: post.user_id
+          user_ids: userIdsArray
         });
         // 알림 실패해도 댓글 작성은 정상 처리
       }
