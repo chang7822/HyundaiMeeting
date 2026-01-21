@@ -204,6 +204,7 @@ const MobileCardTopRow = styled.div`
   align-items: center;
   gap: 0.5rem;
   margin-bottom: 0.5rem;
+  flex-wrap: nowrap;
 `;
 
 const MobileCardBottomRow = styled.div`
@@ -649,6 +650,12 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
         v1 = a.nickname || '';
         v2 = b.nickname || '';
       }
+      // 날짜 필드 처리 (created_at, last_login_at)
+      if (sortKey === 'created_at' || sortKey === 'last_login_at') {
+        v1 = v1 ? new Date(v1).getTime() : 0;
+        v2 = v2 ? new Date(v2).getTime() : 0;
+        return sortAsc ? (v1 - v2) : (v2 - v1);
+      }
       if (v1 === undefined || v1 === null) v1 = '';
       if (v2 === undefined || v2 === null) v2 = '';
       if (typeof v1 === 'string' && typeof v2 === 'string') {
@@ -771,6 +778,7 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
           <option value="gender">성별</option>
           <option value="email">이메일</option>
           <option value="created_at">가입일</option>
+          <option value="last_login_at">로그인시각</option>
         </SortSelect>
         <SortDirectionButton onClick={() => setSortAsc(prev => !prev)}>
           {sortAsc ? '↑ 오름차순' : '↓ 내림차순'}
@@ -846,9 +854,22 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                 return (
                 <tr key={user.id}>
                   <td>
-                    <NicknameBtn onClick={() => openProfileModal(user)}>
-                      {user.nickname || '-'}
-                    </NicknameBtn>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <NicknameBtn onClick={() => openProfileModal(user)}>
+                        {user.nickname || '-'}
+                      </NicknameBtn>
+                      {user.last_login_at && (
+                        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
+                          ({new Date(user.last_login_at).toLocaleDateString('ko-KR', {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })})
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>{user.gender === 'male' ? '남성' : user.gender === 'female' ? '여성' : '-'}</td>
                   <td>{user.email || '-'}</td>
@@ -891,9 +912,21 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                 <MobileCard key={user.id}>
                   {/* 첫 줄: 닉네임 + 버튼 2개 */}
                   <MobileCardTopRow>
-                    <NicknameBtn onClick={() => openProfileModal(user)} style={{ fontSize: '0.9rem', fontWeight: '600' }}>
-                      {user.nickname || '-'}
-                    </NicknameBtn>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      <NicknameBtn onClick={() => openProfileModal(user)} style={{ fontSize: '0.9rem', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '60%' }}>
+                        {user.nickname || '-'}
+                      </NicknameBtn>
+                      {user.last_login_at && (
+                        <span style={{ fontSize: '0.65rem', color: '#9ca3af', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          ({new Date(user.last_login_at).toLocaleDateString('ko-KR', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })})
+                        </span>
+                      )}
+                    </div>
                     <MobileButtonGroup>
                       <CompactButton onClick={() => openCompatibilityModal(user, 'iPrefer')}>
                         내가({counts.iPrefer})
@@ -937,7 +970,21 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
       <Modal
         isOpen={compatModal.open}
         onRequestClose={closeCompatibilityModal}
-        style={{ content: { maxWidth: 520, minWidth: 320, margin: 'auto', borderRadius: 16, padding: 24, overflowY: 'auto' } }}
+        style={{
+          content: {
+            top: '50%',
+            left: '50%',
+            right: 'auto',
+            bottom: 'auto',
+            transform: 'translate(-50%, -50%)',
+            width: '95%',
+            maxWidth: '95%',
+            minWidth: 320,
+            borderRadius: 16,
+            padding: 24,
+            overflowY: 'auto'
+          }
+        }}
         contentLabel="매칭 선호 상세 (현재 프로필 기준)"
       >
         <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#4F46E5' }}>
@@ -978,26 +1025,31 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
                     key={item.user_id}
                     $mutual={item.mutual}
                     onClick={(e) => {
-                      // Shift+클릭: 매칭 실패 사유 보기 (mutual이 false일 때만)
-                      if (e.shiftKey && !item.mutual) {
+                      // 기본 클릭: 매칭 실패 사유 보기 (mutual이 false일 때만)
+                      if (!item.mutual) {
                         setReasonModal({ open: true, item });
-                      } else {
-                        // 일반 클릭: 프로필 보기
-                        if (foundUser) {
-                          openProfileModal(foundUser);
-                        }
                       }
                     }}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: item.mutual ? 'default' : 'pointer' }}
                   >
                     <div>
-                      <strong>{item.nickname}</strong>
+                      <strong
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // 닉네임 클릭: 프로필 보기
+                          if (foundUser) {
+                            openProfileModal(foundUser);
+                          }
+                        }}
+                        style={{ 
+                          cursor: 'pointer', 
+                          color: '#4F46E5',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        {item.nickname}
+                      </strong>
                       <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
-                      {!item.mutual && (
-                        <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '2px' }}>
-                          💡 Shift+클릭: 매칭 실패 사유
-                        </div>
-                      )}
                     </div>
                     <BadgeGroup>
                       <Badge $positive={item.applied}>신청 {item.applied ? 'O' : 'X'}</Badge>
@@ -1024,7 +1076,8 @@ const UserMatchingOverviewPage = ({ sidebarOpen = true }: { sidebarOpen?: boolea
             right: 'auto',
             bottom: 'auto',
             transform: 'translate(-50%, -50%)',
-            maxWidth: 480,
+            width: '95%',
+            maxWidth: '95%',
             minWidth: 280,
             borderRadius: 16,
             padding: 20,

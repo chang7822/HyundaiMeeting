@@ -121,7 +121,7 @@ router.get('/users', authenticate, async (req, res) => {
     // 계정 정보 조회
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id, email, is_verified, is_active, is_admin, created_at, updated_at');
+      .select('id, email, is_verified, is_active, is_admin, created_at, updated_at, last_login_at');
 
     if (usersError) {
       console.error('사용자 조회 오류');

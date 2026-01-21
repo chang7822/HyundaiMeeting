@@ -309,8 +309,8 @@ const LatestNoticeTextGroup = styled.div`
 `;
 
 const LatestNoticeLabel = styled.span`
-  font-size: 0.75rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: #6366f1;
   display: inline-flex;
   align-items: center;
@@ -318,14 +318,14 @@ const LatestNoticeLabel = styled.span`
   white-space: nowrap;
 
   @media (max-width: 480px) {
-    font-size: 0.7rem;
+    font-size: 0.9rem;
   }
 `;
 
 const LatestNoticeTitle = styled.span`
-  font-size: 0.7rem;
-  font-weight: 400;
-  color: #9ca3af;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #000000;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -336,16 +336,17 @@ const LatestNoticeTitle = styled.span`
   line-height: 1.2;
 
   @media (max-width: 768px) {
-    font-size: 0.68rem;
+    font-size: 0.73rem;
   }
 
   @media (max-width: 480px) {
-    font-size: 0.65rem;
+    font-size: 0.9rem;
   }
 `;
 
 const LatestNoticeRight = styled.span`
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
   color: #4f46e5;
   display: inline-flex;
   align-items: center;
@@ -353,7 +354,7 @@ const LatestNoticeRight = styled.span`
   white-space: nowrap;
 
   @media (max-width: 480px) {
-    font-size: 0.7rem;
+    font-size: 0.75rem;
   }
 `;
 

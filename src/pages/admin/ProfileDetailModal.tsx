@@ -46,11 +46,15 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
       onRequestClose={onRequestClose}
       style={{
         content: {
-          maxWidth: 440,
+          top: '50%',
+          left: '50%',
+          right: 'auto',
+          bottom: 'auto',
+          transform: 'translate(-50%, -50%)',
+          width: '95%',
+          maxWidth: '95%',
           minWidth: 280,
-          width: 'fit-content',
           maxHeight: '80vh',
-          margin: 'auto',
           borderRadius: 16,
           padding: 0,
           overflow: 'hidden',

@@ -1026,7 +1026,21 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
       <Modal
         isOpen={compatModal.open}
         onRequestClose={closeCompatibilityModal}
-        style={{content:{maxWidth:520,minWidth:320,margin:'auto',borderRadius:16,padding:24,overflowY:'auto'}}}
+        style={{
+          content: {
+            top: '50%',
+            left: '50%',
+            right: 'auto',
+            bottom: 'auto',
+            transform: 'translate(-50%, -50%)',
+            width: '95%',
+            maxWidth: '95%',
+            minWidth: 320,
+            borderRadius: 16,
+            padding: 24,
+            overflowY: 'auto'
+          }
+        }}
         contentLabel="매칭 선호 상세"
       >
         <h3 style={{ marginBottom: 8, fontSize: '1.2rem', color: '#4F46E5' }}>
@@ -1067,26 +1081,31 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                     key={item.user_id}
                     $mutual={item.mutual}
                     onClick={(e) => {
-                      // Shift+클릭: 매칭 실패 사유 보기 (mutual이 false일 때만)
-                      if (e.shiftKey && !item.mutual) {
+                      // 기본 클릭: 매칭 실패 사유 보기 (mutual이 false일 때만)
+                      if (!item.mutual) {
                         setReasonModal({ open: true, item });
-                      } else {
-                        // 일반 클릭: 프로필 보기
-                        if (foundApp) {
-                          openModal(foundApp);
-                        }
                       }
                     }}
-                    style={{ cursor: 'pointer' }}
+                    style={{ cursor: item.mutual ? 'default' : 'pointer' }}
                   >
                     <div>
-                      <strong>{item.nickname}</strong>
+                      <strong
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // 닉네임 클릭: 프로필 보기
+                          if (foundApp) {
+                            openModal(foundApp);
+                          }
+                        }}
+                        style={{ 
+                          cursor: 'pointer', 
+                          color: '#4F46E5',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        {item.nickname}
+                      </strong>
                       <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>{item.email}</div>
-                      {!item.mutual && (
-                        <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginTop: '2px' }}>
-                          💡 Shift+클릭: 매칭 실패 사유
-                        </div>
-                      )}
                     </div>
                     <BadgeGroup>
                       <Badge $positive={item.applied}>신청 {item.applied ? 'O' : 'X'}</Badge>
@@ -1111,7 +1130,8 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
             right: 'auto',
             bottom: 'auto',
             transform: 'translate(-50%, -50%)',
-            maxWidth: 480,
+            width: '95%',
+            maxWidth: '95%',
             minWidth: 280,
             borderRadius: 16,
             padding: 20,

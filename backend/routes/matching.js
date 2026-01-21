@@ -432,6 +432,7 @@ router.post('/request', authenticate, async (req, res) => {
         type: 'main',
         applied: true,
         cancelled: false,
+        matched: null, // 매칭 알고리즘 실행 전에는 null (결과 미정)
         applied_at: new Date().toISOString(),
         profile_snapshot: profile,
         preference_snapshot: preferenceSnapshot
