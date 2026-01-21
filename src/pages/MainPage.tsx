@@ -2364,6 +2364,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       await fetchUser(true);
       await fetchMatchingStatus();
 
+      // 커뮤니티 페이지 태그 갱신을 위한 이벤트 발생
+      window.dispatchEvent(new CustomEvent('matching-status-changed'));
+
       setShowMatchingStarConfirmModal(false);
     } catch (error: any) {
       const code = error?.response?.data?.code;
@@ -2400,6 +2403,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       // 순차적으로 상태 업데이트 (users 테이블 우선 업데이트)
       await fetchUser(true);
       await fetchMatchingStatus();
+
+      // 커뮤니티 페이지 태그 갱신을 위한 이벤트 발생
+      window.dispatchEvent(new CustomEvent('matching-status-changed'));
       
       setShowCancelConfirmModal(false);
     } catch (error: any) {

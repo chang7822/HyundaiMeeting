@@ -479,27 +479,85 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
     const totalCount = sortedPosts.length;
     const hasMore = offset + limit < totalCount;
 
-    // 각 게시글의 익명 ID 정보 조회
-    const postsWithIdentity = await Promise.all(
-      paginatedPosts.map(async (post) => {
-        // anonymous_number로 색상 조회 (관리자는 여러 익명 ID 보유 가능)
-        const { data: identity } = await supabase
-          .from('community_user_identities')
-          .select('color_code')
-          .eq('period_id', periodId)
-          .eq('user_id', post.user_id)
-          .eq('anonymous_number', post.anonymous_number)
-          .maybeSingle();
+    // 배치 쿼리로 성능 최적화
+    // 1. 회차 정보 한 번만 조회
+    const { data: period } = await supabase
+      .from('matching_log')
+      .select('status')
+      .eq('id', periodId)
+      .single();
 
-        const tag = await getUserMatchingTag(post.user_id, periodId);
+    const periodStatus = period?.status || null;
+    const shouldShowTags = periodStatus && periodStatus !== '종료';
 
-        return {
-          ...post,
-          color_code: identity?.color_code || '#888888',
-          tag
-        };
-      })
-    );
+    // 2. 모든 게시글의 user_id와 anonymous_number 수집
+    const userIds = [...new Set(paginatedPosts.map(p => p.user_id))];
+    const identityKeys = paginatedPosts.map(p => ({
+      user_id: p.user_id,
+      anonymous_number: p.anonymous_number
+    }));
+
+    // 3. 배치로 익명 ID 정보 조회 (모든 관련 identity를 한 번에 조회 후 메모리에서 필터링)
+    const identityMap = new Map();
+    if (userIds.length > 0) {
+      // 해당 회차의 모든 관련 identity 조회
+      const { data: allIdentities } = await supabase
+        .from('community_user_identities')
+        .select('user_id, anonymous_number, color_code')
+        .eq('period_id', periodId)
+        .in('user_id', userIds);
+
+      if (allIdentities) {
+        // 메모리에서 매핑
+        allIdentities.forEach(identity => {
+          const key = `${identity.user_id}_${identity.anonymous_number}`;
+          identityMap.set(key, identity.color_code);
+        });
+      }
+    }
+
+    // 4. 배치로 매칭 신청 정보 조회 (태그가 필요한 경우만)
+    const applicationMap = new Map();
+    if (shouldShowTags && userIds.length > 0) {
+      const { data: applications } = await supabase
+        .from('matching_applications')
+        .select('user_id, applied, cancelled, matched')
+        .eq('period_id', periodId)
+        .in('user_id', userIds);
+
+      if (applications) {
+        applications.forEach(app => {
+          applicationMap.set(app.user_id, app);
+        });
+      }
+    }
+
+    // 5. 메모리에서 매핑하여 결과 생성
+    const postsWithIdentity = paginatedPosts.map(post => {
+      const identityKey = `${post.user_id}_${post.anonymous_number}`;
+      const colorCode = identityMap.get(identityKey) || '#888888';
+
+      // 태그 결정 (메모리에서)
+      let tag = null;
+      if (shouldShowTags) {
+        const application = applicationMap.get(post.user_id);
+        const isApplied = application && application.applied && !application.cancelled;
+
+        if (periodStatus === '진행중') {
+          tag = isApplied ? '매칭신청완료' : '매칭신청X';
+        } else if (periodStatus === '발표완료') {
+          if (application && application.matched === true) {
+            tag = '매칭성공';
+          }
+        }
+      }
+
+      return {
+        ...post,
+        color_code: colorCode,
+        tag
+      };
+    });
 
     res.json({ 
       posts: postsWithIdentity,
@@ -990,27 +1048,79 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
       return res.status(500).json({ error: '댓글 목록 조회 실패' });
     }
 
-    // 각 댓글의 익명 ID 정보 조회
-    const commentsWithIdentity = await Promise.all(
-      comments.map(async (comment) => {
-        // anonymous_number로 색상 조회 (관리자는 여러 익명 ID 보유 가능)
-        const { data: identity } = await supabase
-          .from('community_user_identities')
-          .select('color_code')
-          .eq('period_id', post.period_id)
-          .eq('user_id', comment.user_id)
-          .eq('anonymous_number', comment.anonymous_number)
-          .maybeSingle();
+    // 배치 쿼리로 성능 최적화
+    // 1. 회차 정보 한 번만 조회
+    const { data: period } = await supabase
+      .from('matching_log')
+      .select('status')
+      .eq('id', post.period_id)
+      .single();
 
-        const tag = await getUserMatchingTag(comment.user_id, post.period_id);
+    const periodStatus = period?.status || null;
+    const shouldShowTags = periodStatus && periodStatus !== '종료';
 
-        return {
-          ...comment,
-          color_code: identity?.color_code || '#888888',
-          tag
-        };
-      })
-    );
+    // 2. 모든 댓글의 user_id 수집
+    const commentUserIds = [...new Set(comments.map(c => c.user_id))];
+
+    // 3. 배치로 익명 ID 정보 조회
+    const identityMap = new Map();
+    if (commentUserIds.length > 0) {
+      const { data: allIdentities } = await supabase
+        .from('community_user_identities')
+        .select('user_id, anonymous_number, color_code')
+        .eq('period_id', post.period_id)
+        .in('user_id', commentUserIds);
+
+      if (allIdentities) {
+        allIdentities.forEach(identity => {
+          const key = `${identity.user_id}_${identity.anonymous_number}`;
+          identityMap.set(key, identity.color_code);
+        });
+      }
+    }
+
+    // 4. 배치로 매칭 신청 정보 조회 (태그가 필요한 경우만)
+    const applicationMap = new Map();
+    if (shouldShowTags && commentUserIds.length > 0) {
+      const { data: applications } = await supabase
+        .from('matching_applications')
+        .select('user_id, applied, cancelled, matched')
+        .eq('period_id', post.period_id)
+        .in('user_id', commentUserIds);
+
+      if (applications) {
+        applications.forEach(app => {
+          applicationMap.set(app.user_id, app);
+        });
+      }
+    }
+
+    // 5. 메모리에서 매핑하여 결과 생성
+    const commentsWithIdentity = comments.map(comment => {
+      const identityKey = `${comment.user_id}_${comment.anonymous_number}`;
+      const colorCode = identityMap.get(identityKey) || '#888888';
+
+      // 태그 결정 (메모리에서)
+      let tag = null;
+      if (shouldShowTags) {
+        const application = applicationMap.get(comment.user_id);
+        const isApplied = application && application.applied && !application.cancelled;
+
+        if (periodStatus === '진행중') {
+          tag = isApplied ? '매칭신청완료' : '매칭신청X';
+        } else if (periodStatus === '발표완료') {
+          if (application && application.matched === true) {
+            tag = '매칭성공';
+          }
+        }
+      }
+
+      return {
+        ...comment,
+        color_code: colorCode,
+        tag
+      };
+    });
 
     res.json({ comments: commentsWithIdentity });
   } catch (error) {

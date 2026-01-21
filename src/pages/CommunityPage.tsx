@@ -1100,20 +1100,20 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
 
     setLoading(true);
     try {
-      // 익명 ID 조회
-      const identity = await communityApi.getMyIdentity(currentPeriodId);
-      setMyIdentity(identity);
-
-      // 게시글 목록 조회 (첫 20개)
-      const { posts: fetchedPosts, hasMore: more } = await communityApi.getPosts(currentPeriodId, 20, 0, sortOrder, filter);
-      setPosts(fetchedPosts);
-      setOffset(20); // 다음 로드는 20부터
-      setHasMore(more);
-
-      // 좋아요 목록 조회 (관리자는 현재 선택된 익명 번호로)
+      // 병렬로 API 호출하여 성능 개선
       const anonymousNum = user?.isAdmin && selectedAnonymousNumber ? selectedAnonymousNumber : undefined;
-      const { likedPostIds: liked } = await communityApi.getMyLikes(currentPeriodId, anonymousNum);
-      setLikedPostIds(liked);
+      
+      const [identity, postsResult, likesResult] = await Promise.all([
+        communityApi.getMyIdentity(currentPeriodId),
+        communityApi.getPosts(currentPeriodId, 20, 0, sortOrder, filter),
+        communityApi.getMyLikes(currentPeriodId, anonymousNum)
+      ]);
+
+      setMyIdentity(identity);
+      setPosts(postsResult.posts);
+      setOffset(20); // 다음 로드는 20부터
+      setHasMore(postsResult.hasMore);
+      setLikedPostIds(likesResult.likedPostIds);
     } catch (error) {
       toast.error('데이터를 불러오는데 실패했습니다.');
     } finally {
@@ -1124,6 +1124,38 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // 매칭 신청 상태 변경 시 게시글 목록 갱신 (태그 업데이트)
+  useEffect(() => {
+    const handleMatchingStatusChanged = () => {
+      if (currentPeriodId && user) {
+        // 게시글 목록만 다시 로드 (태그 갱신)
+        const refreshPosts = async () => {
+          try {
+            const { posts: fetchedPosts, hasMore: more } = await communityApi.getPosts(
+              currentPeriodId!,
+              20,
+              0,
+              sortOrder,
+              filter
+            );
+            setPosts(fetchedPosts);
+            setOffset(20);
+            setHasMore(more);
+          } catch (error) {
+            // 조용히 실패 (사용자에게 알림 없음)
+          }
+        };
+        refreshPosts();
+      }
+    };
+
+    window.addEventListener('matching-status-changed', handleMatchingStatusChanged);
+
+    return () => {
+      window.removeEventListener('matching-status-changed', handleMatchingStatusChanged);
+    };
+  }, [currentPeriodId, user, sortOrder, filter]);
 
   // URL 파라미터로 특정 게시글로 이동 및 댓글창 열기
   useEffect(() => {
