@@ -284,6 +284,13 @@ const AppInner: React.FC = () => {
 
             // 이전 토큰 확인 및 정리 (클라이언트 저장 토큰이 바뀐 경우만)
             const previousToken = localStorage.getItem('pushFcmToken');
+            
+            // 토큰이 변경되지 않았고 이미 등록되어 있다면 재등록하지 않음
+            if (previousToken === token) {
+              // 토큰이 동일하면 재등록하지 않음 (불필요한 서버 호출 방지)
+              return;
+            }
+            
             if (previousToken && previousToken !== token) {
               try {
                 await pushApi.unregisterToken(previousToken);
