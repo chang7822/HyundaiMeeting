@@ -103,13 +103,13 @@ const WelcomeSection = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.2);
   
   @media (max-width: 768px) {
-    padding: 2rem;
+    padding: 1.2rem;
     margin-bottom: 1.5rem;
     border-radius: 16px;
   }
   
   @media (max-width: 480px) {
-    padding: 1.5rem;
+    padding: 0.9rem;
     margin-bottom: 1rem;
     border-radius: 12px;
   }
@@ -255,7 +255,7 @@ const LatestNoticeCard = styled.div`
   background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
   border-radius: 16px;
   padding: 1.1rem 1.4rem;
-  margin-bottom: 1.8rem;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -273,50 +273,59 @@ const LatestNoticeCard = styled.div`
   }
 
   @media (max-width: 768px) {
-    padding: 1rem 1.2rem;
-    margin-bottom: 1.4rem;
-    border-radius: 14px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0;
+    border-radius: 12px;
   }
 
   @media (max-width: 480px) {
-    padding: 0.9rem 1rem;
-    margin-bottom: 1.2rem;
-    border-radius: 12px;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0;
+    border-radius: 10px;
   }
 `;
 
 const LatestNoticeLeft = styled.div`
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.3rem;
   min-width: 0;
   flex: 1; /* 제목 영역이 오른쪽 영역과 함께 줄어들 수 있게 함 */
+`;
+
+const LatestNoticeHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
 `;
 
 const LatestNoticeTextGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 0.2rem;
   min-width: 0;
   flex: 1; /* 내부 텍스트 그룹도 줄어들 수 있게 */
 `;
 
 const LatestNoticeLabel = styled.span`
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: #6366f1;
-  background: rgba(99, 102, 241, 0.08);
-  padding: 0.18rem 0.6rem;
-  border-radius: 999px;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  white-space: nowrap;
+
+  @media (max-width: 480px) {
+    font-size: 0.7rem;
+  }
 `;
 
 const LatestNoticeTitle = styled.span`
-  font-size: 0.98rem;
-  font-weight: 600;
-  color: #1f2933;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: #9ca3af;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -324,18 +333,19 @@ const LatestNoticeTitle = styled.span`
   max-width: 100%;
   flex: 1;
   min-width: 0;
+  line-height: 1.2;
 
   @media (max-width: 768px) {
-    font-size: 0.92rem;
+    font-size: 0.68rem;
   }
 
   @media (max-width: 480px) {
-    font-size: 0.9rem;
+    font-size: 0.65rem;
   }
 `;
 
 const LatestNoticeRight = styled.span`
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: #4f46e5;
   display: inline-flex;
   align-items: center;
@@ -343,7 +353,7 @@ const LatestNoticeRight = styled.span`
   white-space: nowrap;
 
   @media (max-width: 480px) {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
   }
 `;
 
@@ -2947,19 +2957,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             onClick={() => navigate(`/notice/${latestNotice.id}`)}
           >
             <LatestNoticeLeft>
-              <FaBullhorn size={20} color="#4F46E5" />
-              <LatestNoticeTextGroup>
+              <LatestNoticeHeader>
+                <FaBullhorn size={16} color="#4F46E5" />
                 <LatestNoticeLabel>
                   <span>공지사항</span>
                 </LatestNoticeLabel>
-                <LatestNoticeTitle>
-                  {latestNotice.title}
-                </LatestNoticeTitle>
-              </LatestNoticeTextGroup>
+              </LatestNoticeHeader>
+              <LatestNoticeTitle>
+                {latestNotice.title}
+              </LatestNoticeTitle>
             </LatestNoticeLeft>
             <LatestNoticeRight>
               <span>자세히 보기</span>
-              <FaChevronRight size={14} />
+              <FaChevronRight size={12} />
             </LatestNoticeRight>
           </LatestNoticeCard>
         )}

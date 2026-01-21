@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User, UserProfile, LoginCredentials, AuthContextType } from '../types/index.ts';
 import { authApi, userApi } from '../services/api.ts';
+import { Capacitor } from '@capacitor/core';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -20,56 +21,138 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<{ user: User | null; profile: UserProfile | null }>({ user: null, profile: null });
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    setIsLoading(true); // 인증 복원 시작 시 무조건 true
+  // 토큰 갱신 및 사용자 정보 로드 함수
+  const restoreAuth = useCallback(async (showLoading = true) => {
+    if (showLoading) {
+      setIsLoading(true);
+    }
+    
     const token = localStorage.getItem('token');
-    // console.log('[AuthContext] useEffect 진입, token:', token);
-    if (token) {
-      (async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    try {
+      // Refresh Token이 있으면 먼저 토큰 갱신 시도
+      if (refreshToken) {
         try {
-          const userData = await authApi.getCurrentUser();
-          // userData가 snake_case(is_admin)로 올 수 있으니 camelCase로 변환
-          const userWithCamel = { ...userData, isAdmin: userData.isAdmin ?? userData.is_admin ?? false };
-          if (!userWithCamel.id) {
-            console.error('[AuthContext] userData.id 없음!:', userWithCamel);
-          }
-          const profileData = await userApi.getUserProfile(userWithCamel.id);
-          // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
-          setAuthState({ user: userWithCamel, profile: profileData });
-        } catch (err: any) {
-          console.error('[AuthContext] 인증 복원 실패:', err);
-          
-          // 네트워크 에러인 경우 상세 로그 출력
-          if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network') || err?.message?.includes('network')) {
-            console.error('[AuthContext] 네트워크 연결 실패');
-            console.error('[AuthContext] API URL:', process.env.REACT_APP_API_URL);
-            console.error('[AuthContext] 에러 상세:', {
-              message: err?.message,
-              code: err?.code,
-              response: err?.response?.status,
-              config: err?.config?.url
-            });
-          }
-          
-          // CORS 에러인 경우
-          if (err?.message?.includes('CORS') || err?.code === 'ERR_CORS') {
-            console.error('[AuthContext] CORS 에러 발생 - 서버 CORS 설정 확인 필요');
-          }
-          
+          // console.log('[AuthContext] Refresh Token으로 토큰 갱신 시도');
+          const refreshResponse = await authApi.refresh(refreshToken);
+          // 새로운 Access Token 저장
+          localStorage.setItem('token', refreshResponse.token);
+          // console.log('[AuthContext] 토큰 갱신 성공');
+        } catch (refreshErr: any) {
+          // Refresh Token 갱신 실패 - 토큰이 만료되었거나 유효하지 않음
+          console.log('[AuthContext] Refresh Token 갱신 실패:', refreshErr?.response?.status || refreshErr?.message);
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
           setAuthState({ user: null, profile: null });
-        } finally {
-          setIsLoading(false);
-          // console.log('[AuthContext] 인증 복원 완료, isLoading:', false);
+          if (showLoading) {
+            setIsLoading(false);
+          }
+          return;
         }
-      })();
-    } else {
+      }
+      
+      // Access Token이 있으면 사용자 정보 가져오기
+      const currentToken = localStorage.getItem('token');
+      if (currentToken) {
+        const userData = await authApi.getCurrentUser();
+        // userData가 snake_case(is_admin)로 올 수 있으니 camelCase로 변환
+        const userWithCamel = { ...userData, isAdmin: userData.isAdmin ?? userData.is_admin ?? false };
+        if (!userWithCamel.id) {
+          console.error('[AuthContext] userData.id 없음!:', userWithCamel);
+        }
+        const profileData = await userApi.getUserProfile(userWithCamel.id);
+        // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
+        setAuthState({ user: userWithCamel, profile: profileData });
+      } else {
+        // 토큰이 없으면 로그인하지 않은 상태
+        setAuthState({ user: null, profile: null });
+      }
+    } catch (err: any) {
+      // console.error('[AuthContext] 인증 복원 실패:', err);
+      
+      // 네트워크 에러인 경우 상세 로그 출력
+      if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network') || err?.message?.includes('network')) {
+        console.error('[AuthContext] 네트워크 연결 실패');
+        // console.error('[AuthContext] API URL:', process.env.REACT_APP_API_URL);
+        // console.error('[AuthContext] 에러 상세:', {
+        //   message: err?.message,
+        //   code: err?.code,
+        //   response: err?.response?.status,
+        //   config: err?.config?.url
+        // });
+      }
+      
+      // CORS 에러인 경우
+      if (err?.message?.includes('CORS') || err?.code === 'ERR_CORS') {
+        console.error('[AuthContext] CORS 에러 발생 - 서버 CORS 설정 확인 필요');
+      }
+      
+      // 401 에러가 발생하면 토큰 삭제 (이미 갱신 시도했거나 Refresh Token이 없음)
+      if (err?.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
+      }
+      
       setAuthState({ user: null, profile: null });
-      setIsLoading(false);
-      // console.log('[AuthContext] 토큰 없음, 인증 복원 종료');
+    } finally {
+      if (showLoading) {
+        setIsLoading(false);
+      }
     }
   }, []);
+
+  // 앱 시작 시 인증 복원
+  useEffect(() => {
+    restoreAuth(true);
+  }, [restoreAuth]);
+
+  // 포어그라운드로 돌아올 때 토큰 갱신
+  useEffect(() => {
+    // 네이티브 앱: Capacitor App API 사용
+    if (Capacitor.isNativePlatform()) {
+      let appStateListener: any = null;
+      
+      const setupAppStateListener = async () => {
+        try {
+          const { App } = await import('@capacitor/app');
+          
+          appStateListener = await App.addListener('appStateChange', async ({ isActive }) => {
+            if (isActive) {
+              // 포어그라운드로 돌아올 때 토큰 갱신 (로딩 표시 없이)
+              console.log('[AuthContext] 앱이 포어그라운드로 돌아옴, 토큰 갱신 시도');
+              restoreAuth(false);
+            }
+          });
+        } catch (error) {
+          console.error('[AuthContext] App State Listener 설정 실패:', error);
+        }
+      };
+      
+      setupAppStateListener();
+      
+      return () => {
+        if (appStateListener) {
+          appStateListener.remove();
+        }
+      };
+    } else {
+      // 웹: visibilitychange 이벤트 사용
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible') {
+          // 포어그라운드로 돌아올 때 토큰 갱신 (로딩 표시 없이)
+          console.log('[AuthContext] 페이지가 포어그라운드로 돌아옴, 토큰 갱신 시도');
+          restoreAuth(false);
+        }
+      };
+      
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    }
+  }, [restoreAuth]);
 
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
