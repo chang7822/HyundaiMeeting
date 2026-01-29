@@ -305,6 +305,26 @@ router.post('/send-test', authenticate, async (req, res) => {
         title: '푸시알람 테스트',
         body: '푸시알람 테스트 (기능개선 진행중)',
       },
+      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
+      android: {
+        priority: 'high',
+        ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
     };
 
     const response = await messaging.sendEachForMulticast(message);
@@ -393,6 +413,26 @@ router.post('/send-admin', authenticate, async (req, res) => {
         type: 'admin',
         title: title,
         body: message,
+      },
+      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
+      android: {
+        priority: 'high',
+        ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
       },
     };
 

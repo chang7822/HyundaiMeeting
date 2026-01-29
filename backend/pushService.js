@@ -41,6 +41,26 @@ async function sendPushToUsers(userIds, data) {
         body: data.body || '',
       },
       data,
+      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
+      android: {
+        priority: 'high',
+        ttl: 86400000, // 24시간 유효 (밀리초)
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10', // iOS 즉시 전달
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
     };
 
     const response = await messaging.sendEachForMulticast(message);
@@ -86,6 +106,26 @@ async function sendPushToAllUsers(data) {
         body: data.body || '',
       },
       data,
+      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
+      android: {
+        priority: 'high',
+        ttl: 86400000, // 24시간 유효 (밀리초)
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10', // iOS 즉시 전달
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
+      },
     };
 
     const response = await messaging.sendEachForMulticast(message);
@@ -158,6 +198,26 @@ async function sendPushToAdmin(title, body, extraData = {}) {
         title: title || '[직쏠공 관리자]',
         body: body || '새로운 알림이 있습니다.',
         ...extraData, // linkUrl, postId 등 추가 데이터 포함
+      },
+      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
+      android: {
+        priority: 'high',
+        ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
+      },
+      apns: {
+        headers: {
+          'apns-priority': '10',
+        },
+        payload: {
+          aps: {
+            sound: 'default',
+          },
+        },
       },
     };
 
