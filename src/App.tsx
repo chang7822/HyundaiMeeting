@@ -7,6 +7,7 @@ import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { isNativeApp, getNativePushToken, setupNativePushListeners } from './firebase.ts';
 import { pushApi } from './services/api.ts';
+import ExitConfirmModal from './components/ExitConfirmModal.tsx';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
@@ -137,8 +138,7 @@ const AppInner: React.FC = () => {
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   
   // 뒤로가기 버튼 두 번 누르면 앱 종료를 위한 ref
-  const backButtonPressCount = useRef(0);
-  const backButtonTimer = useRef<NodeJS.Timeout | null>(null);
+  const [showExitModal, setShowExitModal] = useState(false);
 
   // 앱 초기화
   useEffect(() => {
@@ -195,45 +195,14 @@ const AppInner: React.FC = () => {
         const { App } = await import('@capacitor/app');
         
         listener = await App.addListener('backButton', ({ canGoBack }) => {
-          // 루트 경로(/)나 메인 페이지에서 뒤로 갈 곳이 없을 때만 앱 종료 로직 실행
-          const isRootPath = location.pathname === '/' || location.pathname === '/main';
-          
-          if (!isRootPath) {
-            // 다른 페이지에서는 일반 뒤로가기 동작
+          // 뒤로 갈 곳이 있으면 일반 뒤로가기
+          if (canGoBack) {
             navigate(-1);
-            // 카운트 리셋
-            backButtonPressCount.current = 0;
-            if (backButtonTimer.current) {
-              clearTimeout(backButtonTimer.current);
-              backButtonTimer.current = null;
-            }
             return;
           }
           
-          // 루트 경로에서 뒤로 갈 곳이 없을 때
-          // 첫 번째 누름: 토스트 메시지 표시
-          if (backButtonPressCount.current === 0) {
-            backButtonPressCount.current = 1;
-            toast.info('한 번 더 누르면 앱이 종료됩니다', {
-              position: 'bottom-center',
-              autoClose: 2000,
-            });
-            
-            // 2초 후 카운트 리셋
-            backButtonTimer.current = setTimeout(() => {
-              backButtonPressCount.current = 0;
-              backButtonTimer.current = null;
-            }, 2000);
-          } 
-          // 두 번째 누름 (2초 이내): 앱 종료
-          else {
-            if (backButtonTimer.current) {
-              clearTimeout(backButtonTimer.current);
-              backButtonTimer.current = null;
-            }
-            backButtonPressCount.current = 0;
-            App.exitApp();
-          }
+          // 뒤로 갈 곳이 없으면 종료 확인 모달 표시
+          setShowExitModal(true);
         });
       } catch (error) {
         console.error('[App] 뒤로가기 버튼 리스너 설정 실패:', error);
@@ -245,9 +214,6 @@ const AppInner: React.FC = () => {
     return () => {
       if (listener) {
         listener.remove();
-      }
-      if (backButtonTimer.current) {
-        clearTimeout(backButtonTimer.current);
       }
     };
   }, [location.pathname, navigate]);
@@ -787,9 +753,31 @@ const AppInner: React.FC = () => {
                 touchAction: 'manipulation'
               }}
             />
+
+            {/* 앱 종료 확인 모달 (네이티브 광고 포함) */}
+            <ExitConfirmModal
+              isOpen={showExitModal}
+              onConfirm={handleExitConfirm}
+              onCancel={handleExitCancel}
+            />
             
           </div>
   );
+
+  // 앱 종료 확인
+  async function handleExitConfirm() {
+    try {
+      const { App } = await import('@capacitor/app');
+      App.exitApp();
+    } catch (error) {
+      console.error('[App] 앱 종료 실패:', error);
+    }
+  }
+
+  // 앱 종료 취소
+  function handleExitCancel() {
+    setShowExitModal(false);
+  }
 }
 
 function App() {
