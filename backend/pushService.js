@@ -34,10 +34,13 @@ async function sendPushToUsers(userIds, data) {
 
     const messaging = getMessaging();
     
-    // data-only 메시지로 변경 (포어그라운드 이벤트 발생을 위해)
-    // notification 필드가 있으면 Android 포어그라운드에서 pushNotificationReceived 이벤트가 발생하지 않음
+    // 모든 알림: notification + data 방식 (백그라운드 자동 표시)
     const message = {
       tokens,
+      notification: {
+        title: data.title || '새 알림',
+        body: data.body || '',
+      },
       data: {
         ...data,
         title: data.title || '새 알림',
@@ -46,6 +49,11 @@ async function sendPushToUsers(userIds, data) {
       android: {
         priority: 'high',
         ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
       },
       apns: {
         headers: {
@@ -53,7 +61,6 @@ async function sendPushToUsers(userIds, data) {
         },
         payload: {
           aps: {
-            'content-available': 1,
             sound: 'default',
           },
         },
@@ -98,19 +105,26 @@ async function sendPushToAllUsers(data) {
 
     const messaging = getMessaging();
     
-    // data-only 메시지로 변경 (포어그라운드 이벤트 발생을 위해)
+    // 기본적으로 notification + data 방식 사용
     const message = {
       tokens,
-      // notification 필드 제거
+      notification: {
+        title: data.title || '새 알림',
+        body: data.body || '',
+      },
       data: {
         ...data,
         title: data.title || '새 알림',
         body: data.body || '',
       },
-      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
       android: {
         priority: 'high',
         ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
       },
       apns: {
         headers: {
@@ -118,7 +132,6 @@ async function sendPushToAllUsers(data) {
         },
         payload: {
           aps: {
-            'content-available': 1,
             sound: 'default',
           },
         },
@@ -187,19 +200,26 @@ async function sendPushToAdmin(title, body, extraData = {}) {
 
     const messaging = getMessaging();
     
-    // data-only 메시지로 변경 (포어그라운드 이벤트 발생을 위해)
+    // 관리자 푸시: notification + data 방식
     const message = {
       tokens,
-      // notification 필드 제거
+      notification: {
+        title: title || '[직쏠공 관리자]',
+        body: body || '새로운 알림이 있습니다.',
+      },
       data: {
         title: title || '[직쏠공 관리자]',
         body: body || '새로운 알림이 있습니다.',
-        ...extraData, // linkUrl, postId 등 추가 데이터 포함
+        ...extraData,
       },
-      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
       android: {
         priority: 'high',
         ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
       },
       apns: {
         headers: {
@@ -207,7 +227,6 @@ async function sendPushToAdmin(title, body, extraData = {}) {
         },
         payload: {
           aps: {
-            'content-available': 1,
             sound: 'default',
           },
         },

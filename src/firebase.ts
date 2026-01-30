@@ -142,45 +142,10 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     const { PushNotifications } = await import('@capacitor/push-notifications');
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     
-    // 푸시 알림 수신 시 (data-only 메시지)
+    // 푸시 알림 수신 시 (포어그라운드에서는 표시 안 함)
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-      const data = notification.data || {};
-      const title = data.title || '새 알림';
-      const body = data.body || '';
-      
-      // 채팅 메시지인 경우: 현재 채팅방이 아니면 포어그라운드에서도 알림 표시
-      const isChatMessage = data.type === 'chat_unread';
-      const currentPath = window.location.pathname;
-      const isCurrentChatPage = currentPath.includes('/chat/') && 
-                                data.senderId &&
-                                currentPath.includes(`/chat/${data.senderId}`);
-      
-      // 포어그라운드에서 알림 표시 조건:
-      // 채팅 메시지이고 현재 해당 채팅방이 아닌 경우
-      const shouldShowNotification = isChatMessage && !isCurrentChatPage;
-      
-      if (shouldShowNotification) {
-        try {
-          const permissionStatus = await LocalNotifications.checkPermissions();
-          
-          if (permissionStatus.display === 'granted') {
-            await LocalNotifications.schedule({
-              notifications: [
-                {
-                  title: title,
-                  body: body,
-                  id: Date.now(),
-                  extra: data,
-                  sound: 'default',
-                },
-              ],
-            });
-          }
-        } catch (error) {
-          console.error('[push] 로컬 알림 표시 실패:', error);
-        }
-      }
-      
+      // notification 필드가 있는 알림은 백그라운드에서만 표시됨
+      // 포어그라운드에서는 아무것도 하지 않음
       if (onNotificationReceived) {
         onNotificationReceived(notification);
       }

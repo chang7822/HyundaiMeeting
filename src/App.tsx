@@ -237,7 +237,7 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
-  // 웹 포어그라운드 푸시 알림 처리
+  // 웹 포어그라운드 푸시 알림 처리 (백그라운드에서만 표시)
   useEffect(() => {
     if (isNativeApp()) return; // 네이티브 앱은 firebase.ts에서 처리
 
@@ -257,36 +257,10 @@ const AppInner: React.FC = () => {
         const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
         const messaging = getMessaging(app);
 
-        // 포어그라운드에서 메시지 수신 시 (data-only 메시지)
+        // 포어그라운드에서 메시지 수신 시 (표시 안 함)
         onMessage(messaging, (payload) => {
-          const data = payload.data || {};
-          const isChatMessage = data.type === 'chat_unread';
-          const currentPath = window.location.pathname;
-          const isCurrentChatPage = currentPath.includes('/chat/') && 
-                                    data.senderId &&
-                                    currentPath.includes(`/chat/${data.senderId}`);
-
-          // 채팅 메시지가 아니면 포어그라운드에서는 알림 표시 안 함
-          if (!isChatMessage) {
-            return;
-          }
-
-          // 채팅 메시지이고 현재 채팅방이면 알림 표시 안 함
-          if (isChatMessage && isCurrentChatPage) {
-            return;
-          }
-
-          // 채팅 메시지이고 다른 페이지인 경우 브라우저 알림 표시
-          const title = data.title || '새 알림';
-          const body = data.body || '';
-
-          if (Notification.permission === 'granted') {
-            new Notification(title, {
-              body: body,
-              icon: '/icon-192.png',
-              data: data,
-            });
-          }
+          // notification 필드가 있는 알림은 백그라운드에서만 표시됨
+          // 포어그라운드에서는 아무것도 하지 않음
         });
       } catch (error) {
         console.error('[Web] 포어그라운드 푸시 알림 설정 실패:', error);

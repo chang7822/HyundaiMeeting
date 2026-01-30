@@ -29,7 +29,12 @@ try {
 
 if (messaging) {
   messaging.onBackgroundMessage(function (payload) {
-    // data-only 메시지를 수동으로 알림 표시
+    // notification 필드가 있으면 FCM이 자동으로 알림을 표시하므로 중복 방지
+    if (payload.notification && payload.notification.title) {
+      return;
+    }
+
+    // data-only 메시지인 경우에만 수동으로 알림 표시
     const notificationTitle =
       (payload.data && payload.data.title) ||
       '새 알림';
@@ -42,9 +47,6 @@ if (messaging) {
       body: notificationBody,
       icon: '/icon-192.png',
       data: payload.data || null,
-      badge: '/icon-192.png',
-      vibrate: [200, 100, 200],
-      requireInteraction: false,
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);

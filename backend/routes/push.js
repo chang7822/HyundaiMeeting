@@ -292,19 +292,26 @@ router.post('/send-test', authenticate, async (req, res) => {
 
     const messaging = getMessaging();
     
-    // data-only 메시지로 변경 (포어그라운드 이벤트 발생을 위해)
+    // 테스트 푸시: notification + data 방식
     const message = {
       tokens: tokenList,
-      // notification 필드 제거
+      notification: {
+        title: '푸시알람 테스트',
+        body: '푸시알람 테스트 (기능개선 진행중)',
+      },
       data: {
         type: 'test',
         title: '푸시알람 테스트',
         body: '푸시알람 테스트 (기능개선 진행중)',
       },
-      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
       android: {
         priority: 'high',
         ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
       },
       apns: {
         headers: {
@@ -312,7 +319,6 @@ router.post('/send-test', authenticate, async (req, res) => {
         },
         payload: {
           aps: {
-            'content-available': 1,
             sound: 'default',
           },
         },
@@ -393,19 +399,26 @@ router.post('/send-admin', authenticate, async (req, res) => {
 
     const messaging = getMessaging();
     
-    // data-only 메시지로 변경 (포어그라운드 이벤트 발생을 위해)
+    // 관리자 푸시: notification + data 방식
     const pushMessage = {
       tokens: tokenList,
-      // notification 필드 제거
+      notification: {
+        title: title,
+        body: message,
+      },
       data: {
         type: 'admin',
         title: title,
         body: message,
       },
-      // High Priority 설정 - 즉시 전달, 배터리 최적화 우회
       android: {
         priority: 'high',
         ttl: 86400000,
+        notification: {
+          priority: 'high',
+          defaultSound: true,
+          defaultVibrateTimings: true,
+        },
       },
       apns: {
         headers: {
@@ -413,7 +426,6 @@ router.post('/send-admin', authenticate, async (req, res) => {
         },
         payload: {
           aps: {
-            'content-available': 1,
             sound: 'default',
           },
         },
