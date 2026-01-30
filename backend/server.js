@@ -345,8 +345,12 @@ io.on('connection', (socket) => {
           const receiverId = dbData.receiver_id;
           const senderNickname = data.sender_nickname || '상대방';
 
+          console.log(`[PUSH-SCHEDULE] 채팅 푸시 알림 1초 대기 시작 (msg_id: ${insertedId}, receiver: ${receiverId})`);
+
           setTimeout(async () => {
             try {
+              console.log(`[PUSH-CHECK] 메시지 읽음 상태 확인 중 (msg_id: ${insertedId})`);
+              
               const { data: msgRow, error: msgError } = await supabase
                 .from('chat_messages')
                 .select('id, is_read, receiver_id, sender_id, period_id')
@@ -354,31 +358,45 @@ io.on('connection', (socket) => {
                 .maybeSingle();
 
               if (msgError) {
-                console.error('푸시알림 실패 : DB 조회 오류');
+                console.error(`[PUSH-ERROR] DB 조회 오류 (msg_id: ${insertedId}):`, msgError);
                 return;
               }
 
-              if (!msgRow || msgRow.is_read) {
-                // 메시지 없거나 이미 읽음 → 조용히 스킵
+              if (!msgRow) {
+                console.warn(`[PUSH-SKIP] 메시지 없음 (msg_id: ${insertedId})`);
                 return;
               }
 
-              const pushResult = await sendPushToUsers([receiverId], {
+              if (msgRow.is_read) {
+                console.log(`[PUSH-SKIP] 이미 읽음 (msg_id: ${insertedId})`);
+                return;
+              }
+
+              const pushData = {
                 type: 'chat_unread',
                 periodId: String(msgRow.period_id),
                 senderId: String(msgRow.sender_id),
                 title: '[직쏠공]',
                 body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
-                linkUrl: `/chat/${msgRow.sender_id}`, // URL 파라미터 형식으로 변경
+                linkUrl: `/chat/${msgRow.sender_id}`,
+              };
+
+              console.log(`[PUSH-SEND] 채팅 푸시 전송 시작:`, {
+                receiver: receiverId,
+                sender: msgRow.sender_id,
+                periodId: msgRow.period_id,
+                data: pushData
               });
+
+              const pushResult = await sendPushToUsers([receiverId], pushData);
               
               if (pushResult.success) {
-                console.log('푸시알림 성공');
+                console.log(`[PUSH-SUCCESS] ✅ 채팅 푸시 전송 성공 (msg_id: ${insertedId}, receiver: ${receiverId})`);
               } else {
-                console.log(`푸시알림 실패 : ${pushResult.reason}`);
+                console.error(`[PUSH-FAIL] ❌ 채팅 푸시 전송 실패 (msg_id: ${insertedId}): ${pushResult.reason}`);
               }
             } catch (pushErr) {
-              console.error('푸시알림 실패 : 예외 발생', pushErr);
+              console.error(`[PUSH-ERROR] 채팅 푸시 예외 발생 (msg_id: ${insertedId}):`, pushErr);
             }
           }, 1000); // 3초 → 1초로 변경
         } catch (scheduleErr) {

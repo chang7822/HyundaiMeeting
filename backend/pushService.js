@@ -9,27 +9,35 @@ const { getMessaging } = require('./firebaseAdmin');
  */
 async function sendPushToUsers(userIds, data) {
   try {
+    console.log('[pushService] 📤 푸시 전송 요청:', { userIds, dataType: data.type, title: data.title });
+
     if (!Array.isArray(userIds) || userIds.length === 0) {
+      console.warn('[pushService] ❌ 사용자 ID 없음');
       return { success: false, reason: 'no_users' };
     }
 
     const { data: tokenRows, error } = await supabase
       .from('user_push_tokens')
-      .select('token')
+      .select('token, user_id')
       .in('user_id', userIds);
 
     if (error) {
-      console.error('[pushService] sendPushToUsers 토큰 조회 오류:', error);
+      console.error('[pushService] ❌ 토큰 조회 오류:', error);
       return { success: false, reason: 'select_error', error };
     }
+
+    console.log('[pushService] 📋 조회된 토큰:', tokenRows?.length || 0, '개');
 
     const tokens = Array.from(
       new Set((tokenRows || []).map((row) => row.token).filter(Boolean)),
     );
 
     if (tokens.length === 0) {
+      console.warn('[pushService] ❌ 유효한 토큰 없음 (user_ids:', userIds, ')');
       return { success: false, reason: 'no_tokens' };
     }
+
+    console.log('[pushService] 🎯 푸시 전송 대상:', tokens.length, '개 토큰');
 
     const messaging = getMessaging();
     // 앱에서 알림을 받기 위해 notification 필드 추가
@@ -63,12 +71,27 @@ async function sendPushToUsers(userIds, data) {
       },
     };
 
+    console.log('[pushService] 📨 FCM 메시지 구조:', {
+      tokenCount: tokens.length,
+      notification: message.notification,
+      data: data,
+      android: { priority: 'high', ttl: '24h' },
+    });
+
     const response = await messaging.sendEachForMulticast(message);
-    console.log('[pushService] sendPushToUsers 결과:', response.successCount, 'success,', response.failureCount, 'failure');
+    
+    console.log('[pushService] ✅ FCM 전송 완료:', {
+      successCount: response.successCount,
+      failureCount: response.failureCount,
+    });
+
+    if (response.failureCount > 0) {
+      console.error('[pushService] ⚠️ 일부 전송 실패:', response.responses.filter(r => !r.success).map(r => r.error?.message));
+    }
 
     return { success: true, response };
   } catch (e) {
-    console.error('[pushService] sendPushToUsers 예외:', e);
+    console.error('[pushService] ❌ 예외 발생:', e);
     return { success: false, reason: 'exception', error: e };
   }
 }
