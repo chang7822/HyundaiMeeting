@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 
 // 예쁜 그라데이션 원형 스피너 SVG + 부드러운 애니메이션
@@ -12,6 +12,7 @@ const LoadingSpinner = ({
   preloadedBanner?: any;
 }) => {
   const bannerAdRef = useRef<any>(null);
+  const [initialHeight] = useState(() => window.innerHeight); // 초기 화면 높이 저장
 
   useEffect(() => {
     // 네이티브 앱에서만 광고 표시
@@ -52,11 +53,10 @@ const LoadingSpinner = ({
     };
   }, [preloadedBanner]);
 
-  // 네이티브 앱에서는 top 기준으로 고정 (화면 높이 기준이므로 배너 로드되어도 움직이지 않음)
+  // 네이티브 앱에서는 초기 화면 높이 기준으로 고정 (배너가 vh를 바꿔도 영향 없음)
   const isNative = Capacitor.isNativePlatform();
-  // 네이티브: 전체 화면(100vh)에서 배너(60px) 제외한 영역의 중앙
-  // (100vh - 60px) / 2 = 50vh - 30px
-  const topPosition = isNative ? 'calc(50vh - 90px)' : '50%'; // 광고 공간(60px) + 여유(30px)
+  // 초기 화면 높이의 중앙에서 광고 공간(60px) + 여유(30px)만큼 위로
+  const topPosition = isNative ? `${(initialHeight / 2) - 90}px` : '50%';
 
   return (
   <div style={{

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Capacitor } from '@capacitor/core';
 
@@ -9,6 +9,9 @@ interface ExitConfirmModalProps {
   preloadedBanner?: any;
 }
 
+// 초기 화면 높이 저장 (모듈 레벨, 배너 로드 전)
+const INITIAL_HEIGHT = window.innerHeight;
+
 // Styled components 먼저 정의
 const Overlay = styled.div`
   position: fixed;
@@ -17,24 +20,20 @@ const Overlay = styled.div`
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 10000;
-  padding: 20px;
 `;
 
-const ModalContainer = styled.div<{ $isNative?: boolean }>`
+const ModalContainer = styled.div<{ $isNative?: boolean; $topPosition?: string }>`
+  position: fixed;
+  left: 50%;
+  top: ${props => props.$topPosition || '50%'};
+  transform: translate(-50%, -50%);
   background: white;
   border-radius: 16px;
-  width: 100%;
+  width: calc(100% - 40px);
   max-width: 400px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
-  /* 네이티브에서 모달을 위로 올림: 화면 높이 기준으로 배너(60px) + 여유(30px) */
-  ${props => props.$isNative && `
-    margin-bottom: 90px;
-  `}
 `;
 
 const ModalHeader = styled.div`
@@ -170,12 +169,13 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
 
   if (!isOpen) return null;
 
-  // 네이티브 앱에서는 항상 광고 배너 공간 확보 (광고 로드 여부와 무관)
+  // 네이티브 앱에서는 초기 화면 높이 기준으로 고정
   const isNative = Capacitor.isNativePlatform();
+  const topPosition = isNative ? `${(INITIAL_HEIGHT / 2) - 90}px` : '50%';
 
   return (
     <Overlay onClick={onCancel}>
-      <ModalContainer onClick={(e) => e.stopPropagation()} $isNative={isNative}>
+      <ModalContainer onClick={(e) => e.stopPropagation()} $isNative={isNative} $topPosition={topPosition}>
         <ModalHeader>앱 종료</ModalHeader>
         
         <ModalBody>
