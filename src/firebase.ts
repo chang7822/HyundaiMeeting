@@ -153,13 +153,13 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
       // 채팅 메시지인 경우: 현재 채팅방이 아니면 포어그라운드에서도 알림 표시
       const isChatMessage = data.type === 'chat_unread';
       const isCurrentChatPage = window.location.pathname.includes('/chat/') && 
+                                data.senderId &&
                                 window.location.pathname.includes(`/chat/${data.senderId}`);
       
-      // 1. data-only 메시지 (모든 타입)
-      // 2. 채팅 메시지이고 현재 해당 채팅방이 아닌 경우
-      const shouldShowNotification = 
-        (!notification.title && !notification.body) || // data-only
-        (isChatMessage && !isCurrentChatPage); // 채팅 메시지 + 다른 페이지
+      // 포어그라운드에서 알림 표시 조건:
+      // 1. 채팅 메시지이고 현재 해당 채팅방이 아닌 경우 → 무조건 표시
+      // 2. 채팅이 아닌 다른 메시지 → 표시 안 함 (백그라운드에서만)
+      const shouldShowNotification = isChatMessage && !isCurrentChatPage;
       
       if (shouldShowNotification) {
         try {

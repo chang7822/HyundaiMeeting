@@ -264,7 +264,14 @@ const AppInner: React.FC = () => {
           const data = payload.data || {};
           const isChatMessage = data.type === 'chat_unread';
           const isCurrentChatPage = window.location.pathname.includes('/chat/') && 
+                                    data.senderId &&
                                     window.location.pathname.includes(`/chat/${data.senderId}`);
+
+          // 채팅 메시지가 아니면 포어그라운드에서는 알림 표시 안 함 (백그라운드에서만)
+          if (!isChatMessage) {
+            console.log('[Web] 채팅 메시지가 아니므로 포어그라운드 알림 표시 안 함');
+            return;
+          }
 
           // 채팅 메시지이고 현재 채팅방이면 알림 표시 안 함
           if (isChatMessage && isCurrentChatPage) {
@@ -272,7 +279,7 @@ const AppInner: React.FC = () => {
             return;
           }
 
-          // 채팅 메시지이거나 다른 알림인 경우 브라우저 알림 표시
+          // 채팅 메시지이고 다른 페이지인 경우 브라우저 알림 표시
           const title = payload.notification?.title || data.title || '새 알림';
           const body = payload.notification?.body || data.body || '';
 
@@ -419,13 +426,17 @@ const AppInner: React.FC = () => {
     const handlePushNotificationClick = (event: CustomEvent) => {
       const { linkUrl } = event.detail || {};
       if (linkUrl) {
+        // 먼저 pendingNavigationRef 설정하여 "/" 경로에서 메인으로 리다이렉트 방지
+        pendingNavigationRef.current = linkUrl;
+        
         if (isAuthenticated) {
           // 인증된 상태면 즉시 이동
-          navigate(linkUrl);
-        } else {
-          // 인증 대기 중이면 저장해두고 나중에 이동
-          pendingNavigationRef.current = linkUrl;
+          setTimeout(() => {
+            navigate(linkUrl);
+            pendingNavigationRef.current = null; // 이동 후 초기화
+          }, 0);
         }
+        // 인증 대기 중이면 pendingNavigationRef에 저장된 상태로 대기
       }
     };
 
