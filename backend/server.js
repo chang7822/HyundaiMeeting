@@ -369,7 +369,7 @@ io.on('connection', (socket) => {
                 senderId: String(msgRow.sender_id),
                 title: '[직쏠공]',
                 body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
-                linkUrl: `/chat?periodId=${msgRow.period_id}&partnerId=${msgRow.sender_id}`,
+                linkUrl: `/chat/${msgRow.sender_id}`, // URL 파라미터 형식으로 변경
               });
               
               if (pushResult.success) {

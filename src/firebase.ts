@@ -194,8 +194,8 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
       if (!linkUrl) {
         if (data.postId) {
           linkUrl = `/community?postId=${data.postId}&openComments=true`;
-        } else if (data.type === 'chat_unread' && data.periodId && data.senderId) {
-          linkUrl = `/chat?periodId=${data.periodId}&partnerId=${data.senderId}`;
+        } else if (data.type === 'chat_unread' && data.senderId) {
+          linkUrl = `/chat/${data.senderId}`; // URL 파라미터 형식으로 변경
         }
       }
       
