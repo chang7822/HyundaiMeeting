@@ -69,6 +69,7 @@ import LogsPage from './pages/admin/LogsPage.tsx';
 import Sidebar from './components/layout/Sidebar.tsx';
 import ProtectedRoute from './components/auth/ProtectedRoute.tsx';
 import AdminRoute from './components/auth/AdminRoute.tsx';
+import LoadingSpinner from './components/LoadingSpinner.tsx';
 
 // Contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
@@ -133,7 +134,7 @@ const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   
@@ -478,7 +479,9 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={
-                isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
+                isLoading ? <LoadingSpinner /> : (
+                  isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
+                )
               } />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/delete-account" element={<DeleteAccountPage />} />
