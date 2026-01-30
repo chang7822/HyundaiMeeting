@@ -480,7 +480,12 @@ const AppInner: React.FC = () => {
               {/* Public Routes */}
               <Route path="/" element={
                 isLoading ? <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} /> : (
-                  isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
+                  pendingNavigationRef.current ? (
+                    // 대기 중인 네비게이션이 있으면 로딩 표시 (메인페이지 거치지 않음)
+                    <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
+                  ) : (
+                    isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
+                  )
                 )
               } />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
