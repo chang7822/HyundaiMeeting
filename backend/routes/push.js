@@ -408,8 +408,8 @@ router.post('/send-admin', authenticate, async (req, res) => {
       },
       data: {
         type: 'admin',
-        title: title,
-        body: message,
+        title: String(title || ''),
+        body: String(message || ''),
       },
       android: {
         priority: 'high',

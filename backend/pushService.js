@@ -41,11 +41,7 @@ async function sendPushToUsers(userIds, data) {
         title: data.title || '새 알림',
         body: data.body || '',
       },
-      data: {
-        ...data,
-        title: data.title || '새 알림',
-        body: data.body || '',
-      },
+      data: data,  // data 객체 그대로 전달 (server.js에서 이미 String 변환됨)
       android: {
         priority: 'high',
         ttl: 86400000,
@@ -112,11 +108,7 @@ async function sendPushToAllUsers(data) {
         title: data.title || '새 알림',
         body: data.body || '',
       },
-      data: {
-        ...data,
-        title: data.title || '새 알림',
-        body: data.body || '',
-      },
+      data: data,  // data 객체 그대로 전달
       android: {
         priority: 'high',
         ttl: 86400000,
