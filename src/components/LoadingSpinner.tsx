@@ -52,11 +52,15 @@ const LoadingSpinner = ({
     };
   }, [preloadedBanner]);
 
+  // 네이티브 앱에서 광고 배너 높이만큼 위로 올림 (광고 배너 약 60px)
+  const isNative = Capacitor.isNativePlatform();
+  const topOffset = isNative ? 'calc(50% - 30px)' : '50%';
+
   return (
   <div style={{
     position: 'fixed',
     left: sidebarOpen ? 'calc(50% + 140px)' : '50%',
-    top: '50%',
+    top: topOffset,
     transform: 'translate(-50%, -50%)',
     zIndex: 2000,
     color: '#7C3AED',

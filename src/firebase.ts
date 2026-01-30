@@ -145,6 +145,9 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     // 푸시 알림 수신 시
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('[push] 푸시 알림 수신:', notification);
+      console.log('[push] notification.data:', notification.data);
+      console.log('[push] notification.title:', notification.title);
+      console.log('[push] notification.body:', notification.body);
       
       const data = notification.data || {};
       const title = notification.title || data.title || '새 알림';
@@ -152,19 +155,32 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
       
       // 채팅 메시지인 경우: 현재 채팅방이 아니면 포어그라운드에서도 알림 표시
       const isChatMessage = data.type === 'chat_unread';
-      const isCurrentChatPage = window.location.pathname.includes('/chat/') && 
+      const currentPath = window.location.pathname;
+      const isCurrentChatPage = currentPath.includes('/chat/') && 
                                 data.senderId &&
-                                window.location.pathname.includes(`/chat/${data.senderId}`);
+                                currentPath.includes(`/chat/${data.senderId}`);
+      
+      console.log('[push] 채팅 메시지 체크:', {
+        isChatMessage,
+        dataType: data.type,
+        senderId: data.senderId,
+        currentPath,
+        isCurrentChatPage
+      });
       
       // 포어그라운드에서 알림 표시 조건:
       // 1. 채팅 메시지이고 현재 해당 채팅방이 아닌 경우 → 무조건 표시
       // 2. 채팅이 아닌 다른 메시지 → 표시 안 함 (백그라운드에서만)
       const shouldShowNotification = isChatMessage && !isCurrentChatPage;
       
+      console.log('[push] 알림 표시 여부:', shouldShowNotification);
+      
       if (shouldShowNotification) {
         try {
           // 로컬 알림 권한 확인
           const permissionStatus = await LocalNotifications.checkPermissions();
+          console.log('[push] 로컬 알림 권한 상태:', permissionStatus);
+          
           if (permissionStatus.display === 'granted') {
             await LocalNotifications.schedule({
               notifications: [
@@ -177,15 +193,17 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
                 },
               ],
             });
-            console.log('[push] 로컬 알림 표시 (포어그라운드):', title, body);
+            console.log('[push] ✅ 로컬 알림 표시 성공 (포어그라운드):', title, body);
           } else {
-            console.warn('[push] 로컬 알림 권한이 없습니다.');
+            console.warn('[push] ❌ 로컬 알림 권한이 없습니다:', permissionStatus);
           }
         } catch (error) {
-          console.error('[push] 로컬 알림 표시 실패:', error);
+          console.error('[push] ❌ 로컬 알림 표시 실패:', error);
         }
       } else if (isChatMessage && isCurrentChatPage) {
-        console.log('[push] 현재 채팅방이므로 알림 표시 안 함');
+        console.log('[push] 📍 현재 채팅방이므로 알림 표시 안 함');
+      } else if (!isChatMessage) {
+        console.log('[push] 📍 채팅 메시지가 아니므로 포어그라운드 알림 표시 안 함');
       }
       
       if (onNotificationReceived) {

@@ -9,6 +9,100 @@ interface ExitConfirmModalProps {
   preloadedBanner?: any;
 }
 
+// Styled components 먼저 정의
+const Overlay = styled.div<{ $isNative?: boolean }>`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: 20px;
+  ${props => props.$isNative && `
+    /* 네이티브 앱에서 광고 배너 높이(60px)만큼 위로 올림 */
+    padding-bottom: calc(20px + 60px);
+  `}
+`;
+
+const ModalContainer = styled.div`
+  background: white;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+`;
+
+const ModalHeader = styled.div`
+  padding: 20px 24px;
+  font-size: 20px;
+  font-weight: 700;
+  color: #111;
+  border-bottom: 1px solid #e5e7eb;
+`;
+
+const ModalBody = styled.div`
+  padding: 24px;
+`;
+
+const Message = styled.p`
+  font-size: 16px;
+  color: #374151;
+  line-height: 1.5;
+  margin: 0;
+  text-align: center;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  border-top: 1px solid #e5e7eb;
+`;
+
+const CancelButton = styled.button`
+  flex: 1;
+  padding: 16px;
+  background: white;
+  color: #6b7280;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #f9fafb;
+  }
+
+  &:active {
+    background-color: #f3f4f6;
+  }
+`;
+
+const ConfirmButton = styled.button`
+  flex: 1;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  border-left: 1px solid #e5e7eb;
+  transition: opacity 0.2s;
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &:active {
+    opacity: 0.8;
+  }
+`;
+
 const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, onCancel, preloadedBanner }) => {
   const bannerAdRef = React.useRef<any>(null);
 
@@ -76,8 +170,11 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
 
   if (!isOpen) return null;
 
+  // 네이티브 앱에서 광고 배너 공간 확보
+  const isNative = Capacitor.isNativePlatform();
+
   return (
-    <Overlay onClick={onCancel}>
+    <Overlay onClick={onCancel} $isNative={isNative}>
       <ModalContainer onClick={(e) => e.stopPropagation()}>
         <ModalHeader>앱 종료</ModalHeader>
         
@@ -99,84 +196,3 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
 };
 
 export default ExitConfirmModal;
-
-const Overlay = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: 20px;
-`;
-
-const ModalContainer = styled.div`
-  background: white;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 400px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  overflow: hidden;
-`;
-
-const ModalHeader = styled.div`
-  padding: 20px 24px;
-  font-size: 20px;
-  font-weight: 700;
-  color: #111;
-  border-bottom: 1px solid #e5e7eb;
-`;
-
-const ModalBody = styled.div`
-  padding: 24px;
-`;
-
-const Message = styled.p`
-  font-size: 16px;
-  color: #374151;
-  line-height: 1.5;
-  margin: 0;
-  text-align: center;
-`;
-
-const ButtonGroup = styled.div`
-  display: flex;
-  border-top: 1px solid #e5e7eb;
-`;
-
-const Button = styled.button`
-  flex: 1;
-  padding: 16px;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-  background: none;
-  cursor: pointer;
-  transition: background-color 0.2s;
-
-  &:active {
-    opacity: 0.7;
-  }
-`;
-
-const CancelButton = styled(Button)`
-  color: #6b7280;
-  border-right: 1px solid #e5e7eb;
-
-  &:hover {
-    background-color: #f9fafb;
-  }
-`;
-
-const ConfirmButton = styled(Button)`
-  color: #ef4444;
-  font-weight: 700;
-
-  &:hover {
-    background-color: #fef2f2;
-  }
-`;
