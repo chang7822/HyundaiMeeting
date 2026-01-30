@@ -52,16 +52,16 @@ const LoadingSpinner = ({
     };
   }, [preloadedBanner]);
 
-  // 네이티브 앱에서는 항상 광고 배너 높이(60px)만큼 위로 올림 (광고 로드 여부와 무관)
+  // 네이티브 앱에서는 bottom 기준으로 고정 (광고가 로드되어도 움직이지 않음)
   const isNative = Capacitor.isNativePlatform();
-  const topOffset = isNative ? 'calc(50% - 30px)' : '50%';
 
   return (
   <div style={{
     position: 'fixed',
     left: sidebarOpen ? 'calc(50% + 140px)' : '50%',
-    top: topOffset,
-    transform: 'translate(-50%, -50%)',
+    top: isNative ? undefined : '50%',
+    bottom: isNative ? '90px' : undefined, // 광고 배너(60px) + 여유(30px)
+    transform: sidebarOpen ? 'translateX(-50%)' : (isNative ? 'translateX(-50%)' : 'translate(-50%, -50%)'),
     zIndex: 2000,
     color: '#7C3AED',
     fontSize: 22,

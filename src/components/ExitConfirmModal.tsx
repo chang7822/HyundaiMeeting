@@ -17,21 +17,18 @@ const Overlay = styled.div<{ $isNative?: boolean }>`
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 10000;
-  padding: 20px;
-  ${props => props.$isNative && `
-    /* 네이티브 앱에서 항상 광고 배너 높이(60px)만큼 위로 올림 */
-    padding-bottom: calc(20px + 60px);
-  `}
 `;
 
-const ModalContainer = styled.div`
+const ModalContainer = styled.div<{ $isNative?: boolean }>`
+  position: fixed;
+  left: 50%;
+  top: ${props => props.$isNative ? 'auto' : '50%'};
+  bottom: ${props => props.$isNative ? '120px' : 'auto'}; /* 광고(60px) + 여유(60px) */
+  transform: ${props => props.$isNative ? 'translateX(-50%)' : 'translate(-50%, -50%)'};
   background: white;
   border-radius: 16px;
-  width: 100%;
+  width: calc(100% - 40px);
   max-width: 400px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
@@ -174,8 +171,8 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
   const isNative = Capacitor.isNativePlatform();
 
   return (
-    <Overlay onClick={onCancel} $isNative={isNative}>
-      <ModalContainer onClick={(e) => e.stopPropagation()}>
+    <Overlay onClick={onCancel}>
+      <ModalContainer onClick={(e) => e.stopPropagation()} $isNative={isNative}>
         <ModalHeader>앱 종료</ModalHeader>
         
         <ModalBody>
