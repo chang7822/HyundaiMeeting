@@ -46,9 +46,16 @@ async function sendPushToUsers(userIds, data) {
         priority: 'high',
         ttl: 86400000, // 24시간 유효 (밀리초)
         notification: {
-          priority: 'high',
+          priority: 'max', // max로 변경 (최고 우선순위)
           defaultSound: true,
           defaultVibrateTimings: true,
+          visibility: 'public', // 잠금화면에 표시
+          notificationCount: 1, // 배지 카운트
+          lightSettings: { // LED 알림 (일부 기기)
+            color: '#FF0000',
+            lightOnDuration: '300ms',
+            lightOffDuration: '1000ms',
+          },
         },
       },
       apns: {
@@ -111,9 +118,16 @@ async function sendPushToAllUsers(data) {
         priority: 'high',
         ttl: 86400000, // 24시간 유효 (밀리초)
         notification: {
-          priority: 'high',
+          priority: 'max', // max로 변경 (최고 우선순위)
           defaultSound: true,
           defaultVibrateTimings: true,
+          visibility: 'public', // 잠금화면에 표시
+          notificationCount: 1, // 배지 카운트
+          lightSettings: { // LED 알림 (일부 기기)
+            color: '#FF0000',
+            lightOnDuration: '300ms',
+            lightOffDuration: '1000ms',
+          },
         },
       },
       apns: {

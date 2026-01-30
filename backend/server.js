@@ -339,7 +339,7 @@ io.on('connection', (socket) => {
         }
         io.to(roomId).emit('chat message', { ...dbData, content: plainContent });
 
-        // 3초 후에도 읽지 않았다면 수신자에게 푸시 알림 전송
+        // 1초 후에도 읽지 않았다면 수신자에게 푸시 알림 전송
         try {
           const insertedId = dbData.id;
           const receiverId = dbData.receiver_id;
@@ -369,6 +369,7 @@ io.on('connection', (socket) => {
                 senderId: String(msgRow.sender_id),
                 title: '[직쏠공]',
                 body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
+                linkUrl: `/chat?periodId=${msgRow.period_id}&partnerId=${msgRow.sender_id}`,
               });
               
               if (pushResult.success) {
@@ -379,7 +380,7 @@ io.on('connection', (socket) => {
             } catch (pushErr) {
               console.error('푸시알림 실패 : 예외 발생', pushErr);
             }
-          }, 3000);
+          }, 1000); // 3초 → 1초로 변경
         } catch (scheduleErr) {
           console.error('[SOCKET-CHAT] 안읽은 메시지 푸시 스케줄링 중 오류:', scheduleErr);
         }

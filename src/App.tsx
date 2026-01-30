@@ -139,6 +139,7 @@ const AppInner: React.FC = () => {
   
   // 뒤로가기 버튼 두 번 누르면 앱 종료를 위한 ref
   const [showExitModal, setShowExitModal] = useState(false);
+  const preloadedAdsRef = useRef<any>({ banner: null, rewarded: null });
 
   // 앱 초기화
   useEffect(() => {
@@ -767,6 +768,7 @@ const AppInner: React.FC = () => {
               isOpen={showExitModal}
               onConfirm={handleExitConfirm}
               onCancel={handleExitCancel}
+              preloadedBanner={preloadedAdsRef.current.banner}
             />
             
           </div>

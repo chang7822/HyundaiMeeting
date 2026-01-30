@@ -64,9 +64,20 @@ self.addEventListener('notificationclick', function(event) {
   
   event.notification.close();
   
-  // data에서 linkUrl 또는 postId 추출
+  // data에서 linkUrl 추출 또는 타입별로 생성
   const data = event.notification.data || {};
-  const linkUrl = data.linkUrl || (data.postId ? `/community?postId=${data.postId}&openComments=true` : '/community');
+  let linkUrl = data.linkUrl;
+  
+  // linkUrl이 없으면 타입별로 생성
+  if (!linkUrl) {
+    if (data.postId) {
+      linkUrl = `/community?postId=${data.postId}&openComments=true`;
+    } else if (data.type === 'chat_unread' && data.periodId && data.senderId) {
+      linkUrl = `/chat?periodId=${data.periodId}&partnerId=${data.senderId}`;
+    } else {
+      linkUrl = '/main';
+    }
+  }
   
   // 클라이언트가 열려있으면 해당 페이지로 이동, 없으면 새로 열기
   event.waitUntil(

@@ -187,8 +187,17 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
       console.log('[push] 푸시 알림 클릭:', notification);
       
       // 커스텀 이벤트로 알림 클릭 정보 전달 (App.tsx에서 처리)
-      const data = notification.notification?.data || notification.data || {};
-      const linkUrl = data.linkUrl || (data.postId ? `/community?postId=${data.postId}&openComments=true` : null);
+      const data = notification.notification?.data || (notification as any).data || {};
+      let linkUrl = data.linkUrl;
+      
+      // linkUrl이 없으면 타입별로 생성
+      if (!linkUrl) {
+        if (data.postId) {
+          linkUrl = `/community?postId=${data.postId}&openComments=true`;
+        } else if (data.type === 'chat_unread' && data.periodId && data.senderId) {
+          linkUrl = `/chat?periodId=${data.periodId}&partnerId=${data.senderId}`;
+        }
+      }
       
       if (linkUrl) {
         window.dispatchEvent(new CustomEvent('push-notification-clicked', {

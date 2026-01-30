@@ -6,9 +6,10 @@ interface ExitConfirmModalProps {
   isOpen: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  preloadedBanner?: any;
 }
 
-const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, onCancel }) => {
+const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, onCancel, preloadedBanner }) => {
   const bannerAdRef = React.useRef<any>(null);
 
   useEffect(() => {
@@ -31,27 +32,30 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
         cleanupNativeAd();
       }
     };
-  }, [isOpen]);
+  }, [isOpen, preloadedBanner]);
 
   const loadNativeAd = async () => {
     try {
+      // 사전 로드된 광고가 있으면 바로 표시
+      if (preloadedBanner) {
+        bannerAdRef.current = preloadedBanner;
+        await preloadedBanner.show();
+        console.log('[ExitConfirmModal] 사전 로드된 배너 광고 표시');
+        return;
+      }
+
+      // 사전 로드 실패 시 즉시 로드
+      console.log('[ExitConfirmModal] 광고 즉시 로드 시작');
       const admobModule = await import('@capgo/capacitor-admob');
       const { BannerAd } = admobModule;
       
-      // 광고 ID 설정 (환경 변수로 테스트/실제 모드 제어)
       const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
       const adUnitId = isTesting
-        ? 'ca-app-pub-3940256099942544/6300978111' // Google 테스트 배너 ID
-        : 'ca-app-pub-1352765336263182/3234219021'; // 종료 배너 광고 단위 ID
+        ? 'ca-app-pub-3940256099942544/6300978111'
+        : 'ca-app-pub-1352765336263182/3234219021';
       
-      // BannerAd 인스턴스 생성 및 표시
-      const banner = new BannerAd({
-        adUnitId: adUnitId,
-      });
-
-      // 인스턴스를 ref에 저장 (나중에 숨기기 위해)
+      const banner = new BannerAd({ adUnitId });
       bannerAdRef.current = banner;
-
       await banner.show();
     } catch (error) {
       console.error('[ExitConfirmModal] 광고 로드 실패:', error);

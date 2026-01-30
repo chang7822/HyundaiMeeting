@@ -996,9 +996,6 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
         : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID
       
-      // WebView 완전 준비 확인
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
       // 보상형 광고 생성 및 표시
       const rewardedAd = new RewardedAd({
         adUnitId: adId,
