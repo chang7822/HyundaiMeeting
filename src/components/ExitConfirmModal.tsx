@@ -23,7 +23,7 @@ const Overlay = styled.div<{ $isNative?: boolean }>`
   z-index: 10000;
   padding: 20px;
   ${props => props.$isNative && `
-    /* 네이티브 앱에서 광고 배너 높이(60px)만큼 위로 올림 */
+    /* 네이티브 앱에서 항상 광고 배너 높이(60px)만큼 위로 올림 */
     padding-bottom: calc(20px + 60px);
   `}
 `;
@@ -170,7 +170,7 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
 
   if (!isOpen) return null;
 
-  // 네이티브 앱에서 광고 배너 공간 확보
+  // 네이티브 앱에서는 항상 광고 배너 공간 확보 (광고 로드 여부와 무관)
   const isNative = Capacitor.isNativePlatform();
 
   return (

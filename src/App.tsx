@@ -186,7 +186,7 @@ const AppInner: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
   
-  // Android 뒤로가기 버튼 처리 (두 번 누르면 앱 종료)
+  // Android 뒤로가기 버튼 처리
   useEffect(() => {
     if (!isNativeApp() || Capacitor.getPlatform() !== 'android') return;
     
@@ -197,9 +197,9 @@ const AppInner: React.FC = () => {
         const { App } = await import('@capacitor/app');
         
         listener = await App.addListener('backButton', ({ canGoBack }) => {
-          // 메인 페이지에서는 히스토리 상관없이 무조건 종료 모달 표시 (광고)
           const isMainPage = location.pathname === '/' || location.pathname === '/main';
           
+          // 메인 페이지에서만 종료 모달 표시 (광고)
           if (isMainPage) {
             setShowExitModal(true);
             return;
@@ -211,8 +211,8 @@ const AppInner: React.FC = () => {
             return;
           }
           
-          // 뒤로 갈 곳이 없으면 종료 확인 모달 표시
-          setShowExitModal(true);
+          // 다른 페이지에서 뒤로 갈 곳이 없으면 메인 페이지로 이동
+          navigate('/main', { replace: true });
         });
       } catch (error) {
         console.error('[App] 뒤로가기 버튼 리스너 설정 실패:', error);
@@ -395,15 +395,13 @@ const AppInner: React.FC = () => {
     const handlePushNotificationClick = (event: CustomEvent) => {
       const { linkUrl } = event.detail || {};
       if (linkUrl) {
-        // 먼저 pendingNavigationRef 설정하여 "/" 경로에서 메인으로 리다이렉트 방지
+        // 먼저 pendingNavigationRef 설정
         pendingNavigationRef.current = linkUrl;
         
-        if (isAuthenticated) {
-          // 인증된 상태면 즉시 이동
-          setTimeout(() => {
-            navigate(linkUrl);
-            pendingNavigationRef.current = null; // 이동 후 초기화
-          }, 0);
+        if (isAuthenticated && !isLoading) {
+          // 인증 완료 상태면 즉시 이동 (replace로 히스토리 남기지 않음)
+          navigate(linkUrl, { replace: true });
+          pendingNavigationRef.current = null;
         }
         // 인증 대기 중이면 pendingNavigationRef에 저장된 상태로 대기
       }
@@ -414,16 +412,16 @@ const AppInner: React.FC = () => {
     return () => {
       window.removeEventListener('push-notification-clicked', handlePushNotificationClick as EventListener);
     };
-  }, [navigate, isAuthenticated]);
+  }, [navigate, isAuthenticated, isLoading]);
 
   // 인증 완료 후 대기 중인 네비게이션 실행
   useEffect(() => {
-    if (isAuthenticated && pendingNavigationRef.current) {
+    if (isAuthenticated && !isLoading && pendingNavigationRef.current) {
       const targetUrl = pendingNavigationRef.current;
       pendingNavigationRef.current = null;
-      navigate(targetUrl);
+      navigate(targetUrl, { replace: true });
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isLoading, navigate]);
 
   // 회원가입 단계 이동 시마다 스크롤을 최상단으로 이동
   useEffect(() => {
@@ -516,13 +514,11 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={
-                isLoading ? <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} /> : (
-                  pendingNavigationRef.current ? (
-                    // 대기 중인 네비게이션이 있으면 로딩 표시 (메인페이지 거치지 않음)
-                    <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
-                  ) : (
-                    isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
-                  )
+                isLoading || pendingNavigationRef.current ? (
+                  // 로딩 중이거나 대기 중인 네비게이션이 있으면 로딩 표시
+                  <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
+                ) : (
+                  isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
                 )
               } />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

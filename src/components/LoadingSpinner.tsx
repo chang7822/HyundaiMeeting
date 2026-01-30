@@ -52,7 +52,7 @@ const LoadingSpinner = ({
     };
   }, [preloadedBanner]);
 
-  // 네이티브 앱에서 광고 배너 높이만큼 위로 올림 (광고 배너 약 60px)
+  // 네이티브 앱에서는 항상 광고 배너 높이(60px)만큼 위로 올림 (광고 로드 여부와 무관)
   const isNative = Capacitor.isNativePlatform();
   const topOffset = isNative ? 'calc(50% - 30px)' : '50%';
 
