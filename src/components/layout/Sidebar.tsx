@@ -38,7 +38,6 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
   display: flex;
   flex-direction: column;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   
   @media (max-width: 768px) {
     width: 100%;
@@ -463,9 +462,9 @@ const NotificationQuickRow = styled.button`
   }
 `;
 
-const LogoutSection = styled.div`
+const LogoutSection = styled.div<{ $isNative?: boolean }>`
   padding: 1rem 1.5rem;
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: ${props => props.$isNative ? '1rem' : 'calc(1rem + env(safe-area-inset-bottom, 0px))'};
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   flex-shrink: 0;
@@ -1317,7 +1316,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
                 </>
               )}
             </NavMenu>
-            <LogoutSection>
+            <LogoutSection $isNative={isNativeApp()}>
               <LogoutButton onClick={handleLogout}>
                 <FaSignOutAlt />
                 로그아웃

@@ -1,7 +1,58 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 // 예쁜 그라데이션 원형 스피너 SVG + 부드러운 애니메이션
-const LoadingSpinner = ({ text = "로딩 중...", sidebarOpen = false }: { text?: string; sidebarOpen?: boolean }) => (
+const LoadingSpinner = ({ 
+  text = "로딩 중...", 
+  sidebarOpen = false,
+  preloadedBanner 
+}: { 
+  text?: string; 
+  sidebarOpen?: boolean;
+  preloadedBanner?: any;
+}) => {
+  const bannerAdRef = useRef<any>(null);
+
+  useEffect(() => {
+    // 네이티브 앱에서만 광고 표시
+    if (!Capacitor.isNativePlatform()) return;
+
+    const loadNativeAd = async () => {
+      try {
+        if (preloadedBanner) {
+          bannerAdRef.current = preloadedBanner;
+          await preloadedBanner.show();
+          return;
+        }
+
+        // Fallback: 사전로드 실패 시 즉시 로드
+        const admobModule = await import('@capgo/capacitor-admob');
+        const { BannerAd } = admobModule;
+        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+        const adUnitId = isTesting
+          ? 'ca-app-pub-3940256099942544/6300978111'
+          : 'ca-app-pub-1352765336263182/3234219021';
+        const banner = new BannerAd({ adUnitId });
+        bannerAdRef.current = banner;
+        await banner.show();
+      } catch (error) {
+        console.error('[LoadingSpinner] 광고 로드 실패:', error);
+      }
+    };
+
+    loadNativeAd();
+
+    return () => {
+      // 컴포넌트 언마운트 시 광고 숨김
+      if (bannerAdRef.current) {
+        bannerAdRef.current.hide().catch((e: any) => {
+          console.error('[LoadingSpinner] 광고 숨김 실패:', e);
+        });
+      }
+    };
+  }, [preloadedBanner]);
+
+  return (
   <div style={{
     position: 'fixed',
     left: sidebarOpen ? 'calc(50% + 140px)' : '50%',
@@ -57,6 +108,7 @@ const LoadingSpinner = ({ text = "로딩 중...", sidebarOpen = false }: { text?
       `}
     </style>
   </div>
-);
+  );
+};
 
 export default LoadingSpinner; 

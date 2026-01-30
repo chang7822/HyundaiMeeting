@@ -479,7 +479,7 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={
-                isLoading ? <LoadingSpinner /> : (
+                isLoading ? <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} /> : (
                   isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
                 )
               } />
