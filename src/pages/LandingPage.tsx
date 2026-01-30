@@ -483,12 +483,12 @@ const LandingPage = () => {
   const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
   const [showCompanyGuideTooltip, setShowCompanyGuideTooltip] = useState(false);
 
-  // 이미 로그인된 상태에서 랜딩( "/" )로 진입하면 메인으로 보내기
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      navigate('/main');
-    }
-  }, [isLoading, isAuthenticated, navigate]);
+  // App.tsx에서 라우트 레벨에서 처리하므로 제거
+  // useEffect(() => {
+  //   if (!isLoading && isAuthenticated) {
+  //     navigate('/main');
+  //   }
+  // }, [isLoading, isAuthenticated, navigate]);
 
   useEffect(() => {
     if (!showCompanies) return;

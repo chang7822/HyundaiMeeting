@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -355,11 +355,19 @@ const AppInner: React.FC = () => {
   }, []);
 
   // 네이티브 앱 푸시 알림 클릭 처리
+  const pendingNavigationRef = useRef<string | null>(null);
+
   useEffect(() => {
     const handlePushNotificationClick = (event: CustomEvent) => {
       const { linkUrl } = event.detail || {};
-      if (linkUrl && isAuthenticated) {
-        navigate(linkUrl);
+      if (linkUrl) {
+        if (isAuthenticated) {
+          // 인증된 상태면 즉시 이동
+          navigate(linkUrl);
+        } else {
+          // 인증 대기 중이면 저장해두고 나중에 이동
+          pendingNavigationRef.current = linkUrl;
+        }
       }
     };
 
@@ -369,6 +377,15 @@ const AppInner: React.FC = () => {
       window.removeEventListener('push-notification-clicked', handlePushNotificationClick as EventListener);
     };
   }, [navigate, isAuthenticated]);
+
+  // 인증 완료 후 대기 중인 네비게이션 실행
+  useEffect(() => {
+    if (isAuthenticated && pendingNavigationRef.current) {
+      const targetUrl = pendingNavigationRef.current;
+      pendingNavigationRef.current = null;
+      navigate(targetUrl);
+    }
+  }, [isAuthenticated, navigate]);
 
   // 회원가입 단계 이동 시마다 스크롤을 최상단으로 이동
   useEffect(() => {
@@ -460,7 +477,9 @@ const AppInner: React.FC = () => {
     <div className="App">
       <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={
+                isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
+              } />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/delete-account" element={<DeleteAccountPage />} />
               <Route path="/child-safety" element={<ChildSafetyPage />} />

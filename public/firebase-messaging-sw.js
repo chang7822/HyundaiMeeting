@@ -70,12 +70,35 @@ self.addEventListener('notificationclick', function(event) {
   
   // linkUrl이 없으면 타입별로 생성
   if (!linkUrl) {
-    if (data.postId) {
-      linkUrl = `/community?postId=${data.postId}&openComments=true`;
-    } else if (data.type === 'chat_unread' && data.senderId) {
-      linkUrl = `/chat/${data.senderId}`; // URL 파라미터 형식으로 변경
-    } else {
-      linkUrl = '/main';
+    switch (data.type) {
+      case 'chat_unread':
+        linkUrl = data.senderId ? `/chat/${data.senderId}` : '/main';
+        break;
+      case 'community_comment':
+        linkUrl = data.postId ? `/community?postId=${data.postId}&openComments=true` : '/community';
+        break;
+      case 'community_delete':
+        linkUrl = '/community';
+        break;
+      case 'notice':
+        linkUrl = '/notice';
+        break;
+      case 'support':
+        linkUrl = '/my-support';
+        break;
+      case 'extra_match_apply':
+      case 'extra_match_accept':
+      case 'extra_match_reject':
+        linkUrl = '/extra-matching';
+        break;
+      case 'matching_application_start':
+        linkUrl = '/main';
+        break;
+      case 'matching_result_announce':
+        linkUrl = '/matching-history';
+        break;
+      default:
+        linkUrl = '/main';
     }
   }
   

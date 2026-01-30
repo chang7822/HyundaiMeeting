@@ -192,10 +192,39 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
       
       // linkUrl이 없으면 타입별로 생성
       if (!linkUrl) {
-        if (data.postId) {
-          linkUrl = `/community?postId=${data.postId}&openComments=true`;
-        } else if (data.type === 'chat_unread' && data.senderId) {
-          linkUrl = `/chat/${data.senderId}`; // URL 파라미터 형식으로 변경
+        switch (data.type) {
+          case 'chat_unread':
+            if (data.senderId) linkUrl = `/chat/${data.senderId}`;
+            break;
+          case 'community_comment':
+            if (data.postId) linkUrl = `/community?postId=${data.postId}&openComments=true`;
+            break;
+          case 'community_delete':
+            linkUrl = '/community';
+            break;
+          case 'notice':
+            linkUrl = '/notice';
+            break;
+          case 'support':
+            linkUrl = '/my-support';
+            break;
+          case 'extra_match_apply':
+          case 'extra_match_accept':
+          case 'extra_match_reject':
+            linkUrl = '/extra-matching';
+            break;
+          case 'matching_application_start':
+            linkUrl = '/main';
+            break;
+          case 'matching_result_announce':
+            linkUrl = '/matching-history';
+            break;
+          default:
+            if (data.postId) {
+              linkUrl = `/community?postId=${data.postId}&openComments=true`;
+            } else {
+              linkUrl = '/main';
+            }
         }
       }
       
