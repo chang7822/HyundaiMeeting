@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import styled from 'styled-components';
 import { Capacitor } from '@capacitor/core';
 
@@ -9,11 +9,16 @@ interface ExitConfirmModalProps {
 }
 
 const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, onCancel }) => {
-  const [adLoaded, setAdLoaded] = useState(false);
-  const [adError, setAdError] = useState(false);
+  const bannerAdRef = React.useRef<any>(null);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      // 모달이 닫힐 때 광고 정리
+      if (Capacitor.isNativePlatform() && bannerAdRef.current) {
+        cleanupNativeAd();
+      }
+      return;
+    }
 
     // 네이티브 앱에서만 광고 로드
     if (Capacitor.isNativePlatform()) {
@@ -21,8 +26,8 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
     }
 
     return () => {
-      // 모달 닫힐 때 광고 정리
-      if (Capacitor.isNativePlatform()) {
+      // 컴포넌트 언마운트 시 광고 정리
+      if (Capacitor.isNativePlatform() && bannerAdRef.current) {
         cleanupNativeAd();
       }
     };
@@ -44,21 +49,22 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
         adUnitId: adUnitId,
       });
 
-      await banner.show();
+      // 인스턴스를 ref에 저장 (나중에 숨기기 위해)
+      bannerAdRef.current = banner;
 
-      setAdLoaded(true);
-      setAdError(false);
+      await banner.show();
     } catch (error) {
       console.error('[ExitConfirmModal] 광고 로드 실패:', error);
-      setAdError(true);
-      setAdLoaded(false);
     }
   };
 
   const cleanupNativeAd = async () => {
     try {
-      // 배너 광고는 모달이 닫힐 때 자동으로 정리됨
-      // 필요시 BannerAd 인스턴스의 hide() 메서드 호출
+      if (bannerAdRef.current) {
+        // 배너 광고 숨기기
+        await bannerAdRef.current.hide();
+        bannerAdRef.current = null;
+      }
     } catch (error) {
       console.error('[ExitConfirmModal] 광고 정리 실패:', error);
     }
@@ -73,19 +79,6 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
         
         <ModalBody>
           <Message>정말 앱을 종료하시겠습니까?</Message>
-          
-          {/* 네이티브 광고 영역 */}
-          {Capacitor.isNativePlatform() && (
-            <AdContainer id="native-ad-container">
-              {!adLoaded && !adError && (
-                <AdLoadingText>광고 로딩 중...</AdLoadingText>
-              )}
-              {adError && (
-                <AdErrorText>광고를 불러올 수 없습니다</AdErrorText>
-              )}
-              {/* AdMob 네이티브 광고가 여기에 렌더링됨 */}
-            </AdContainer>
-          )}
         </ModalBody>
 
         <ButtonGroup>
@@ -142,30 +135,8 @@ const Message = styled.p`
   font-size: 16px;
   color: #374151;
   line-height: 1.5;
-  margin: 0 0 20px 0;
+  margin: 0;
   text-align: center;
-`;
-
-const AdContainer = styled.div`
-  min-height: 120px;
-  background: #f9fafb;
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-top: 16px;
-  border: 1px solid #e5e7eb;
-`;
-
-const AdLoadingText = styled.div`
-  font-size: 14px;
-  color: #9ca3af;
-`;
-
-const AdErrorText = styled.div`
-  font-size: 14px;
-  color: #ef4444;
 `;
 
 const ButtonGroup = styled.div`

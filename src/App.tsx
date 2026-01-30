@@ -195,7 +195,15 @@ const AppInner: React.FC = () => {
         const { App } = await import('@capacitor/app');
         
         listener = await App.addListener('backButton', ({ canGoBack }) => {
-          // 뒤로 갈 곳이 있으면 일반 뒤로가기
+          // 메인 페이지에서는 히스토리 상관없이 무조건 종료 모달 표시 (광고)
+          const isMainPage = location.pathname === '/' || location.pathname === '/main';
+          
+          if (isMainPage) {
+            setShowExitModal(true);
+            return;
+          }
+          
+          // 다른 페이지에서는 뒤로 갈 곳이 있으면 일반 뒤로가기
           if (canGoBack) {
             navigate(-1);
             return;
