@@ -142,16 +142,11 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     const { PushNotifications } = await import('@capacitor/push-notifications');
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     
-    // 푸시 알림 수신 시
+    // 푸시 알림 수신 시 (data-only 메시지)
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-      console.log('[push] 푸시 알림 수신:', notification);
-      console.log('[push] notification.data:', notification.data);
-      console.log('[push] notification.title:', notification.title);
-      console.log('[push] notification.body:', notification.body);
-      
       const data = notification.data || {};
-      const title = notification.title || data.title || '새 알림';
-      const body = notification.body || data.body || '';
+      const title = data.title || '새 알림';
+      const body = data.body || '';
       
       // 채팅 메시지인 경우: 현재 채팅방이 아니면 포어그라운드에서도 알림 표시
       const isChatMessage = data.type === 'chat_unread';
@@ -160,26 +155,13 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
                                 data.senderId &&
                                 currentPath.includes(`/chat/${data.senderId}`);
       
-      console.log('[push] 채팅 메시지 체크:', {
-        isChatMessage,
-        dataType: data.type,
-        senderId: data.senderId,
-        currentPath,
-        isCurrentChatPage
-      });
-      
       // 포어그라운드에서 알림 표시 조건:
-      // 1. 채팅 메시지이고 현재 해당 채팅방이 아닌 경우 → 무조건 표시
-      // 2. 채팅이 아닌 다른 메시지 → 표시 안 함 (백그라운드에서만)
+      // 채팅 메시지이고 현재 해당 채팅방이 아닌 경우
       const shouldShowNotification = isChatMessage && !isCurrentChatPage;
-      
-      console.log('[push] 알림 표시 여부:', shouldShowNotification);
       
       if (shouldShowNotification) {
         try {
-          // 로컬 알림 권한 확인
           const permissionStatus = await LocalNotifications.checkPermissions();
-          console.log('[push] 로컬 알림 권한 상태:', permissionStatus);
           
           if (permissionStatus.display === 'granted') {
             await LocalNotifications.schedule({
@@ -193,17 +175,10 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
                 },
               ],
             });
-            console.log('[push] ✅ 로컬 알림 표시 성공 (포어그라운드):', title, body);
-          } else {
-            console.warn('[push] ❌ 로컬 알림 권한이 없습니다:', permissionStatus);
           }
         } catch (error) {
-          console.error('[push] ❌ 로컬 알림 표시 실패:', error);
+          console.error('[push] 로컬 알림 표시 실패:', error);
         }
-      } else if (isChatMessage && isCurrentChatPage) {
-        console.log('[push] 📍 현재 채팅방이므로 알림 표시 안 함');
-      } else if (!isChatMessage) {
-        console.log('[push] 📍 채팅 메시지가 아니므로 포어그라운드 알림 표시 안 함');
       }
       
       if (onNotificationReceived) {
@@ -213,7 +188,6 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     
     // 푸시 알림 클릭 시
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('[push] 푸시 알림 클릭:', notification);
       
       // 커스텀 이벤트로 알림 클릭 정보 전달 (App.tsx에서 처리)
       const data = notification.notification?.data || (notification as any).data || {};

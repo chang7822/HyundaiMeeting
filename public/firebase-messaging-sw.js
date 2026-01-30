@@ -29,17 +29,7 @@ try {
 
 if (messaging) {
   messaging.onBackgroundMessage(function (payload) {
-    console.log('[firebase-messaging-sw.js] Received background message ', payload);
-
-    // notification 필드가 있으면 FCM이 자동으로 알림을 표시하므로 중복 방지
-    // notification 필드가 없을 때만 수동으로 알림 표시
-    if (payload.notification && payload.notification.title) {
-      // FCM이 자동으로 알림을 표시하므로 여기서는 아무것도 하지 않음
-      console.log('[firebase-messaging-sw.js] notification 필드가 있어 FCM이 자동으로 알림을 표시합니다.');
-      return;
-    }
-
-    // data-only 메시지인 경우에만 수동으로 알림 표시
+    // data-only 메시지를 수동으로 알림 표시
     const notificationTitle =
       (payload.data && payload.data.title) ||
       '새 알림';
@@ -50,8 +40,11 @@ if (messaging) {
 
     const notificationOptions = {
       body: notificationBody,
-      icon: '/logo192.png',
+      icon: '/icon-192.png',
       data: payload.data || null,
+      badge: '/icon-192.png',
+      vibrate: [200, 100, 200],
+      requireInteraction: false,
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);
@@ -60,7 +53,6 @@ if (messaging) {
 
 // 푸시 알림 클릭 시 처리
 self.addEventListener('notificationclick', function(event) {
-  console.log('[firebase-messaging-sw.js] 푸시 알림 클릭:', event);
   
   event.notification.close();
   

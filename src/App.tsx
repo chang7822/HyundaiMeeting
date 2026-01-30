@@ -257,12 +257,8 @@ const AppInner: React.FC = () => {
         const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
         const messaging = getMessaging(app);
 
-        // 포어그라운드에서 메시지 수신 시
+        // 포어그라운드에서 메시지 수신 시 (data-only 메시지)
         onMessage(messaging, (payload) => {
-          console.log('[Web] 포어그라운드 메시지 수신:', payload);
-          console.log('[Web] payload.data:', payload.data);
-          console.log('[Web] payload.notification:', payload.notification);
-          
           const data = payload.data || {};
           const isChatMessage = data.type === 'chat_unread';
           const currentPath = window.location.pathname;
@@ -270,31 +266,19 @@ const AppInner: React.FC = () => {
                                     data.senderId &&
                                     currentPath.includes(`/chat/${data.senderId}`);
 
-          console.log('[Web] 채팅 메시지 체크:', {
-            isChatMessage,
-            dataType: data.type,
-            senderId: data.senderId,
-            currentPath,
-            isCurrentChatPage
-          });
-
-          // 채팅 메시지가 아니면 포어그라운드에서는 알림 표시 안 함 (백그라운드에서만)
+          // 채팅 메시지가 아니면 포어그라운드에서는 알림 표시 안 함
           if (!isChatMessage) {
-            console.log('[Web] 📍 채팅 메시지가 아니므로 포어그라운드 알림 표시 안 함');
             return;
           }
 
           // 채팅 메시지이고 현재 채팅방이면 알림 표시 안 함
           if (isChatMessage && isCurrentChatPage) {
-            console.log('[Web] 📍 현재 채팅방이므로 알림 표시 안 함');
             return;
           }
 
           // 채팅 메시지이고 다른 페이지인 경우 브라우저 알림 표시
-          const title = payload.notification?.title || data.title || '새 알림';
-          const body = payload.notification?.body || data.body || '';
-
-          console.log('[Web] 알림 표시 시도:', { title, body, permission: Notification.permission });
+          const title = data.title || '새 알림';
+          const body = data.body || '';
 
           if (Notification.permission === 'granted') {
             new Notification(title, {
@@ -302,13 +286,8 @@ const AppInner: React.FC = () => {
               icon: '/icon-192.png',
               data: data,
             });
-            console.log('[Web] ✅ 브라우저 알림 표시 성공');
-          } else {
-            console.warn('[Web] ❌ 브라우저 알림 권한 없음:', Notification.permission);
           }
         });
-
-        console.log('[Web] 포어그라운드 푸시 알림 리스너 설정 완료');
       } catch (error) {
         console.error('[Web] 포어그라운드 푸시 알림 설정 실패:', error);
       }

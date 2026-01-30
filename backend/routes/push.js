@@ -166,7 +166,6 @@ router.post('/register-token', authenticate, async (req, res) => {
       return res.status(500).json({ success: false, message: '푸시 토큰 저장 중 오류가 발생했습니다.' });
     }
 
-    console.log(`[push]푸시알림 토큰 등록: user_id=${userId}, email=${email}, nickname=${nickname}, device=${deviceType}`);
     return res.json({ success: true });
   } catch (e) {
     console.error('[push][register-token] 예외:', e);
@@ -292,14 +291,11 @@ router.post('/send-test', authenticate, async (req, res) => {
     }
 
     const messaging = getMessaging();
-    // 앱에서 알림을 받기 위해 notification 필드 추가
-    // 웹에서는 서비스워커가 notification 필드를 무시하고 data만 처리하므로 중복 알림 발생하지 않음
+    
+    // data-only 메시지로 변경 (포어그라운드 이벤트 발생을 위해)
     const message = {
       tokens: tokenList,
-      notification: {
-        title: '푸시알람 테스트',
-        body: '푸시알람 테스트 (기능개선 진행중)',
-      },
+      // notification 필드 제거
       data: {
         type: 'test',
         title: '푸시알람 테스트',
@@ -309,11 +305,6 @@ router.post('/send-test', authenticate, async (req, res) => {
       android: {
         priority: 'high',
         ttl: 86400000,
-        notification: {
-          priority: 'high',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-        },
       },
       apns: {
         headers: {
@@ -321,6 +312,7 @@ router.post('/send-test', authenticate, async (req, res) => {
         },
         payload: {
           aps: {
+            'content-available': 1,
             sound: 'default',
           },
         },
@@ -328,7 +320,6 @@ router.post('/send-test', authenticate, async (req, res) => {
     };
 
     const response = await messaging.sendEachForMulticast(message);
-    console.log('[push][send-test] 결과:', response);
 
     return res.json({
       success: true,
@@ -401,14 +392,11 @@ router.post('/send-admin', authenticate, async (req, res) => {
     }
 
     const messaging = getMessaging();
-    // 앱에서 알림을 받기 위해 notification 필드 추가
-    // 웹에서는 서비스워커가 notification 필드를 무시하고 data만 처리하므로 중복 알림 발생하지 않음
+    
+    // data-only 메시지로 변경 (포어그라운드 이벤트 발생을 위해)
     const pushMessage = {
       tokens: tokenList,
-      notification: {
-        title: title,
-        body: message,
-      },
+      // notification 필드 제거
       data: {
         type: 'admin',
         title: title,
@@ -418,11 +406,6 @@ router.post('/send-admin', authenticate, async (req, res) => {
       android: {
         priority: 'high',
         ttl: 86400000,
-        notification: {
-          priority: 'high',
-          defaultSound: true,
-          defaultVibrateTimings: true,
-        },
       },
       apns: {
         headers: {
@@ -430,6 +413,7 @@ router.post('/send-admin', authenticate, async (req, res) => {
         },
         payload: {
           aps: {
+            'content-available': 1,
             sound: 'default',
           },
         },
@@ -437,7 +421,6 @@ router.post('/send-admin', authenticate, async (req, res) => {
     };
 
     const response = await messaging.sendEachForMulticast(pushMessage);
-    console.log(`[push][send-admin] 관리자 푸시 전송 결과: email=${email}, sent=${response.successCount}, failed=${response.failureCount}`);
 
     return res.json({
       success: true,

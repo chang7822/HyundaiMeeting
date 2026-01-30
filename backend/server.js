@@ -345,30 +345,15 @@ io.on('connection', (socket) => {
           const receiverId = dbData.receiver_id;
           const senderNickname = data.sender_nickname || '상대방';
 
-          console.log(`[PUSH-SCHEDULE] 채팅 푸시 알림 1초 대기 시작 (msg_id: ${insertedId}, receiver: ${receiverId})`);
-
           setTimeout(async () => {
             try {
-              console.log(`[PUSH-CHECK] 메시지 읽음 상태 확인 중 (msg_id: ${insertedId})`);
-              
               const { data: msgRow, error: msgError } = await supabase
                 .from('chat_messages')
                 .select('id, is_read, receiver_id, sender_id, period_id')
                 .eq('id', insertedId)
                 .maybeSingle();
 
-              if (msgError) {
-                console.error(`[PUSH-ERROR] DB 조회 오류 (msg_id: ${insertedId}):`, msgError);
-                return;
-              }
-
-              if (!msgRow) {
-                console.warn(`[PUSH-SKIP] 메시지 없음 (msg_id: ${insertedId})`);
-                return;
-              }
-
-              if (msgRow.is_read) {
-                console.log(`[PUSH-SKIP] 이미 읽음 (msg_id: ${insertedId})`);
+              if (msgError || !msgRow || msgRow.is_read) {
                 return;
               }
 
@@ -381,24 +366,11 @@ io.on('connection', (socket) => {
                 linkUrl: `/chat/${msgRow.sender_id}`,
               };
 
-              console.log(`[PUSH-SEND] 채팅 푸시 전송 시작:`, {
-                receiver: receiverId,
-                sender: msgRow.sender_id,
-                periodId: msgRow.period_id,
-                data: pushData
-              });
-
-              const pushResult = await sendPushToUsers([receiverId], pushData);
-              
-              if (pushResult.success) {
-                console.log(`[PUSH-SUCCESS] ✅ 채팅 푸시 전송 성공 (msg_id: ${insertedId}, receiver: ${receiverId})`);
-              } else {
-                console.error(`[PUSH-FAIL] ❌ 채팅 푸시 전송 실패 (msg_id: ${insertedId}): ${pushResult.reason}`);
-              }
+              await sendPushToUsers([receiverId], pushData);
             } catch (pushErr) {
-              console.error(`[PUSH-ERROR] 채팅 푸시 예외 발생 (msg_id: ${insertedId}):`, pushErr);
+              console.error('[SOCKET][server] 채팅 푸시 전송 실패:', pushErr);
             }
-          }, 1000); // 3초 → 1초로 변경
+          }, 1000);
         } catch (scheduleErr) {
           console.error('[SOCKET-CHAT] 안읽은 메시지 푸시 스케줄링 중 오류:', scheduleErr);
         }
