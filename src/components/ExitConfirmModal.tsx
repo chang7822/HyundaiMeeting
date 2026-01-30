@@ -10,28 +10,31 @@ interface ExitConfirmModalProps {
 }
 
 // Styled components 먼저 정의
-const Overlay = styled.div<{ $isNative?: boolean }>`
+const Overlay = styled.div`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 10000;
+  padding: 20px;
 `;
 
 const ModalContainer = styled.div<{ $isNative?: boolean }>`
-  position: fixed;
-  left: 50%;
-  top: ${props => props.$isNative ? 'auto' : '50%'};
-  bottom: ${props => props.$isNative ? '120px' : 'auto'}; /* 광고(60px) + 여유(60px) */
-  transform: ${props => props.$isNative ? 'translateX(-50%)' : 'translate(-50%, -50%)'};
   background: white;
   border-radius: 16px;
-  width: calc(100% - 40px);
+  width: 100%;
   max-width: 400px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   overflow: hidden;
+  /* 네이티브에서 모달을 위로 올림: 화면 높이 기준으로 배너(60px) + 여유(30px) */
+  ${props => props.$isNative && `
+    margin-bottom: 90px;
+  `}
 `;
 
 const ModalHeader = styled.div`

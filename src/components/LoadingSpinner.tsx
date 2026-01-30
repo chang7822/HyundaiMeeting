@@ -52,16 +52,18 @@ const LoadingSpinner = ({
     };
   }, [preloadedBanner]);
 
-  // 네이티브 앱에서는 bottom 기준으로 고정 (광고가 로드되어도 움직이지 않음)
+  // 네이티브 앱에서는 top 기준으로 고정 (화면 높이 기준이므로 배너 로드되어도 움직이지 않음)
   const isNative = Capacitor.isNativePlatform();
+  // 네이티브: 전체 화면(100vh)에서 배너(60px) 제외한 영역의 중앙
+  // (100vh - 60px) / 2 = 50vh - 30px
+  const topPosition = isNative ? 'calc(50vh - 90px)' : '50%'; // 광고 공간(60px) + 여유(30px)
 
   return (
   <div style={{
     position: 'fixed',
     left: sidebarOpen ? 'calc(50% + 140px)' : '50%',
-    top: isNative ? undefined : '50%',
-    bottom: isNative ? '90px' : undefined, // 광고 배너(60px) + 여유(30px)
-    transform: sidebarOpen ? 'translateX(-50%)' : (isNative ? 'translateX(-50%)' : 'translate(-50%, -50%)'),
+    top: topPosition,
+    transform: 'translate(-50%, -50%)',
     zIndex: 2000,
     color: '#7C3AED',
     fontSize: 22,
