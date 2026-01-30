@@ -237,6 +237,63 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
+  // 웹 포어그라운드 푸시 알림 처리
+  useEffect(() => {
+    if (isNativeApp()) return; // 네이티브 앱은 firebase.ts에서 처리
+
+    const setupWebForegroundPush = async () => {
+      try {
+        const { getMessaging, onMessage } = await import('firebase/messaging');
+        const { initializeApp, getApps, getApp } = await import('firebase/app');
+        
+        const firebaseConfig = {
+          apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+          authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+          projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+          messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+          appId: process.env.REACT_APP_FIREBASE_APP_ID,
+        };
+
+        const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+        const messaging = getMessaging(app);
+
+        // 포어그라운드에서 메시지 수신 시
+        onMessage(messaging, (payload) => {
+          console.log('[Web] 포어그라운드 메시지 수신:', payload);
+          
+          const data = payload.data || {};
+          const isChatMessage = data.type === 'chat_unread';
+          const isCurrentChatPage = window.location.pathname.includes('/chat/') && 
+                                    window.location.pathname.includes(`/chat/${data.senderId}`);
+
+          // 채팅 메시지이고 현재 채팅방이면 알림 표시 안 함
+          if (isChatMessage && isCurrentChatPage) {
+            console.log('[Web] 현재 채팅방이므로 알림 표시 안 함');
+            return;
+          }
+
+          // 채팅 메시지이거나 다른 알림인 경우 브라우저 알림 표시
+          const title = payload.notification?.title || data.title || '새 알림';
+          const body = payload.notification?.body || data.body || '';
+
+          if (Notification.permission === 'granted') {
+            new Notification(title, {
+              body: body,
+              icon: '/icon-192.png',
+              data: data,
+            });
+          }
+        });
+
+        console.log('[Web] 포어그라운드 푸시 알림 리스너 설정 완료');
+      } catch (error) {
+        console.error('[Web] 포어그라운드 푸시 알림 설정 실패:', error);
+      }
+    };
+
+    setupWebForegroundPush();
+  }, []);
+
   // 네이티브 앱에서 푸시 알림 권한 요청 및 토큰 등록
   useEffect(() => {
     if (!isNativeApp() || !isAuthenticated || !user?.id) return;

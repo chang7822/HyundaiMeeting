@@ -146,13 +146,22 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
       console.log('[push] 푸시 알림 수신:', notification);
       
-      // data-only 메시지인 경우 로컬 알림으로 표시
-      // Capacitor PushNotifications는 notification 필드가 없으면 자동으로 알림을 표시하지 않음
-      if (notification.data && !notification.title && !notification.body) {
-        const title = notification.data.title || '새 알림';
-        const body = notification.data.body || '';
-        const data = notification.data;
-        
+      const data = notification.data || {};
+      const title = notification.title || data.title || '새 알림';
+      const body = notification.body || data.body || '';
+      
+      // 채팅 메시지인 경우: 현재 채팅방이 아니면 포어그라운드에서도 알림 표시
+      const isChatMessage = data.type === 'chat_unread';
+      const isCurrentChatPage = window.location.pathname.includes('/chat/') && 
+                                window.location.pathname.includes(`/chat/${data.senderId}`);
+      
+      // 1. data-only 메시지 (모든 타입)
+      // 2. 채팅 메시지이고 현재 해당 채팅방이 아닌 경우
+      const shouldShowNotification = 
+        (!notification.title && !notification.body) || // data-only
+        (isChatMessage && !isCurrentChatPage); // 채팅 메시지 + 다른 페이지
+      
+      if (shouldShowNotification) {
         try {
           // 로컬 알림 권한 확인
           const permissionStatus = await LocalNotifications.checkPermissions();
@@ -168,13 +177,15 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
                 },
               ],
             });
-            console.log('[push] 로컬 알림 표시:', title, body);
+            console.log('[push] 로컬 알림 표시 (포어그라운드):', title, body);
           } else {
             console.warn('[push] 로컬 알림 권한이 없습니다.');
           }
         } catch (error) {
           console.error('[push] 로컬 알림 표시 실패:', error);
         }
+      } else if (isChatMessage && isCurrentChatPage) {
+        console.log('[push] 현재 채팅방이므로 알림 표시 안 함');
       }
       
       if (onNotificationReceived) {
