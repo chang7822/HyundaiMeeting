@@ -1122,18 +1122,21 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           } else {
             // 백엔드에서 에러 응답 (400, 500 등)인 경우
             toast.error(res.message || '보상 지급에 실패했습니다.');
+            setAttendanceModalOpen(false); // 모달 닫기
           }
         } catch (rewardError: any) {
           // 네트워크 오류 또는 기타 예외
           const errorMessage = rewardError?.response?.data?.message || '보상 지급 중 오류가 발생했습니다.';
           toast.error(errorMessage);
+          setAttendanceModalOpen(false); // 모달 닫기
         }
       } else {
         // dismissed 되었거나 타임아웃 등으로 reward가 없으면 안내
+        setAttendanceModalOpen(false); // 광고를 닫았으므로 모달도 닫기
         if (!dismissed) {
           toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있습니다.');
         } else {
-          toast.info('광고 보상을 받지 못했습니다. 광고를 끝까지 시청해야 보상이 지급됩니다.');
+          toast.info('광고를 끝까지 시청해야 보상이 지급됩니다.');
         }
       }
     } catch (error: any) {
