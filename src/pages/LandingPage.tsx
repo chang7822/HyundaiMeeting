@@ -102,6 +102,34 @@ const Button = styled.button<{ $primary?: boolean }>`
   }
 `;
 
+const PlayStoreBadge = styled.a`
+  display: inline-block;
+  margin-top: 1.5rem;
+  transition: all 0.3s ease;
+  
+  img {
+    height: 60px;
+    width: auto;
+  }
+  
+  &:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  @media (max-width: 768px) {
+    margin-top: 1rem;
+    
+    img {
+      height: 50px;
+    }
+  }
+`;
+
 const Features = styled.div`
   margin-top: 4rem;
   display: grid;
@@ -589,6 +617,17 @@ const LandingPage = () => {
           회원가입
         </Button>
       </ButtonContainer>
+
+      <PlayStoreBadge 
+        href="https://play.google.com/store/apps/details?id=com.solo.meeting"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <img 
+          src="https://play.google.com/intl/ko/badges/static/images/badges/ko_badge_web_generic.png"
+          alt="Google Play에서 다운로드"
+        />
+      </PlayStoreBadge>
       
       <Features>
         <FeatureCard>
