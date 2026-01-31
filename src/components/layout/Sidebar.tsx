@@ -600,7 +600,11 @@ const AppOnlyBadge = styled.span`
   color: rgba(255, 255, 255, 0.9);
 `;
 
-const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, onToggle }) => {
+const Sidebar: React.FC<{ 
+  isOpen: boolean; 
+  onToggle: () => void;
+  preloadedRewarded?: any;
+}> = ({ isOpen, onToggle, preloadedRewarded }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, logout } = useAuth() as any;
@@ -991,16 +995,22 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         return;
       }
       
-      // 광고 ID 설정
-      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-      const adId = isTesting 
-        ? 'ca-app-pub-3940256099942544/5354046379' // Google 테스트 Rewarded Interstitial ID
-        : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID (보상형 전면)
-      
-      // 보상형 전면 광고 생성 및 표시
-      const rewardedAd = new RewardedInterstitialAd({
-        adUnitId: adId,
-      });
+      // 사전로드된 광고가 있으면 사용, 없으면 새로 생성
+      let rewardedAd;
+      if (preloadedRewarded) {
+        rewardedAd = preloadedRewarded;
+      } else {
+        // 광고 ID 설정
+        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+        const adId = isTesting 
+          ? 'ca-app-pub-3940256099942544/5354046379' // Google 테스트 Rewarded Interstitial ID
+          : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID (보상형 전면)
+        
+        // 보상형 전면 광고 생성
+        rewardedAd = new RewardedInterstitialAd({
+          adUnitId: adId,
+        });
+      }
 
       // 플러그인 이벤트 기반으로 "리워드 지급" 여부를 판정해야 함
       // (RewardedAd.show()는 Promise<void> 이므로 반환값으로 완료여부 판단 불가)
@@ -1012,13 +1022,15 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       let showFailed: string | undefined;
       let rewardPromise: Promise<void> | null = null;
       
-      // 광고 로드
-      try {
-        await rewardedAd.load();
-      } catch (loadError: any) {
-        // 로드 실패 시 재시도
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await rewardedAd.load();
+      // 광고 로드 (사전로드되지 않은 경우에만)
+      if (!preloadedRewarded) {
+        try {
+          await rewardedAd.load();
+        } catch (loadError: any) {
+          // 로드 실패 시 재시도
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await rewardedAd.load();
+        }
       }
 
       // 로드 성공 후에 리스너를 등록 (로드 실패 시 리스너 누수 방지)
