@@ -1045,26 +1045,51 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
 
           (async () => {
             try {
-              rewardHandle = await AdMob.addListener('rewarded.reward', (event: any) => {
-                const evAdId = getEventAdId(event);
-                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
-                rewarded = true;
-                safeResolve();
-              });
-
-              dismissHandle = await AdMob.addListener('rewarded.dismiss', (event: any) => {
-                const evAdId = getEventAdId(event);
-                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
-                dismissed = true;
-                safeResolve();
-              });
-
-              showFailHandle = await AdMob.addListener('rewarded.showfail', (event: any) => {
-                const evAdId = getEventAdId(event);
-                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
-                showFailed = event?.error || event?.message || '광고 표시 실패';
-                safeReject(new Error(showFailed || '광고 표시 실패'));
-              });
+              // RewardedAd와 RewardedInterstitialAd 모두 지원
+              const eventPrefix = ['rewarded', 'rewardedInterstitial'];
+              const handles: any[] = [];
+              
+              // Reward 이벤트 (두 가지 이벤트 타입 모두 리스닝)
+              for (const prefix of eventPrefix) {
+                const handle = await AdMob.addListener(`${prefix}.reward`, (event: any) => {
+                  const evAdId = getEventAdId(event);
+                  if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                  rewarded = true;
+                  safeResolve();
+                });
+                handles.push(handle);
+              }
+              
+              // Dismiss 이벤트
+              for (const prefix of eventPrefix) {
+                const handle = await AdMob.addListener(`${prefix}.dismiss`, (event: any) => {
+                  const evAdId = getEventAdId(event);
+                  if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                  dismissed = true;
+                  safeResolve();
+                });
+                handles.push(handle);
+              }
+              
+              // ShowFail 이벤트
+              for (const prefix of eventPrefix) {
+                const handle = await AdMob.addListener(`${prefix}.showfail`, (event: any) => {
+                  const evAdId = getEventAdId(event);
+                  if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                  showFailed = event?.error || event?.message || '광고 표시 실패';
+                  safeReject(new Error(showFailed || '광고 표시 실패'));
+                });
+                handles.push(handle);
+              }
+              
+              // 기존 핸들 저장 (cleanup용)
+              rewardHandle = { remove: async () => {
+                for (const h of handles) {
+                  try { await h?.remove?.(); } catch {}
+                }
+              }};
+              dismissHandle = rewardHandle;
+              showFailHandle = rewardHandle;
             } catch (e) {
               safeReject(e);
             }
