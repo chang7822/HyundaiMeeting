@@ -49,7 +49,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
       window.removeEventListener('resize', handleResize);
     };
   }, []);
-  // 날짜 구분선 컴포넌트 (이미 KST로 변환된 날짜를 받음)
+  // 날짜 구분선 컴포넌트
   const DateDivider: React.FC<{ date: Date }> = ({ date }) => {
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     const y = date.getFullYear();
@@ -76,15 +76,11 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
   return (
     <div ref={chatWindowRef} style={{ width: '100%', height: '100%', overflowY: 'auto', padding: '18px 0 12px 0', background: '#f7f7fa', display: 'flex', flexDirection: 'column' }}>
       {messages.map((msg, idx) => {
-        // UTC를 한국 시간(KST)으로 변환
-        const msgUtc = new Date(msg.timestamp);
-        const msgDate = new Date(msgUtc.getTime() + (9 * 60 * 60 * 1000));
-        
+        const msgDate = new Date(msg.timestamp);
         const prevMsg = messages[idx - 1];
         const nextMsg = messages[idx + 1];
-        
-        const prevDate = prevMsg ? new Date(new Date(prevMsg.timestamp).getTime() + (9 * 60 * 60 * 1000)) : null;
-        const nextDate = nextMsg ? new Date(new Date(nextMsg.timestamp).getTime() + (9 * 60 * 60 * 1000)) : null;
+        const prevDate = prevMsg ? new Date(prevMsg.timestamp) : null;
+        const nextDate = nextMsg ? new Date(nextMsg.timestamp) : null;
         
         const isNewDay =
           !prevDate ||

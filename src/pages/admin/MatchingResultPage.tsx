@@ -827,30 +827,20 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
                       )}
                     </MessageContentRow>
                     <MessageTime $isSender={isSender}>
-                      {(() => {
-                        // UTC를 한국 시간(KST, UTC+9)으로 변환
-                        const utcDate = new Date(msg.timestamp);
-                        const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
-                        return kstDate.toLocaleString('ko-KR', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        });
-                      })()}
+                      {new Date(msg.timestamp).toLocaleString('ko-KR', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
                       {msg.is_read && msg.read_at && (
                         <span style={{ marginLeft: '8px', color: '#10b981' }}>
-                          (읽음: {(() => {
-                            // UTC를 한국 시간(KST, UTC+9)으로 변환
-                            const utcDate = new Date(msg.read_at);
-                            const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
-                            return kstDate.toLocaleString('ko-KR', {
-                              month: 'short',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            });
-                          })()})
+                          (읽음: {new Date(msg.read_at).toLocaleString('ko-KR', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })})
                         </span>
                       )}
                     </MessageTime>

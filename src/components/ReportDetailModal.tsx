@@ -162,10 +162,7 @@ const getStatusLabel = (status: string) => {
 };
 
 const formatDate = (dateString: string) => {
-  // UTC를 한국 시간(KST, UTC+9)으로 변환
-  const utcDate = new Date(dateString);
-  const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
-  return kstDate.toLocaleString('ko-KR', {
+  return new Date(dateString).toLocaleString('ko-KR', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

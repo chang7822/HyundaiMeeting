@@ -446,11 +446,7 @@ const LogsPage: React.FC<LogsPageProps> = ({ sidebarOpen }) => {
           </div>
           {currentLogs.length > 0 && (
             <div>
-              최신: {(() => {
-                const utcDate = new Date(currentLogs[0]?.timestamp);
-                const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
-                return kstDate.toLocaleString('ko-KR');
-              })()}
+              최신: {new Date(currentLogs[0]?.timestamp).toLocaleString('ko-KR')}
             </div>
           )}
           {timeFilter === 'realtime' && (
@@ -497,11 +493,7 @@ const LogsPage: React.FC<LogsPageProps> = ({ sidebarOpen }) => {
           {currentLogs.map((log, index) => (
             <LogEntry key={index} $level={log.level}>
               <div>
-                <LogTimestamp>{(() => {
-                  const utcDate = new Date(log.timestamp);
-                  const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
-                  return kstDate.toLocaleString('ko-KR');
-                })()}</LogTimestamp>
+                <LogTimestamp>{new Date(log.timestamp).toLocaleString('ko-KR')}</LogTimestamp>
                 <LogLevel $level={log.level}>{log.level}</LogLevel>
               </div>
               <LogMessage>{log.message}</LogMessage>
