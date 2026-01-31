@@ -978,10 +978,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       
       // AdMob 모듈 로드
       let RewardedAd;
+      let RewardedInterstitialAd;
       let AdMob;
       try {
         const admobModule = await import('@capgo/capacitor-admob');
         RewardedAd = admobModule.RewardedAd;
+        RewardedInterstitialAd = admobModule.RewardedInterstitialAd || admobModule.RewardedAd;
         AdMob = admobModule.AdMob;
       } catch (importError: any) {
         toast.error('광고 모듈을 불러올 수 없습니다.');
@@ -992,11 +994,11 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       // 광고 ID 설정
       const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
       const adId = isTesting 
-        ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
-        : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID
+        ? 'ca-app-pub-3940256099942544/5354046379' // Google 테스트 Rewarded Interstitial ID
+        : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID (보상형 전면)
       
-      // 보상형 광고 생성 및 표시
-      const rewardedAd = new RewardedAd({
+      // 보상형 전면 광고 생성 및 표시
+      const rewardedAd = new RewardedInterstitialAd({
         adUnitId: adId,
       });
 

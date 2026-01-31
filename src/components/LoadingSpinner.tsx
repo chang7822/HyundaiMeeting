@@ -40,7 +40,7 @@ const LoadingSpinner = ({
         const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
         const adUnitId = isTesting
           ? 'ca-app-pub-3940256099942544/6300978111'
-          : 'ca-app-pub-1352765336263182/3234219021';
+          : 'ca-app-pub-1352765336263182/5676657338'; // 배너 광고
         const banner = new BannerAd({ adUnitId });
         
         if (!isMountedRef.current) return; // 언마운트되었으면 중단
