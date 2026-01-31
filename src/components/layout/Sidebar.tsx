@@ -1052,9 +1052,11 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               // Reward 이벤트 (두 가지 이벤트 타입 모두 리스닝)
               for (const prefix of eventPrefix) {
                 const handle = await AdMob.addListener(`${prefix}.reward`, (event: any) => {
-                  const evAdId = getEventAdId(event);
-                  if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                  // console.log(`[AdMob] ${prefix}.reward 이벤트 수신`, event);
+                  // ID 매칭 체크 완화 - 이벤트가 발생하면 무조건 처리
+                  if (rewarded) return; // 이미 보상 처리됨
                   rewarded = true;
+                  // console.log('[AdMob] 보상 지급 확인');
                   safeResolve();
                 });
                 handles.push(handle);
@@ -1063,9 +1065,10 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               // Dismiss 이벤트
               for (const prefix of eventPrefix) {
                 const handle = await AdMob.addListener(`${prefix}.dismiss`, (event: any) => {
-                  const evAdId = getEventAdId(event);
-                  if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                  // console.log(`[AdMob] ${prefix}.dismiss 이벤트 수신`, event);
+                  if (dismissed) return; // 이미 닫힘 처리됨
                   dismissed = true;
+                  // console.log('[AdMob] 광고 닫힘 확인');
                   safeResolve();
                 });
                 handles.push(handle);
@@ -1074,8 +1077,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
               // ShowFail 이벤트
               for (const prefix of eventPrefix) {
                 const handle = await AdMob.addListener(`${prefix}.showfail`, (event: any) => {
-                  const evAdId = getEventAdId(event);
-                  if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+                  // console.log(`[AdMob] ${prefix}.showfail 이벤트 수신`, event);
                   showFailed = event?.error || event?.message || '광고 표시 실패';
                   safeReject(new Error(showFailed || '광고 표시 실패'));
                 });
