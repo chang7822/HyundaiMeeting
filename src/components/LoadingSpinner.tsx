@@ -15,14 +15,18 @@ const LoadingSpinner = ({
   preloadedBanner?: any;
 }) => {
   const bannerAdRef = useRef<any>(null);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     // 네이티브 앱에서만 광고 표시
     if (!Capacitor.isNativePlatform()) return;
 
+    isMountedRef.current = true;
+
     const loadNativeAd = async () => {
       try {
         if (preloadedBanner) {
+          if (!isMountedRef.current) return; // 언마운트되었으면 중단
           bannerAdRef.current = preloadedBanner;
           await preloadedBanner.show();
           return;
@@ -30,12 +34,16 @@ const LoadingSpinner = ({
 
         // Fallback: 사전로드 실패 시 즉시 로드
         const admobModule = await import('@capgo/capacitor-admob');
+        if (!isMountedRef.current) return; // 언마운트되었으면 중단
+        
         const { BannerAd } = admobModule;
         const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
         const adUnitId = isTesting
           ? 'ca-app-pub-3940256099942544/6300978111'
           : 'ca-app-pub-1352765336263182/3234219021';
         const banner = new BannerAd({ adUnitId });
+        
+        if (!isMountedRef.current) return; // 언마운트되었으면 중단
         bannerAdRef.current = banner;
         await banner.show();
       } catch (error) {
@@ -46,11 +54,15 @@ const LoadingSpinner = ({
     loadNativeAd();
 
     return () => {
-      // 컴포넌트 언마운트 시 광고 숨김
+      // 컴포넌트 언마운트 시 플래그 설정 및 광고 즉시 숨김
+      isMountedRef.current = false;
+      
       if (bannerAdRef.current) {
+        // 즉시 실행 (await 없이)
         bannerAdRef.current.hide().catch((e: any) => {
           console.error('[LoadingSpinner] 광고 숨김 실패:', e);
         });
+        bannerAdRef.current = null;
       }
     };
   }, [preloadedBanner]);

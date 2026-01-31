@@ -104,6 +104,7 @@ const ConfirmButton = styled.button`
 
 const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, onCancel, preloadedBanner }) => {
   const bannerAdRef = React.useRef<any>(null);
+  const isMountedRef = React.useRef(true);
 
   useEffect(() => {
     if (!isOpen) {
@@ -114,13 +115,16 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
       return;
     }
 
+    isMountedRef.current = true;
+
     // 네이티브 앱에서만 광고 로드
     if (Capacitor.isNativePlatform()) {
       loadNativeAd();
     }
 
     return () => {
-      // 컴포넌트 언마운트 시 광고 정리
+      // 컴포넌트 언마운트 또는 모달 닫힐 때 광고 정리
+      isMountedRef.current = false;
       if (Capacitor.isNativePlatform() && bannerAdRef.current) {
         cleanupNativeAd();
       }
@@ -131,15 +135,16 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
     try {
       // 사전 로드된 광고가 있으면 바로 표시
       if (preloadedBanner) {
+        if (!isMountedRef.current) return; // 언마운트되었으면 중단
         bannerAdRef.current = preloadedBanner;
         await preloadedBanner.show();
-        console.log('[ExitConfirmModal] 사전 로드된 배너 광고 표시');
         return;
       }
 
       // 사전 로드 실패 시 즉시 로드
-      console.log('[ExitConfirmModal] 광고 즉시 로드 시작');
       const admobModule = await import('@capgo/capacitor-admob');
+      if (!isMountedRef.current) return; // 언마운트되었으면 중단
+      
       const { BannerAd } = admobModule;
       
       const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
@@ -147,6 +152,7 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
         ? 'ca-app-pub-3940256099942544/6300978111'
         : 'ca-app-pub-1352765336263182/3234219021';
       
+      if (!isMountedRef.current) return; // 언마운트되었으면 중단
       const banner = new BannerAd({ adUnitId });
       bannerAdRef.current = banner;
       await banner.show();
@@ -155,11 +161,13 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
     }
   };
 
-  const cleanupNativeAd = async () => {
+  const cleanupNativeAd = () => {
     try {
       if (bannerAdRef.current) {
-        // 배너 광고 숨기기
-        await bannerAdRef.current.hide();
+        // 즉시 실행 (await 없이)
+        bannerAdRef.current.hide().catch((e: any) => {
+          console.error('[ExitConfirmModal] 광고 숨김 실패:', e);
+        });
         bannerAdRef.current = null;
       }
     } catch (error) {
