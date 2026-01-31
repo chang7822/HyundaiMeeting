@@ -309,17 +309,21 @@ const MessageBubble = styled.div<{ $isSender: boolean }>`
   margin-bottom: 16px;
 `;
 
-const MessageSender = styled.div`
+const MessageSender = styled.div<{ $isSender?: boolean }>`
   font-size: 0.75rem;
   color: #6b7280;
   margin-bottom: 4px;
   font-weight: 600;
+  width: 100%;
+  text-align: ${props => props.$isSender ? 'right' : 'left'};
 `;
 
-const MessageContentRow = styled.div`
+const MessageContentRow = styled.div<{ $isSender: boolean }>`
   display: flex;
   align-items: flex-end;
   gap: 6px;
+  width: 100%;
+  justify-content: ${props => props.$isSender ? 'flex-end' : 'flex-start'};
 `;
 
 const MessageContent = styled.div<{ $isSender: boolean; $isPrivate?: boolean }>`
@@ -341,10 +345,12 @@ const MessageContent = styled.div<{ $isSender: boolean; $isPrivate?: boolean }>`
   `}
 `;
 
-const MessageTime = styled.div`
+const MessageTime = styled.div<{ $isSender?: boolean }>`
   font-size: 0.7rem;
   color: #9ca3af;
   margin-top: 4px;
+  width: 100%;
+  text-align: ${props => props.$isSender ? 'right' : 'left'};
 `;
 
 const UnreadBadge = styled.span`
@@ -801,8 +807,8 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
                 const displayContent = isPrivate ? '\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0\u00A0' : msg.content;
                 return (
                   <MessageBubble key={idx} $isSender={isSender}>
-                    <MessageSender>{msg.sender_nickname}</MessageSender>
-                    <MessageContentRow>
+                    <MessageSender $isSender={isSender}>{msg.sender_nickname}</MessageSender>
+                    <MessageContentRow $isSender={isSender}>
                       {!isSender && (
                         <>
                           <MessageContent $isSender={isSender} $isPrivate={isPrivate}>
@@ -820,24 +826,31 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
                         </>
                       )}
                     </MessageContentRow>
-                    <MessageTime>
-                      {new Date(msg.timestamp).toLocaleString('ko-KR', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        timeZone: 'Asia/Seoul'
-                      })}
+                    <MessageTime $isSender={isSender}>
+                      {(() => {
+                        // UTC를 한국 시간(KST, UTC+9)으로 변환
+                        const utcDate = new Date(msg.timestamp);
+                        const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+                        return kstDate.toLocaleString('ko-KR', {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        });
+                      })()}
                       {msg.is_read && msg.read_at && (
                         <span style={{ marginLeft: '8px', color: '#10b981' }}>
-                          (읽음: {new Date(msg.read_at).toLocaleString('ko-KR', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Seoul'
-                          })})
+                          (읽음: {(() => {
+                            // UTC를 한국 시간(KST, UTC+9)으로 변환
+                            const utcDate = new Date(msg.read_at);
+                            const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+                            return kstDate.toLocaleString('ko-KR', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            });
+                          })()})
                         </span>
                       )}
                     </MessageTime>

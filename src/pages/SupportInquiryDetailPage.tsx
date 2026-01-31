@@ -300,8 +300,10 @@ const SupportInquiryDetailPage: React.FC<SupportInquiryDetailPageProps> = ({ sid
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('ko-KR', {
+    // UTC를 한국 시간(KST, UTC+9)으로 변환
+    const utcDate = new Date(dateString);
+    const kstDate = new Date(utcDate.getTime() + (9 * 60 * 60 * 1000));
+    return kstDate.toLocaleString('ko-KR', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
