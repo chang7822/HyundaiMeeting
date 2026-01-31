@@ -25,6 +25,9 @@ const LoadingSpinner = ({
 
     const loadNativeAd = async () => {
       try {
+        // 화면이 완전히 렌더링된 후 광고 표시 (깜빡임 최소화)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         if (preloadedBanner) {
           if (!isMountedRef.current) return; // 언마운트되었으면 중단
           bannerAdRef.current = preloadedBanner;

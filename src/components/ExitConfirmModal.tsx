@@ -133,6 +133,9 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
 
   const loadNativeAd = async () => {
     try {
+      // 모달이 완전히 렌더링된 후 광고 표시 (깜빡임 최소화)
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
       // 사전 로드된 광고가 있으면 바로 표시
       if (preloadedBanner) {
         if (!isMountedRef.current) return; // 언마운트되었으면 중단
