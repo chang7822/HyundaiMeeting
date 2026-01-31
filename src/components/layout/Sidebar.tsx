@@ -1045,54 +1045,32 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
 
           (async () => {
             try {
-              // RewardedAd와 RewardedInterstitialAd 모두 지원
-              const eventPrefix = ['rewarded', 'rewardedInterstitial'];
-              const handles: any[] = [];
+              // RewardedInterstitialAd는 'rewardedi' 접두사 사용 (공식 문서 확인)
+              rewardHandle = await AdMob.addListener('rewardedi.reward', (event: any) => {
+                console.log('[AdMob] rewardedi.reward 이벤트 수신', event);
+                if (rewarded) return;
+                rewarded = true;
+                console.log('[AdMob] ✅ 보상 지급 확인');
+                safeResolve();
+              });
+
+              dismissHandle = await AdMob.addListener('rewardedi.dismiss', (event: any) => {
+                console.log('[AdMob] rewardedi.dismiss 이벤트 수신', event);
+                if (dismissed) return;
+                dismissed = true;
+                console.log('[AdMob] ❌ 광고 닫힘 확인 (중간에 닫음)');
+                safeResolve();
+              });
+
+              showFailHandle = await AdMob.addListener('rewardedi.showfail', (event: any) => {
+                console.log('[AdMob] rewardedi.showfail 이벤트 수신', event);
+                showFailed = event?.error || event?.message || '광고 표시 실패';
+                safeReject(new Error(showFailed || '광고 표시 실패'));
+              });
               
-              // Reward 이벤트 (두 가지 이벤트 타입 모두 리스닝)
-              for (const prefix of eventPrefix) {
-                const handle = await AdMob.addListener(`${prefix}.reward`, (event: any) => {
-                  // console.log(`[AdMob] ${prefix}.reward 이벤트 수신`, event);
-                  // ID 매칭 체크 완화 - 이벤트가 발생하면 무조건 처리
-                  if (rewarded) return; // 이미 보상 처리됨
-                  rewarded = true;
-                  // console.log('[AdMob] 보상 지급 확인');
-                  safeResolve();
-                });
-                handles.push(handle);
-              }
-              
-              // Dismiss 이벤트
-              for (const prefix of eventPrefix) {
-                const handle = await AdMob.addListener(`${prefix}.dismiss`, (event: any) => {
-                  // console.log(`[AdMob] ${prefix}.dismiss 이벤트 수신`, event);
-                  if (dismissed) return; // 이미 닫힘 처리됨
-                  dismissed = true;
-                  // console.log('[AdMob] 광고 닫힘 확인');
-                  safeResolve();
-                });
-                handles.push(handle);
-              }
-              
-              // ShowFail 이벤트
-              for (const prefix of eventPrefix) {
-                const handle = await AdMob.addListener(`${prefix}.showfail`, (event: any) => {
-                  // console.log(`[AdMob] ${prefix}.showfail 이벤트 수신`, event);
-                  showFailed = event?.error || event?.message || '광고 표시 실패';
-                  safeReject(new Error(showFailed || '광고 표시 실패'));
-                });
-                handles.push(handle);
-              }
-              
-              // 기존 핸들 저장 (cleanup용)
-              rewardHandle = { remove: async () => {
-                for (const h of handles) {
-                  try { await h?.remove?.(); } catch {}
-                }
-              }};
-              dismissHandle = rewardHandle;
-              showFailHandle = rewardHandle;
+              console.log('[AdMob] 📡 보상형 전면 광고 이벤트 리스너 등록 완료');
             } catch (e) {
+              console.error('[AdMob] ❌ 이벤트 리스너 등록 실패:', e);
               safeReject(e);
             }
           })();
