@@ -97,6 +97,7 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
 export async function getNativePushToken(skipPermissionCheck: boolean = false): Promise<string | null> {
   try {
     const { PushNotifications } = await import('@capacitor/push-notifications');
+    const { Capacitor } = await import('@capacitor/core');
     
     // 권한 확인이 필요한 경우에만 요청
     if (!skipPermissionCheck) {
@@ -111,6 +112,8 @@ export async function getNativePushToken(skipPermissionCheck: boolean = false): 
     // 푸시 알림 등록
     await PushNotifications.register();
     
+    const timeoutMs = 10000;
+    
     // 토큰 받기 (Promise로 감싸기)
     return new Promise((resolve) => {
       PushNotifications.addListener('registration', (token) => {
@@ -122,11 +125,11 @@ export async function getNativePushToken(skipPermissionCheck: boolean = false): 
         resolve(null);
       });
       
-      // 타임아웃 (10초)
+      // 타임아웃
       setTimeout(() => {
         console.error('[push] 네이티브 푸시 토큰 대기 시간 초과');
         resolve(null);
-      }, 10000);
+      }, timeoutMs);
     });
   } catch (error) {
     console.error('[push] 네이티브 푸시 알림 초기화 실패:', error);

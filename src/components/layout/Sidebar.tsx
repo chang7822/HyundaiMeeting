@@ -38,7 +38,6 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   transform: translateX(${props => props.$isOpen ? '0' : '-100%'});
   display: flex;
   flex-direction: column;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   
   @media (max-width: 768px) {
     width: 100%;
@@ -463,9 +462,9 @@ const NotificationQuickRow = styled.button`
   }
 `;
 
-const LogoutSection = styled.div`
+const LogoutSection = styled.div<{ $isNative?: boolean }>`
   padding: 1rem 1.5rem;
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: ${props => props.$isNative ? '1rem' : 'calc(1rem + env(safe-area-inset-bottom, 0px))'};
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   flex-shrink: 0;
@@ -601,7 +600,11 @@ const AppOnlyBadge = styled.span`
   color: rgba(255, 255, 255, 0.9);
 `;
 
-const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, onToggle }) => {
+const Sidebar: React.FC<{ 
+  isOpen: boolean; 
+  onToggle: () => void;
+  preloadedRewarded?: any;
+}> = ({ isOpen, onToggle, preloadedRewarded }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, logout } = useAuth() as any;
@@ -979,10 +982,12 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       
       // AdMob 모듈 로드
       let RewardedAd;
+      let RewardedInterstitialAd;
       let AdMob;
       try {
         const admobModule = await import('@capgo/capacitor-admob');
         RewardedAd = admobModule.RewardedAd;
+        RewardedInterstitialAd = admobModule.RewardedInterstitialAd || admobModule.RewardedAd;
         AdMob = admobModule.AdMob;
       } catch (importError: any) {
         toast.error('광고 모듈을 불러올 수 없습니다.');
@@ -990,19 +995,27 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
         return;
       }
       
-      // 광고 ID 설정
-      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-      const adId = isTesting 
-        ? 'ca-app-pub-3940256099942544/5224354917' // Google 테스트 Rewarded Video ID
-        : 'ca-app-pub-1352765336263182/8702080467'; // 실제 광고 단위 ID
-      
-      // WebView 완전 준비 확인
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // 보상형 광고 생성 및 표시
-      const rewardedAd = new RewardedAd({
-        adUnitId: adId,
-      });
+      // 사전로드된 광고가 있으면 사용, 없으면 새로 생성
+      let rewardedAd;
+      if (preloadedRewarded) {
+        rewardedAd = preloadedRewarded;
+      } else {
+        // 플랫폼별 광고 ID 설정
+        const { Capacitor } = await import('@capacitor/core');
+        const platform = Capacitor.getPlatform();
+        const isIOS = platform === 'ios';
+        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+        const adId = isTesting 
+          ? 'ca-app-pub-3940256099942544/5354046379' // Google 테스트 Rewarded Interstitial ID
+          : isIOS
+            ? 'ca-app-pub-1352765336263182/8848248607' // iOS 보상형
+            : 'ca-app-pub-1352765336263182/8702080467'; // Android 보상형
+        
+        // 보상형 전면 광고 생성
+        rewardedAd = new RewardedInterstitialAd({
+          adUnitId: adId,
+        });
+      }
 
       // 플러그인 이벤트 기반으로 "리워드 지급" 여부를 판정해야 함
       // (RewardedAd.show()는 Promise<void> 이므로 반환값으로 완료여부 판단 불가)
@@ -1014,13 +1027,15 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
       let showFailed: string | undefined;
       let rewardPromise: Promise<void> | null = null;
       
-      // 광고 로드
-      try {
-        await rewardedAd.load();
-      } catch (loadError: any) {
-        // 로드 실패 시 재시도
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await rewardedAd.load();
+      // 광고 로드 (사전로드되지 않은 경우에만)
+      if (!preloadedRewarded) {
+        try {
+          await rewardedAd.load();
+        } catch (loadError: any) {
+          // 로드 실패 시 재시도
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          await rewardedAd.load();
+        }
       }
 
       // 로드 성공 후에 리스너를 등록 (로드 실패 시 리스너 누수 방지)
@@ -1047,27 +1062,32 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
 
           (async () => {
             try {
-              rewardHandle = await AdMob.addListener('rewarded.reward', (event: any) => {
-                const evAdId = getEventAdId(event);
-                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+              // RewardedInterstitialAd는 'rewardedi' 접두사 사용 (공식 문서 확인)
+              rewardHandle = await AdMob.addListener('rewardedi.reward', (event: any) => {
+                console.log('[AdMob] rewardedi.reward 이벤트 수신', event);
+                if (rewarded) return;
                 rewarded = true;
+                console.log('[AdMob] ✅ 보상 지급 확인');
                 safeResolve();
               });
 
-              dismissHandle = await AdMob.addListener('rewarded.dismiss', (event: any) => {
-                const evAdId = getEventAdId(event);
-                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+              dismissHandle = await AdMob.addListener('rewardedi.dismiss', (event: any) => {
+                console.log('[AdMob] rewardedi.dismiss 이벤트 수신', event);
+                if (dismissed) return;
                 dismissed = true;
+                console.log('[AdMob] ❌ 광고 닫힘 확인 (중간에 닫음)');
                 safeResolve();
               });
 
-              showFailHandle = await AdMob.addListener('rewarded.showfail', (event: any) => {
-                const evAdId = getEventAdId(event);
-                if (typeof adInstanceId === 'number' && typeof evAdId === 'number' && evAdId !== adInstanceId) return;
+              showFailHandle = await AdMob.addListener('rewardedi.showfail', (event: any) => {
+                console.log('[AdMob] rewardedi.showfail 이벤트 수신', event);
                 showFailed = event?.error || event?.message || '광고 표시 실패';
                 safeReject(new Error(showFailed || '광고 표시 실패'));
               });
+              
+              console.log('[AdMob] 📡 보상형 전면 광고 이벤트 리스너 등록 완료');
             } catch (e) {
+              console.error('[AdMob] ❌ 이벤트 리스너 등록 실패:', e);
               safeReject(e);
             }
           })();
@@ -1097,18 +1117,21 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
           } else {
             // 백엔드에서 에러 응답 (400, 500 등)인 경우
             toast.error(res.message || '보상 지급에 실패했습니다.');
+            setAttendanceModalOpen(false); // 모달 닫기
           }
         } catch (rewardError: any) {
           // 네트워크 오류 또는 기타 예외
           const errorMessage = rewardError?.response?.data?.message || '보상 지급 중 오류가 발생했습니다.';
           toast.error(errorMessage);
+          setAttendanceModalOpen(false); // 모달 닫기
         }
       } else {
         // dismissed 되었거나 타임아웃 등으로 reward가 없으면 안내
+        setAttendanceModalOpen(false); // 광고를 닫았으므로 모달도 닫기
         if (!dismissed) {
           toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있습니다.');
         } else {
-          toast.info('광고 보상을 받지 못했습니다. 광고를 끝까지 시청해야 보상이 지급됩니다.');
+          toast.info('광고를 끝까지 시청해야 보상이 지급됩니다.');
         }
       }
     } catch (error: any) {
@@ -1320,7 +1343,7 @@ const Sidebar: React.FC<{ isOpen: boolean; onToggle: () => void }> = ({ isOpen, 
                 </>
               )}
             </NavMenu>
-            <LogoutSection>
+            <LogoutSection $isNative={isNativeApp()}>
               <LogoutButton onClick={handleLogout}>
                 <FaSignOutAlt />
                 로그아웃

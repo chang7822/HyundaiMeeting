@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -7,6 +7,8 @@ import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { isNativeApp, getNativePushToken, setupNativePushListeners } from './firebase.ts';
 import { pushApi } from './services/api.ts';
+import ExitConfirmModal from './components/ExitConfirmModal.tsx';
+import PushPermissionModal from './components/PushPermissionModal.tsx';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
@@ -68,6 +70,7 @@ import LogsPage from './pages/admin/LogsPage.tsx';
 import Sidebar from './components/layout/Sidebar.tsx';
 import ProtectedRoute from './components/auth/ProtectedRoute.tsx';
 import AdminRoute from './components/auth/AdminRoute.tsx';
+import LoadingSpinner from './components/LoadingSpinner.tsx';
 
 // Contexts
 import { AuthProvider, useAuth } from './contexts/AuthContext.tsx';
@@ -132,15 +135,16 @@ const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   
   // 뒤로가기 버튼 두 번 누르면 앱 종료를 위한 ref
-  const backButtonPressCount = useRef(0);
-  const backButtonTimer = useRef<NodeJS.Timeout | null>(null);
+  const [showExitModal, setShowExitModal] = useState(false);
+  const [showPushPermissionModal, setShowPushPermissionModal] = useState(false);
+  const preloadedAdsRef = useRef<any>({ banner: null, rewarded: null });
 
-  // 앱 초기화
+  // 앱 초기화 및 광고 사전로드
   useEffect(() => {
     // AdMob 초기화 (네이티브 앱에서만)
     // WebView가 완전히 로드된 후에 초기화해야 함
@@ -169,10 +173,52 @@ const AppInner: React.FC = () => {
       try {
         await waitForWebView();
         
-        const { AdMob } = await import('@capgo/capacitor-admob');
+        const admobModule = await import('@capgo/capacitor-admob');
+        const { AdMob, BannerAd, RewardedInterstitialAd } = admobModule;
+        
         await AdMob.start();
+        
+        // 광고 사전로드 (백그라운드에서 준비)
+        const preloadAds = async () => {
+          try {
+            // 플랫폼 확인
+            const platform = Capacitor.getPlatform();
+            const isIOS = platform === 'ios';
+            const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+            
+            // 배너 광고 사전로드 (플랫폼별 ID)
+            const bannerAdUnitId = isTesting
+              ? 'ca-app-pub-3940256099942544/6300978111' // 테스트 ID
+              : isIOS
+                ? 'ca-app-pub-1352765336263182/5438712556' // iOS
+                : 'ca-app-pub-1352765336263182/5676657338'; // Android
+            
+            const banner = new BannerAd({ adUnitId: bannerAdUnitId });
+            preloadedAdsRef.current.banner = banner;
+            
+            // 보상형 전면 광고 사전로드 (플랫폼별 ID)
+            const rewardedAdUnitId = isTesting
+              ? 'ca-app-pub-3940256099942544/5354046379' // 테스트 ID
+              : isIOS
+                ? 'ca-app-pub-1352765336263182/8848248607' // iOS
+                : 'ca-app-pub-1352765336263182/8702080467'; // Android
+            
+            const RewardedClass = RewardedInterstitialAd || admobModule.RewardedAd;
+            const rewarded = new RewardedClass({ adUnitId: rewardedAdUnitId });
+            await rewarded.load(); // 보상형 광고는 미리 로드
+            preloadedAdsRef.current.rewarded = rewarded;
+            
+            console.log('[App] 광고 사전로드 완료');
+          } catch (error) {
+            console.error('[App] 광고 사전로드 실패:', error);
+          }
+        };
+        
+        // 사전로드는 비동기로 실행 (앱 시작을 막지 않음)
+        preloadAds();
       } catch (error) {
         // AdMob 초기화 실패는 조용히 처리 (앱 사용에는 영향 없음)
+        console.error('[App] AdMob 초기화 실패:', error);
       }
     };
     
@@ -184,7 +230,7 @@ const AppInner: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
   
-  // Android 뒤로가기 버튼 처리 (두 번 누르면 앱 종료)
+  // Android 뒤로가기 버튼 처리
   useEffect(() => {
     if (!isNativeApp() || Capacitor.getPlatform() !== 'android') return;
     
@@ -195,45 +241,22 @@ const AppInner: React.FC = () => {
         const { App } = await import('@capacitor/app');
         
         listener = await App.addListener('backButton', ({ canGoBack }) => {
-          // 루트 경로(/)나 메인 페이지에서 뒤로 갈 곳이 없을 때만 앱 종료 로직 실행
-          const isRootPath = location.pathname === '/' || location.pathname === '/main';
+          const isMainPage = location.pathname === '/' || location.pathname === '/main';
           
-          if (!isRootPath) {
-            // 다른 페이지에서는 일반 뒤로가기 동작
-            navigate(-1);
-            // 카운트 리셋
-            backButtonPressCount.current = 0;
-            if (backButtonTimer.current) {
-              clearTimeout(backButtonTimer.current);
-              backButtonTimer.current = null;
-            }
+          // 메인 페이지에서만 종료 모달 표시 (광고)
+          if (isMainPage) {
+            setShowExitModal(true);
             return;
           }
           
-          // 루트 경로에서 뒤로 갈 곳이 없을 때
-          // 첫 번째 누름: 토스트 메시지 표시
-          if (backButtonPressCount.current === 0) {
-            backButtonPressCount.current = 1;
-            toast.info('한 번 더 누르면 앱이 종료됩니다', {
-              position: 'bottom-center',
-              autoClose: 2000,
-            });
-            
-            // 2초 후 카운트 리셋
-            backButtonTimer.current = setTimeout(() => {
-              backButtonPressCount.current = 0;
-              backButtonTimer.current = null;
-            }, 2000);
-          } 
-          // 두 번째 누름 (2초 이내): 앱 종료
-          else {
-            if (backButtonTimer.current) {
-              clearTimeout(backButtonTimer.current);
-              backButtonTimer.current = null;
-            }
-            backButtonPressCount.current = 0;
-            App.exitApp();
+          // 다른 페이지에서는 뒤로 갈 곳이 있으면 일반 뒤로가기
+          if (canGoBack) {
+            navigate(-1);
+            return;
           }
+          
+          // 다른 페이지에서 뒤로 갈 곳이 없으면 메인 페이지로 이동
+          navigate('/main', { replace: true });
         });
       } catch (error) {
         console.error('[App] 뒤로가기 버튼 리스너 설정 실패:', error);
@@ -245,9 +268,6 @@ const AppInner: React.FC = () => {
     return () => {
       if (listener) {
         listener.remove();
-      }
-      if (backButtonTimer.current) {
-        clearTimeout(backButtonTimer.current);
       }
     };
   }, [location.pathname, navigate]);
@@ -261,63 +281,107 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
+  // 웹 포어그라운드 푸시 알림 처리 (백그라운드에서만 표시)
+  useEffect(() => {
+    if (isNativeApp()) return; // 네이티브 앱은 firebase.ts에서 처리
+
+    const setupWebForegroundPush = async () => {
+      try {
+        const { getMessaging, onMessage } = await import('firebase/messaging');
+        const { initializeApp, getApps, getApp } = await import('firebase/app');
+        
+        const firebaseConfig = {
+          apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+          authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+          projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+          messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+          appId: process.env.REACT_APP_FIREBASE_APP_ID,
+        };
+
+        const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+        const messaging = getMessaging(app);
+
+        // 포어그라운드에서 메시지 수신 시 (표시 안 함)
+        onMessage(messaging, (payload) => {
+          // notification 필드가 있는 알림은 백그라운드에서만 표시됨
+          // 포어그라운드에서는 아무것도 하지 않음
+        });
+      } catch (error) {
+        console.error('[Web] 포어그라운드 푸시 알림 설정 실패:', error);
+      }
+    };
+
+    setupWebForegroundPush();
+  }, []);
+
   // 네이티브 앱에서 푸시 알림 권한 요청 및 토큰 등록
   useEffect(() => {
     if (!isNativeApp() || !isAuthenticated || !user?.id) return;
 
+    let cleanup: (() => void) | undefined;
+
     const setupPushNotifications = async () => {
       try {
         const { PushNotifications } = await import('@capacitor/push-notifications');
+        const platform = Capacitor.getPlatform();
+        const isIOS = platform === 'ios';
+
+        console.log('[푸시 알림 설정] 플랫폼:', platform, 'iOS:', isIOS);
 
         // "앱 첫 실행(권한이 prompt 상태)"에서만 1회 자동으로 권한 팝업을 띄우기 위한 플래그
-        // - 허용: 토큰 자동 발급/등록 + 토글 ON
-        // - 거부: 토글 OFF로 유지, 추가 팝업 없음
         const PROMPTED_KEY = 'pushPermissionPrompted_v1';
 
         const ensureTokenRegisteredAndEnabled = async () => {
-          // 토큰 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
-          const token = await getNativePushToken(true);
+          console.log('[푸시 설정] ensureTokenRegisteredAndEnabled 시작');
+          
+        let token: string | null = null;
+        
+        // 실제 기기: 진짜 토큰 가져오기
+        token = await getNativePushToken(true);
+        console.log('[푸시 설정] 실제 토큰 발급:', token ? '성공' : '실패');
 
           if (token) {
-            // 네이티브 푸시 리스너 설정
-            await setupNativePushListeners();
+          await setupNativePushListeners();
 
-            // 이전 토큰 확인 및 정리 (클라이언트 저장 토큰이 바뀐 경우만)
+            // 이전 토큰 확인
             const previousToken = localStorage.getItem('pushFcmToken');
             
-            // 토큰이 변경되지 않았고 이미 등록되어 있다면 재등록하지 않음
             if (previousToken === token) {
-              // 토큰이 동일하면 재등록하지 않음 (불필요한 서버 호출 방지)
+              console.log('[푸시 설정] 동일한 토큰, 재등록 생략');
+              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
+              window.dispatchEvent(new CustomEvent('push-status-changed', {
+                detail: { enabled: true, source: 'auto' },
+              }));
               return;
             }
             
             if (previousToken && previousToken !== token) {
               try {
                 await pushApi.unregisterToken(previousToken);
-                console.log('[push] 이전 토큰 삭제 완료 (같은 기기)');
+                console.log('[push] 이전 토큰 삭제 완료');
               } catch (unregisterError) {
-                console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+                console.warn('[push] 이전 토큰 삭제 실패 (무시)');
               }
             }
 
-            // 서버에 새 토큰 등록 (서버에서 user_id + device_type 기준으로 1개만 유지)
+            // 서버에 토큰 등록 (시뮬레이터 토큰도 등록 시도)
             try {
-              await pushApi.registerToken(token);
+            await pushApi.registerToken(token);
+            console.log('[push] 서버에 토큰 등록 완료');
+              
               localStorage.setItem('pushFcmToken', token);
               localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-              console.log('[push] 새 토큰 등록 완료 및 토글 ON 설정');
+              console.log('[푸시 설정] ✅ localStorage 저장 완료');
 
-              // MainPage 토글이 즉시 DB 기준으로 ON으로 갱신되도록 이벤트 브로드캐스트
-              try {
-                window.dispatchEvent(new CustomEvent('push-status-changed', {
-                  detail: { enabled: true, source: 'auto' },
-                }));
-              } catch {
-                // ignore
-              }
+              window.dispatchEvent(new CustomEvent('push-status-changed', {
+                detail: { enabled: true, source: 'auto' },
+              }));
+              console.log('[푸시 설정] ✅ 이벤트 발송 완료');
             } catch (registerError) {
               console.error('[push] 토큰 등록 실패:', registerError);
             }
+          } else {
+            console.error('[푸시 설정] ❌ 토큰을 받지 못했습니다');
           }
         };
         
@@ -327,35 +391,81 @@ const AppInner: React.FC = () => {
           ? 'prompt'
           : (permissionStatus.receive || 'prompt');
         
+        const requestSystemPermission = async () => {
+          const result = await PushNotifications.requestPermissions();
+          const next = (result.receive === 'prompt-with-rationale') ? 'prompt' : (result.receive || 'prompt');
+
+          if (next === 'granted') {
+            await ensureTokenRegisteredAndEnabled();
+          } else {
+            // 거부/미결정: 토글 OFF 유지
+            try {
+              localStorage.setItem(`pushEnabled_${user.id}`, 'false');
+            } catch {
+              // ignore
+            }
+
+            // MainPage 토글이 즉시 OFF로 갱신되도록 이벤트 브로드캐스트
+            try {
+              window.dispatchEvent(new CustomEvent('push-status-changed', {
+                detail: { enabled: false, source: 'auto' },
+              }));
+            } catch {
+              // ignore
+            }
+          }
+        };
+
         // 권한이 이미 허용된 경우 토큰 가져와서 서버에 등록
         if (receive === 'granted') {
+          console.log('[푸시 알림 설정] 권한 이미 허용됨');
           await ensureTokenRegisteredAndEnabled();
-        } else if (receive === 'prompt') {
-          // 앱 첫 실행 때만(플래그 1회) 자동 권한 요청 팝업을 띄운다.
-          const prompted = localStorage.getItem(PROMPTED_KEY) === 'true';
+        } else if (receive === 'prompt' || receive === 'denied') {
+          // prompt 또는 denied 상태에서 앱 첫 실행 때만 안내
+          const promptedValue = localStorage.getItem(PROMPTED_KEY);
+          const prompted = promptedValue === 'true';
+          console.log('[푸시 알림 설정] 권한 상태:', receive, 'prompted:', prompted);
+          
           if (!prompted) {
             localStorage.setItem(PROMPTED_KEY, 'true');
-            const result = await PushNotifications.requestPermissions();
-            const next = (result.receive === 'prompt-with-rationale') ? 'prompt' : (result.receive || 'prompt');
+            console.log('[푸시 알림 설정] 플래그 저장 완료');
+            
+            if (isIOS) {
+              // iOS: 커스텀 모달을 먼저 표시
+              console.log('[푸시 알림 설정] iOS 커스텀 모달 표시 시도');
+              setShowPushPermissionModal(true);
 
-            if (next === 'granted') {
-              await ensureTokenRegisteredAndEnabled();
+              // 이벤트 리스너 등록
+              const handlePushPermissionResponse = async (event: Event) => {
+                const customEvent = event as CustomEvent;
+                if (customEvent.detail?.allowed) {
+                  // denied 상태라면 시스템 권한 요청해도 팝업이 안 뜨므로 
+                  // 바로 설정 안내 토스트 표시
+                  if (receive === 'denied') {
+                    toast.info('iOS 설정에서 알림 권한을 허용해주세요');
+                  } else {
+                    await requestSystemPermission();
+                  }
+                } else {
+                  // 사용자가 "나중에" 선택 - 토글 OFF
+                  try {
+                    localStorage.setItem(`pushEnabled_${user.id}`, 'false');
+                  } catch {
+                    // ignore
+                  }
+                }
+                setShowPushPermissionModal(false);
+              };
+
+              window.addEventListener('push-permission-response', handlePushPermissionResponse);
+
+              // cleanup 함수 저장
+              cleanup = () => {
+                window.removeEventListener('push-permission-response', handlePushPermissionResponse);
+              };
             } else {
-              // 거부/미결정: 토글 OFF 유지
-              try {
-                localStorage.setItem(`pushEnabled_${user.id}`, 'false');
-              } catch {
-                // ignore
-              }
-
-              // MainPage 토글이 즉시 OFF로 갱신되도록 이벤트 브로드캐스트
-              try {
-                window.dispatchEvent(new CustomEvent('push-status-changed', {
-                  detail: { enabled: false, source: 'auto' },
-                }));
-              } catch {
-                // ignore
-              }
+              // Android: 기존 방식 (바로 시스템 권한 요청)
+              await requestSystemPermission();
             }
           }
         }
@@ -369,7 +479,10 @@ const AppInner: React.FC = () => {
       setupPushNotifications();
     }, 1000);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (cleanup) cleanup();
+    };
   }, [isAuthenticated, user?.id]);
 
   // 모바일 진입 시 사이드바 자동 닫기
@@ -380,11 +493,21 @@ const AppInner: React.FC = () => {
   }, []);
 
   // 네이티브 앱 푸시 알림 클릭 처리
+  const pendingNavigationRef = useRef<string | null>(null);
+
   useEffect(() => {
     const handlePushNotificationClick = (event: CustomEvent) => {
       const { linkUrl } = event.detail || {};
-      if (linkUrl && isAuthenticated) {
-        navigate(linkUrl);
+      if (linkUrl) {
+        // 먼저 pendingNavigationRef 설정
+        pendingNavigationRef.current = linkUrl;
+        
+        if (isAuthenticated && !isLoading) {
+          // 인증 완료 상태면 즉시 이동 (replace로 히스토리 남기지 않음)
+          navigate(linkUrl, { replace: true });
+          pendingNavigationRef.current = null;
+        }
+        // 인증 대기 중이면 pendingNavigationRef에 저장된 상태로 대기
       }
     };
 
@@ -393,7 +516,16 @@ const AppInner: React.FC = () => {
     return () => {
       window.removeEventListener('push-notification-clicked', handlePushNotificationClick as EventListener);
     };
-  }, [navigate, isAuthenticated]);
+  }, [navigate, isAuthenticated, isLoading]);
+
+  // 인증 완료 후 대기 중인 네비게이션 실행
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && pendingNavigationRef.current) {
+      const targetUrl = pendingNavigationRef.current;
+      pendingNavigationRef.current = null;
+      navigate(targetUrl, { replace: true });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
   // 회원가입 단계 이동 시마다 스크롤을 최상단으로 이동
   useEffect(() => {
@@ -485,7 +617,14 @@ const AppInner: React.FC = () => {
     <div className="App">
       <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<LandingPage />} />
+              <Route path="/" element={
+                isLoading || pendingNavigationRef.current ? (
+                  // 로딩 중이거나 대기 중인 네비게이션이 있으면 로딩 표시
+                  <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
+                ) : (
+                  isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
+                )
+              } />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
               <Route path="/delete-account" element={<DeleteAccountPage />} />
               <Route path="/child-safety" element={<ChildSafetyPage />} />
@@ -511,7 +650,7 @@ const AppInner: React.FC = () => {
               <Route path="/main" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <MainPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -519,7 +658,7 @@ const AppInner: React.FC = () => {
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <ProfilePage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -527,7 +666,7 @@ const AppInner: React.FC = () => {
               <Route path="/preference" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <PreferencePage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -535,7 +674,7 @@ const AppInner: React.FC = () => {
               <Route path="/notice" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <NoticePage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -543,7 +682,7 @@ const AppInner: React.FC = () => {
               <Route path="/notice/:id" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <NoticePage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -551,7 +690,7 @@ const AppInner: React.FC = () => {
               <Route path="/faq" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <FaqPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -559,7 +698,7 @@ const AppInner: React.FC = () => {
               <Route path="/faq/:id" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <FaqPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -567,7 +706,7 @@ const AppInner: React.FC = () => {
               <Route path="/matching-history" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <MatchingHistoryPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -575,7 +714,7 @@ const AppInner: React.FC = () => {
               <Route path="/community" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <CommunityPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -583,7 +722,7 @@ const AppInner: React.FC = () => {
               <Route path="/extra-matching" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <ExtraMatchingPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -591,7 +730,7 @@ const AppInner: React.FC = () => {
               <Route path="/notifications" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <NotificationsPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -600,7 +739,7 @@ const AppInner: React.FC = () => {
               <Route path="/support/inquiry" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <SupportInquiryPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -608,7 +747,7 @@ const AppInner: React.FC = () => {
               <Route path="/support/my-inquiries" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <MySupportInquiriesPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -616,7 +755,7 @@ const AppInner: React.FC = () => {
               <Route path="/support/inquiry/:id" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <SupportInquiryDetailPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -636,7 +775,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/matching-log" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <MatchingLogAdminPage isSidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -644,7 +783,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/category-manager" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <CategoryManagerPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -652,7 +791,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/company-manager" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <CompanyManagerPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -660,7 +799,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/matching-applications" element={
                 <ProtectedRoute>
                   <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <MatchingApplicationsPage sidebarOpen={sidebarOpen} />
                   </div>
                 </ProtectedRoute>
@@ -668,7 +807,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/matching-result" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <MatchingResultPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -676,7 +815,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/user-matching-overview" element={
                 <AdminRoute>
                   <div style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <UserMatchingOverviewPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -684,7 +823,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/notice-manager" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <NoticeManagerPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -692,7 +831,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/faq-manager" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <FaqManagerPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -700,7 +839,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/settings" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <SettingsPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -708,7 +847,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/logs" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <LogsPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -716,7 +855,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/report-management" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <ReportManagementPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -725,7 +864,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/support" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <AdminSupportPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -733,7 +872,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/support/:id" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <AdminSupportDetailPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -741,7 +880,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/broadcast-email" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <BroadcastEmailPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -749,7 +888,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/notifications" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <AdminNotificationPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -757,7 +896,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/star-rewards" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <AdminStarRewardPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -765,7 +904,7 @@ const AppInner: React.FC = () => {
               <Route path="/admin/extra-matching-status" element={
                 <AdminRoute>
                   <div style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} />
+                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
                     <ExtraMatchingAdminPage sidebarOpen={sidebarOpen} />
                   </div>
                 </AdminRoute>
@@ -787,9 +926,52 @@ const AppInner: React.FC = () => {
                 touchAction: 'manipulation'
               }}
             />
+
+            {/* 앱 종료 확인 모달 (네이티브 광고 포함) */}
+            <ExitConfirmModal
+              isOpen={showExitModal}
+              onConfirm={handleExitConfirm}
+              onCancel={handleExitCancel}
+              preloadedBanner={preloadedAdsRef.current.banner}
+            />
+
+            <PushPermissionModal
+              isOpen={showPushPermissionModal}
+              onAllow={handlePushPermissionAllow}
+              onDeny={handlePushPermissionDeny}
+            />
             
           </div>
   );
+
+  // 앱 종료 확인
+  async function handleExitConfirm() {
+    try {
+      const { App } = await import('@capacitor/app');
+      App.exitApp();
+    } catch (error) {
+      console.error('[App] 앱 종료 실패:', error);
+    }
+  }
+
+  // 앱 종료 취소
+  function handleExitCancel() {
+    setShowExitModal(false);
+  }
+
+  // 푸시 알림 권한 허용
+  function handlePushPermissionAllow() {
+    window.dispatchEvent(new CustomEvent('push-permission-response', {
+      detail: { allowed: true }
+    }));
+  }
+
+  // 푸시 알림 권한 거부 (나중에)
+  function handlePushPermissionDeny() {
+    window.dispatchEvent(new CustomEvent('push-permission-response', {
+      detail: { allowed: false }
+    }));
+  }
 }
 
 function App() {

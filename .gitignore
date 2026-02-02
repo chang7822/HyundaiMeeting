@@ -35,6 +35,36 @@ android/app/release-key.jks
 *.jks
 *.keystore
 
+# iOS build outputs
+ios/App/build/
+ios/App/Pods/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+*.ipa
+*.dSYM.zip
+*.dSYM
+ios/App/.build/
+ios/App/DerivedData/
+
+# iOS Capacitor 빌드 결과물 (React 빌드가 복사된 것)
+ios/App/App/public/
+
+# iOS user settings
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.moved-aside
+*.xccheckout
+*.xcscmblueprint
+ios/App/App.xcworkspace/xcshareddata/swiftpm/
+
 # IDE
 .vscode/
 .idea/

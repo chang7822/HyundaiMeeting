@@ -1308,18 +1308,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     try {
       if (!isNativeApp()) return;
 
+      // Android와 iOS 모두 AppSettings 플러그인 사용
+      const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
+      await AppSettings.open();
+      
       const platform = Capacitor.getPlatform();
-      if (platform === 'android') {
-        const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
-        await AppSettings.open();
-      } else {
-        // iOS 등: 현재 프로젝트에는 iOS 네이티브가 없어서 설정 화면 딥링크를 제공하지 않음
-        // (iOS 네이티브를 추가하는 경우 별도 구현 가능)
-        toast.info('기기 설정 앱에서 직쏠공 알림 권한을 허용해주세요.');
-      }
+      console.log(`[설정 열기] ${platform} 플랫폼에서 설정 화면으로 이동 시도`);
     } catch (e) {
       console.error('[push] 앱 설정 열기 실패:', e);
-      toast.error('설정 화면을 열 수 없습니다. 기기 설정에서 직접 알림 권한을 허용해주세요.');
+      const platform = Capacitor.getPlatform();
+      const msg = platform === 'ios' 
+        ? '아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.'
+        : '설정 > 애플리케이션 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.';
+      toast.error(msg);
     }
   }, []);
   
@@ -4064,9 +4065,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 알림 권한이 꺼져 있어요
               </h2>
               <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                {'기기에서 알림 권한이 거부되어, 더 이상 권한 팝업이 뜨지 않을 수 있습니다.\n\n' +
-                  '아래 버튼을 눌러 설정으로 이동한 뒤,\n' +
-                  '설정 > 애플리케이션 > 직쏠공 > 알림에서 "허용"으로 변경해주세요.'}
+                {Capacitor.getPlatform() === 'ios'
+                  ? '매칭 상대방과의 원활한 채팅을 위해 알림 권한이 필요합니다.\n\n' +
+                    '아래 버튼을 눌러 설정으로 이동한 뒤,\n' +
+                    '아이폰 설정 > 직쏠공 > 알림에서 "알림 허용"을 켜주세요.'
+                  : '기기에서 알림 권한이 거부되어, 더 이상 권한 팝업이 뜨지 않습니다.\n\n' +
+                    '아래 버튼을 눌러 설정으로 이동한 뒤,\n' +
+                    '설정 > 애플리케이션 > 직쏠공 > 알림에서 "허용"으로 변경해주세요.'}
               </p>
               <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
                 <button
