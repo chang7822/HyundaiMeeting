@@ -147,13 +147,23 @@ const PrivacyPolicyPage = () => {
           ← 뒤로가기
         </BackButton>
         
-        <Title>개인정보처리방침</Title>
-        {/* <Subtitle>최종 수정일: {new Date().toLocaleDateString('ko-KR')}</Subtitle> */}
+        <Title>직쏠공 개인정보처리방침</Title>
+        <Subtitle>최종 수정일: {new Date().toLocaleDateString('ko-KR')}</Subtitle>
+
+        <Section>
+          <SectionTitle>0. 서비스 제공자 정보</SectionTitle>
+          <SectionContent>
+            • <strong>서비스명</strong>: 직쏠공 (com.solo.meeting)<br />
+            • <strong>운영자</strong>: 직쏠공 운영팀<br />
+            • <strong>웹사이트</strong>: https://automatchingway.com<br />
+            • <strong>문의</strong>: automatchingway@gmail.com
+          </SectionContent>
+        </Section>
 
         <Section>
           <SectionTitle>1. 개인정보의 수집 및 이용목적</SectionTitle>
           <SectionContent>
-            본 서비스는 다음과 같은 목적으로 개인정보를 수집하고 있습니다:<br />
+            직쏠공(com.solo.meeting)은 다음과 같은 목적으로 개인정보를 수집하고 있습니다:<br />
             • 회원가입 및 서비스 제공<br />
             • 매칭 서비스 제공<br />
             • 고객 상담 및 문의 응대<br />

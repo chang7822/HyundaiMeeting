@@ -145,41 +145,10 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     const { PushNotifications } = await import('@capacitor/push-notifications');
     const { LocalNotifications } = await import('@capacitor/local-notifications');
     
-    // 푸시 알림 수신 시
+    // 푸시 알림 수신 시 (포어그라운드에서는 표시 안 함)
     PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-      console.log('[push] 푸시 알림 수신:', notification);
-      
-      // data-only 메시지인 경우 로컬 알림으로 표시
-      // Capacitor PushNotifications는 notification 필드가 없으면 자동으로 알림을 표시하지 않음
-      if (notification.data && !notification.title && !notification.body) {
-        const title = notification.data.title || '새 알림';
-        const body = notification.data.body || '';
-        const data = notification.data;
-        
-        try {
-          // 로컬 알림 권한 확인
-          const permissionStatus = await LocalNotifications.checkPermissions();
-          if (permissionStatus.display === 'granted') {
-            await LocalNotifications.schedule({
-              notifications: [
-                {
-                  title: title,
-                  body: body,
-                  id: Date.now(),
-                  extra: data,
-                  sound: 'default',
-                },
-              ],
-            });
-            console.log('[push] 로컬 알림 표시:', title, body);
-          } else {
-            console.warn('[push] 로컬 알림 권한이 없습니다.');
-          }
-        } catch (error) {
-          console.error('[push] 로컬 알림 표시 실패:', error);
-        }
-      }
-      
+      // notification 필드가 있는 알림은 백그라운드에서만 표시됨
+      // 포어그라운드에서는 아무것도 하지 않음
       if (onNotificationReceived) {
         onNotificationReceived(notification);
       }
@@ -187,11 +156,48 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
     
     // 푸시 알림 클릭 시
     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      console.log('[push] 푸시 알림 클릭:', notification);
       
       // 커스텀 이벤트로 알림 클릭 정보 전달 (App.tsx에서 처리)
-      const data = notification.notification?.data || notification.data || {};
-      const linkUrl = data.linkUrl || (data.postId ? `/community?postId=${data.postId}&openComments=true` : null);
+      const data = notification.notification?.data || (notification as any).data || {};
+      let linkUrl = data.linkUrl;
+      
+      // linkUrl이 없으면 타입별로 생성
+      if (!linkUrl) {
+        switch (data.type) {
+          case 'chat_unread':
+            if (data.senderId) linkUrl = `/chat/${data.senderId}`;
+            break;
+          case 'community_comment':
+            if (data.postId) linkUrl = `/community?postId=${data.postId}&openComments=true`;
+            break;
+          case 'community_delete':
+            linkUrl = '/community';
+            break;
+          case 'notice':
+            linkUrl = '/notice';
+            break;
+          case 'support':
+            linkUrl = '/my-support';
+            break;
+          case 'extra_match_apply':
+          case 'extra_match_accept':
+          case 'extra_match_reject':
+            linkUrl = '/extra-matching';
+            break;
+          case 'matching_application_start':
+            linkUrl = '/main';
+            break;
+          case 'matching_result_announce':
+            linkUrl = '/matching-history';
+            break;
+          default:
+            if (data.postId) {
+              linkUrl = `/community?postId=${data.postId}&openComments=true`;
+            } else {
+              linkUrl = '/main';
+            }
+        }
+      }
       
       if (linkUrl) {
         window.dispatchEvent(new CustomEvent('push-notification-clicked', {

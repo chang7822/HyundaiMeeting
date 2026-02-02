@@ -339,7 +339,7 @@ io.on('connection', (socket) => {
         }
         io.to(roomId).emit('chat message', { ...dbData, content: plainContent });
 
-        // 3초 후에도 읽지 않았다면 수신자에게 푸시 알림 전송
+        // 1초 후에도 읽지 않았다면 수신자에게 푸시 알림 전송
         try {
           const insertedId = dbData.id;
           const receiverId = dbData.receiver_id;
@@ -353,33 +353,24 @@ io.on('connection', (socket) => {
                 .eq('id', insertedId)
                 .maybeSingle();
 
-              if (msgError) {
-                console.error('푸시알림 실패 : DB 조회 오류');
+              if (msgError || !msgRow || msgRow.is_read) {
                 return;
               }
 
-              if (!msgRow || msgRow.is_read) {
-                // 메시지 없거나 이미 읽음 → 조용히 스킵
-                return;
-              }
-
-              const pushResult = await sendPushToUsers([receiverId], {
+              const pushData = {
                 type: 'chat_unread',
                 periodId: String(msgRow.period_id),
                 senderId: String(msgRow.sender_id),
                 title: '[직쏠공]',
                 body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
-              });
-              
-              if (pushResult.success) {
-                console.log('푸시알림 성공');
-              } else {
-                console.log(`푸시알림 실패 : ${pushResult.reason}`);
-              }
+                linkUrl: `/chat/${msgRow.sender_id}`,
+              };
+
+              await sendPushToUsers([receiverId], pushData);
             } catch (pushErr) {
-              console.error('푸시알림 실패 : 예외 발생', pushErr);
+              console.error('[SOCKET][server] 채팅 푸시 전송 실패:', pushErr);
             }
-          }, 3000);
+          }, 1000);
         } catch (scheduleErr) {
           console.error('[SOCKET-CHAT] 안읽은 메시지 푸시 스케줄링 중 오류:', scheduleErr);
         }

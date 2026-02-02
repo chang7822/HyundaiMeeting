@@ -102,6 +102,34 @@ const Button = styled.button<{ $primary?: boolean }>`
   }
 `;
 
+const PlayStoreBadge = styled.a`
+  display: inline-block;
+  margin-top: 1.5rem;
+  transition: all 0.3s ease;
+  
+  img {
+    height: 60px;
+    width: auto;
+  }
+  
+  &:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+  }
+  
+  &:active {
+    transform: translateY(0);
+  }
+  
+  @media (max-width: 768px) {
+    margin-top: 1rem;
+    
+    img {
+      height: 50px;
+    }
+  }
+`;
+
 const Features = styled.div`
   margin-top: 4rem;
   display: grid;
@@ -483,12 +511,12 @@ const LandingPage = () => {
   const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
   const [showCompanyGuideTooltip, setShowCompanyGuideTooltip] = useState(false);
 
-  // 이미 로그인된 상태에서 랜딩( "/" )로 진입하면 메인으로 보내기
-  useEffect(() => {
-    if (!isLoading && isAuthenticated) {
-      navigate('/main');
-    }
-  }, [isLoading, isAuthenticated, navigate]);
+  // App.tsx에서 라우트 레벨에서 처리하므로 제거
+  // useEffect(() => {
+  //   if (!isLoading && isAuthenticated) {
+  //     navigate('/main');
+  //   }
+  // }, [isLoading, isAuthenticated, navigate]);
 
   useEffect(() => {
     if (!showCompanies) return;
@@ -589,6 +617,17 @@ const LandingPage = () => {
           회원가입
         </Button>
       </ButtonContainer>
+
+      <PlayStoreBadge 
+        href="https://play.google.com/store/apps/details?id=com.solo.meeting"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <img 
+          src="https://play.google.com/intl/ko/badges/static/images/badges/ko_badge_web_generic.png"
+          alt="Google Play에서 다운로드"
+        />
+      </PlayStoreBadge>
       
       <Features>
         <FeatureCard>

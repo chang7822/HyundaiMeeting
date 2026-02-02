@@ -81,6 +81,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
         const nextMsg = messages[idx + 1];
         const prevDate = prevMsg ? new Date(prevMsg.timestamp) : null;
         const nextDate = nextMsg ? new Date(nextMsg.timestamp) : null;
+        
         const isNewDay =
           !prevDate ||
           msgDate.getFullYear() !== prevDate.getFullYear() ||
@@ -121,11 +122,8 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ messages, chatWindowRef, userId
               {showTime && (
                 <div style={{ fontSize: 'clamp(0.8rem, 2vw, 0.95rem)', color: '#aaa', margin: msg.senderId === userId ? '0 16px 0 0' : '0 0 0 16px', alignSelf: 'flex-end', minWidth: 38, textAlign: 'center' }}>
                   <span style={{ display: 'inline-block', marginTop: 8 }}>
-                    {(() => {
-                      const date = typeof msg.timestamp === 'string' ? new Date(msg.timestamp) : msg.timestamp;
-                      // 오전/오후로 표시
-                      return date.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true });
-                    })()}
+                    {/* 이미 KST로 변환된 msgDate 사용 */}
+                    {msgDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: true })}
                   </span>
                   {/* 내가 보낸 메시지에만 읽음 표시 */}
                   {msg.senderId === userId && (

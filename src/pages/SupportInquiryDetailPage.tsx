@@ -300,8 +300,7 @@ const SupportInquiryDetailPage: React.FC<SupportInquiryDetailPageProps> = ({ sid
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleString('ko-KR', {
+    return new Date(dateString).toLocaleString('ko-KR', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

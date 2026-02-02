@@ -29,13 +29,8 @@ try {
 
 if (messaging) {
   messaging.onBackgroundMessage(function (payload) {
-    console.log('[firebase-messaging-sw.js] Received background message ', payload);
-
     // notification 필드가 있으면 FCM이 자동으로 알림을 표시하므로 중복 방지
-    // notification 필드가 없을 때만 수동으로 알림 표시
     if (payload.notification && payload.notification.title) {
-      // FCM이 자동으로 알림을 표시하므로 여기서는 아무것도 하지 않음
-      console.log('[firebase-messaging-sw.js] notification 필드가 있어 FCM이 자동으로 알림을 표시합니다.');
       return;
     }
 
@@ -50,7 +45,7 @@ if (messaging) {
 
     const notificationOptions = {
       body: notificationBody,
-      icon: '/logo192.png',
+      icon: '/icon-192.png',
       data: payload.data || null,
     };
 
@@ -60,13 +55,46 @@ if (messaging) {
 
 // 푸시 알림 클릭 시 처리
 self.addEventListener('notificationclick', function(event) {
-  console.log('[firebase-messaging-sw.js] 푸시 알림 클릭:', event);
   
   event.notification.close();
   
-  // data에서 linkUrl 또는 postId 추출
+  // data에서 linkUrl 추출 또는 타입별로 생성
   const data = event.notification.data || {};
-  const linkUrl = data.linkUrl || (data.postId ? `/community?postId=${data.postId}&openComments=true` : '/community');
+  let linkUrl = data.linkUrl;
+  
+  // linkUrl이 없으면 타입별로 생성
+  if (!linkUrl) {
+    switch (data.type) {
+      case 'chat_unread':
+        linkUrl = data.senderId ? `/chat/${data.senderId}` : '/main';
+        break;
+      case 'community_comment':
+        linkUrl = data.postId ? `/community?postId=${data.postId}&openComments=true` : '/community';
+        break;
+      case 'community_delete':
+        linkUrl = '/community';
+        break;
+      case 'notice':
+        linkUrl = '/notice';
+        break;
+      case 'support':
+        linkUrl = '/my-support';
+        break;
+      case 'extra_match_apply':
+      case 'extra_match_accept':
+      case 'extra_match_reject':
+        linkUrl = '/extra-matching';
+        break;
+      case 'matching_application_start':
+        linkUrl = '/main';
+        break;
+      case 'matching_result_announce':
+        linkUrl = '/matching-history';
+        break;
+      default:
+        linkUrl = '/main';
+    }
+  }
   
   // 클라이언트가 열려있으면 해당 페이지로 이동, 없으면 새로 열기
   event.waitUntil(

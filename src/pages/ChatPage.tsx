@@ -7,6 +7,7 @@ import ChatWindow from '../components/Chat/ChatWindow.tsx';
 import ChatInput from '../components/Chat/ChatInput.tsx';
 import { toast } from 'react-toastify';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import { Capacitor } from '@capacitor/core';
 
 import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
@@ -162,6 +163,7 @@ const ChatPage: React.FC = () => {
   const [reportModal, setReportModal] = useState(false);
   const [isPartnerBanned, setIsPartnerBanned] = useState(false);
   const [chatEndTime, setChatEndTime] = useState<Date | null>(null);
+  const [isAppActive, setIsAppActive] = useState(true); // 앱 활성 상태
 
   // 1. period_id 확보 및 권한 체크
   useEffect(() => {
@@ -337,10 +339,39 @@ const ChatPage: React.FC = () => {
       .catch(() => setMessages([]));
   }, [user?.id, partnerUserId, periodId]);
 
+  // 앱 라이프사이클 감지 (포어그라운드/백그라운드)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let listener: any = null;
+
+    const setupAppStateListener = async () => {
+      try {
+        const { App } = await import('@capacitor/app');
+        
+        listener = await App.addListener('appStateChange', (state) => {
+          setIsAppActive(state.isActive);
+        });
+      } catch (error) {
+        console.error('[ChatPage] 앱 상태 리스너 설정 실패:', error);
+      }
+    };
+
+    setupAppStateListener();
+
+    return () => {
+      if (listener) {
+        listener.remove();
+      }
+    };
+  }, []);
+
   // 2-1. 실시간으로 새 메시지가 올 때마다 읽음 처리 (현재 채팅방 기준) + 읽음 이벤트 emit
+  // 단, 앱이 포어그라운드 상태일 때만 읽음 처리
   useEffect(() => {
     if (!user?.id || !partnerUserId || !periodId) return;
     if (!messages.length) return;
+    if (!isAppActive) return; // 백그라운드일 때는 읽음 처리 안 함
 
     const myId = String(user.id);
     const partnerId = String(partnerUserId);
@@ -366,7 +397,7 @@ const ChatPage: React.FC = () => {
       .catch(() => {
         // 조용히 무시 (UI 깜빡임 방지)
       });
-  }, [messages, user?.id, partnerUserId, periodId]);
+  }, [messages, user?.id, partnerUserId, periodId, isAppActive]);
 
   // 3. 메시지 전송
   const handleSend = async () => {

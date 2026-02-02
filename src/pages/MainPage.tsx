@@ -909,6 +909,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
   const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
   const [communityEnabled, setCommunityEnabled] = useState<boolean>(true);
+  
+  // 페이지 초기 로딩 완료 여부 (핵심 데이터 3개가 모두 로드되면 true)
+  const [isPageReady, setIsPageReady] = useState(false);
 
   // 사이드바 별 잔액 즉시 반영 (Sidebar.tsx가 stars-updated 이벤트를 구독)
   const syncSidebarStarBalance = useCallback(async (nextBalance?: number) => {
@@ -1358,59 +1361,69 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [matchingStatus, partnerUserId, period, now]); // period, now 의존성 추가하고 상태 의존성 제거
 
+  // 페이지 초기 로딩: 3개의 핵심 데이터를 병렬로 로드
   useEffect(() => {
-    matchingApi.getMatchingPeriod().then(data => {
-      if (!data) {
-        setPeriod(null);
-        setNextPeriod(null);
-      } else if (data.current || data.next) {
-        // 백엔드가 { current, next } 형태로 내려주는 경우
-        setPeriod(data.current || null);
-        setNextPeriod(data.next || null);
-      } else {
-        // 과거 호환: 단일 회차 객체만 내려오는 경우
-        setPeriod(data);
-        setNextPeriod(null);
+    const loadInitialData = async () => {
+      try {
+        // 병렬로 3개 API 호출 (가장 빠른 로딩)
+        const [periodData, noticeData] = await Promise.all([
+          matchingApi.getMatchingPeriod().catch(err => {
+            console.error('[MainPage] 매칭 기간 API 에러:', err);
+            return null;
+          }),
+          noticeApi.getNotices().catch(err => {
+            console.error('[MainPage] 최신 공지사항 조회 오류:', err);
+            return null;
+          })
+        ]);
+        
+        // 매칭 기간 설정
+        if (!periodData) {
+          setPeriod(null);
+          setNextPeriod(null);
+        } else if (periodData.current || periodData.next) {
+          setPeriod(periodData.current || null);
+          setNextPeriod(periodData.next || null);
+        } else {
+          setPeriod(periodData);
+          setNextPeriod(null);
+        }
+        
+        // 최신 공지사항 설정
+        if (Array.isArray(noticeData) && noticeData.length > 0) {
+          const first = noticeData[0];
+          if (first && typeof first.id === 'number' && typeof first.title === 'string') {
+            setLatestNotice({ id: first.id, title: first.title });
+          }
+        }
+        
+        // 모든 초기 데이터 로드 완료
+        setLoadingPeriod(false);
+        setIsLoadingNotice(false);
+        setIsPageReady(true);
+      } catch (error) {
+        console.error('[MainPage] 초기 데이터 로드 실패:', error);
+        // 에러 발생해도 페이지는 표시
+        setLoadingPeriod(false);
+        setIsLoadingNotice(false);
+        setIsPageReady(true);
       }
-      setLoadingPeriod(false);
-    }).catch((err) => {
-      setLoadingPeriod(false);
-      console.error('[MainPage] 매칭 기간 API 에러:', err);
-    });
+    };
+    
+    loadInitialData();
+    
+    // 1초마다 시간 갱신 타이머
     const timer = window.setInterval(() => {
       const newNow = new Date();
-      // 초 단위가 바뀔 때만 업데이트 (불필요한 리렌더링 방지)
       setNow(prev => {
-        // 초기값이 없거나 초 단위가 바뀐 경우에만 업데이트
         if (!prev || Math.floor(newNow.getTime() / 1000) !== Math.floor(prev.getTime() / 1000)) {
           return newNow;
         }
         return prev;
       });
-    }, 1000); // 1초마다 갱신
+    }, 1000);
+    
     return () => window.clearInterval(timer);
-  }, []);
-
-  // 최신 공지사항 1건 조회
-  useEffect(() => {
-    const fetchLatestNotice = async () => {
-      try {
-        setIsLoadingNotice(true);
-        const data = await noticeApi.getNotices();
-        if (Array.isArray(data) && data.length > 0) {
-          const first = data[0];
-          if (first && typeof first.id === 'number' && typeof first.title === 'string') {
-            setLatestNotice({ id: first.id, title: first.title });
-          }
-        }
-      } catch (e) {
-        console.error('[MainPage] 최신 공지사항 조회 오류:', e);
-      } finally {
-        setIsLoadingNotice(false);
-      }
-    };
-
-    fetchLatestNotice();
   }, []);
 
   // 추가 매칭 도전 기능 활성화 여부 조회
@@ -1580,15 +1593,15 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   }, [user?.is_banned, user?.banned_until, fetchUser]);
 
-  // MainPage 진입 시 정지 상태 확인 후 기본 데이터 로드
+  // MainPage 진입 시 정지 상태 확인 후 매칭 상태 로드 (초기 로딩에 포함)
   useEffect(() => {
-    if (user?.id) {
+    if (user?.id && isPageReady) {
       checkUserBanStatus().then(() => {
         fetchMatchingStatus(true); // 초기 로드시에만 로딩 표시
         fetchUnreadCount();
       });
     }
-  }, [user?.id, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount]);
+  }, [user?.id, isPageReady, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount]);
 
   // 상대방 프로필 정보 fetch 함수
   const fetchPartnerProfile = async (partnerUserId: string) => {
@@ -1853,7 +1866,9 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   }
   
   // 핵심 데이터 로딩 시 전체 스피너
-  if (!user || !profile) {
+  // isPageReady: 매칭 기간, 공지사항 등 초기 데이터 로드 완료
+  // statusLoading: 매칭 상태 초기 로드 중 (한 번만 true)
+  if (!user || !profile || !isPageReady || statusLoading) {
     return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   }
 
