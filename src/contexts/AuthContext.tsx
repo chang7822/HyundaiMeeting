@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, startTransition } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User, UserProfile, LoginCredentials, AuthContextType } from '../types/index.ts';
 import { authApi, userApi } from '../services/api.ts';
 import { Capacitor } from '@capacitor/core';
@@ -18,18 +18,27 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [authState, setAuthState] = useState<{ user: User | null; profile: UserProfile | null }>({ user: null, profile: null });
-  const [isLoading, setIsLoading] = useState(false);
-  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  // 상태를 하나로 통합하여 배칭 보장
+  const [state, setState] = useState<{
+    user: User | null;
+    profile: UserProfile | null;
+    isLoading: boolean;
+    isInitialLoading: boolean;
+  }>({
+    user: null,
+    profile: null,
+    isLoading: false,
+    isInitialLoading: true,
+  });
 
   // 토큰 갱신 및 사용자 정보 로드 함수
   const restoreAuth = useCallback(async (showLoading = true, isInitial = false) => {
     if (showLoading) {
-      if (isInitial) {
-        setIsInitialLoading(true);
-      } else {
-        setIsLoading(true);
-      }
+      setState(prev => ({
+        ...prev,
+        isLoading: isInitial ? false : true,
+        isInitialLoading: isInitial ? true : prev.isInitialLoading,
+      }));
     }
     
     const token = localStorage.getItem('token');
@@ -49,14 +58,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('[AuthContext] Refresh Token 갱신 실패:', refreshErr?.response?.status || refreshErr?.message);
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
-          setAuthState({ user: null, profile: null });
-          if (showLoading) {
-            if (isInitial) {
-              setIsInitialLoading(false);
-            } else {
-              setIsLoading(false);
-            }
-          }
+          setState({
+            user: null,
+            profile: null,
+            isLoading: false,
+            isInitialLoading: false,
+          });
           return;
         }
       }
@@ -72,11 +79,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         const profileData = await userApi.getUserProfile(userWithCamel.id);
         
-        // 상태 업데이트를 즉시 실행 (배칭은 React가 자동으로 처리)
-        setAuthState({ user: userWithCamel, profile: profileData });
+        // 상태를 한 번에 업데이트 (React가 자동으로 배칭)
+        setState(prev => ({
+          ...prev,
+          user: userWithCamel,
+          profile: profileData,
+        }));
       } else {
         // 토큰이 없으면 로그인하지 않은 상태
-        setAuthState({ user: null, profile: null });
+        setState(prev => ({
+          ...prev,
+          user: null,
+          profile: null,
+        }));
       }
     } catch (err: any) {
       // console.error('[AuthContext] 인증 복원 실패:', err);
@@ -95,22 +110,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (err?.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
-        setAuthState({ user: null, profile: null });
+        setState(prev => ({
+          ...prev,
+          user: null,
+          profile: null,
+        }));
       }
       // 401이 아닌 에러(네트워크 등)는 기존 상태 유지 (isInitial일 때만 초기화)
       else if (isInitial) {
         // 앱 최초 시작 시에만 상태 초기화
-        setAuthState({ user: null, profile: null });
+        setState(prev => ({
+          ...prev,
+          user: null,
+          profile: null,
+        }));
       }
       // 포어그라운드 복귀 등 isInitial=false일 때는 기존 user/profile 유지
     } finally {
       if (showLoading) {
-        // 상태 업데이트를 같은 마이크로태스크에서 실행하도록 보장
-        if (isInitial) {
-          setIsInitialLoading(false);
-        } else {
-          setIsLoading(false);
-        }
+        // 로딩 상태를 한 번에 업데이트
+        setState(prev => ({
+          ...prev,
+          isLoading: isInitial ? prev.isLoading : false,
+          isInitialLoading: isInitial ? false : prev.isInitialLoading,
+        }));
       }
     }
   }, []);
@@ -168,7 +191,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [restoreAuth]);
 
   const login = async (credentials: LoginCredentials) => {
-    setIsLoading(true);
+    setState(prev => ({ ...prev, isLoading: true }));
     try {
       const response = await authApi.login(credentials);
       // Access Token과 Refresh Token 모두 저장
@@ -186,15 +209,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const profileData = await userApi.getUserProfile(userWithCamel.id);
       // console.log('[AuthContext] getUserProfile 성공:', profileData);
       // console.log('[AuthContext] setAuthState 직전 (login)', { user: userWithCamel, profile: profileData });
-      setAuthState({ user: userWithCamel, profile: profileData });
+      setState(prev => ({
+        ...prev,
+        user: userWithCamel,
+        profile: profileData,
+        isLoading: false,
+      }));
       return { user: userWithCamel, profile: profileData };
     } catch (error) {
       console.error('[AuthContext] 로그인 실패:', error);
-      setAuthState({ user: null, profile: null });
+      setState(prev => ({
+        ...prev,
+        user: null,
+        profile: null,
+        isLoading: false,
+      }));
       throw error;
-    } finally {
-      setIsLoading(false);
-      // console.log('[AuthContext] login: isLoading false');
     }
   };
 
@@ -210,7 +240,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     sessionStorage.clear();
-    setAuthState({ user: null, profile: null });
+    setState(prev => ({
+      ...prev,
+      user: null,
+      profile: null,
+    }));
     // console.log('[AuthContext] 로그아웃, localStorage token:', localStorage.getItem('token'));
   };
 
@@ -218,7 +252,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const fetchUser = async (showLoading = false) => {
     // 초기 로드나 명시적 요청시에만 로딩 표시
     if (showLoading) {
-      setIsLoading(true);
+      setState(prev => ({ ...prev, isLoading: true }));
     }
     
     try {
@@ -229,24 +263,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       const profileData = await userApi.getUserProfile(userWithCamel.id);
       // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
-      setAuthState({ user: userWithCamel, profile: profileData });
+      setState(prev => ({
+        ...prev,
+        user: userWithCamel,
+        profile: profileData,
+        isLoading: showLoading ? false : prev.isLoading,
+      }));
     } catch (err) {
       console.error('[AuthContext] fetchUser: 인증 복원 실패:', err);
       localStorage.removeItem('token');
-      setAuthState({ user: null, profile: null });
-    } finally {
-      // showLoading이 true였을 때만 로딩 해제
-      if (showLoading) {
-        setIsLoading(false);
-      }
-      // console.log('[AuthContext] fetchUser: isLoading false');
+      setState(prev => ({
+        ...prev,
+        user: null,
+        profile: null,
+        isLoading: showLoading ? false : prev.isLoading,
+      }));
     }
   };
 
   // setProfile은 UserProfile을 받아서 profile만 갱신
-  const setProfileOnly = (profile: UserProfile) => setAuthState((prev) => ({ ...prev, profile }));
+  const setProfileOnly = (profile: UserProfile) => setState((prev) => ({ ...prev, profile }));
 
-  const { user, profile } = authState;
+  const { user, profile, isLoading, isInitialLoading } = state;
   // console.log('[AuthContext] value 리턴 직전', { user, profile, isLoading });
   const value: AuthContextType & { setProfile: (profile: UserProfile) => void; fetchUser: typeof fetchUser; isInitialLoading: boolean } = {
     user,
