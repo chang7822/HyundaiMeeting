@@ -21,7 +21,7 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1rem;
-    padding-top: calc(80px + env(safe-area-inset-top, 0px));
+    padding-top: calc(80px + var(--safe-area-inset-top));
   }
 `;
 const Card = styled.div`

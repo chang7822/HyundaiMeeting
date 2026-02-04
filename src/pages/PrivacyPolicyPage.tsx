@@ -6,11 +6,11 @@ const Container = styled.div`
   min-height: 100vh;
   background: #f8f9fa;
   padding: 2rem;
-  padding-top: calc(80px + env(safe-area-inset-top, 0px));
+  padding-top: calc(80px + var(--safe-area-inset-top));
   
   @media (max-width: 768px) {
     padding: 1rem;
-    padding-top: calc(60px + env(safe-area-inset-top, 0px));
+    padding-top: calc(60px + var(--safe-area-inset-top));
   }
 `;
 

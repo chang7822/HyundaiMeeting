@@ -16,15 +16,15 @@ const LandingContainer = styled.div`
   color: white;
   text-align: center;
   padding: 20px;
-  padding-top: calc(60px + env(safe-area-inset-top, 0px));
+  padding-top: calc(60px + var(--safe-area-inset-top));
   
   @media (max-width: 768px) {
-    padding-top: calc(80px + env(safe-area-inset-top, 0px));
+    padding-top: calc(80px + var(--safe-area-inset-top));
     padding-bottom: 40px;
   }
   
   @media (max-width: 480px) {
-    padding-top: calc(100px + env(safe-area-inset-top, 0px));
+    padding-top: calc(100px + var(--safe-area-inset-top));
     padding-bottom: 30px;
   }
 `;

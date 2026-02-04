@@ -67,7 +67,7 @@ const MobileOverlay = styled.div<{ $isOpen: boolean }>`
 
 const SidebarCloseButton = styled.button`
   position: absolute;
-  top: calc(18px + env(safe-area-inset-top, 0px));
+  top: calc(18px + var(--safe-area-inset-top));
   right: 18px;
   z-index: 1100;
   background: transparent;
@@ -89,7 +89,7 @@ const SidebarCloseButton = styled.button`
 
 const SidebarHeader = styled.div`
   padding: 2rem 1.5rem 1rem;
-  padding-top: calc(2rem + env(safe-area-inset-top, 0px));
+  padding-top: calc(2rem + var(--safe-area-inset-top));
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
 `;
@@ -465,7 +465,7 @@ const NotificationQuickRow = styled.button`
 
 const LogoutSection = styled.div<{ $isNative?: boolean }>`
   padding: 1rem 1.5rem;
-  padding-bottom: ${props => props.$isNative ? '1rem' : 'calc(1rem + env(safe-area-inset-bottom, 0px))'};
+  padding-bottom: ${props => props.$isNative ? '1rem' : 'calc(1rem + var(--safe-area-inset-bottom))'};
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   flex-shrink: 0;
@@ -1220,7 +1220,7 @@ const Sidebar: React.FC<{
           style={{ 
             position: 'fixed', 
             left: 20, 
-            top: `calc(20px + env(safe-area-inset-top, 0px))`, 
+            top: `calc(20px + var(--safe-area-inset-top))`, 
             background: '#667eea', 
             color: '#fff', 
             boxShadow: '0 2px 10px rgba(0,0,0,0.2)' 
