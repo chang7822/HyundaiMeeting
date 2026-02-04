@@ -34,17 +34,16 @@ public class MainActivity extends BridgeActivity {
         // API URL 확인을 위한 로그
         android.util.Log.d("MainActivity", "MainActivity onCreate 완료");
         
-        // 상태바 높이만큼 CoordinatorLayout에 패딩 추가
+        // StatusBar.setOverlaysWebView({ overlay: false })로 이미 상태바 회피 처리되므로
+        // 네이티브 패딩은 하단 네비게이션 바에만 적용
         View rootView = findViewById(android.R.id.content);
         if (rootView != null) {
             ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, windowInsets) -> {
-                // 시스템 바(상단 StatusBar + 하단 NavigationBar) 인셋 반영
-                // 하단 네비게이션 바에 토스트/하단 UI가 가려지는 문제 해결
+                // 하단 네비게이션 바 인셋만 반영 (상단은 StatusBar 플러그인에서 처리)
                 Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
-                int statusBarHeight = insets.top;
                 int navigationBarHeight = insets.bottom;
                 
-                // CoordinatorLayout 찾아서 패딩 추가
+                // CoordinatorLayout 찾아서 하단 패딩만 추가
                 if (rootView instanceof ViewGroup) {
                     ViewGroup rootGroup = (ViewGroup) rootView;
                     for (int i = 0; i < rootGroup.getChildCount(); i++) {
@@ -53,10 +52,11 @@ public class MainActivity extends BridgeActivity {
                             CoordinatorLayout coordinatorLayout = (CoordinatorLayout) child;
                             coordinatorLayout.setPadding(
                                 coordinatorLayout.getPaddingLeft(),
-                                Math.max(statusBarHeight, 0),
+                                0,  // 상단 패딩 제거 (StatusBar 플러그인이 처리)
                                 coordinatorLayout.getPaddingRight(),
-                                Math.max(navigationBarHeight, 0)
+                                Math.max(navigationBarHeight, 0)  // 하단 네비게이션 바만 처리
                             );
+                            android.util.Log.d("MainActivity", "하단 네비게이션 패딩 적용: " + navigationBarHeight);
                             break;
                         }
                     }
