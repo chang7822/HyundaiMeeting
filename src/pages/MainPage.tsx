@@ -1915,11 +1915,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return null;
   }
   
-  // 핵심 데이터 로딩 시 전체 스피너
+  // 핵심 데이터 로딩 시 전체 스피너 (배너 없이 표시)
   // isPageReady: 매칭 기간, 공지사항 등 초기 데이터 로드 완료
   // statusLoading: 매칭 상태 초기 로드 중 (한 번만 true) - 제거하여 깜빡임 방지
   if (!user || !profile || !isPageReady) {
-    return <LoadingSpinner sidebarOpen={sidebarOpen} />;
+    return <LoadingSpinner sidebarOpen={sidebarOpen} noBanner={true} />;
   }
 
 

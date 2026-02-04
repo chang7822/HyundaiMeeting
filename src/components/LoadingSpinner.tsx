@@ -24,15 +24,20 @@ if (typeof window !== 'undefined') {
 const LoadingSpinner = ({ 
   text = "로딩 중...", 
   sidebarOpen = false,
-  preloadedBanner 
+  preloadedBanner,
+  noBanner = false
 }: { 
   text?: string; 
   sidebarOpen?: boolean;
   preloadedBanner?: any;
+  noBanner?: boolean;
 }) => {
   const isMountedRef = useRef(true);
 
   useEffect(() => {
+    // 배너 비활성화 옵션이 true면 광고 표시 안 함
+    if (noBanner) return;
+    
     // 네이티브 앱에서만 광고 표시
     if (!Capacitor.isNativePlatform()) return;
 
@@ -42,7 +47,6 @@ const LoadingSpinner = ({
       try {
         // 이미 전역 배너가 표시 중이거나 초기화 중이면 재사용
         if (window.globalBannerShowing || window.globalBannerInitializing) {
-          console.log('[LoadingSpinner] 전역 배너 이미 사용 중 - 재사용');
           return;
         }
 
@@ -57,7 +61,6 @@ const LoadingSpinner = ({
           await preloadedBanner.show();
           window.globalBannerShowing = true;
           window.globalBannerInitializing = false;
-          console.log('[LoadingSpinner] 사전로드 배너 표시 완료');
           return;
         }
 
@@ -66,7 +69,6 @@ const LoadingSpinner = ({
           await window.globalBannerAd.show();
           window.globalBannerShowing = true;
           window.globalBannerInitializing = false;
-          console.log('[LoadingSpinner] 기존 배너 재표시');
           return;
         }
 
@@ -96,12 +98,10 @@ const LoadingSpinner = ({
           window.globalBannerAd = banner;
           await banner.show();
           window.globalBannerShowing = true;
-          console.log('[LoadingSpinner] 새 배너 로드 및 표시 완료');
         }
         
         window.globalBannerInitializing = false;
       } catch (error) {
-        console.error('[LoadingSpinner] 광고 로드 실패:', error);
         window.globalBannerShowing = false;
         window.globalBannerInitializing = false;
       }
@@ -112,16 +112,7 @@ const LoadingSpinner = ({
     return () => {
       isMountedRef.current = false;
     };
-  }, []); // 의존성 배열 비움 - 한 번만 실행
-
-  // 컴포넌트가 완전히 언마운트될 때만 배너 숨김
-  useEffect(() => {
-    return () => {
-      // LoadingSpinner가 완전히 사라질 때만 배너 숨김
-      // 하지만 곧 다시 나타날 수 있으므로 숨기지 않음 (전역 관리)
-      console.log('[LoadingSpinner] 컴포넌트 언마운트 (배너는 유지)');
-    };
-  }, []); // 빈 배열 - 컴포넌트 마운트 시 한 번만 등록
+  }, [noBanner]); // noBanner가 변경되면 재실행
 
   // 네이티브: 고정된 화면 높이 기준, 배너(60px) + 여유(30px) 제외
   // 웹: 단순히 화면 중앙 (배너 없음)

@@ -10,27 +10,18 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, isLoading, user, profile } = useAuth();
 
-  // console.log('[ProtectedRoute] 렌더링', {
-  //   isLoading,
-  //   isAuthenticated,
-  //   user,
-  //   profile,
-  //   childrenType: typeof children,
-  //   children: children && (children as any).type ? (children as any).type.name : undefined
-  // });
-
   const hasEssentialData = !!(user && profile);
-  const shouldBlockRender = !hasEssentialData && isLoading;
 
   if (!isAuthenticated && !isLoading) {
     return <Navigate to="/" replace />;
   }
 
-  if (shouldBlockRender) {
-    return <LoadingSpinner />;
+  // App.tsx에서 이미 user/profile을 기다리므로 여기서는 바로 렌더링
+  // 만약 데이터가 없으면 "/" 로 리다이렉트 (다시 LoadingSpinner 표시)
+  if (!hasEssentialData) {
+    return <Navigate to="/" replace />;
   }
 
-  // console.log('[ProtectedRoute] children 렌더');
   return <>{children}</>;
 };
 
