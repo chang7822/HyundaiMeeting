@@ -898,23 +898,23 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
-  // MainPage 마운트 시 LoadingSpinner의 전역 배너 숨김
+  // MainPage 마운트 시 LoadingSpinner의 전역 배너 즉시 숨김
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
     
-    const hideGlobalBanner = async () => {
-      try {
-        if (window.globalBannerAd && window.globalBannerShowing) {
-          await window.globalBannerAd.hide();
-          window.globalBannerShowing = false;
+    // 동기적으로 즉시 상태 업데이트 (깜빡임 방지)
+    if (window.globalBannerAd && window.globalBannerShowing) {
+      window.globalBannerShowing = false; // 상태 즉시 변경
+      
+      // 실제 hide는 비동기로 실행
+      window.globalBannerAd.hide()
+        .then(() => {
           console.log('[MainPage] 전역 배너 숨김 완료');
-        }
-      } catch (error) {
-        console.error('[MainPage] 전역 배너 숨김 실패:', error);
-      }
-    };
-    
-    hideGlobalBanner();
+        })
+        .catch((error: any) => {
+          console.error('[MainPage] 전역 배너 숨김 실패:', error);
+        });
+    }
   }, []);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
@@ -1915,12 +1915,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return null;
   }
   
-  // 핵심 데이터 로딩 시 전체 스피너 (배너 없이 표시)
-  // isPageReady: 매칭 기간, 공지사항 등 초기 데이터 로드 완료
-  // statusLoading: 매칭 상태 초기 로드 중 (한 번만 true) - 제거하여 깜빡임 방지
-  if (!user || !profile || !isPageReady) {
-    return <LoadingSpinner sidebarOpen={sidebarOpen} noBanner={true} />;
-  }
+  // user/profile이 없으면 ProtectedRoute에서 이미 처리됨
+  // isPageReady는 부분 로딩으로 처리 (전체 스피너 표시 안 함 - 끔뻑거림 방지)
 
 
 

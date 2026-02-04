@@ -33,13 +33,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // 토큰 갱신 및 사용자 정보 로드 함수
   const restoreAuth = useCallback(async (showLoading = true, isInitial = false) => {
-    if (showLoading) {
+    // 초기 로딩이 아닐 때만 로딩 상태 설정 (포어그라운드 복귀 등)
+    if (showLoading && !isInitial) {
       setState(prev => ({
         ...prev,
-        isLoading: isInitial ? false : true,
-        isInitialLoading: isInitial ? true : prev.isInitialLoading,
+        isLoading: true,
       }));
     }
+    // isInitial일 때는 이미 isInitialLoading=true이므로 setState 불필요!
     
     const token = localStorage.getItem('token');
     const refreshToken = localStorage.getItem('refreshToken');
@@ -108,11 +109,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       // finally에서 모든 상태를 한 번에 업데이트!
       if (authResult !== null) {
+        // 성공: 모든 상태를 명시적으로 설정 (중간 렌더링 방지)
         setState({
           user: authResult.user,
           profile: authResult.profile,
           isLoading: false,
-          isInitialLoading: isInitial ? false : false, // isInitial이든 아니든 여기서 false
+          isInitialLoading: false,
         });
       } else if (showLoading) {
         // authResult가 null이면 로딩만 해제 (에러 발생 시 기존 상태 유지)
