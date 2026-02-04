@@ -1342,30 +1342,14 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           toast.info('아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
         }
       } else {
-        // Android: capacitor-native-settings 플러그인 사용
-        const { NativeSettings, AndroidSettings } = await import('capacitor-native-settings');
-        console.log('[설정 열기] Android NativeSettings 모듈 로드 완료');
-        console.log('[설정 열기] AndroidSettings.AppNotification:', AndroidSettings.AppNotification);
-        
-        const result = await NativeSettings.openAndroid({
-          option: AndroidSettings.AppNotification, // 알림 설정 화면으로 바로 이동
-        });
-        
-        console.log('[설정 열기] Android 설정 결과:', result);
-        
-        if (!result.success) {
-          console.error('[설정 열기] Android 설정 열기 실패:', result.error);
-          toast.info('설정 > 애플리케이션 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
-        } else {
-          console.log('[설정 열기] Android 알림 설정 화면으로 이동 성공');
-        }
+        // Android: AppSettings 플러그인 사용 (기존 방식)
+        console.log('[설정 열기] Android AppSettings 플러그인 사용');
+        const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
+        await AppSettings.open();
+        console.log('[설정 열기] Android 설정 화면으로 이동 완료');
       }
     } catch (e) {
       console.error('[설정 열기] 예외 발생:', e);
-      console.error('[설정 열기] 예외 타입:', typeof e);
-      console.error('[설정 열기] 예외 메시지:', (e as any)?.message);
-      console.error('[설정 열기] 예외 전체:', JSON.stringify(e, null, 2));
-      
       const platform = Capacitor.getPlatform();
       const msg = platform === 'ios' 
         ? '아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.'
