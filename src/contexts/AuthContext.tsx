@@ -44,17 +44,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const token = localStorage.getItem('token');
     const refreshToken = localStorage.getItem('refreshToken');
     
+    // 결과를 저장할 변수
+    let authResult: { user: User | null; profile: UserProfile | null } | null = null;
+    
     try {
       // Refresh Token이 있으면 먼저 토큰 갱신 시도
       if (refreshToken) {
         try {
-          // console.log('[AuthContext] Refresh Token으로 토큰 갱신 시도');
           const refreshResponse = await authApi.refresh(refreshToken);
-          // 새로운 Access Token 저장
           localStorage.setItem('token', refreshResponse.token);
-          // console.log('[AuthContext] 토큰 갱신 성공');
         } catch (refreshErr: any) {
-          // Refresh Token 갱신 실패 - 토큰이 만료되었거나 유효하지 않음
           console.log('[AuthContext] Refresh Token 갱신 실패:', refreshErr?.response?.status || refreshErr?.message);
           localStorage.removeItem('token');
           localStorage.removeItem('refreshToken');
@@ -72,30 +71,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const currentToken = localStorage.getItem('token');
       if (currentToken) {
         const userData = await authApi.getCurrentUser();
-        // userData가 snake_case(is_admin)로 올 수 있으니 camelCase로 변환
         const userWithCamel = { ...userData, isAdmin: userData.isAdmin ?? userData.is_admin ?? false };
         if (!userWithCamel.id) {
           console.error('[AuthContext] userData.id 없음!:', userWithCamel);
         }
         const profileData = await userApi.getUserProfile(userWithCamel.id);
         
-        // 상태를 한 번에 업데이트 (React가 자동으로 배칭)
-        setState(prev => ({
-          ...prev,
-          user: userWithCamel,
-          profile: profileData,
-        }));
+        // 결과 저장 (아직 setState 안 함)
+        authResult = { user: userWithCamel, profile: profileData };
       } else {
-        // 토큰이 없으면 로그인하지 않은 상태
-        setState(prev => ({
-          ...prev,
-          user: null,
-          profile: null,
-        }));
+        // 토큰이 없음
+        authResult = { user: null, profile: null };
       }
     } catch (err: any) {
-      // console.error('[AuthContext] 인증 복원 실패:', err);
-      
       // 네트워크 에러인 경우 상세 로그 출력
       if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network') || err?.message?.includes('network')) {
         console.error('[AuthContext] 네트워크 연결 실패');
@@ -110,28 +98,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (err?.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
-        setState(prev => ({
-          ...prev,
-          user: null,
-          profile: null,
-        }));
+        authResult = { user: null, profile: null };
       }
       // 401이 아닌 에러(네트워크 등)는 기존 상태 유지 (isInitial일 때만 초기화)
       else if (isInitial) {
-        // 앱 최초 시작 시에만 상태 초기화
-        setState(prev => ({
-          ...prev,
-          user: null,
-          profile: null,
-        }));
+        authResult = { user: null, profile: null };
       }
-      // 포어그라운드 복귀 등 isInitial=false일 때는 기존 user/profile 유지
+      // isInitial=false일 때는 authResult를 null로 두어 상태 유지
     } finally {
-      if (showLoading) {
-        // 로딩 상태를 한 번에 업데이트
+      // finally에서 모든 상태를 한 번에 업데이트!
+      if (authResult !== null) {
+        setState({
+          user: authResult.user,
+          profile: authResult.profile,
+          isLoading: false,
+          isInitialLoading: isInitial ? false : false, // isInitial이든 아니든 여기서 false
+        });
+      } else if (showLoading) {
+        // authResult가 null이면 로딩만 해제 (에러 발생 시 기존 상태 유지)
         setState(prev => ({
           ...prev,
-          isLoading: isInitial ? prev.isLoading : false,
+          isLoading: false,
           isInitialLoading: isInitial ? false : prev.isInitialLoading,
         }));
       }
@@ -192,38 +179,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credentials: LoginCredentials) => {
     setState(prev => ({ ...prev, isLoading: true }));
+    
     try {
       const response = await authApi.login(credentials);
       // Access Token과 Refresh Token 모두 저장
-      localStorage.setItem('token', response.token); // Access Token
+      localStorage.setItem('token', response.token);
       if (response.refreshToken) {
-        localStorage.setItem('refreshToken', response.refreshToken); // Refresh Token
+        localStorage.setItem('refreshToken', response.refreshToken);
       }
-      // console.log('[AuthContext] 로그인 성공, 토큰 저장:', response.token);
-      // console.log('[AuthContext] localStorage token:', localStorage.getItem('token'));
+      
       if (!response.user.id) {
         console.error('[AuthContext] 로그인 후 user.id 없음!:', response.user);
       }
+      
       // user 객체의 관리자 권한 필드를 camelCase로 변환
       const userWithCamel = { ...response.user, isAdmin: response.user.isAdmin ?? response.user.is_admin ?? false };
       const profileData = await userApi.getUserProfile(userWithCamel.id);
-      // console.log('[AuthContext] getUserProfile 성공:', profileData);
-      // console.log('[AuthContext] setAuthState 직전 (login)', { user: userWithCamel, profile: profileData });
-      setState(prev => ({
-        ...prev,
+      
+      // 한 번에 모든 상태 업데이트
+      setState({
         user: userWithCamel,
         profile: profileData,
         isLoading: false,
-      }));
+        isInitialLoading: false,
+      });
+      
       return { user: userWithCamel, profile: profileData };
     } catch (error) {
       console.error('[AuthContext] 로그인 실패:', error);
-      setState(prev => ({
-        ...prev,
+      
+      // 에러 시에도 한 번에 업데이트
+      setState({
         user: null,
         profile: null,
         isLoading: false,
-      }));
+        isInitialLoading: false,
+      });
+      
       throw error;
     }
   };
@@ -262,22 +254,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('[AuthContext] fetchUser: userData.id 없음!:', userWithCamel);
       }
       const profileData = await userApi.getUserProfile(userWithCamel.id);
-      // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
-      setState(prev => ({
-        ...prev,
-        user: userWithCamel,
-        profile: profileData,
-        isLoading: showLoading ? false : prev.isLoading,
-      }));
+      
+      // 한 번에 모든 상태 업데이트
+      if (showLoading) {
+        setState(prev => ({
+          ...prev,
+          user: userWithCamel,
+          profile: profileData,
+          isLoading: false,
+        }));
+      } else {
+        // 백그라운드 업데이트는 user/profile만
+        setState(prev => ({
+          ...prev,
+          user: userWithCamel,
+          profile: profileData,
+        }));
+      }
     } catch (err) {
       console.error('[AuthContext] fetchUser: 인증 복원 실패:', err);
       localStorage.removeItem('token');
-      setState(prev => ({
-        ...prev,
-        user: null,
-        profile: null,
-        isLoading: showLoading ? false : prev.isLoading,
-      }));
+      
+      // 에러 시에도 한 번에 업데이트
+      if (showLoading) {
+        setState(prev => ({
+          ...prev,
+          user: null,
+          profile: null,
+          isLoading: false,
+        }));
+      } else {
+        setState(prev => ({
+          ...prev,
+          user: null,
+          profile: null,
+        }));
+      }
     }
   };
 
