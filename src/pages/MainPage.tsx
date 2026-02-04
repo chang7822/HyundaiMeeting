@@ -1318,27 +1318,54 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   const openNativeAppSettings = useCallback(async () => {
     try {
-      if (!isNativeApp()) return;
+      if (!isNativeApp()) {
+        console.log('[설정 열기] 네이티브 앱이 아닙니다');
+        return;
+      }
 
       const platform = Capacitor.getPlatform();
+      console.log('[설정 열기] 플랫폼:', platform);
       
       if (platform === 'ios') {
         // iOS: capacitor-native-settings 플러그인 사용
         const { NativeSettings, IOSSettings } = await import('capacitor-native-settings');
-        await NativeSettings.openIOS({
+        console.log('[설정 열기] iOS NativeSettings 모듈 로드 완료');
+        
+        const result = await NativeSettings.openIOS({
           option: IOSSettings.App,
         });
-        console.log('[설정 열기] iOS 설정 화면으로 이동 완료');
+        
+        console.log('[설정 열기] iOS 설정 결과:', result);
+        
+        if (!result.success) {
+          console.error('[설정 열기] iOS 설정 열기 실패:', result.error);
+          toast.info('아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
+        }
       } else {
         // Android: capacitor-native-settings 플러그인 사용
         const { NativeSettings, AndroidSettings } = await import('capacitor-native-settings');
-        await NativeSettings.openAndroid({
-          option: AndroidSettings.ApplicationDetails,
+        console.log('[설정 열기] Android NativeSettings 모듈 로드 완료');
+        console.log('[설정 열기] AndroidSettings.AppNotification:', AndroidSettings.AppNotification);
+        
+        const result = await NativeSettings.openAndroid({
+          option: AndroidSettings.AppNotification, // 알림 설정 화면으로 바로 이동
         });
-        console.log('[설정 열기] Android 설정 화면으로 이동 완료');
+        
+        console.log('[설정 열기] Android 설정 결과:', result);
+        
+        if (!result.success) {
+          console.error('[설정 열기] Android 설정 열기 실패:', result.error);
+          toast.info('설정 > 애플리케이션 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
+        } else {
+          console.log('[설정 열기] Android 알림 설정 화면으로 이동 성공');
+        }
       }
     } catch (e) {
-      console.error('[push] 앱 설정 열기 실패:', e);
+      console.error('[설정 열기] 예외 발생:', e);
+      console.error('[설정 열기] 예외 타입:', typeof e);
+      console.error('[설정 열기] 예외 메시지:', (e as any)?.message);
+      console.error('[설정 열기] 예외 전체:', JSON.stringify(e, null, 2));
+      
       const platform = Capacitor.getPlatform();
       const msg = platform === 'ios' 
         ? '아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.'
