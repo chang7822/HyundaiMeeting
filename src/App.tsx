@@ -430,43 +430,41 @@ const AppInner: React.FC = () => {
             localStorage.setItem(PROMPTED_KEY, 'true');
             console.log('[푸시 알림 설정] 플래그 저장 완료');
             
-            if (isIOS) {
-              // iOS: 커스텀 모달을 먼저 표시
-              console.log('[푸시 알림 설정] iOS 커스텀 모달 표시 시도');
-              setShowPushPermissionModal(true);
+            // iOS & Android 공통: 커스텀 모달을 먼저 표시
+            console.log('[푸시 알림 설정] 커스텀 모달 표시 시도 (플랫폼:', platform, ')');
+            setShowPushPermissionModal(true);
 
-              // 이벤트 리스너 등록
-              const handlePushPermissionResponse = async (event: Event) => {
-                const customEvent = event as CustomEvent;
-                if (customEvent.detail?.allowed) {
-                  // denied 상태라면 시스템 권한 요청해도 팝업이 안 뜨므로 
-                  // 바로 설정 안내 토스트 표시
-                  if (receive === 'denied') {
-                    toast.info('iOS 설정에서 알림 권한을 허용해주세요');
-                  } else {
-                    await requestSystemPermission();
-                  }
+            // 이벤트 리스너 등록
+            const handlePushPermissionResponse = async (event: Event) => {
+              const customEvent = event as CustomEvent;
+              if (customEvent.detail?.allowed) {
+                // denied 상태라면 시스템 권한 요청해도 팝업이 안 뜨므로 
+                // 바로 설정 안내 토스트 표시
+                if (receive === 'denied') {
+                  const settingGuide = isIOS 
+                    ? 'iOS 설정에서 알림 권한을 허용해주세요'
+                    : 'Android 설정에서 알림 권한을 허용해주세요';
+                  toast.info(settingGuide);
                 } else {
-                  // 사용자가 "나중에" 선택 - 토글 OFF
-                  try {
-                    localStorage.setItem(`pushEnabled_${user.id}`, 'false');
-                  } catch {
-                    // ignore
-                  }
+                  await requestSystemPermission();
                 }
-                // 모달은 이미 handlePushPermissionAllow/Deny에서 닫혔음
-              };
+              } else {
+                // 사용자가 "나중에" 선택 - 토글 OFF
+                try {
+                  localStorage.setItem(`pushEnabled_${user.id}`, 'false');
+                } catch {
+                  // ignore
+                }
+              }
+              // 모달은 이미 handlePushPermissionAllow/Deny에서 닫혔음
+            };
 
-              window.addEventListener('push-permission-response', handlePushPermissionResponse);
+            window.addEventListener('push-permission-response', handlePushPermissionResponse);
 
-              // cleanup 함수 저장
-              cleanup = () => {
-                window.removeEventListener('push-permission-response', handlePushPermissionResponse);
-              };
-            } else {
-              // Android: 기존 방식 (바로 시스템 권한 요청)
-              await requestSystemPermission();
-            }
+            // cleanup 함수 저장
+            cleanup = () => {
+              window.removeEventListener('push-permission-response', handlePushPermissionResponse);
+            };
           }
         }
       } catch (error) {
@@ -939,6 +937,7 @@ const AppInner: React.FC = () => {
               isOpen={showPushPermissionModal}
               onAllow={handlePushPermissionAllow}
               onDeny={handlePushPermissionDeny}
+              platform={Capacitor.getPlatform() as 'ios' | 'android' | 'web'}
             />
             
           </div>

@@ -6,6 +6,7 @@ interface PushPermissionModalProps {
   isOpen: boolean;
   onAllow: () => void;
   onDeny: () => void;
+  platform?: 'ios' | 'android' | 'web';
 }
 
 const Overlay = styled.div`
@@ -165,8 +166,16 @@ const Button = styled.button<{ $primary?: boolean }>`
   `}
 `;
 
-const PushPermissionModal: React.FC<PushPermissionModalProps> = ({ isOpen, onAllow, onDeny }) => {
+const PushPermissionModal: React.FC<PushPermissionModalProps> = ({ isOpen, onAllow, onDeny, platform = 'ios' }) => {
   if (!isOpen) return null;
+
+  // 플랫폼별 설정 경로 안내
+  const getSettingsGuide = () => {
+    if (platform === 'android') {
+      return '설정 > 앱 > 직쏠공 > 알림';
+    }
+    return '아이폰 설정 > 직쏠공 > 알림';
+  };
 
   return (
     <Overlay>
@@ -197,7 +206,7 @@ const PushPermissionModal: React.FC<PushPermissionModalProps> = ({ isOpen, onAll
 
           <WarningBox>
             <strong>⚠️ 거부 시 안내</strong>
-            알림을 거부하시면, 추후 알림 설정을 위해 <strong>아이폰 설정 &gt; 직쏠공 &gt; 알림</strong>에서 수동으로 허용하셔야 합니다.
+            알림을 거부하시면, 추후 알림 설정을 위해 <strong>{getSettingsGuide()}</strong>에서 수동으로 허용하셔야 합니다.
           </WarningBox>
 
           <ButtonGroup>
