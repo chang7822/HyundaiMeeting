@@ -16,8 +16,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/" replace />;
   }
 
-  // App.tsx에서 이미 user/profile을 기다리므로 여기서는 바로 렌더링
-  // 만약 데이터가 없으면 "/" 로 리다이렉트 (다시 LoadingSpinner 표시)
+  // 로딩 중이 아닌데 데이터가 없으면 로그아웃 (무한 루프 방지)
+  if (!hasEssentialData && !isLoading) {
+    // 토큰이 있는데 user가 없는 비정상 상태 → 로그아웃
+    if (localStorage.getItem('token')) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('refreshToken');
+    }
+    return <Navigate to="/" replace />;
+  }
+
+  // 로딩 중이면서 데이터 없으면 "/" 리다이렉트 (App.tsx의 LoadingSpinner 표시)
   if (!hasEssentialData) {
     return <Navigate to="/" replace />;
   }

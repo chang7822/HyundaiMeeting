@@ -83,13 +83,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // 네트워크 에러인 경우 상세 로그 출력
       if (err?.code === 'NETWORK_ERROR' || err?.message?.includes('Network') || err?.message?.includes('network')) {
         console.error('[AuthContext] 네트워크 연결 실패');
-        // console.error('[AuthContext] API URL:', process.env.REACT_APP_API_URL);
-        // console.error('[AuthContext] 에러 상세:', {
-        //   message: err?.message,
-        //   code: err?.code,
-        //   response: err?.response?.status,
-        //   config: err?.config?.url
-        // });
       }
       
       // CORS 에러인 경우
@@ -97,13 +90,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('[AuthContext] CORS 에러 발생 - 서버 CORS 설정 확인 필요');
       }
       
-      // 401 에러가 발생하면 토큰 삭제 (이미 갱신 시도했거나 Refresh Token이 없음)
+      // 401 에러가 발생하면 토큰 삭제하고 상태 초기화
       if (err?.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
+        setAuthState({ user: null, profile: null });
       }
-      
-      setAuthState({ user: null, profile: null });
+      // 401이 아닌 에러(네트워크 등)는 기존 상태 유지 (isInitial일 때만 초기화)
+      else if (isInitial) {
+        // 앱 최초 시작 시에만 상태 초기화
+        setAuthState({ user: null, profile: null });
+      }
+      // 포어그라운드 복귀 등 isInitial=false일 때는 기존 user/profile 유지
     } finally {
       if (showLoading) {
         if (isInitial) {
