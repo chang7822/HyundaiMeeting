@@ -25,12 +25,12 @@ const PageContainer = styled.div<{ $sidebarOpen: boolean }>`
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 24px 24px 28px;
-    padding-top: 80px; /* 모바일에서 사이드바 플로팅 토글 버튼과 겹치지 않도록 상단 여백 추가 */
+    padding-top: calc(80px + env(safe-area-inset-top, 0px)); /* 모바일에서 사이드바 플로팅 토글 버튼과 겹치지 않도록 상단 여백 추가 + iOS Safe Area */
   }
 
   @media (max-width: 480px) {
     padding: 20px 20px 24px;
-    padding-top: 70px;
+    padding-top: calc(70px + env(safe-area-inset-top, 0px));
   }
 `;
 

@@ -1,3 +1,11 @@
+:root {
+  /* iOS Safe Area 지원 */
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -52,9 +60,23 @@ input, textarea, [contenteditable] {
   user-select: text;
 }
 
-/* 토스트 컨테이너 터치 최적화 */
+/* 토스트 컨테이너 터치 최적화 + iOS Safe Area */
 .Toastify__toast-container {
   touch-action: manipulation;
+}
+
+.Toastify__toast-container--top-right {
+  top: calc(1em + var(--safe-area-inset-top));
+  right: calc(1em + var(--safe-area-inset-right));
+}
+
+.Toastify__toast-container--top-left {
+  top: calc(1em + var(--safe-area-inset-top));
+  left: calc(1em + var(--safe-area-inset-left));
+}
+
+.Toastify__toast-container--top-center {
+  top: calc(1em + var(--safe-area-inset-top));
 }
 
 .Toastify__toast {

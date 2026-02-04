@@ -16,15 +16,15 @@ const LandingContainer = styled.div`
   color: white;
   text-align: center;
   padding: 20px;
-  padding-top: 60px;
+  padding-top: calc(60px + env(safe-area-inset-top, 0px));
   
   @media (max-width: 768px) {
-    padding-top: 80px;
+    padding-top: calc(80px + env(safe-area-inset-top, 0px));
     padding-bottom: 40px;
   }
   
   @media (max-width: 480px) {
-    padding-top: 100px;
+    padding-top: calc(100px + env(safe-area-inset-top, 0px));
     padding-bottom: 30px;
   }
 `;

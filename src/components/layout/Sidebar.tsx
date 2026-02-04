@@ -67,7 +67,7 @@ const MobileOverlay = styled.div<{ $isOpen: boolean }>`
 
 const SidebarCloseButton = styled.button`
   position: absolute;
-  top: 18px;
+  top: calc(18px + env(safe-area-inset-top, 0px));
   right: 18px;
   z-index: 1100;
   background: transparent;
@@ -89,6 +89,7 @@ const SidebarCloseButton = styled.button`
 
 const SidebarHeader = styled.div`
   padding: 2rem 1.5rem 1rem;
+  padding-top: calc(2rem + env(safe-area-inset-top, 0px));
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
 `;
@@ -1214,7 +1215,17 @@ const Sidebar: React.FC<{
   return (
     <>
       {!isOpen && (
-        <SidebarCloseButton onClick={onToggle} style={{ position: 'fixed', left: 20, top: 20, background: '#667eea', color: '#fff', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' }}>
+        <SidebarCloseButton 
+          onClick={onToggle} 
+          style={{ 
+            position: 'fixed', 
+            left: 20, 
+            top: `calc(20px + env(safe-area-inset-top, 0px))`, 
+            background: '#667eea', 
+            color: '#fff', 
+            boxShadow: '0 2px 10px rgba(0,0,0,0.2)' 
+          }}
+        >
           <FaBars />
         </SidebarCloseButton>
       )}
