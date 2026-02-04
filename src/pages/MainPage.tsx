@@ -1333,7 +1333,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         // Android: capacitor-native-settings 플러그인 사용
         const { NativeSettings, AndroidSettings } = await import('capacitor-native-settings');
         await NativeSettings.openAndroid({
-          option: AndroidSettings.Application,
+          option: AndroidSettings.ApplicationDetails,
         });
         console.log('[설정 열기] Android 설정 화면으로 이동 완료');
       }
@@ -1887,8 +1887,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   
   // 핵심 데이터 로딩 시 전체 스피너
   // isPageReady: 매칭 기간, 공지사항 등 초기 데이터 로드 완료
-  // statusLoading: 매칭 상태 초기 로드 중 (한 번만 true)
-  if (!user || !profile || !isPageReady || statusLoading) {
+  // statusLoading: 매칭 상태 초기 로드 중 (한 번만 true) - 제거하여 깜빡임 방지
+  if (!user || !profile || !isPageReady) {
     return <LoadingSpinner sidebarOpen={sidebarOpen} />;
   }
 
