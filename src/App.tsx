@@ -135,7 +135,7 @@ const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading, logout, isInitialLoading } = useAuth() as any;
+  const { user, profile, isAuthenticated, isLoading, logout, isInitialLoading } = useAuth() as any;
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   
@@ -616,8 +616,8 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={
-                isInitialLoading || pendingNavigationRef.current ? (
-                  // 초기 로딩 중이거나 대기 중인 네비게이션이 있으면 로딩 표시
+                isInitialLoading || pendingNavigationRef.current || (isAuthenticated && (isLoading || !user || !profile)) ? (
+                  // 초기 로딩 중이거나, 대기 중인 네비게이션이 있거나, 인증된 사용자 데이터 로딩 중이면 로딩 표시
                   <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
                 ) : (
                   isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
