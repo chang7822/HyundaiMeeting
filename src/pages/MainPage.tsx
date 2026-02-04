@@ -815,6 +815,11 @@ const SwitchInput = styled.input`
   &:checked + span:before {
     transform: translateX(16px);
   }
+
+  &:disabled + span {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 const SwitchSlider = styled.span`
@@ -838,6 +843,10 @@ const SwitchSlider = styled.span`
     background-color: white;
     transition: 0.3s;
     border-radius: 50%;
+  }
+
+  input:disabled ~ & {
+    cursor: not-allowed;
   }
 `;
 
@@ -1311,19 +1320,30 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     try {
       if (!isNativeApp()) return;
 
-      // Android와 iOS 모두 AppSettings 플러그인 사용
-      const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
-      await AppSettings.open();
-      
       const platform = Capacitor.getPlatform();
-      console.log(`[설정 열기] ${platform} 플랫폼에서 설정 화면으로 이동 시도`);
+      
+      if (platform === 'ios') {
+        // iOS: capacitor-native-settings 플러그인 사용
+        const { NativeSettings, IOSSettings } = await import('capacitor-native-settings');
+        await NativeSettings.openIOS({
+          option: IOSSettings.App,
+        });
+        console.log('[설정 열기] iOS 설정 화면으로 이동 완료');
+      } else {
+        // Android: capacitor-native-settings 플러그인 사용
+        const { NativeSettings, AndroidSettings } = await import('capacitor-native-settings');
+        await NativeSettings.openAndroid({
+          option: AndroidSettings.Application,
+        });
+        console.log('[설정 열기] Android 설정 화면으로 이동 완료');
+      }
     } catch (e) {
       console.error('[push] 앱 설정 열기 실패:', e);
       const platform = Capacitor.getPlatform();
       const msg = platform === 'ios' 
         ? '아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.'
         : '설정 > 애플리케이션 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.';
-      toast.error(msg);
+      toast.info(msg);
     }
   }, []);
   
@@ -2374,8 +2394,169 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     setShowMatchingStarConfirmModal(true);
   };
 
-  // 2) 두 번째 모달: 확인 클릭 시 실제 신청(⭐5 차감 포함)
+  // 2) 두 번째 모달: 확인 클릭 시 보상형 광고 표시
   const handleMatchingStarConfirm = async () => {
+    if (!user?.id) return;
+    
+    // 네이티브 앱에서만 광고 표시
+    if (!isNativeApp()) {
+      await handleActualMatching();
+      return;
+    }
+    
+    setActionLoading(true);
+    let removeListeners: (() => Promise<void>) | null = null;
+    
+    try {
+      // WebView 준비 확인
+      const waitForWebViewReady = () => {
+        return new Promise<void>((resolve) => {
+          if (document.readyState === 'complete') {
+            setTimeout(resolve, 1000);
+          } else {
+            window.addEventListener('load', () => {
+              setTimeout(resolve, 1000);
+            });
+          }
+        });
+      };
+      
+      await waitForWebViewReady();
+      
+      // AdMob 모듈 로드
+      let RewardedAd;
+      let RewardedInterstitialAd;
+      let AdMob;
+      try {
+        const admobModule = await import('@capgo/capacitor-admob');
+        RewardedAd = admobModule.RewardedAd;
+        RewardedInterstitialAd = admobModule.RewardedInterstitialAd || admobModule.RewardedAd;
+        AdMob = admobModule.AdMob;
+      } catch (importError: any) {
+        toast.error('광고 모듈을 불러올 수 없습니다.');
+        setActionLoading(false);
+        return;
+      }
+      
+      // 플랫폼별 광고 ID 설정
+      const { Capacitor } = await import('@capacitor/core');
+      const platform = Capacitor.getPlatform();
+      const isIOS = platform === 'ios';
+      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+      const adId = isTesting 
+        ? 'ca-app-pub-3940256099942544/5354046379' // Google 테스트 Rewarded Interstitial ID
+        : isIOS
+          ? 'ca-app-pub-1352765336263182/8848248607' // iOS 보상형
+          : 'ca-app-pub-1352765336263182/8702080467'; // Android 보상형
+      
+      // 보상형 전면 광고 생성
+      const rewardedAd = new RewardedInterstitialAd({
+        adUnitId: adId,
+      });
+
+      // 플러그인 이벤트 기반으로 "리워드 지급" 여부를 판정해야 함
+      let rewarded = false;
+      let dismissed = false;
+      let showFailed: string | undefined;
+      let rewardPromise: Promise<void> | null = null;
+      
+      // 광고 로드
+      try {
+        await rewardedAd.load();
+      } catch (loadError: any) {
+        // 로드 실패 시 재시도
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        await rewardedAd.load();
+      }
+
+      // 로드 성공 후에 리스너를 등록
+      {
+        let rewardHandle: any;
+        let dismissHandle: any;
+        let showFailHandle: any;
+
+        removeListeners = async () => {
+          try { await rewardHandle?.remove?.(); } catch {}
+          try { await dismissHandle?.remove?.(); } catch {}
+          try { await showFailHandle?.remove?.(); } catch {}
+        };
+
+        rewardPromise = new Promise<void>((resolve, reject) => {
+          const safeResolve = async () => {
+            await removeListeners?.();
+            resolve();
+          };
+          const safeReject = async (err: any) => {
+            await removeListeners?.();
+            reject(err);
+          };
+
+          (async () => {
+            try {
+              rewardHandle = await AdMob.addListener('rewardedi.reward', (event: any) => {
+                console.log('[AdMob] rewardedi.reward 이벤트 수신', event);
+                if (rewarded) return;
+                rewarded = true;
+                console.log('[AdMob] ✅ 보상 지급 확인');
+                safeResolve();
+              });
+
+              dismissHandle = await AdMob.addListener('rewardedi.dismiss', (event: any) => {
+                console.log('[AdMob] rewardedi.dismiss 이벤트 수신', event);
+                if (dismissed) return;
+                dismissed = true;
+                console.log('[AdMob] ❌ 광고 닫힘 확인 (중간에 닫음)');
+                safeResolve();
+              });
+
+              showFailHandle = await AdMob.addListener('rewardedi.showfail', (event: any) => {
+                console.log('[AdMob] rewardedi.showfail 이벤트 수신', event);
+                showFailed = event?.error || event?.message || '광고 표시 실패';
+                safeReject(new Error(showFailed || '광고 표시 실패'));
+              });
+              
+              console.log('[AdMob] 📡 보상형 전면 광고 이벤트 리스너 등록 완료');
+            } catch (e) {
+              console.error('[AdMob] ❌ 이벤트 리스너 등록 실패:', e);
+              safeReject(e);
+            }
+          })();
+        });
+      }
+      
+      // 광고 표시
+      await rewardedAd.show();
+
+      // rewarded.reward(보상) 또는 rewarded.dismiss(닫힘) 이벤트를 기다림
+      await Promise.race([
+        rewardPromise!,
+        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('광고 응답이 지연되었습니다. 잠시 후 다시 시도해주세요.')), 90_000)),
+      ]);
+
+      // 광고 시청 완료 여부에 따라 매칭 신청 처리
+      if (rewarded) {
+        // 광고 시청 완료 → 매칭 신청 진행
+        await handleActualMatching();
+      } else {
+        // 광고를 끝까지 시청하지 않음
+        setActionLoading(false);
+        setShowMatchingStarConfirmModal(false);
+        if (!dismissed) {
+          toast.warning('광고를 끝까지 시청해야 매칭 신청이 완료됩니다.');
+        } else {
+          toast.info('광고를 끝까지 시청해야 매칭 신청이 완료됩니다.');
+        }
+      }
+    } catch (error: any) {
+      toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
+      setActionLoading(false);
+    } finally {
+      try { await removeListeners?.(); } catch {}
+    }
+  };
+
+  // 실제 매칭 신청 처리
+  const handleActualMatching = async () => {
     if (!user?.id) return;
     setActionLoading(true);
     try {
@@ -2543,10 +2724,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
-                      // 토큰 등록/해제 진행 중이면 안내 후 무시
                       if (isPushBusy) {
-                        toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
-                        return;
+                        return; // 토큰 발급 중에는 무시
                       }
                       
                       if (!isPushEnabled) {
@@ -2560,16 +2739,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         handleTogglePush();
                       }
                     }}
-                    // denied 상태여도 사용자가 다시 토글하면 requestPermissions()를 재시도하고,
-                    // OS가 팝업을 막는 경우 "설정으로 이동" 모달로 안내한다.
-                    // NOTE: disabled로 막으면 모바일에서 "아무 반응 없음" 체감이 생길 수 있어,
-                    // 로딩 상태만 막고(아주 예외), 나머지는 핸들러에서 안내한다.
-                    disabled={isLoading}
-                    title={isLoading ? '로딩 중입니다...' : ''}
+                    disabled={isLoading || isPushBusy}
+                    title={isLoading ? '로딩 중입니다...' : isPushBusy ? '푸시 알림 설정 중...' : ''}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
-                {isNativeApp() && pushPermissionStatus === 'denied' && (
+                {isNativeApp() && pushPermissionStatus === 'denied' && !isPushBusy && (
                   <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
                     (알림 권한 필요)
                   </span>
@@ -2862,10 +3037,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     type="checkbox"
                     checked={isPushEnabled}
                     onChange={() => {
-                      // 토큰 등록/해제 진행 중이면 안내 후 무시
                       if (isPushBusy) {
-                        toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
-                        return;
+                        return; // 토큰 발급 중에는 무시
                       }
                       
                       if (!isPushEnabled) {
@@ -2879,14 +3052,12 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         handleTogglePush();
                       }
                     }}
-                    // disabled로 막으면 모바일에서 "아무 반응 없음" 체감이 생길 수 있어,
-                    // 로딩 상태만 막고(아주 예외), 나머지는 핸들러에서 안내한다.
-                    disabled={isLoading}
-                    title={isLoading ? '로딩 중입니다...' : ''}
+                    disabled={isLoading || isPushBusy}
+                    title={isLoading ? '로딩 중입니다...' : isPushBusy ? '푸시 알림 설정 중...' : ''}
                   />
                   <SwitchSlider />
                 </SwitchLabel>
-                {isNativeApp() && pushPermissionStatus === 'denied' && (
+                {isNativeApp() && pushPermissionStatus === 'denied' && !isPushBusy && (
                   <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
                     (알림 권한 필요)
                   </span>

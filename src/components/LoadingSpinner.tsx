@@ -16,6 +16,7 @@ const LoadingSpinner = ({
 }) => {
   const bannerAdRef = useRef<any>(null);
   const isMountedRef = useRef(true);
+  const isShowingRef = useRef(false); // 배너 표시 상태 추적
 
   useEffect(() => {
     // 네이티브 앱에서만 광고 표시
@@ -25,6 +26,12 @@ const LoadingSpinner = ({
 
     const loadNativeAd = async () => {
       try {
+        // 이미 배너가 표시 중이면 재사용 (깜빡임 방지)
+        if (isShowingRef.current && bannerAdRef.current) {
+          console.log('[LoadingSpinner] 배너 이미 표시 중 - 재사용');
+          return;
+        }
+
         // 화면이 완전히 렌더링된 후 광고 표시 (깜빡임 최소화)
         await new Promise(resolve => setTimeout(resolve, 300));
         
@@ -32,6 +39,7 @@ const LoadingSpinner = ({
           if (!isMountedRef.current) return; // 언마운트되었으면 중단
           bannerAdRef.current = preloadedBanner;
           await preloadedBanner.show();
+          isShowingRef.current = true; // 표시 상태 기록
           return;
         }
 
@@ -53,26 +61,35 @@ const LoadingSpinner = ({
         if (!isMountedRef.current) return; // 언마운트되었으면 중단
         bannerAdRef.current = banner;
         await banner.show();
+        isShowingRef.current = true; // 표시 상태 기록
       } catch (error) {
         console.error('[LoadingSpinner] 광고 로드 실패:', error);
+        isShowingRef.current = false;
       }
     };
 
     loadNativeAd();
 
+    // cleanup 함수는 실제 컴포넌트가 완전히 언마운트될 때만 실행되도록
+    // 여기서는 아무것도 안 함 (배너를 계속 유지)
     return () => {
-      // 컴포넌트 언마운트 시 플래그 설정 및 광고 즉시 숨김
       isMountedRef.current = false;
-      
-      if (bannerAdRef.current) {
-        // 즉시 실행 (await 없이)
+    };
+  }, [preloadedBanner]);
+
+  // 컴포넌트가 완전히 언마운트될 때만 배너 숨김
+  useEffect(() => {
+    return () => {
+      if (bannerAdRef.current && isShowingRef.current) {
+        console.log('[LoadingSpinner] 컴포넌트 언마운트 - 배너 숨김');
         bannerAdRef.current.hide().catch((e: any) => {
           console.error('[LoadingSpinner] 광고 숨김 실패:', e);
         });
         bannerAdRef.current = null;
+        isShowingRef.current = false;
       }
     };
-  }, [preloadedBanner]);
+  }, []); // 빈 배열 - 컴포넌트 마운트 시 한 번만 등록
 
   // 네이티브: 고정된 화면 높이 기준, 배너(60px) + 여유(30px) 제외
   // 웹: 단순히 화면 중앙 (배너 없음)
@@ -95,7 +112,7 @@ const LoadingSpinner = ({
     {/* 스피너 + 아이콘 */}
     <div style={{
       position: 'fixed',
-      left: sidebarOpen ? 'calc(50% + 140px)' : '50%',
+      left: '50%',
       top: topPosition,
       transform: 'translate(-50%, -50%)',
       zIndex: 2001,

@@ -135,7 +135,7 @@ const AppInner: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading, logout, isInitialLoading } = useAuth() as any;
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
   
@@ -454,7 +454,7 @@ const AppInner: React.FC = () => {
                     // ignore
                   }
                 }
-                setShowPushPermissionModal(false);
+                // 모달은 이미 handlePushPermissionAllow/Deny에서 닫혔음
               };
 
               window.addEventListener('push-permission-response', handlePushPermissionResponse);
@@ -618,8 +618,8 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={
-                isLoading || pendingNavigationRef.current ? (
-                  // 로딩 중이거나 대기 중인 네비게이션이 있으면 로딩 표시
+                isInitialLoading || pendingNavigationRef.current ? (
+                  // 초기 로딩 중이거나 대기 중인 네비게이션이 있으면 로딩 표시
                   <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
                 ) : (
                   isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
@@ -961,6 +961,10 @@ const AppInner: React.FC = () => {
 
   // 푸시 알림 권한 허용
   function handlePushPermissionAllow() {
+    // 모달 즉시 닫기
+    setShowPushPermissionModal(false);
+    
+    // 시스템 권한 요청 이벤트 발생
     window.dispatchEvent(new CustomEvent('push-permission-response', {
       detail: { allowed: true }
     }));
@@ -968,6 +972,10 @@ const AppInner: React.FC = () => {
 
   // 푸시 알림 권한 거부 (나중에)
   function handlePushPermissionDeny() {
+    // 모달 즉시 닫기
+    setShowPushPermissionModal(false);
+    
+    // 거부 이벤트 발생
     window.dispatchEvent(new CustomEvent('push-permission-response', {
       detail: { allowed: false }
     }));

@@ -110,24 +110,29 @@ export async function getNativePushToken(skipPermissionCheck: boolean = false): 
     }
     
     // 푸시 알림 등록
+    console.log('[push] 🔵 PushNotifications.register() 호출 시작');
     await PushNotifications.register();
+    console.log('[push] 🔵 PushNotifications.register() 호출 완료, 토큰 대기 중...');
     
     const timeoutMs = 10000;
     
     // 토큰 받기 (Promise로 감싸기)
     return new Promise((resolve) => {
       PushNotifications.addListener('registration', (token) => {
+        console.log('[push] 🎉 토큰 수신 성공!:', token.value);
         resolve(token.value);
       });
       
       PushNotifications.addListener('registrationError', (error) => {
-        console.error('[push] 네이티브 푸시 토큰 등록 실패:', error);
+        console.error('[push] ❌ 네이티브 푸시 토큰 등록 실패:', error);
+        console.error('[push] 에러 상세:', JSON.stringify(error));
         resolve(null);
       });
       
       // 타임아웃
       setTimeout(() => {
-        console.error('[push] 네이티브 푸시 토큰 대기 시간 초과');
+        console.error('[push] ⏰ 네이티브 푸시 토큰 대기 시간 초과 (10초)');
+        console.error('[push] registration 이벤트가 발생하지 않았습니다.');
         resolve(null);
       }, timeoutMs);
     });

@@ -16,7 +16,8 @@ let package = Package(
         .package(name: "CapacitorLocalNotifications", path: "../../../node_modules/@capacitor/local-notifications"),
         .package(name: "CapacitorPushNotifications", path: "../../../node_modules/@capacitor/push-notifications"),
         .package(name: "CapacitorStatusBar", path: "../../../node_modules/@capacitor/status-bar"),
-        .package(name: "CapgoCapacitorAdmob", path: "../../../node_modules/@capgo/capacitor-admob")
+        .package(name: "CapgoCapacitorAdmob", path: "../../../node_modules/@capgo/capacitor-admob"),
+        .package(name: "CapacitorNativeSettings", path: "../../../node_modules/capacitor-native-settings")
     ],
     targets: [
         .target(
@@ -28,7 +29,8 @@ let package = Package(
                 .product(name: "CapacitorLocalNotifications", package: "CapacitorLocalNotifications"),
                 .product(name: "CapacitorPushNotifications", package: "CapacitorPushNotifications"),
                 .product(name: "CapacitorStatusBar", package: "CapacitorStatusBar"),
-                .product(name: "CapgoCapacitorAdmob", package: "CapgoCapacitorAdmob")
+                .product(name: "CapgoCapacitorAdmob", package: "CapgoCapacitorAdmob"),
+                .product(name: "CapacitorNativeSettings", package: "CapacitorNativeSettings")
             ]
         )
     ]

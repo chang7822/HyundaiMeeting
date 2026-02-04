@@ -19,12 +19,17 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [authState, setAuthState] = useState<{ user: User | null; profile: UserProfile | null }>({ user: null, profile: null });
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // 토큰 갱신 및 사용자 정보 로드 함수
-  const restoreAuth = useCallback(async (showLoading = true) => {
+  const restoreAuth = useCallback(async (showLoading = true, isInitial = false) => {
     if (showLoading) {
-      setIsLoading(true);
+      if (isInitial) {
+        setIsInitialLoading(true);
+      } else {
+        setIsLoading(true);
+      }
     }
     
     const token = localStorage.getItem('token');
@@ -46,7 +51,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.removeItem('refreshToken');
           setAuthState({ user: null, profile: null });
           if (showLoading) {
-            setIsLoading(false);
+            if (isInitial) {
+              setIsInitialLoading(false);
+            } else {
+              setIsLoading(false);
+            }
           }
           return;
         }
@@ -97,14 +106,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setAuthState({ user: null, profile: null });
     } finally {
       if (showLoading) {
-        setIsLoading(false);
+        if (isInitial) {
+          setIsInitialLoading(false);
+        } else {
+          setIsLoading(false);
+        }
       }
     }
   }, []);
 
-  // 앱 시작 시 인증 복원
+  // 앱 시작 시 인증 복원 (초기 로딩만 표시)
   useEffect(() => {
-    restoreAuth(true);
+    restoreAuth(true, true);
   }, [restoreAuth]);
 
   // 포어그라운드로 돌아올 때 토큰 갱신
@@ -235,7 +248,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const { user, profile } = authState;
   // console.log('[AuthContext] value 리턴 직전', { user, profile, isLoading });
-  const value: AuthContextType & { setProfile: (profile: UserProfile) => void; fetchUser: typeof fetchUser } = {
+  const value: AuthContextType & { setProfile: (profile: UserProfile) => void; fetchUser: typeof fetchUser; isInitialLoading: boolean } = {
     user,
     profile,
     login,
@@ -244,6 +257,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     setProfile: setProfileOnly,
     fetchUser,
+    isInitialLoading,
   };
   // console.log('[AuthContext] value 리턴', { user, profile, isLoading, isAuthenticated: !!user });
 

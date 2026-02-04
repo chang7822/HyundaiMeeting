@@ -246,7 +246,7 @@ const BodyTypeButton = styled.button<{ selected: boolean }>`
 
 const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const navigate = useNavigate();
-  const { isLoading, isAuthenticated, fetchUser, user, logout } = useAuth();
+  const { isAuthenticated, fetchUser, user, logout } = useAuth();
   const [categories, setCategories] = useState<ProfileCategory[]>([]);
   const [options, setOptions] = useState<ProfileOption[]>([]);
   const [profile, setProfile] = useState<Partial<UserProfile & User>>({});
@@ -306,8 +306,8 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   useEffect(() => {
     setLoading(true);
-    // console.log('[ProfilePage] useEffect 진입, isLoading:', isLoading, 'isAuthenticated:', isAuthenticated);
-    if (isLoading || !isAuthenticated) return;
+    // console.log('[ProfilePage] useEffect 진입, isAuthenticated:', isAuthenticated);
+    if (!isAuthenticated) return;
     // console.log('[ProfilePage] 인증 복원 완료, 내 정보 API 호출');
     (async () => {
       try {
@@ -351,7 +351,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         setLoading(false); // 모든 데이터 로딩 후 로딩 해제
       }
     })();
-  }, [isLoading, isAuthenticated]);
+  }, [isAuthenticated]);
 
   const getOptions = (catName:string) => {
     const cat = categories.find((c) => c.name === catName);
@@ -545,7 +545,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return options.filter(o => o.category_id === cat.id).map(o => o.option_text);
   })();
 
-  if (isLoading || !isAuthenticated) return null;
+  if (!isAuthenticated) return null;
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
