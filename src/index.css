@@ -1,5 +1,13 @@
 :root {
-  /* iOS Safe Area 지원 */
+  /* 기본값: Safe Area 없음 (Android, Web) */
+  --safe-area-inset-top: 0px;
+  --safe-area-inset-bottom: 0px;
+  --safe-area-inset-left: 0px;
+  --safe-area-inset-right: 0px;
+}
+
+/* iOS에서만 Safe Area 적용 */
+body.platform-ios {
   --safe-area-inset-top: env(safe-area-inset-top, 0px);
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-inset-left: env(safe-area-inset-left, 0px);
