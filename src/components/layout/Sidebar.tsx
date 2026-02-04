@@ -1191,9 +1191,10 @@ const Sidebar: React.FC<{
   // console.log('[Sidebar] adminMenuItems 배열:', adminMenuItems);
 
   const handleNavClick = (path: string) => {
-    // 현재 메인페이지에 있고, 클릭한 경로도 메인페이지인 경우 새로고침
+    // 현재 메인페이지에 있고, 클릭한 경로도 메인페이지인 경우 강제 재로드
     if (location.pathname === '/main' && path === '/main') {
-      window.location.reload();
+      navigate('/main', { replace: true, state: { forceReload: Date.now() } });
+      window.dispatchEvent(new CustomEvent('main-page-reload'));
       return;
     }
     
@@ -1226,9 +1227,12 @@ const Sidebar: React.FC<{
         )}
         <SidebarHeader>
           <Logo onClick={() => {
-            // 현재 메인페이지에 있는 경우 새로고침
+            // 현재 메인페이지에 있는 경우 강제 재로드
             if (location.pathname === '/main') {
-              window.location.reload();
+              // window.location.reload() 대신 navigate로 재로드
+              navigate('/main', { replace: true, state: { forceReload: Date.now() } });
+              // 페이지 새로고침 이벤트 발생
+              window.dispatchEvent(new CustomEvent('main-page-reload'));
             } else {
               navigate('/main');
             }

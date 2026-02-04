@@ -42,6 +42,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
     // isInitial일 때는 이미 isInitialLoading=true이므로 setState 불필요!
     
+    // 광고 노출을 위한 최소 로딩 시간 (초기 로딩 시에만)
+    const startTime = isInitial ? Date.now() : 0;
+    const MIN_LOADING_TIME = 2500; // 2.5초
+    
     const token = localStorage.getItem('token');
     const refreshToken = localStorage.getItem('refreshToken');
     
@@ -107,6 +111,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
       // isInitial=false일 때는 authResult를 null로 두어 상태 유지
     } finally {
+      // 초기 로딩 시 최소 로딩 시간 보장 (광고 노출)
+      if (isInitial && startTime > 0) {
+        const elapsed = Date.now() - startTime;
+        const remaining = MIN_LOADING_TIME - elapsed;
+        if (remaining > 0) {
+          await new Promise(resolve => setTimeout(resolve, remaining));
+        }
+      }
+      
       // finally에서 모든 상태를 한 번에 업데이트!
       if (authResult !== null) {
         // 성공: 모든 상태를 명시적으로 설정 (중간 렌더링 방지)
@@ -180,6 +193,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [restoreAuth]);
 
   const login = async (credentials: LoginCredentials) => {
+    // 광고 노출을 위한 최소 로딩 시간
+    const startTime = Date.now();
+    const MIN_LOADING_TIME = 2500; // 2.5초
+    
     setState(prev => ({ ...prev, isLoading: true }));
     
     try {
@@ -197,6 +214,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // user 객체의 관리자 권한 필드를 camelCase로 변환
       const userWithCamel = { ...response.user, isAdmin: response.user.isAdmin ?? response.user.is_admin ?? false };
       const profileData = await userApi.getUserProfile(userWithCamel.id);
+      
+      // 최소 로딩 시간 보장 (광고 노출)
+      const elapsed = Date.now() - startTime;
+      const remaining = MIN_LOADING_TIME - elapsed;
+      if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining));
+      }
       
       // 한 번에 모든 상태 업데이트
       setState({

@@ -648,7 +648,10 @@ const AppInner: React.FC = () => {
                 <ProtectedRoute>
                   <div style={{ display: 'flex' }}>
                     <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <MainPage sidebarOpen={sidebarOpen} />
+                    <MainPage 
+                      key={location.state?.forceReload || 'main'} 
+                      sidebarOpen={sidebarOpen} 
+                    />
                   </div>
                 </ProtectedRoute>
               } />
