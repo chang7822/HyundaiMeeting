@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { toast } from 'react-toastify';
+import { Capacitor } from '@capacitor/core';
 import { 
   FaHome, 
   FaComments, 
@@ -1220,7 +1221,9 @@ const Sidebar: React.FC<{
           style={{ 
             position: 'fixed', 
             left: 20, 
-            top: `calc(20px + var(--safe-area-inset-top))`, 
+            // Android: overlay:false로 WebView가 이미 상태바 아래에 있으므로 최소 간격만
+            // iOS: 노치 회피 위해 safe-area 추가
+            top: Capacitor.getPlatform() === 'android' ? '8px' : `calc(20px + var(--safe-area-inset-top))`,
             background: '#667eea', 
             color: '#fff', 
             boxShadow: '0 2px 10px rgba(0,0,0,0.2)' 

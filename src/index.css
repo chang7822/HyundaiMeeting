@@ -1,17 +1,28 @@
 :root {
-  /* 기본값: Safe Area 없음 (Android, Web) */
+  /* 기본값 */
   --safe-area-inset-top: 0px;
   --safe-area-inset-bottom: 0px;
   --safe-area-inset-left: 0px;
   --safe-area-inset-right: 0px;
+  --content-padding-top-mobile: 80px; /* 기본 콘텐츠 상단 여백 */
 }
 
-/* iOS에서만 Safe Area 적용 */
+/* Android: StatusBar.overlay:false로 WebView가 상태바 아래에 있으므로 여백 최소화 */
+body.platform-android {
+  --safe-area-inset-top: 0px;
+  --safe-area-inset-bottom: 0px;
+  --safe-area-inset-left: 0px;
+  --safe-area-inset-right: 0px;
+  --content-padding-top-mobile: 60px; /* Android는 더 적은 padding */
+}
+
+/* iOS: Safe Area 자동 감지 + 기본 padding */
 body.platform-ios {
   --safe-area-inset-top: env(safe-area-inset-top, 0px);
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-inset-left: env(safe-area-inset-left, 0px);
   --safe-area-inset-right: env(safe-area-inset-right, 0px);
+  --content-padding-top-mobile: 80px; /* iOS는 기본 padding + safe-area */
 }
 
 body {

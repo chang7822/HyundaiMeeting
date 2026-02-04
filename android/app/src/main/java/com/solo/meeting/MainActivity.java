@@ -34,37 +34,9 @@ public class MainActivity extends BridgeActivity {
         // API URL 확인을 위한 로그
         android.util.Log.d("MainActivity", "MainActivity onCreate 완료");
         
-        // StatusBar.setOverlaysWebView({ overlay: false })로 이미 상태바 회피 처리되므로
-        // 네이티브 패딩은 하단 네비게이션 바에만 적용
-        View rootView = findViewById(android.R.id.content);
-        if (rootView != null) {
-            ViewCompat.setOnApplyWindowInsetsListener(rootView, (v, windowInsets) -> {
-                // 하단 네비게이션 바 인셋만 반영 (상단은 StatusBar 플러그인에서 처리)
-                Insets insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
-                int navigationBarHeight = insets.bottom;
-                
-                // CoordinatorLayout 찾아서 하단 패딩만 추가
-                if (rootView instanceof ViewGroup) {
-                    ViewGroup rootGroup = (ViewGroup) rootView;
-                    for (int i = 0; i < rootGroup.getChildCount(); i++) {
-                        View child = rootGroup.getChildAt(i);
-                        if (child instanceof CoordinatorLayout) {
-                            CoordinatorLayout coordinatorLayout = (CoordinatorLayout) child;
-                            coordinatorLayout.setPadding(
-                                coordinatorLayout.getPaddingLeft(),
-                                0,  // 상단 패딩 제거 (StatusBar 플러그인이 처리)
-                                coordinatorLayout.getPaddingRight(),
-                                Math.max(navigationBarHeight, 0)  // 하단 네비게이션 바만 처리
-                            );
-                            android.util.Log.d("MainActivity", "하단 네비게이션 패딩 적용: " + navigationBarHeight);
-                            break;
-                        }
-                    }
-                }
-                
-                return windowInsets;
-            });
-        }
+        // WindowInsets를 사용하지 않음
+        // StatusBar.setOverlaysWebView({ overlay: false })가 자동으로 처리
+        // CSS는 플로팅 버튼과 콘텐츠에만 여백 추가
     }
     
     @Override

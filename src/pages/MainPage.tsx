@@ -85,12 +85,12 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1.5rem;
-    padding-top: calc(80px + var(--safe-area-inset-top));
+    padding-top: calc(var(--content-padding-top-mobile) + var(--safe-area-inset-top));
   }
   
   @media (max-width: 480px) {
     padding: 1rem;
-    padding-top: calc(70px + var(--safe-area-inset-top));
+    padding-top: calc(var(--content-padding-top-mobile) + var(--safe-area-inset-top));
   }
 `;
 
@@ -909,7 +909,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       // 실제 hide는 비동기로 실행
       window.globalBannerAd.hide()
         .then(() => {
-          console.log('[MainPage] 전역 배너 숨김 완료');
+          // console.log('[MainPage] 전역 배너 숨김 완료');
         })
         .catch((error: any) => {
           console.error('[MainPage] 전역 배너 숨김 실패:', error);
@@ -1224,7 +1224,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           }
 
           if (!FIREBASE_VAPID_KEY) {
-            console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
+            // console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
           }
 
           const { getToken } = await import('firebase/messaging');
@@ -1273,7 +1273,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               // console.log('[push] 이전 토큰 삭제 완료');
             } catch (unregisterError) {
               // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
-              console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
+              // console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
             }
           }
 
@@ -1338,34 +1338,31 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const openNativeAppSettings = useCallback(async () => {
     try {
       if (!isNativeApp()) {
-        console.log('[설정 열기] 네이티브 앱이 아닙니다');
         return;
       }
 
       const platform = Capacitor.getPlatform();
-      console.log('[설정 열기] 플랫폼:', platform);
       
       if (platform === 'ios') {
         // iOS: capacitor-native-settings 플러그인 사용
-        const { NativeSettings, IOSSettings } = await import('capacitor-native-settings');
-        console.log('[설정 열기] iOS NativeSettings 모듈 로드 완료');
-        
-        const result = await NativeSettings.openIOS({
-          option: IOSSettings.App,
-        });
-        
-        console.log('[설정 열기] iOS 설정 결과:', result);
-        
-        if (!result.success) {
-          console.error('[설정 열기] iOS 설정 열기 실패:', result.error);
+        try {
+          // @ts-ignore - capacitor-native-settings 타입 선언
+          const { NativeSettings, IOSSettings } = await import('capacitor-native-settings');
+          
+          const result = await NativeSettings.openIOS({
+            option: IOSSettings.App,
+          });
+          
+          if (!result.success) {
+            toast.info('아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
+          }
+        } catch (error) {
           toast.info('아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
         }
       } else {
-        // Android: AppSettings 플러그인 사용 (기존 방식)
-        console.log('[설정 열기] Android AppSettings 플러그인 사용');
+        // Android: AppSettings 플러그인 사용
         const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
         await AppSettings.open();
-        console.log('[설정 열기] Android 설정 화면으로 이동 완료');
       }
     } catch (e) {
       console.error('[설정 열기] 예외 발생:', e);
@@ -2520,28 +2517,28 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           (async () => {
             try {
               rewardHandle = await AdMob.addListener('rewardedi.reward', (event: any) => {
-                console.log('[AdMob] rewardedi.reward 이벤트 수신', event);
+                // console.log('[AdMob] rewardedi.reward 이벤트 수신', event);
                 if (rewarded) return;
                 rewarded = true;
-                console.log('[AdMob] ✅ 보상 지급 확인');
+                // console.log('[AdMob] ✅ 보상 지급 확인');
                 safeResolve();
               });
 
               dismissHandle = await AdMob.addListener('rewardedi.dismiss', (event: any) => {
-                console.log('[AdMob] rewardedi.dismiss 이벤트 수신', event);
+                // console.log('[AdMob] rewardedi.dismiss 이벤트 수신', event);
                 if (dismissed) return;
                 dismissed = true;
-                console.log('[AdMob] ❌ 광고 닫힘 확인 (중간에 닫음)');
+                // console.log('[AdMob] ❌ 광고 닫힘 확인 (중간에 닫음)');
                 safeResolve();
               });
 
               showFailHandle = await AdMob.addListener('rewardedi.showfail', (event: any) => {
-                console.log('[AdMob] rewardedi.showfail 이벤트 수신', event);
+                // console.log('[AdMob] rewardedi.showfail 이벤트 수신', event);
                 showFailed = event?.error || event?.message || '광고 표시 실패';
                 safeReject(new Error(showFailed || '광고 표시 실패'));
               });
               
-              console.log('[AdMob] 📡 보상형 전면 광고 이벤트 리스너 등록 완료');
+              // console.log('[AdMob] 📡 보상형 전면 광고 이벤트 리스너 등록 완료');
             } catch (e) {
               console.error('[AdMob] ❌ 이벤트 리스너 등록 실패:', e);
               safeReject(e);
