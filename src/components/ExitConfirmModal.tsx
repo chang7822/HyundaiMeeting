@@ -109,7 +109,13 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
 
   useEffect(() => {
     if (!isOpen) {
-      // 모달이 닫힐 때는 배너 유지 (다음에 재사용)
+      // 모달이 닫힐 때 배너 숨김
+      if (bannerAdRef.current && isShowingRef.current) {
+        bannerAdRef.current.hide().catch((e: any) => {
+          console.error('[ExitConfirmModal] 배너 숨김 실패:', e);
+        });
+        isShowingRef.current = false;
+      }
       return;
     }
 
@@ -121,28 +127,30 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
     }
 
     return () => {
-      // cleanup에서는 배너를 숨기지 않음 (재사용을 위해 유지)
       isMountedRef.current = false;
     };
   }, [isOpen, preloadedBanner]);
 
   const loadNativeAd = async () => {
     try {
-      // 이미 배너가 표시 중이면 재사용 (깜빡임 방지)
+      // 이미 배너가 표시 중이면 그대로 유지
       if (isShowingRef.current && bannerAdRef.current) {
-        console.log('[ExitConfirmModal] 배너 이미 표시 중 - 재사용');
         return;
       }
 
-      // 모달이 완전히 렌더링된 후 광고 표시 (깜빡임 최소화)
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // 기존 배너가 있으면 다시 표시
+      if (bannerAdRef.current && !isShowingRef.current) {
+        await bannerAdRef.current.show();
+        isShowingRef.current = true;
+        return;
+      }
       
       // 사전 로드된 광고가 있으면 바로 표시
-      if (preloadedBanner) {
-        if (!isMountedRef.current) return; // 언마운트되었으면 중단
+      if (preloadedBanner && !bannerAdRef.current) {
+        if (!isMountedRef.current) return;
         bannerAdRef.current = preloadedBanner;
         await preloadedBanner.show();
-        isShowingRef.current = true; // 표시 상태 기록
+        isShowingRef.current = true;
         return;
       }
 
@@ -172,35 +180,20 @@ const ExitConfirmModal: React.FC<ExitConfirmModalProps> = ({ isOpen, onConfirm, 
     }
   };
 
-  const cleanupNativeAd = () => {
-    try {
-      if (bannerAdRef.current && isShowingRef.current) {
-        console.log('[ExitConfirmModal] 배너 숨김');
-        // 즉시 실행 (await 없이)
-        bannerAdRef.current.hide().catch((e: any) => {
-          console.error('[ExitConfirmModal] 광고 숨김 실패:', e);
-        });
-        bannerAdRef.current = null;
-        isShowingRef.current = false;
-      }
-    } catch (error) {
-      console.error('[ExitConfirmModal] 광고 정리 실패:', error);
-    }
-  };
-
-  // 컴포넌트가 완전히 언마운트될 때만 배너 정리
+  // 컴포넌트가 완전히 언마운트될 때 배너 정리
   React.useEffect(() => {
     return () => {
-      if (bannerAdRef.current && isShowingRef.current) {
-        console.log('[ExitConfirmModal] 컴포넌트 언마운트 - 배너 정리');
-        bannerAdRef.current.hide().catch((e: any) => {
-          console.error('[ExitConfirmModal] 광고 숨김 실패:', e);
-        });
+      if (bannerAdRef.current) {
+        if (isShowingRef.current) {
+          bannerAdRef.current.hide().catch((e: any) => {
+            console.error('[ExitConfirmModal] 광고 숨김 실패:', e);
+          });
+        }
         bannerAdRef.current = null;
         isShowingRef.current = false;
       }
     };
-  }, []); // 빈 배열 - 컴포넌트 마운트 시 한 번만 등록
+  }, []);
 
   if (!isOpen) return null;
 

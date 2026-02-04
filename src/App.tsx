@@ -616,10 +616,10 @@ const AppInner: React.FC = () => {
       <Routes>
               {/* Public Routes */}
               <Route path="/" element={
-                isInitialLoading || pendingNavigationRef.current || (localStorage.getItem('token') && !user) ? (
+                isInitialLoading || pendingNavigationRef.current ? (
                   <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
                 ) : (
-                  isAuthenticated ? <Navigate to="/main" replace /> : <LandingPage />
+                  (user && profile) ? <Navigate to="/main" replace /> : <LandingPage />
                 )
               } />
               <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />

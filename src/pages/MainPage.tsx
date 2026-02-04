@@ -903,6 +903,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const hideGlobalBanner = async () => {
       if (!Capacitor.isNativePlatform()) return;
       
+      // LoadingSpinner의 배너 표시가 완료될 때까지 짧은 대기
+      // (LoadingSpinner 언마운트 → MainPage 마운트 사이의 타이밍 이슈 방지)
+      await new Promise(resolve => setTimeout(resolve, 50));
+      
       try {
         if (window.globalBannerAd && window.globalBannerShowing) {
           await window.globalBannerAd.hide();

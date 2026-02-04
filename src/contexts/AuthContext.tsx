@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, startTransition } from 'react';
 import { User, UserProfile, LoginCredentials, AuthContextType } from '../types/index.ts';
 import { authApi, userApi } from '../services/api.ts';
 import { Capacitor } from '@capacitor/core';
@@ -71,7 +71,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.error('[AuthContext] userData.id 없음!:', userWithCamel);
         }
         const profileData = await userApi.getUserProfile(userWithCamel.id);
-        // getCurrentUser에서 이미 is_applied, is_matched 포함된 전체 데이터를 받으므로 그대로 사용
+        
+        // 상태 업데이트를 즉시 실행 (배칭은 React가 자동으로 처리)
         setAuthState({ user: userWithCamel, profile: profileData });
       } else {
         // 토큰이 없으면 로그인하지 않은 상태
@@ -104,6 +105,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // 포어그라운드 복귀 등 isInitial=false일 때는 기존 user/profile 유지
     } finally {
       if (showLoading) {
+        // 상태 업데이트를 같은 마이크로태스크에서 실행하도록 보장
         if (isInitial) {
           setIsInitialLoading(false);
         } else {
