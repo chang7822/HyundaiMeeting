@@ -897,6 +897,25 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [statusLoading, setStatusLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // MainPage 마운트 시 LoadingSpinner의 전역 배너 숨김
+  useEffect(() => {
+    const hideGlobalBanner = async () => {
+      if (!Capacitor.isNativePlatform()) return;
+      
+      try {
+        if (window.globalBannerAd && window.globalBannerShowing) {
+          await window.globalBannerAd.hide();
+          window.globalBannerShowing = false;
+          console.log('[MainPage] 전역 배너 숨김 완료');
+        }
+      } catch (error) {
+        console.error('[MainPage] 전역 배너 숨김 실패:', error);
+      }
+    };
+    
+    hideGlobalBanner();
+  }, []);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [partnerProfile, setPartnerProfile] = useState<any>(null);
   const [partnerProfileError, setPartnerProfileError] = useState(false);

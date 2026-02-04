@@ -4,6 +4,22 @@ import { Capacitor } from '@capacitor/core';
 // 앱 시작 시점의 화면 높이 저장 (전역, 한 번만 계산)
 const INITIAL_SCREEN_HEIGHT = window.innerHeight;
 
+// 전역 배너 관리 (앱 전체에서 하나의 배너만 사용)
+// window 객체에 저장하여 다른 컴포넌트에서도 접근 가능
+declare global {
+  interface Window {
+    globalBannerAd: any;
+    globalBannerShowing: boolean;
+    globalBannerInitializing: boolean;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.globalBannerAd = window.globalBannerAd || null;
+  window.globalBannerShowing = window.globalBannerShowing || false;
+  window.globalBannerInitializing = window.globalBannerInitializing || false;
+}
+
 // 예쁜 그라데이션 원형 스피너 SVG + 부드러운 애니메이션
 const LoadingSpinner = ({ 
   text = "로딩 중...", 
@@ -14,9 +30,7 @@ const LoadingSpinner = ({
   sidebarOpen?: boolean;
   preloadedBanner?: any;
 }) => {
-  const bannerAdRef = useRef<any>(null);
   const isMountedRef = useRef(true);
-  const isShowingRef = useRef(false); // 배너 표시 상태 추적
 
   useEffect(() => {
     // 네이티브 앱에서만 광고 표시
@@ -26,68 +40,86 @@ const LoadingSpinner = ({
 
     const loadNativeAd = async () => {
       try {
-        // 이미 배너가 표시 중이면 재사용 (깜빡임 방지)
-        if (isShowingRef.current && bannerAdRef.current) {
-          console.log('[LoadingSpinner] 배너 이미 표시 중 - 재사용');
+        // 이미 전역 배너가 표시 중이거나 초기화 중이면 재사용
+        if (window.globalBannerShowing || window.globalBannerInitializing) {
+          console.log('[LoadingSpinner] 전역 배너 이미 사용 중 - 재사용');
           return;
         }
 
-        // 화면이 완전히 렌더링된 후 광고 표시 (깜빡임 최소화)
-        await new Promise(resolve => setTimeout(resolve, 300));
+        window.globalBannerInitializing = true;
         
-        if (preloadedBanner) {
-          if (!isMountedRef.current) return; // 언마운트되었으면 중단
-          bannerAdRef.current = preloadedBanner;
+        if (preloadedBanner && !window.globalBannerAd) {
+          if (!isMountedRef.current) {
+            window.globalBannerInitializing = false;
+            return;
+          }
+          window.globalBannerAd = preloadedBanner;
           await preloadedBanner.show();
-          isShowingRef.current = true; // 표시 상태 기록
+          window.globalBannerShowing = true;
+          window.globalBannerInitializing = false;
+          console.log('[LoadingSpinner] 사전로드 배너 표시 완료');
+          return;
+        }
+
+        // 이미 전역 배너가 있으면 다시 표시
+        if (window.globalBannerAd && !window.globalBannerShowing) {
+          await window.globalBannerAd.show();
+          window.globalBannerShowing = true;
+          window.globalBannerInitializing = false;
+          console.log('[LoadingSpinner] 기존 배너 재표시');
           return;
         }
 
         // Fallback: 사전로드 실패 시 즉시 로드
-        const admobModule = await import('@capgo/capacitor-admob');
-        if (!isMountedRef.current) return; // 언마운트되었으면 중단
+        if (!window.globalBannerAd) {
+          const admobModule = await import('@capgo/capacitor-admob');
+          if (!isMountedRef.current) {
+            window.globalBannerInitializing = false;
+            return;
+          }
+          
+          const { BannerAd } = admobModule;
+          const platform = Capacitor.getPlatform();
+          const isIOS = platform === 'ios';
+          const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+          const adUnitId = isTesting
+            ? 'ca-app-pub-3940256099942544/6300978111' // 테스트
+            : isIOS
+              ? 'ca-app-pub-1352765336263182/5438712556' // iOS 배너
+              : 'ca-app-pub-1352765336263182/5676657338'; // Android 배너
+          const banner = new BannerAd({ adUnitId });
+          
+          if (!isMountedRef.current) {
+            window.globalBannerInitializing = false;
+            return;
+          }
+          window.globalBannerAd = banner;
+          await banner.show();
+          window.globalBannerShowing = true;
+          console.log('[LoadingSpinner] 새 배너 로드 및 표시 완료');
+        }
         
-        const { BannerAd } = admobModule;
-        const platform = Capacitor.getPlatform();
-        const isIOS = platform === 'ios';
-        const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-        const adUnitId = isTesting
-          ? 'ca-app-pub-3940256099942544/6300978111' // 테스트
-          : isIOS
-            ? 'ca-app-pub-1352765336263182/5438712556' // iOS 배너
-            : 'ca-app-pub-1352765336263182/5676657338'; // Android 배너
-        const banner = new BannerAd({ adUnitId });
-        
-        if (!isMountedRef.current) return; // 언마운트되었으면 중단
-        bannerAdRef.current = banner;
-        await banner.show();
-        isShowingRef.current = true; // 표시 상태 기록
+        window.globalBannerInitializing = false;
       } catch (error) {
         console.error('[LoadingSpinner] 광고 로드 실패:', error);
-        isShowingRef.current = false;
+        window.globalBannerShowing = false;
+        window.globalBannerInitializing = false;
       }
     };
 
     loadNativeAd();
 
-    // cleanup 함수는 실제 컴포넌트가 완전히 언마운트될 때만 실행되도록
-    // 여기서는 아무것도 안 함 (배너를 계속 유지)
     return () => {
       isMountedRef.current = false;
     };
-  }, [preloadedBanner]);
+  }, []); // 의존성 배열 비움 - 한 번만 실행
 
   // 컴포넌트가 완전히 언마운트될 때만 배너 숨김
   useEffect(() => {
     return () => {
-      if (bannerAdRef.current && isShowingRef.current) {
-        console.log('[LoadingSpinner] 컴포넌트 언마운트 - 배너 숨김');
-        bannerAdRef.current.hide().catch((e: any) => {
-          console.error('[LoadingSpinner] 광고 숨김 실패:', e);
-        });
-        bannerAdRef.current = null;
-        isShowingRef.current = false;
-      }
+      // LoadingSpinner가 완전히 사라질 때만 배너 숨김
+      // 하지만 곧 다시 나타날 수 있으므로 숨기지 않음 (전역 관리)
+      console.log('[LoadingSpinner] 컴포넌트 언마운트 (배너는 유지)');
     };
   }, []); // 빈 배열 - 컴포넌트 마운트 시 한 번만 등록
 
