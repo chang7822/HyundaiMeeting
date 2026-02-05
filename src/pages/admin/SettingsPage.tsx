@@ -163,6 +163,19 @@ const PlaceholderArea = styled.div`
   text-align: center;
 `;
 
+const SaveButton = styled.button`
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  border: none;
+  background: ${(p: { disabled?: boolean }) =>
+    p.disabled ? '#cbd5e0' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'};
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: ${(p: { disabled?: boolean }) => (p.disabled ? 'not-allowed' : 'pointer')};
+  transition: all 0.2s;
+`;
+
 interface SettingsPageProps {
   sidebarOpen: boolean;
 }
