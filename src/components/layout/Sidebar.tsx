@@ -68,7 +68,7 @@ const MobileOverlay = styled.div<{ $isOpen: boolean }>`
 
 const SidebarCloseButton = styled.button`
   position: absolute;
-  top: calc(18px + var(--safe-area-inset-top));
+  top: calc(18px + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px));
   right: 18px;
   z-index: 1100;
   background: transparent;
@@ -90,7 +90,7 @@ const SidebarCloseButton = styled.button`
 
 const SidebarHeader = styled.div`
   padding: 2rem 1.5rem 1rem;
-  padding-top: calc(2rem + var(--safe-area-inset-top));
+  padding-top: calc(2rem + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px));
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
 `;
@@ -1216,7 +1216,7 @@ const Sidebar: React.FC<{
   // 플랫폼별 플로팅 버튼 위치 조정 (Android는 iOS보다 위쪽 공간 줄이기)
   const platform = Capacitor.getPlatform();
   const floatingButtonTop = platform === 'android' 
-    ? `calc(-10px + var(--safe-area-inset-top))` 
+    ? `calc(20px + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px) - 10px)` 
     : `calc(20px + var(--safe-area-inset-top))`;
 
   return (

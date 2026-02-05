@@ -17,6 +17,19 @@ body.platform-ios {
 /* Android는 기본값(0px) 사용 - 추가 스타일 불필요 */
 
 /* Android에서 상단 여백을 iOS 수준으로 줄이기 */
+body.platform-android {
+  /* Android에서 사이드바 내부 컨텐츠 상단 여백 조정 */
+  --sidebar-top-offset: -40px;
+}
+
+body.platform-ios {
+  --sidebar-top-offset: 0px;
+}
+
+body:not(.platform-android):not(.platform-ios) {
+  --sidebar-top-offset: 0px;
+}
+
 @media (max-width: 768px) {
   body.platform-android {
     /* Android에서 모바일 상단 여백을 줄이기 위한 변수 */
