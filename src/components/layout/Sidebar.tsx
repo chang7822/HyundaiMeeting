@@ -22,6 +22,7 @@ import {
 } from 'react-icons/fa';
 import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi } from '../../services/api.ts';
 import { isNativeApp } from '../../firebase.ts';
+import { Capacitor } from '@capacitor/core';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -1212,6 +1213,12 @@ const Sidebar: React.FC<{
     }, 0);
   };
 
+  // 플랫폼별 플로팅 버튼 위치 조정 (Android는 iOS보다 위쪽 공간 줄이기)
+  const platform = Capacitor.getPlatform();
+  const floatingButtonTop = platform === 'android' 
+    ? `calc(12px + var(--safe-area-inset-top))` 
+    : `calc(20px + var(--safe-area-inset-top))`;
+
   return (
     <>
       {!isOpen && (
@@ -1220,7 +1227,7 @@ const Sidebar: React.FC<{
           style={{ 
             position: 'fixed', 
             left: 20, 
-            top: `calc(20px + var(--safe-area-inset-top))`,
+            top: floatingButtonTop,
             background: '#667eea', 
             color: '#fff', 
             boxShadow: '0 2px 10px rgba(0,0,0,0.2)' 

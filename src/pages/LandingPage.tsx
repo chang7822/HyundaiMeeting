@@ -19,12 +19,12 @@ const LandingContainer = styled.div`
   padding-top: calc(60px + var(--safe-area-inset-top));
   
   @media (max-width: 768px) {
-    padding-top: calc(80px + var(--safe-area-inset-top));
+    padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
     padding-bottom: 40px;
   }
   
   @media (max-width: 480px) {
-    padding-top: calc(100px + var(--safe-area-inset-top));
+    padding-top: calc(var(--mobile-top-padding, 100px) + var(--safe-area-inset-top));
     padding-bottom: 30px;
   }
 `;

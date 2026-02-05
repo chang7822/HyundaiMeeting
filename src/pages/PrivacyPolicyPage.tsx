@@ -10,7 +10,7 @@ const Container = styled.div`
   
   @media (max-width: 768px) {
     padding: 1rem;
-    padding-top: calc(60px + var(--safe-area-inset-top));
+    padding-top: calc(var(--mobile-top-padding, 60px) + var(--safe-area-inset-top));
   }
 `;
 
