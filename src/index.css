@@ -20,7 +20,7 @@ body.platform-ios {
 @media (max-width: 768px) {
   body.platform-android {
     /* Android에서 모바일 상단 여백을 줄이기 위한 변수 */
-    --mobile-top-padding: 60px;
+    --mobile-top-padding: 40px;
   }
   
   body.platform-ios {
@@ -36,7 +36,7 @@ body.platform-ios {
 
 @media (max-width: 480px) {
   body.platform-android {
-    --mobile-top-padding: 50px;
+    --mobile-top-padding: 30px;
   }
   
   body.platform-ios {

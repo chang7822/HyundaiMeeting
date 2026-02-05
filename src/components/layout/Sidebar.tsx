@@ -1216,7 +1216,7 @@ const Sidebar: React.FC<{
   // 플랫폼별 플로팅 버튼 위치 조정 (Android는 iOS보다 위쪽 공간 줄이기)
   const platform = Capacitor.getPlatform();
   const floatingButtonTop = platform === 'android' 
-    ? `calc(12px + var(--safe-area-inset-top))` 
+    ? `calc(-10px + var(--safe-area-inset-top))` 
     : `calc(20px + var(--safe-area-inset-top))`;
 
   return (
