@@ -8,8 +8,8 @@
 import React from 'react';
 import styled from 'styled-components';
 import { FaStore } from 'react-icons/fa';
-import type { VersionCheckResult } from '../utils/versionCheck';
-import { openStore } from '../utils/versionCheck';
+import type { VersionCheckResult } from '../utils/versionCheck.ts';
+import { openStore } from '../utils/versionCheck.ts';
 
 interface UpdateModalProps {
   isOpen: boolean;
