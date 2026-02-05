@@ -9,6 +9,8 @@ import { isNativeApp, getNativePushToken, setupNativePushListeners } from './fir
 import { pushApi } from './services/api.ts';
 import ExitConfirmModal from './components/ExitConfirmModal.tsx';
 import PushPermissionModal from './components/PushPermissionModal.tsx';
+import { ForceUpdateModal, OptionalUpdateModal } from './components/UpdateModal.tsx';
+import { performVersionCheck, type VersionCheckResult } from './utils/versionCheck.ts';
 
 // Pages
 import LandingPage from './pages/LandingPage.tsx';
@@ -143,6 +145,11 @@ const AppInner: React.FC = () => {
   const [showExitModal, setShowExitModal] = useState(false);
   const [showPushPermissionModal, setShowPushPermissionModal] = useState(false);
   const preloadedAdsRef = useRef<any>({ banner: null, rewarded: null });
+  
+  // 버전 체크 관련 state
+  const [showForceUpdateModal, setShowForceUpdateModal] = useState(false);
+  const [showOptionalUpdateModal, setShowOptionalUpdateModal] = useState(false);
+  const [versionCheckResult, setVersionCheckResult] = useState<VersionCheckResult | null>(null);
 
   // 앱 초기화 및 광고 사전로드
   useEffect(() => {
@@ -579,6 +586,32 @@ const AppInner: React.FC = () => {
     };
   }, []);
 
+  // 버전 체크 (앱 시작 시 1회 실행)
+  useEffect(() => {
+    const checkAppVersion = async () => {
+      // 웹에서는 버전 체크 안 함
+      if (!isNativeApp()) return;
+      
+      // 약간의 지연 후 실행 (앱 완전히 로드 후)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      await performVersionCheck(
+        // 강제 업데이트 콜백
+        (result) => {
+          setVersionCheckResult(result);
+          setShowForceUpdateModal(true);
+        },
+        // 선택적 업데이트 콜백
+        (result) => {
+          setVersionCheckResult(result);
+          setShowOptionalUpdateModal(true);
+        }
+      );
+    };
+    
+    checkAppVersion();
+  }, []);
+
   // F5(새로고침) 시 디버깅 로그를 화면에 출력 (복사 가능)
   if ((window as any)._debugLogs && (window as any)._debugLogs.length > 0) {
     return (
@@ -949,6 +982,21 @@ const AppInner: React.FC = () => {
               onDeny={handlePushPermissionDeny}
               platform={Capacitor.getPlatform() as 'ios' | 'android' | 'web'}
             />
+            
+            {/* 버전 업데이트 모달 */}
+            {versionCheckResult && (
+              <>
+                <ForceUpdateModal
+                  isOpen={showForceUpdateModal}
+                  result={versionCheckResult}
+                />
+                <OptionalUpdateModal
+                  isOpen={showOptionalUpdateModal}
+                  result={versionCheckResult}
+                  onClose={() => setShowOptionalUpdateModal(false)}
+                />
+              </>
+            )}
             
           </div>
   );

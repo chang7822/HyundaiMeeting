@@ -190,6 +190,14 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [restorePeriodId, setRestorePeriodId] = useState<number>(0);
   const [restoring, setRestoring] = useState(false);
 
+  // 버전 정책 관련 상태
+  const [versionPolicy, setVersionPolicy] = useState({
+    ios: { minimumVersion: '0.1.0', latestVersion: '0.1.0', storeUrl: '' },
+    android: { minimumVersion: '0.1.0', latestVersion: '0.1.0', storeUrl: '' },
+    messages: { forceUpdate: '', optionalUpdate: '' }
+  });
+  const [versionSaving, setVersionSaving] = useState(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
       setLoading(true);
@@ -200,6 +208,11 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         setDevMode(!!res?.devMode?.enabled);
         setExtraMatching(res?.extraMatching?.enabled !== false);
         setCommunity(res?.community?.enabled !== false);
+        
+        // 버전 정책 로드
+        if (res?.versionPolicy) {
+          setVersionPolicy(res.versionPolicy);
+        }
       } catch (e) {
         console.error('[SettingsPage] 시스템 설정 조회 오류:', e);
         toast.error('시스템 설정을 불러오지 못했습니다.');
@@ -355,6 +368,20 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
     }
   };
 
+  // 버전 정책 저장
+  const handleSaveVersionPolicy = async () => {
+    setVersionSaving(true);
+    try {
+      const result = await adminApi.updateVersionPolicy(versionPolicy);
+      toast.success('버전 정책이 업데이트되었습니다.');
+    } catch (e: any) {
+      console.error('[SettingsPage] 버전 정책 업데이트 오류:', e);
+      toast.error(e?.response?.data?.message || '버전 정책 업데이트에 실패했습니다.');
+    } finally {
+      setVersionSaving(false);
+    }
+  };
+
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
@@ -494,6 +521,226 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 <SwitchSlider />
               </SwitchLabel>
             </ToggleRow>
+          </Section>
+
+          <Section>
+            <SectionTitle>앱 버전 관리</SectionTitle>
+            <SectionDescription>
+              iOS/Android 앱 버전을 관리하고 강제 업데이트를 설정할 수 있습니다.
+              {'\n'}최소 버전보다 낮은 버전은 자동으로 강제 업데이트됩니다.
+            </SectionDescription>
+
+            {/* iOS 버전 설정 */}
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f8fafc', borderRadius: 12 }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d3748', margin: '0 0 1rem 0' }}>iOS 앱</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    최소 버전 (강제 업데이트)
+                  </label>
+                  <input
+                    type="text"
+                    value={versionPolicy.ios.minimumVersion}
+                    onChange={(e) => setVersionPolicy(prev => ({
+                      ...prev,
+                      ios: { ...prev.ios, minimumVersion: e.target.value }
+                    }))}
+                    placeholder="0.1.0"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                    disabled={versionSaving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    최신 버전 (권장 업데이트)
+                  </label>
+                  <input
+                    type="text"
+                    value={versionPolicy.ios.latestVersion}
+                    onChange={(e) => setVersionPolicy(prev => ({
+                      ...prev,
+                      ios: { ...prev.ios, latestVersion: e.target.value }
+                    }))}
+                    placeholder="0.1.0"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                    disabled={versionSaving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    App Store URL
+                  </label>
+                  <input
+                    type="text"
+                    value={versionPolicy.ios.storeUrl}
+                    onChange={(e) => setVersionPolicy(prev => ({
+                      ...prev,
+                      ios: { ...prev.ios, storeUrl: e.target.value }
+                    }))}
+                    placeholder="https://apps.apple.com/app/id123456789"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                    disabled={versionSaving}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Android 버전 설정 */}
+            <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f0fdf4', borderRadius: 12 }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d3748', margin: '0 0 1rem 0' }}>Android 앱</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    최소 버전 (강제 업데이트)
+                  </label>
+                  <input
+                    type="text"
+                    value={versionPolicy.android.minimumVersion}
+                    onChange={(e) => setVersionPolicy(prev => ({
+                      ...prev,
+                      android: { ...prev.android, minimumVersion: e.target.value }
+                    }))}
+                    placeholder="0.1.0"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                    disabled={versionSaving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    최신 버전 (권장 업데이트)
+                  </label>
+                  <input
+                    type="text"
+                    value={versionPolicy.android.latestVersion}
+                    onChange={(e) => setVersionPolicy(prev => ({
+                      ...prev,
+                      android: { ...prev.android, latestVersion: e.target.value }
+                    }))}
+                    placeholder="0.1.0"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                    disabled={versionSaving}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#4a5568', marginBottom: '0.3rem' }}>
+                    Google Play Store URL
+                  </label>
+                  <input
+                    type="text"
+                    value={versionPolicy.android.storeUrl}
+                    onChange={(e) => setVersionPolicy(prev => ({
+                      ...prev,
+                      android: { ...prev.android, storeUrl: e.target.value }
+                    }))}
+                    placeholder="https://play.google.com/store/apps/details?id=com.solo.meeting"
+                    style={{
+                      width: '100%',
+                      padding: '0.5rem 0.75rem',
+                      borderRadius: 8,
+                      border: '1px solid #e2e8f0',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                    }}
+                    disabled={versionSaving}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 메시지 설정 */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  강제 업데이트 메시지
+                </label>
+                <textarea
+                  value={versionPolicy.messages.forceUpdate}
+                  onChange={(e) => setVersionPolicy(prev => ({
+                    ...prev,
+                    messages: { ...prev.messages, forceUpdate: e.target.value }
+                  }))}
+                  rows={2}
+                  placeholder="필수 업데이트가 필요합니다.\n최신 버전으로 업데이트해주세요."
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
+                  disabled={versionSaving}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.9rem', fontWeight: 500, color: '#2d3748', marginBottom: '0.4rem' }}>
+                  선택적 업데이트 메시지
+                </label>
+                <textarea
+                  value={versionPolicy.messages.optionalUpdate}
+                  onChange={(e) => setVersionPolicy(prev => ({
+                    ...prev,
+                    messages: { ...prev.messages, optionalUpdate: e.target.value }
+                  }))}
+                  rows={2}
+                  placeholder="새로운 버전을 사용하시겠어요?\n최신 기능과 개선 사항을 경험해보세요."
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
+                  disabled={versionSaving}
+                />
+              </div>
+            </div>
+
+            <SaveButton
+              onClick={handleSaveVersionPolicy}
+              disabled={versionSaving}
+              style={{ marginTop: '1rem' }}
+            >
+              {versionSaving ? '저장 중...' : '버전 정책 저장'}
+            </SaveButton>
           </Section>
 
           <Section>

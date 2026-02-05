@@ -226,6 +226,22 @@ router.get('/system-settings', authenticate, async (req, res) => {
       console.error('[admin][system-settings] community_enabled 조회 오류');
     }
 
+    // 버전 정책 조회
+    let versionPolicy = null;
+    try {
+      const { data: versionRow, error: versionError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'version_policy')
+        .maybeSingle();
+
+      if (!versionError && versionRow && versionRow.value) {
+        versionPolicy = versionRow.value;
+      }
+    } catch (versionErr) {
+      console.error('[admin][system-settings] version_policy 조회 오류');
+    }
+
     res.json({
       success: true,
       maintenance: {
@@ -240,6 +256,11 @@ router.get('/system-settings', authenticate, async (req, res) => {
       },
       community: {
         enabled: communityEnabled,
+      },
+      versionPolicy: versionPolicy || {
+        ios: { minimumVersion: '0.1.0', latestVersion: '0.1.0', storeUrl: '' },
+        android: { minimumVersion: '0.1.0', latestVersion: '0.1.0', storeUrl: '' },
+        messages: { forceUpdate: '', optionalUpdate: '' }
       }
     });
   } catch (error) {
@@ -407,6 +428,58 @@ router.put('/system-settings/community', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[admin][system-settings] 커뮤니티 업데이트 오류');
     res.status(500).json({ success: false, message: '커뮤니티 설정 변경에 실패했습니다.' });
+  }
+});
+
+// 버전 정책 업데이트 (관리자 전용)
+router.put('/system-settings/version-policy', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { ios, android, messages } = req.body || {};
+
+    // 버전 형식 유효성 검사 (간단)
+    const versionRegex = /^\d+\.\d+\.\d+$/;
+    if (!versionRegex.test(ios?.minimumVersion) || !versionRegex.test(ios?.latestVersion) ||
+        !versionRegex.test(android?.minimumVersion) || !versionRegex.test(android?.latestVersion)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: '버전 형식이 올바르지 않습니다. (예: 1.0.0)' 
+      });
+    }
+
+    const value = {
+      ios,
+      android,
+      messages
+    };
+
+    const { data, error } = await supabase
+      .from('app_settings')
+      .upsert(
+        {
+          key: 'version_policy',
+          value,
+          updated_by: req.user.userId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      )
+      .select('value')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[admin][system-settings] 버전 정책 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '버전 정책 변경에 실패했습니다.' });
+    }
+
+    res.json({
+      success: true,
+      versionPolicy: data?.value || value,
+      message: '버전 정책이 업데이트되었습니다.'
+    });
+  } catch (error) {
+    console.error('[admin][system-settings] 버전 정책 업데이트 오류');
+    res.status(500).json({ success: false, message: '버전 정책 변경에 실패했습니다.' });
   }
 });
 

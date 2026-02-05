@@ -445,6 +445,12 @@ export const systemApi = {
     const response = await api.get('/system/status');
     return response.data;
   },
+  
+  // 앱 버전 정책 조회
+  getVersionPolicy: async (): Promise<any> => {
+    const response = await api.get('/system/version-policy');
+    return response.data;
+  },
 };
 
 // 별 / 출석 API
@@ -585,6 +591,12 @@ export const adminApi = {
 
   updateCommunity: async (enabled: boolean): Promise<any> => {
     const response = await api.put('/admin/system-settings/community', { enabled });
+    return response.data;
+  },
+
+  // 버전 정책 업데이트
+  updateVersionPolicy: async (versionPolicy: any): Promise<any> => {
+    const response = await api.put('/admin/system-settings/version-policy', versionPolicy);
     return response.data;
   },
 

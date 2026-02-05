@@ -34,6 +34,80 @@ router.get('/status', async (req, res) => {
   }
 });
 
+// 앱 버전 정책 조회 (공개 API)
+router.get('/version-policy', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'version_policy')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[system][version-policy] 조회 오류:', error);
+      // 에러 시 기본값 반환 (앱이 정상 작동하도록)
+      return res.json({
+        ios: {
+          minimumVersion: "0.1.0",
+          latestVersion: "0.1.0",
+          storeUrl: ""
+        },
+        android: {
+          minimumVersion: "0.1.0",
+          latestVersion: "0.1.0",
+          storeUrl: "https://play.google.com/store/apps/details?id=com.solo.meeting&hl=ko"
+        },
+        messages: {
+          forceUpdate: "필수 업데이트가 필요합니다.\n최신 버전으로 업데이트해주세요.",
+          optionalUpdate: "새로운 버전을 사용하시겠어요?\n최신 기능과 개선 사항을 경험해보세요."
+        }
+      });
+    }
+
+    // 데이터가 없으면 기본값 반환
+    if (!data || !data.value) {
+      return res.json({
+        ios: {
+          minimumVersion: "0.1.0",
+          latestVersion: "0.1.0",
+          storeUrl: ""
+        },
+        android: {
+          minimumVersion: "0.1.0",
+          latestVersion: "0.1.0",
+          storeUrl: "https://play.google.com/store/apps/details?id=com.solo.meeting&hl=ko"
+        },
+        messages: {
+          forceUpdate: "필수 업데이트가 필요합니다.\n최신 버전으로 업데이트해주세요.",
+          optionalUpdate: "새로운 버전을 사용하시겠어요?\n최신 기능과 개선 사항을 경험해보세요."
+        }
+      });
+    }
+
+    // 정상 데이터 반환
+    res.json(data.value);
+  } catch (error) {
+    console.error('[system][version-policy] 예외 발생:', error);
+    // 예외 시에도 기본값 반환
+    res.json({
+      ios: {
+        minimumVersion: "0.1.0",
+        latestVersion: "0.1.0",
+        storeUrl: ""
+      },
+      android: {
+        minimumVersion: "0.1.0",
+        latestVersion: "0.1.0",
+        storeUrl: "https://play.google.com/store/apps/details?id=com.solo.meeting&hl=ko"
+      },
+      messages: {
+        forceUpdate: "필수 업데이트가 필요합니다.\n최신 버전으로 업데이트해주세요.",
+        optionalUpdate: "새로운 버전을 사용하시겠어요?\n최신 기능과 개선 사항을 경험해보세요."
+      }
+    });
+  }
+});
+
 module.exports = router;
 
 
