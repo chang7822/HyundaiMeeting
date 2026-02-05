@@ -335,18 +335,21 @@ async function getUserMatchingTag(userId, periodId) {
       return null;
     }
 
-    // 매칭 신청서 조회
-    const { data: application, error: appError } = await supabase
+    // 매칭 신청서 조회 (최신 신청만 - applied_at 기준 내림차순 첫 번째)
+    const { data: applications, error: appError } = await supabase
       .from('matching_applications')
       .select('applied, cancelled, matched')
       .eq('user_id', userId)
       .eq('period_id', periodId)
-      .maybeSingle();
+      .order('applied_at', { ascending: false })
+      .limit(1);
 
-    if (appError && appError.code !== 'PGRST116') {
+    if (appError) {
       console.error('[community] 매칭 신청 조회 오류:', appError);
       return null;
     }
+
+    const application = applications && applications.length > 0 ? applications[0] : null;
 
     const isApplied = application && application.applied && !application.cancelled;
 
@@ -519,15 +522,20 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
     // 4. 배치로 매칭 신청 정보 조회 (태그가 필요한 경우만)
     const applicationMap = new Map();
     if (shouldShowTags && userIds.length > 0) {
+      // 각 user_id별로 최신 신청 정보만 조회 (applied_at 기준 내림차순, 가장 최근 것만)
       const { data: applications } = await supabase
         .from('matching_applications')
-        .select('user_id, applied, cancelled, matched')
+        .select('user_id, applied, cancelled, matched, applied_at')
         .eq('period_id', periodId)
-        .in('user_id', userIds);
+        .in('user_id', userIds)
+        .order('applied_at', { ascending: false });
 
       if (applications) {
+        // 각 user_id별로 가장 최근 신청만 Map에 저장
         applications.forEach(app => {
-          applicationMap.set(app.user_id, app);
+          if (!applicationMap.has(app.user_id)) {
+            applicationMap.set(app.user_id, app);
+          }
         });
       }
     }
@@ -1082,15 +1090,20 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
     // 4. 배치로 매칭 신청 정보 조회 (태그가 필요한 경우만)
     const applicationMap = new Map();
     if (shouldShowTags && commentUserIds.length > 0) {
+      // 각 user_id별로 최신 신청 정보만 조회 (applied_at 기준 내림차순, 가장 최근 것만)
       const { data: applications } = await supabase
         .from('matching_applications')
-        .select('user_id, applied, cancelled, matched')
+        .select('user_id, applied, cancelled, matched, applied_at')
         .eq('period_id', post.period_id)
-        .in('user_id', commentUserIds);
+        .in('user_id', commentUserIds)
+        .order('applied_at', { ascending: false });
 
       if (applications) {
+        // 각 user_id별로 가장 최근 신청만 Map에 저장
         applications.forEach(app => {
-          applicationMap.set(app.user_id, app);
+          if (!applicationMap.has(app.user_id)) {
+            applicationMap.set(app.user_id, app);
+          }
         });
       }
     }
