@@ -118,42 +118,43 @@ function chunkArray(arr, size) {
 // 모든 사용자 조회 (계정 정보 + 프로필 정보)
 router.get('/users', authenticate, async (req, res) => {
   try {
-    // 계정 정보 조회
-    const { data: users, error: usersError } = await supabase
-      .from('users')
-      .select('id, email, is_verified, is_active, is_admin, created_at, updated_at, last_login_at');
+    const [usersResult, profilesResult] = await Promise.all([
+      supabase
+        .from('users')
+        .select('id, email, is_verified, is_active, is_admin, created_at, updated_at, last_login_at'),
+      supabase
+        .from('user_profiles')
+        .select('*'),
+    ]);
+
+    const { data: users, error: usersError } = usersResult;
+    const { data: profiles } = profilesResult;
 
     if (usersError) {
-      console.error('사용자 조회 오류');
+      console.error('사용자 조회 오류', usersError);
       return res.status(500).json({ message: '사용자 조회에 실패했습니다.' });
     }
 
-    // 각 사용자의 프로필 정보도 함께 조회
-    const usersWithProfiles = await Promise.all(
-      users.map(async (user) => {
-        const { data: profile, error: profileError } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
+    const profileByUserId = {};
+    if (profiles && Array.isArray(profiles)) {
+      profiles.forEach((p) => {
+        if (p.user_id) profileByUserId[p.user_id] = p;
+      });
+    }
 
-        // 중요: user_profiles 테이블에도 id(정수 PK)가 있어 users.id(uuid)를 덮어쓸 수 있음
-        // - id는 반드시 users.id(uuid)가 되도록 profile을 먼저 펼치고 user를 나중에 펼친다.
-        // - 프론트 호환성을 위해 profile은 nested로도 함께 제공한다.
-        const safeProfile = profileError ? null : (profile || null);
+    const usersWithProfiles = (users || []).map((user) => {
+      const safeProfile = profileByUserId[user.id] || null;
+      return {
+        ...(safeProfile || {}),
+        ...user,
+        profile: safeProfile,
+      };
+    });
 
-        return {
-          ...(safeProfile || {}),
-          ...user,
-          profile: safeProfile,
-        };
-      })
-    );
-    
     res.json(usersWithProfiles);
   } catch (error) {
-    console.error('사용자 목록 조회 오류');
-    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    console.error('사용자 목록 조회 오류', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
   }
 });
 
@@ -1622,26 +1623,23 @@ router.get('/matching-applications', authenticate, async (req, res) => {
       if (row.user && row.user.id) userMap[row.user.id] = row.user;
     });
 
-    for (const row of data) {
-      if (row.partner_user_id && userMap[row.partner_user_id]) {
-        row.partner = userMap[row.partner_user_id];
-      } else if (row.partner_user_id) {
-        try {
-          const { data: partnerUser, error: partnerError } = await supabase
-            .from('users')
-            .select('id,email')
-            .eq('id', row.partner_user_id)
-            .single();
-          if (partnerError || !partnerUser) {
-            row.partner = null;
-          } else {
-            row.partner = partnerUser;
-          }
-        } catch (e) {
-          row.partner = null;
-        }
+    const missingPartnerIds = [...new Set(
+      data
+        .filter(row => row.partner_user_id && !userMap[row.partner_user_id])
+        .map(row => row.partner_user_id)
+    )];
+    if (missingPartnerIds.length > 0) {
+      const { data: partnerUsers } = await supabase
+        .from('users')
+        .select('id,email')
+        .in('id', missingPartnerIds);
+      if (partnerUsers && Array.isArray(partnerUsers)) {
+        partnerUsers.forEach((u) => { if (u.id) userMap[u.id] = u; });
       }
     }
+    data.forEach(row => {
+      row.partner = row.partner_user_id ? (userMap[row.partner_user_id] || null) : null;
+    });
     const normalizedData = data.map(row => {
       const { profileSnapshot, preferenceSnapshot } = normalizeProfileSnapshots(
         row.profile_snapshot,
