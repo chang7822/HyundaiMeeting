@@ -134,9 +134,8 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         <div>
           <div style={{fontWeight:700,fontSize:'1.25rem',color:'#4F46E5',marginBottom:2}}>{nickname}</div>
           <div style={{fontSize:'0.98rem',color:'#666'}}>
-            {birthYear}년생 · {gender}<br/>
-            {company ? ` ${company}` : ''}
-            {job ? ` · ${job}` : ''}
+            {birthYear}년생 · {gender}
+            {company ? <><br/>{company}</> : ''}
           </div>
         </div>
       </div>
@@ -144,6 +143,10 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
       <div style={sectionStyle}>
         <span style={labelStyle}>키</span>
         <span style={valueStyle}>{height ? `${height}cm` : '-'}</span>
+      </div>
+      <div style={sectionStyle}>
+        <span style={labelStyle}>학력</span>
+        <span style={valueStyle}>{job || '-'}</span>
       </div>
       <div style={sectionStyle}>
         <span style={labelStyle}>체형</span>

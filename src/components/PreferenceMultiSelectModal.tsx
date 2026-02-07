@@ -227,11 +227,19 @@ const PreferenceMultiSelectModal: React.FC<PreferenceMultiSelectModalProps> = ({
   };
 
   const handleToggleOption = (value: string) => {
-    setSelectedValues(prev =>
-      prev.includes(value)
-        ? prev.filter(v => v !== value)
-        : [...prev, value],
-    );
+    const isDeselecting = selectedValues.includes(value);
+    const next = isDeselecting
+      ? selectedValues.filter(v => v !== value)
+      : [...selectedValues, value];
+    setSelectedValues(next);
+    // 전체 선택 상태에서 하나라도 수동으로 빼면 전체선택 토글 해제
+    if (isDeselecting && noPreference) {
+      setNoPreference(false);
+    }
+    // 전부 선택된 상태가 되면 전체선택 토글과 동기화
+    if (!isDeselecting && next.length === options.length) {
+      setNoPreference(true);
+    }
   };
 
   const handleConfirm = () => {

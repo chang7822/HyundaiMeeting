@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getProfileCategories, getProfileOptions, userApi, authApi } from '../services/api.ts';
 import AddressSelectModal from '../components/AddressSelectModal.tsx';
-import { ProfileCategory, ProfileOption, User, UserProfile, EDUCATION_OPTIONS, type EducationLevel } from '../types';
+import { ProfileCategory, ProfileOption, User, UserProfile, EDUCATION_OPTIONS, type EducationLevel } from '../types/index.ts';
 import Slider from 'rc-slider';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaEye, FaEyeSlash, FaCheckCircle, FaTimesCircle, FaTimes } from 'react-icons/fa';
