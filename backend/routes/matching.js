@@ -553,7 +553,7 @@ router.post('/request', authenticate, async (req, res) => {
         profile.custom_company_name 
           ? `사용자 입력 회사명: ${profile.custom_company_name}`
           : '',
-        `직군: ${profile.job_type || '-'}`,
+        `학력: ${profile.education || '-'}`,
         '',
         '=== 프로필 정보 ===',
         `자기소개: ${profile.appeal || '-'}`,
@@ -571,7 +571,7 @@ router.post('/request', authenticate, async (req, res) => {
         `선호 연령: ${profile.preferred_age_min || '-'}세 ~ ${profile.preferred_age_max || '-'}세`,
         `선호 키: ${profile.preferred_height_min || '-'}cm ~ ${profile.preferred_height_max || '-'}cm`,
         `선호 체형: ${parseJsonArray(profile.preferred_body_types) || '-'}`,
-        `선호 직군: ${parseJsonArray(profile.preferred_job_types) || '-'}`,
+        `선호 학력: ${parseJsonArray(profile.preferred_educations) || '-'}`,
         `선호 결혼상태: ${parseJsonArray(profile.preferred_marital_statuses) || '-'}`,
         `선호 회사: ${preferCompanyNames.length > 0 ? preferCompanyNames.join(', ') : '-'}`,
         `선호 지역: ${Array.isArray(profile.prefer_region) && profile.prefer_region.length > 0 

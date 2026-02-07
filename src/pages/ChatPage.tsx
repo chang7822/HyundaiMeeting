@@ -513,7 +513,7 @@ const ChatPage: React.FC = () => {
             nickname: partnerProfile?.nickname || '상대방',
             birthYear: partnerProfile?.birth_year,
             gender: partnerProfile?.gender,
-            job: partnerProfile?.job_type,
+            job: partnerProfile?.education,
             company: getDisplayCompanyName(partnerProfile?.company, partnerProfile?.custom_company_name),
             residence: partnerProfile?.residence,
             mbti: partnerProfile?.mbti,
@@ -605,7 +605,7 @@ const ChatPage: React.FC = () => {
             nickname={partnerProfile.nickname}
             birthYear={partnerProfile.birth_year}
             gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : partnerProfile.gender || ''}
-            job={partnerProfile.job_type}
+            job={partnerProfile.education}
             company={getDisplayCompanyName(partnerProfile.company, partnerProfile.custom_company_name)}
             mbti={partnerProfile.mbti}
             maritalStatus={partnerProfile.marital_status}

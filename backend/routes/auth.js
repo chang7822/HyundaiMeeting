@@ -683,7 +683,7 @@ router.post('/register', async (req, res) => {
       residence,
       company,
       maritalStatus,
-      jobType,
+      education,
       appeal,
       profileData,
       preferences,
@@ -769,7 +769,7 @@ router.post('/register', async (req, res) => {
       height: height || null,
       residence: residence || null,
       company: null,
-      job_type: jobType || null,
+      education: education || null,
       appeal: appeal || null,
       // 단일 선택 항목들 초기화
       marital_status: maritalStatus || null,
@@ -788,58 +788,50 @@ router.post('/register', async (req, res) => {
       preferred_height_min: null,
       preferred_height_max: null,
       preferred_body_types: null,
-      preferred_job_types: null
+      preferred_educations: null
     };
 
     // 회사 정보 자동 설정 (도메인 또는 회사 선택 기반)
     try {
       let resolvedCompanyName = null;
       let customCompanyName = null;
-      let jobTypeHold = false;
 
       // 프리랜서/자영업(9999) 또는 기타 회사(9998)인지 확인
       const isNoDomainCompany = company === '9999' || company === '9998';
 
       if (isNoDomainCompany) {
         // 프리랜서/자영업 또는 기타 회사인 경우
-        // 1) companies 테이블에서 회사명 및 job_type_hold 조회
         const { data: companyRow, error: companyError } = await supabase
           .from('companies')
-          .select('name, job_type_hold')
+          .select('name')
           .eq('id', company)
           .maybeSingle();
 
         if (!companyError && companyRow && companyRow.name) {
           resolvedCompanyName = companyRow.name;
-          jobTypeHold = !!companyRow.job_type_hold;
         }
 
-        // 2) custom_company_name 저장 (프론트에서 전달)
         if (req.body.customCompanyName) {
           customCompanyName = String(req.body.customCompanyName).trim();
         }
       } else {
-        // 기존 회사 도메인이 있는 경우
-        // 1) 프론트에서 전달한 company 값이 회사 id인 경우: companies 테이블에서 이름 및 job_type_hold 조회
         if (company) {
           const { data: companyRow, error: companyError } = await supabase
             .from('companies')
-            .select('name, job_type_hold')
+            .select('name')
             .eq('id', company)
             .maybeSingle();
 
           if (!companyError && companyRow && companyRow.name) {
             resolvedCompanyName = companyRow.name;
-            jobTypeHold = !!companyRow.job_type_hold;
           }
         }
 
-        // 2) company id로 못 찾았으면, 이메일 도메인으로 companies.email_domains 기반 매핑
         if (!resolvedCompanyName && email && email.includes('@')) {
           const domain = email.split('@')[1].toLowerCase();
           const { data: domainCompanies, error: domainError } = await supabase
             .from('companies')
-            .select('name, email_domains, job_type_hold');
+            .select('name, email_domains');
 
           if (!domainError && Array.isArray(domainCompanies)) {
             const match = domainCompanies.find(row =>
@@ -848,7 +840,6 @@ router.post('/register', async (req, res) => {
             );
             if (match && match.name) {
               resolvedCompanyName = match.name;
-              jobTypeHold = !!match.job_type_hold;
               console.log('[회원가입] 이메일 도메인 기반 회사명 설정:', resolvedCompanyName, '도메인:', domain);
             }
           }
@@ -857,29 +848,6 @@ router.post('/register', async (req, res) => {
 
       profileDataToInsert.company = resolvedCompanyName;
       profileDataToInsert.custom_company_name = customCompanyName || null;
-      
-      // job_type_hold가 true인 경우 직군을 "일반직"으로 시작하는 옵션으로 고정
-      if (jobTypeHold && !profileDataToInsert.job_type) {
-        // DB에서 직군 옵션 중 "일반직"으로 시작하는 첫 번째 옵션 찾기
-        const { data: jobTypeOptions, error: jobTypeError } = await supabase
-          .from('profile_options')
-          .select('option_text')
-          .eq('category_id', (await supabase
-            .from('profile_categories')
-            .select('id')
-            .eq('name', '직군')
-            .maybeSingle()).data?.id || 0)
-          .order('display_order', { ascending: true });
-        
-        if (!jobTypeError && Array.isArray(jobTypeOptions)) {
-          const generalJobOption = jobTypeOptions.find(opt => 
-            opt.option_text && opt.option_text.startsWith('일반직')
-          );
-          if (generalJobOption && generalJobOption.option_text) {
-            profileDataToInsert.job_type = generalJobOption.option_text;
-          }
-        }
-      }
     } catch (e) {
       console.error('[회원가입] 회사명 자동 설정 중 오류:', e);
       profileDataToInsert.company = null;
@@ -959,11 +927,6 @@ router.post('/register', async (req, res) => {
                     profileDataToInsert.mbti = selectedOptions[0];
                   }
                   break;
-                case '직군':
-                  if (!profileDataToInsert.job_type) {
-                    profileDataToInsert.job_type = selectedOptions[0];
-                  }
-                  break;
                 case '체형':
                   if (!profileDataToInsert.body_type) {
                     profileDataToInsert.body_type = selectedOptions[0];
@@ -1001,9 +964,9 @@ router.post('/register', async (req, res) => {
         preferences.preferredBodyTypes && preferences.preferredBodyTypes.length > 0
           ? JSON.stringify(preferences.preferredBodyTypes)
           : null;
-      profileDataToInsert.preferred_job_types =
-        preferences.preferredJobTypes && preferences.preferredJobTypes.length > 0
-          ? JSON.stringify(preferences.preferredJobTypes)
+      profileDataToInsert.preferred_educations =
+        preferences.preferredEducations && preferences.preferredEducations.length > 0
+          ? JSON.stringify(preferences.preferredEducations)
           : null;
       // preferred_marital_statuses 저장
       if (preferences.preferredMaritalStatuses && preferences.preferredMaritalStatuses.length > 0) {
@@ -1217,7 +1180,7 @@ router.post('/register', async (req, res) => {
         profileDataToInsert.custom_company_name 
           ? `사용자 입력 회사명: ${profileDataToInsert.custom_company_name}`
           : '',
-        `직군: ${profileDataToInsert.job_type || '-'}`,
+        `학력: ${profileDataToInsert.education || '-'}`,
         '',
         '=== 프로필 정보 ===',
         `자기소개: ${profileDataToInsert.appeal || '-'}`,
@@ -1235,7 +1198,7 @@ router.post('/register', async (req, res) => {
         `선호 연령: ${profileDataToInsert.preferred_age_min || '-'}세 ~ ${profileDataToInsert.preferred_age_max || '-'}세`,
         `선호 키: ${profileDataToInsert.preferred_height_min || '-'}cm ~ ${profileDataToInsert.preferred_height_max || '-'}cm`,
         `선호 체형: ${parseJsonArray(profileDataToInsert.preferred_body_types) || '-'}`,
-        `선호 직군: ${parseJsonArray(profileDataToInsert.preferred_job_types) || '-'}`,
+        `선호 학력: ${parseJsonArray(profileDataToInsert.preferred_educations) || '-'}`,
         `선호 결혼상태: ${parseJsonArray(profileDataToInsert.preferred_marital_statuses) || '-'}`,
         `선호 회사: ${preferCompanyNames.length > 0 ? preferCompanyNames.join(', ') : '-'}`,
         `선호 지역: ${Array.isArray(profileDataToInsert.prefer_region) && profileDataToInsert.prefer_region.length > 0 

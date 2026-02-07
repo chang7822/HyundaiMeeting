@@ -1047,16 +1047,16 @@ function getPreferenceMismatchReasons(target, owner) {
     }
   }
 
-  // 직군
-  const prefJobTypes = ensureArray(owner.preferred_job_types);
-  if (prefJobTypes.length > 0) {
-    const targetJob = target.job_type || '정보 없음';
-    if (!target.job_type || !prefJobTypes.includes(target.job_type)) {
+  // 학력
+  const prefEducations = ensureArray(owner.preferred_educations);
+  if (prefEducations.length > 0) {
+    const targetEd = target.education || '정보 없음';
+    if (!target.education || !prefEducations.includes(target.education)) {
       reasons.push({
-        key: 'job',
-        title: '직군 불일치',
-        ownerPref: prefJobTypes.join(', '),
-        targetValue: targetJob,
+        key: 'education',
+        title: '학력 불일치',
+        ownerPref: prefEducations.join(', '),
+        targetValue: targetEd,
       });
     }
   }
@@ -1128,6 +1128,13 @@ function extractSnapshotPreferences(profile) {
 function normalizeProfileSnapshots(profileSnapshot, preferenceSnapshot, fallbackProfile = null) {
   const baseProfile = profileSnapshot || (fallbackProfile ? { ...fallbackProfile } : null);
   const prefs = preferenceSnapshot || extractSnapshotPreferences(baseProfile || fallbackProfile);
+  // 과거 스냅샷: job_type만 있으면 education 자리에 넣어서 표시용으로 사용
+  if (baseProfile && baseProfile.job_type != null && baseProfile.education == null) {
+    baseProfile.education = baseProfile.job_type;
+  }
+  if (prefs && prefs.preferred_job_types != null && prefs.preferred_educations == null) {
+    prefs.preferred_educations = prefs.preferred_job_types;
+  }
   return {
     profileSnapshot: baseProfile ? { ...baseProfile } : null,
     preferenceSnapshot: prefs ? { ...prefs } : null
@@ -1169,9 +1176,9 @@ function profileMatchesPreference(target, owner) {
     }
   }
 
-  const prefJobTypes = ensureArray(owner.preferred_job_types);
-  if (prefJobTypes.length > 0) {
-    if (!target.job_type || !prefJobTypes.includes(target.job_type)) {
+  const prefEducations = ensureArray(owner.preferred_educations);
+  if (prefEducations.length > 0) {
+    if (!target.education || !prefEducations.includes(target.education)) {
       return false;
     }
   }
@@ -2511,7 +2518,7 @@ router.get('/extra-matching/period/:periodId/entries', authenticate, async (req,
     if (userIds.length > 0) {
       const { data: profiles, error: profileError } = await supabase
         .from('user_profiles')
-        .select('user_id, nickname, company, job_type, birth_year')
+        .select('user_id, nickname, company, education, birth_year')
         .in('user_id', userIds);
 
       if (profileError) {
@@ -2576,7 +2583,7 @@ router.get('/extra-matching/period/:periodId/entries', authenticate, async (req,
         profile: {
           nickname: p.nickname || null,
           company: p.company || null,
-          job_type: p.job_type || null,
+          education: p.education || null,
           birth_year: p.birth_year || null,
         },
         stats: {
@@ -2633,7 +2640,7 @@ router.get('/extra-matching/entry/:entryId/applies', authenticate, async (req, r
     if (senderIds.length > 0) {
       const { data: profiles, error: profileError } = await supabase
         .from('user_profiles')
-        .select('user_id, nickname, gender, company, job_type, birth_year')
+        .select('user_id, nickname, gender, company, education, birth_year')
         .in('user_id', senderIds);
 
       if (profileError) {
@@ -2679,7 +2686,7 @@ router.get('/extra-matching/entry/:entryId/applies', authenticate, async (req, r
           nickname: p.nickname || null,
           gender: p.gender || null,
           company: p.company || null,
-          job_type: p.job_type || null,
+          education: p.education || null,
           birth_year: p.birth_year || null,
         },
       };
@@ -3125,7 +3132,7 @@ router.get('/companies', authenticate, async (req, res) => {
 
     const { data, error } = await supabase
       .from('companies')
-      .select('id, name, email_domains, is_active, job_type_hold, created_at')
+      .select('id, name, email_domains, is_active, created_at')
       .order('id', { ascending: true });
 
     if (error) {
@@ -3138,7 +3145,6 @@ router.get('/companies', authenticate, async (req, res) => {
       name: c.name,
       emailDomains: Array.isArray(c.email_domains) ? c.email_domains : [],
       isActive: !!c.is_active,
-      jobTypeHold: !!c.job_type_hold,
       createdAt: c.created_at,
     }));
 
@@ -3154,7 +3160,7 @@ router.post('/companies', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const { name, emailDomains, isActive, jobTypeHold, createNotice, sendNotification, sendPush, applyPreferCompany, sendEmail, emailRecipient, emailSubject, emailContent } = req.body || {};
+    const { name, emailDomains, isActive, createNotice, sendNotification, sendPush, applyPreferCompany, sendEmail, emailRecipient, emailSubject, emailContent } = req.body || {};
 
     if (!name || !String(name).trim()) {
       return res.status(400).json({ success: false, message: '회사명을 입력해주세요.' });
@@ -3185,7 +3191,6 @@ router.post('/companies', authenticate, async (req, res) => {
       name: trimmedName,
       email_domains: domains,
       is_active: !!isActive,
-      job_type_hold: !!jobTypeHold,
     };
 
     const { data, error } = await supabase
@@ -3386,7 +3391,6 @@ router.post('/companies', authenticate, async (req, res) => {
         name: data.name,
         emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
         isActive: !!data.is_active,
-        jobTypeHold: !!data.job_type_hold,
         createdAt: data.created_at,
       },
       noticeId,
@@ -3403,7 +3407,7 @@ router.put('/companies/:id', authenticate, async (req, res) => {
     if (!ensureAdmin(req, res)) return;
 
     const { id } = req.params;
-    const { name, emailDomains, isActive, jobTypeHold } = req.body || {};
+    const { name, emailDomains, isActive } = req.body || {};
 
     const update = {};
     if (name !== undefined) {
@@ -3421,9 +3425,6 @@ router.put('/companies/:id', authenticate, async (req, res) => {
     }
     if (isActive !== undefined) {
       update.is_active = !!isActive;
-    }
-    if (jobTypeHold !== undefined) {
-      update.job_type_hold = !!jobTypeHold;
     }
 
     if (Object.keys(update).length === 0) {
@@ -3451,7 +3452,6 @@ router.put('/companies/:id', authenticate, async (req, res) => {
         name: data.name,
         emailDomains: Array.isArray(data.email_domains) ? data.email_domains : [],
         isActive: !!data.is_active,
-        jobTypeHold: !!data.job_type_hold,
         createdAt: data.created_at,
       },
     });

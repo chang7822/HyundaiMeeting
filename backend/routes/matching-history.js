@@ -239,10 +239,23 @@ router.get('/:id', authenticate, async (req, res) => {
     if (partnerUserId) {
       const { data: profileData } = await supabase
         .from('user_profiles')
-        .select('nickname, gender, birth_year, height, job_type')
+        .select('nickname, gender, birth_year, height, education')
         .eq('user_id', partnerUserId)
         .single();
       partnerProfile = profileData;
+    }
+
+    // 현재 프로필에 학력이 없으면(과거 직군 전환 유저) 당시 신청 스냅샷에서 education/job_type fallback
+    let partnerEducation = partnerProfile?.education ?? null;
+    if (partnerEducation == null && partnerUserId && data.period_id) {
+      const { data: appRow } = await supabase
+        .from('matching_applications')
+        .select('profile_snapshot')
+        .eq('period_id', data.period_id)
+        .eq('user_id', partnerUserId)
+        .maybeSingle();
+      const snap = appRow?.profile_snapshot || {};
+      partnerEducation = snap.education ?? snap.job_type ?? null;
     }
 
     const processedData = {
@@ -255,7 +268,7 @@ router.get('/:id', authenticate, async (req, res) => {
       partner_gender: partnerProfile?.gender || null,
       partner_birth_year: partnerProfile?.birth_year || null,
       partner_height: partnerProfile?.height || null,
-      partner_job_type: partnerProfile?.job_type || null,
+      partner_education: partnerEducation,
       period_info: data.period,
       can_report: data.matched === true // 탈퇴한 사용자도 이메일 기반으로 신고 가능
     };

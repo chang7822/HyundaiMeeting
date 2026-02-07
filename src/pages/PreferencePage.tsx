@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getProfileCategories, getProfileOptions, userApi, companyApi } from '../services/api.ts';
-import { ProfileCategory, ProfileOption, Company } from '../types/index.ts';
+import { ProfileCategory, ProfileOption, Company, EDUCATION_OPTIONS } from '../types/index.ts';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaTimes } from 'react-icons/fa';
@@ -241,11 +241,11 @@ type PreferenceType = {
   heightMin: number;
   heightMax: number;
   preferredBodyTypes: string[];
-  preferredJobTypes: string[];
+  preferredEducations: string[];
   preferAgeNoPreference: boolean;
   preferHeightNoPreference: boolean;
   preferBodyTypeNoPreference: boolean;
-  preferJobTypeNoPreference: boolean;
+  preferEducationNoPreference: boolean;
 };
 
 const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
@@ -285,19 +285,16 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const oppositeGender = userGender === 'male' ? 'female' : userGender === 'female' ? 'male' : null;
   const bodyTypeCategory = categories.find(cat => cat.name === '체형' && (cat.gender === oppositeGender || cat.gender === 'common'));
   const bodyTypeOptions = bodyTypeCategory ? options.filter(opt => opt.category_id === bodyTypeCategory.id).map(opt => opt.option_text) : [];
-  const jobTypeCategory = categories.find(cat => cat.name === '직군');
-  const jobTypeOptions = jobTypeCategory ? options.filter(opt => opt.category_id === jobTypeCategory.id).map(opt => opt.option_text) : [];
-
   const [ageMin, setAgeMin] = useState(-10);
   const [ageMax, setAgeMax] = useState(10);
   const [heightMin, setHeightMin] = useState(150);
   const [heightMax, setHeightMax] = useState(199);
   const [preferredBodyTypes, setPreferredBodyTypes] = useState<string[]>([]);
-  const [preferredJobTypes, setPreferredJobTypes] = useState<string[]>([]);
+  const [preferredEducations, setPreferredEducations] = useState<string[]>([]);
   const [preferAgeNoPreference, setPreferAgeNoPreference] = useState(false);
   const [preferHeightNoPreference, setPreferHeightNoPreference] = useState(false);
   const [preferBodyTypeNoPreference, setPreferBodyTypeNoPreference] = useState(false);
-  const [preferJobTypeNoPreference, setPreferJobTypeNoPreference] = useState(false);
+  const [preferEducationNoPreference, setPreferEducationNoPreference] = useState(false);
 
   // 1. 상태 추가
   const [preferredMaritalStatuses, setPreferredMaritalStatuses] = useState<string[]>([]);
@@ -308,7 +305,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [preferRegions, setPreferRegions] = useState<string[]>([]);
   const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
   const [isBodyTypeModalOpen, setIsBodyTypeModalOpen] = useState(false);
-  const [isJobTypeModalOpen, setIsJobTypeModalOpen] = useState(false);
+  const [isEducationModalOpen, setIsEducationModalOpen] = useState(false);
   const [isMaritalModalOpen, setIsMaritalModalOpen] = useState(false);
 
   // 2. 결혼상태 옵션 추출
@@ -328,14 +325,14 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       if (typeof profile.preferred_body_types === 'string') {
         try { setPreferredBodyTypes(JSON.parse(profile.preferred_body_types)); } catch { setPreferredBodyTypes([]); }
       }
-      if (typeof profile.preferred_job_types === 'string') {
-        try { setPreferredJobTypes(JSON.parse(profile.preferred_job_types)); } catch { setPreferredJobTypes([]); }
+      if (typeof profile.preferred_educations === 'string') {
+        try { setPreferredEducations(JSON.parse(profile.preferred_educations)); } catch { setPreferredEducations([]); }
       }
       // no preference 여부
       setPreferAgeNoPreference(profile.preferred_age_min === -99 && profile.preferred_age_max === 99);
       setPreferHeightNoPreference(profile.preferred_height_min === 150 && profile.preferred_height_max === 199);
       setPreferBodyTypeNoPreference(Array.isArray(profile.preferred_body_types) && profile.preferred_body_types.length === 0);
-      setPreferJobTypeNoPreference(Array.isArray(profile.preferred_job_types) && profile.preferred_job_types.length === 0);
+      setPreferEducationNoPreference(Array.isArray(profile.preferred_educations) && profile.preferred_educations.length === 0);
       // 3. 결혼상태 추가
       if (typeof profile.preferred_marital_statuses === 'string') {
         try { setPreferredMaritalStatuses(JSON.parse(profile.preferred_marital_statuses)); } catch { setPreferredMaritalStatuses([]); }
@@ -363,7 +360,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         if (typeof parsed.heightMin === 'number') setHeightMin(parsed.heightMin);
         if (typeof parsed.heightMax === 'number') setHeightMax(parsed.heightMax);
         if (Array.isArray(parsed.preferredBodyTypes)) setPreferredBodyTypes(parsed.preferredBodyTypes);
-        if (Array.isArray(parsed.preferredJobTypes)) setPreferredJobTypes(parsed.preferredJobTypes);
+        if (Array.isArray(parsed.preferredEducations)) setPreferredEducations(parsed.preferredEducations);
         if (typeof parsed.preferHeightNoPreference === 'boolean') setPreferHeightNoPreference(parsed.preferHeightNoPreference);
         if (typeof parsed.preferBodyTypeNoPreference === 'boolean') setPreferBodyTypeNoPreference(parsed.preferBodyTypeNoPreference);
         if (typeof parsed.preferJobTypeNoPreference === 'boolean') setPreferJobTypeNoPreference(parsed.preferJobTypeNoPreference);
@@ -413,11 +410,11 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } else {
       if (preferBodyTypeNoPreference && preferredBodyTypes.length !== bodyTypeOptions.length) setPreferBodyTypeNoPreference(false);
     }
-    // 직군
-    if (jobTypeOptions.length > 0 && preferredJobTypes.length === jobTypeOptions.length) {
-      if (!preferJobTypeNoPreference) setPreferJobTypeNoPreference(true);
+    // 학력
+    if (EDUCATION_OPTIONS.length > 0 && preferredEducations.length === EDUCATION_OPTIONS.length) {
+      if (!preferEducationNoPreference) setPreferEducationNoPreference(true);
     } else {
-      if (preferJobTypeNoPreference && preferredJobTypes.length !== jobTypeOptions.length) setPreferJobTypeNoPreference(false);
+      if (preferEducationNoPreference && preferredEducations.length !== EDUCATION_OPTIONS.length) setPreferEducationNoPreference(false);
     }
     // 결혼상태
     if (maritalOptions.length > 0 && preferredMaritalStatuses.length === maritalOptions.length) {
@@ -425,7 +422,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     } else {
       if (preferMaritalNoPreference && preferredMaritalStatuses.length !== maritalOptions.length) setPreferMaritalNoPreference(false);
     }
-  }, [preferredBodyTypes, preferredJobTypes, preferredMaritalStatuses, bodyTypeOptions, jobTypeOptions, maritalOptions]);
+  }, [preferredBodyTypes, preferredEducations, preferredMaritalStatuses, bodyTypeOptions, maritalOptions]);
 
   const companySummary = useMemo(() => {
     if (preferCompanyNames.length === 0) return '';
@@ -472,8 +469,8 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       toast.error('선호 체형은 최소 3개 이상 선택해주세요');
       return;
     }
-    if (!preferJobTypeNoPreference && preferredJobTypes.length === 0) {
-      toast.error('선호 직군을 선택해주세요');
+    if (!preferEducationNoPreference && preferredEducations.length === 0) {
+      toast.error('선호 학력을 선택해주세요');
       return;
     }
     if (!preferMaritalNoPreference && preferredMaritalStatuses.length === 0) {
@@ -488,7 +485,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         preferred_height_min: heightMin,
         preferred_height_max: heightMax,
         preferred_body_types: JSON.stringify(preferredBodyTypes),
-        preferred_job_types: JSON.stringify(preferredJobTypes),
+        preferred_educations: JSON.stringify(preferredEducations),
         preferred_marital_statuses: JSON.stringify(preferredMaritalStatuses),
         prefer_company: preferCompanyIds
           .map(id => parseInt(id, 10))
@@ -505,7 +502,7 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     }
   };
 
-  // 체형/직군 선택 핸들러
+  // 체형 선택 핸들러
   const handleBodyTypeToggle = (bodyType: string) => {
     if (bodyType === '상관없음') {
       setPreferBodyTypeNoPreference(!preferBodyTypeNoPreference);
@@ -522,17 +519,17 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       });
     }
   };
-  const handleJobTypeToggle = (jobType: string) => {
-    if (jobType === '상관없음') {
-      setPreferJobTypeNoPreference(!preferJobTypeNoPreference);
-      setPreferredJobTypes(preferJobTypeNoPreference ? [] : jobTypeOptions);
+  const handleEducationToggle = (level: string) => {
+    if (level === '상관없음') {
+      setPreferEducationNoPreference(!preferEducationNoPreference);
+      setPreferredEducations(preferEducationNoPreference ? [] : [...EDUCATION_OPTIONS]);
     } else {
-      setPreferredJobTypes(prev => {
-        const next = prev.includes(jobType)
-          ? prev.filter(type => type !== jobType)
-          : [...prev, jobType];
-        if (jobTypeOptions.length > 0 && next.length === jobTypeOptions.length) setPreferJobTypeNoPreference(true);
-        else setPreferJobTypeNoPreference(false);
+      setPreferredEducations(prev => {
+        const next = prev.includes(level)
+          ? prev.filter(x => x !== level)
+          : [...prev, level];
+        if (EDUCATION_OPTIONS.length > 0 && next.length === EDUCATION_OPTIONS.length) setPreferEducationNoPreference(true);
+        else setPreferEducationNoPreference(false);
         return next;
       });
     }
@@ -701,25 +698,25 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             )}
           </CompanySection>
         </BodyTypeContainer>
-        {/* 선호 직군 */}
+        {/* 선호 학력 */}
         <BodyTypeContainer>
-          <SectionTitle>선호 직군 (중복 선택 가능)</SectionTitle>
+          <SectionTitle>선호 학력 (중복 선택 가능)</SectionTitle>
           <CompanySection>
-            <CompanyOpenButton type="button" onClick={() => setIsJobTypeModalOpen(true)}>
-              <span>{preferredJobTypes.length === 0 && !preferJobTypeNoPreference ? '선호 직군을 선택해주세요' : '선호 직군 다시 선택하기'}</span>
+            <CompanyOpenButton type="button" onClick={() => setIsEducationModalOpen(true)}>
+              <span>{preferredEducations.length === 0 && !preferEducationNoPreference ? '선호 학력을 선택해주세요' : '선호 학력 다시 선택하기'}</span>
               <span>선택하기</span>
             </CompanyOpenButton>
-            {(!preferredJobTypes.length && !preferJobTypeNoPreference) ? (
+            {(!preferredEducations.length && !preferEducationNoPreference) ? (
               <CompanySummaryText style={{ color: '#ef4444' }}>
-                아직 선호 직군을 선택하지 않았어요.
+                아직 선호 학력을 선택하지 않았어요.
               </CompanySummaryText>
             ) : (
               <CompanySummaryText>
-                {preferJobTypeNoPreference
-                  ? '모든 직군 (상관없음)'
+                {preferEducationNoPreference
+                  ? '모든 학력 (상관없음)'
                   : (() => {
-                      const count = preferredJobTypes.length;
-                      const preview = preferredJobTypes.slice(0, 3);
+                      const count = preferredEducations.length;
+                      const preview = preferredEducations.slice(0, 3);
                       if (count <= 3) return `${preview.join(', ')} (${count})`;
                       return `${preview.join(', ')} 등 (${count})`;
                     })()}
@@ -813,20 +810,20 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         }}
       />
       <PreferenceMultiSelectModal
-        isOpen={isJobTypeModalOpen}
-        title="선호 직군 선택"
-        description="매칭 시 참고되는 선호 직군을 선택해주세요. 상단의 상관없음 버튼을 누르면 모든 직군을 선호하는 것으로 처리돼요."
-        options={jobTypeOptions}
-        initialSelected={preferredJobTypes}
-        initialNoPreference={preferJobTypeNoPreference}
+        isOpen={isEducationModalOpen}
+        title="선호 학력 선택"
+        description="매칭 시 참고되는 선호 학력을 선택해주세요. 상단의 상관없음 버튼을 누르면 모든 학력을 선호하는 것으로 처리돼요."
+        options={EDUCATION_OPTIONS}
+        initialSelected={preferredEducations}
+        initialNoPreference={preferEducationNoPreference}
         minCount={1}
-        anyInactiveLabel="상관없음 (모든 직군 선택)"
-        anyActiveLabel="모든 직군 선택 해제"
-        onClose={() => setIsJobTypeModalOpen(false)}
+        anyInactiveLabel="상관없음 (모든 학력 선택)"
+        anyActiveLabel="모든 학력 선택 해제"
+        onClose={() => setIsEducationModalOpen(false)}
         onConfirm={(selected, noPref) => {
-          setPreferJobTypeNoPreference(noPref);
-          setPreferredJobTypes(selected);
-          setIsJobTypeModalOpen(false);
+          setPreferEducationNoPreference(noPref);
+          setPreferredEducations(selected);
+          setIsEducationModalOpen(false);
         }}
       />
       <PreferenceMultiSelectModal

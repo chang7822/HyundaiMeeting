@@ -94,7 +94,7 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
         <div style={{marginBottom:8}}><b>키:</b> {user.height}</div>
         <div style={{marginBottom:8}}><b>거주지:</b> {user.residence}</div>
         <div style={{marginBottom:8}}><b>회사:</b> {getDisplayCompanyName(user.company, user.custom_company_name) || '-'}</div>
-        <div style={{marginBottom:8}}><b>직군:</b> {user.job_type}</div>
+        <div style={{marginBottom:8}}><b>학력:</b> {user.education}</div>
         <div style={{marginBottom:8}}><b>결혼상태:</b> {user.marital_status}</div>
         <div style={{marginBottom:8}}><b>MBTI:</b> {user.mbti}</div>
         <div style={{marginBottom:8}}><b>자기소개:</b> {user.appeal}</div>
@@ -105,7 +105,7 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
         <div style={{marginBottom:8}}><b>선호 키:</b> {user.preferred_height_min} ~ {user.preferred_height_max}</div>
         <div style={{marginBottom:8}}><b>선호 체형:</b> {parseArray(user.preferred_body_types).join(', ')}</div>
         <div style={{marginBottom:8}}><b>선호 회사:</b> {preferCompanyNames}</div>
-        <div style={{marginBottom:8}}><b>선호 직군:</b> {parseArray(user.preferred_job_types).join(', ')}</div>
+        <div style={{marginBottom:8}}><b>선호 학력:</b> {parseArray(user.preferred_educations).join(', ')}</div>
         <div style={{marginBottom:8}}><b>선호 지역:</b> {preferRegions}</div>
         <div style={{marginBottom:8}}><b>선호 결혼상태:</b> {parseArray(user.preferred_marital_statuses).join(', ')}</div>
       </div>

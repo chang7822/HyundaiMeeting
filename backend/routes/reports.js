@@ -246,7 +246,7 @@ router.post('/', authenticate, async (req, res) => {
         reporterProfile?.custom_company_name 
           ? `사용자 입력 회사명: ${reporterProfile.custom_company_name}`
           : '',
-        `직군: ${reporterProfile?.job_type || '-'}`,
+        `학력: ${reporterProfile?.education || '-'}`,
         '',
         '=== 신고자 프로필 정보 ===',
         `자기소개: ${reporterProfile?.appeal || '-'}`,

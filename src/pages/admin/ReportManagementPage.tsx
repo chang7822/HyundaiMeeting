@@ -1065,7 +1065,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
                   <div><strong>MBTI:</strong> {userProfile.mbti || '-'}</div>
                   <div><strong>거주지:</strong> {userProfile.residence || '-'}</div>
                   <div><strong>소속:</strong> {userProfile.company || '-'}</div>
-                  <div><strong>직군:</strong> {userProfile.job_type || '-'}</div>
+                  <div><strong>학력:</strong> {userProfile.education || '-'}</div>
                   <div><strong>결혼상태:</strong> {userProfile.marital_status || '-'}</div>
                   <div><strong>종교:</strong> {userProfile.religion || '-'}</div>
                   <div><strong>흡연:</strong> {userProfile.smoking || '-'}</div>

@@ -217,7 +217,7 @@ const AppealPage = () => {
         company: company || undefined,
         customCompanyName,
         maritalStatus: maritalStatus || undefined,
-        jobType: profileData.jobType || undefined,
+        education: profileData.education || undefined,
         appeal: data.appeal,
         profileData,
         preferences,

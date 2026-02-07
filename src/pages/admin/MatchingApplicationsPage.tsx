@@ -1167,7 +1167,7 @@ const compatProfile = compatModal.user ? buildSnapshotPayload(compatModal.user) 
                 age: '나이',
                 height: '키',
                 body: '체형',
-                job: '직군',
+                education: '학력',
                 marital: '결혼상태',
                 region: '지역',
                 company: '회사',

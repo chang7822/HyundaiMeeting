@@ -196,7 +196,7 @@ export const authApi = {
     company?: string;
     customCompanyName?: string;
     maritalStatus?: string;
-    jobType?: string;
+    education?: string;
     appeal?: string;
     profileData: {
       selected: { [categoryId: number]: number[] };
@@ -697,7 +697,7 @@ export const preferencesApi = {
     age: number[] | null;
     height: number[] | null;
     bodyType: string[] | null;
-    jobType: string[] | null;
+    preferredEducations: string[] | null;
   }): Promise<any> => {
     const response = await api.put(`/users/${userId}`, {
       preferred_age_min: preferences.age ? preferences.age[0] : null,
@@ -705,7 +705,7 @@ export const preferencesApi = {
       preferred_height_min: preferences.height ? preferences.height[0] : null,
       preferred_height_max: preferences.height ? preferences.height[1] : null,
       preferred_body_types: preferences.bodyType ? JSON.stringify(preferences.bodyType) : null,
-      preferred_job_types: preferences.jobType ? JSON.stringify(preferences.jobType) : null
+      preferred_educations: preferences.preferredEducations ? JSON.stringify(preferences.preferredEducations) : null
     });
     return response.data;
   },
@@ -714,7 +714,7 @@ export const preferencesApi = {
     age: number[] | null;
     height: number[] | null;
     bodyType: string[];
-    jobType: string[];
+    preferredEducations: string[];
   }> => {
     const response = await api.get(`/users/${userId}/profile`);
     const profile = response.data;
@@ -725,7 +725,7 @@ export const preferencesApi = {
       height: profile.preferred_height_min && profile.preferred_height_max ? 
         [profile.preferred_height_min, profile.preferred_height_max] : null,
       bodyType: profile.preferred_body_types ? JSON.parse(profile.preferred_body_types) : [],
-      jobType: profile.preferred_job_types ? JSON.parse(profile.preferred_job_types) : []
+      preferredEducations: profile.preferred_educations ? JSON.parse(profile.preferred_educations) : []
     };
   },
 };

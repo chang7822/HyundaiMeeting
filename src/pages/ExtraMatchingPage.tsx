@@ -840,7 +840,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 </div>
                 <div style={{ fontSize: '0.86rem', color: '#4b5563', lineHeight: 1.5 }}>
                   {getDisplayCompanyName(selectedReceivedProfile.company, selectedReceivedProfile.custom_company_name) && <div>회사: {getDisplayCompanyName(selectedReceivedProfile.company, selectedReceivedProfile.custom_company_name)}</div>}
-                  {selectedReceivedProfile.job_type && <div>직군: {selectedReceivedProfile.job_type}</div>}
+                  {selectedReceivedProfile.education && <div>학력: {selectedReceivedProfile.education}</div>}
                   {selectedReceivedProfile.residence && <div>거주지: {selectedReceivedProfile.residence}</div>}
                   {selectedReceivedProfile.mbti && <div>MBTI: {selectedReceivedProfile.mbti}</div>}
                   {selectedReceivedProfile.height && <div>키: {selectedReceivedProfile.height}cm</div>}
@@ -983,8 +983,8 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     {getDisplayCompanyName(apply.profile?.company, apply.profile?.custom_company_name) && (
                       <span style={{ marginRight: 8 }}>회사: {getDisplayCompanyName(apply.profile?.company, apply.profile?.custom_company_name)}</span>
                     )}
-                    {apply.profile?.job_type && (
-                      <span style={{ marginRight: 8 }}>직군: {apply.profile.job_type}</span>
+                    {apply.profile?.education && (
+                      <span style={{ marginRight: 8 }}>학력: {apply.profile.education}</span>
                     )}
                     {apply.profile?.residence && (
                       <>
@@ -1114,7 +1114,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     </EntryHeader>
                     <EntryMeta>
                       {getDisplayCompanyName(entry.company, entry.custom_company_name) && <div>회사: {getDisplayCompanyName(entry.company, entry.custom_company_name)}</div>}
-                      {entry.job_type && <div>직군: {entry.job_type}</div>}
+                      {entry.education && <div>학력: {entry.education}</div>}
                       {entry.residence && <div>거주지: {entry.residence}</div>}
                       {entry.mbti && <div>MBTI: {entry.mbti}</div>}
                     </EntryMeta>
@@ -1181,7 +1181,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     </strong>
                   </div>
                   {getDisplayCompanyName(myProfile.company, myProfile.custom_company_name) && <div>회사: {getDisplayCompanyName(myProfile.company, myProfile.custom_company_name)}</div>}
-                  {myProfile.job_type && <div>직군: {myProfile.job_type}</div>}
+                  {myProfile.education && <div>학력: {myProfile.education}</div>}
                   {myProfile.residence && <div>거주지: {myProfile.residence}</div>}
                   {myProfile.mbti && <div>MBTI: {myProfile.mbti}</div>}
                   {myProfile.height && <div>키: {myProfile.height}cm</div>}
@@ -1354,7 +1354,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                       </strong>
                     </div>
                     {getDisplayCompanyName(myProfile.company, myProfile.custom_company_name) && <div>회사: {getDisplayCompanyName(myProfile.company, myProfile.custom_company_name)}</div>}
-                    {myProfile.job_type && <div>직군: {myProfile.job_type}</div>}
+                    {myProfile.education && <div>학력: {myProfile.education}</div>}
                     {myProfile.residence && <div>거주지: {myProfile.residence}</div>}
                     {myProfile.mbti && <div>MBTI: {myProfile.mbti}</div>}
                     {myProfile.height && <div>키: {myProfile.height}cm</div>}
@@ -1496,7 +1496,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 </div>
                 <div style={{ fontSize: '0.86rem', color: '#4b5563', lineHeight: 1.5 }}>
                   {getDisplayCompanyName(selectedEntry.company, selectedEntry.custom_company_name) && <div>회사: {getDisplayCompanyName(selectedEntry.company, selectedEntry.custom_company_name)}</div>}
-                  {selectedEntry.job_type && <div>직군: {selectedEntry.job_type}</div>}
+                  {selectedEntry.education && <div>학력: {selectedEntry.education}</div>}
                   {selectedEntry.residence && <div>거주지: {selectedEntry.residence}</div>}
                   {selectedEntry.mbti && <div>MBTI: {selectedEntry.mbti}</div>}
                   {selectedEntry.height && <div>키: {selectedEntry.height}cm</div>}

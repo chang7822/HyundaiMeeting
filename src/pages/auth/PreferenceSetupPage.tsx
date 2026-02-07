@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getProfileCategories, getProfileOptions } from '../../services/api.ts';
-import { ProfileCategory, ProfileOption } from '../../types/index.ts';
+import { ProfileCategory, ProfileOption, EDUCATION_OPTIONS } from '../../types/index.ts';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaArrowLeft } from 'react-icons/fa';
@@ -235,11 +235,11 @@ type PreferenceType = {
   heightMin: number;
   heightMax: number;
   preferredBodyTypes: string[];
-  preferredJobTypes: string[];
+  preferredEducations: string[];
   preferAgeNoPreference: boolean;
   preferHeightNoPreference: boolean;
   preferBodyTypeNoPreference: boolean;
-  preferJobTypeNoPreference: boolean;
+  preferEducationNoPreference: boolean;
 };
 
 const PreferenceSetupPage = () => {
@@ -268,22 +268,18 @@ const PreferenceSetupPage = () => {
   const bodyTypeOptions = bodyTypeCategory
     ? options.filter(opt => opt.category_id === bodyTypeCategory.id).map(opt => opt.option_text)
     : [];
-  const jobTypeCategory = categories.find(cat => cat.name === '직군');
-  const jobTypeOptions = jobTypeCategory
-    ? options.filter(opt => opt.category_id === jobTypeCategory.id).map(opt => opt.option_text)
-    : [];
-  
+  // 학력은 4종 고정 (EDUCATION_OPTIONS)
   // 2. 모든 입력값을 각각 useState로 관리
   const [ageMin, setAgeMin] = useState(-10); // 기본값: 10살 연하
   const [ageMax, setAgeMax] = useState(10);  // 기본값: 10살 연상
   const [heightMin, setHeightMin] = useState(150);
   const [heightMax, setHeightMax] = useState(199);
   const [preferredBodyTypes, setPreferredBodyTypes] = useState<string[]>([]);
-  const [preferredJobTypes, setPreferredJobTypes] = useState<string[]>([]);
+  const [preferredEducations, setPreferredEducations] = useState<string[]>([]);
   const [preferAgeNoPreference, setPreferAgeNoPreference] = useState(false);
   const [preferHeightNoPreference, setPreferHeightNoPreference] = useState(false);
   const [preferBodyTypeNoPreference, setPreferBodyTypeNoPreference] = useState(false);
-  const [preferJobTypeNoPreference, setPreferJobTypeNoPreference] = useState(false);
+  const [preferEducationNoPreference, setPreferEducationNoPreference] = useState(false);
   const [preferredMaritalStatuses, setPreferredMaritalStatuses] = useState<string[]>([]);
   const [preferMaritalNoPreference, setPreferMaritalNoPreference] = useState(false);
   const [preferCompanyIds, setPreferCompanyIds] = useState<string[]>([]);
@@ -292,7 +288,7 @@ const PreferenceSetupPage = () => {
   const [preferRegions, setPreferRegions] = useState<string[]>([]);
   const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
   const [isBodyTypeModalOpen, setIsBodyTypeModalOpen] = useState(false);
-  const [isJobTypeModalOpen, setIsJobTypeModalOpen] = useState(false);
+  const [isEducationModalOpen, setIsEducationModalOpen] = useState(false);
   const [isMaritalModalOpen, setIsMaritalModalOpen] = useState(false);
   
   // 3. savePreferenceData 함수
@@ -309,9 +305,9 @@ const PreferenceSetupPage = () => {
   ) => {
     const data = {
       ageMin, ageMax, heightMin, heightMax,
-      preferredBodyTypes, preferredJobTypes,
+      preferredBodyTypes, preferredEducations,
       preferAgeNoPreference, preferHeightNoPreference,
-      preferBodyTypeNoPreference, preferJobTypeNoPreference,
+      preferBodyTypeNoPreference, preferEducationNoPreference,
       preferredMaritalStatuses, preferMaritalNoPreference,
       preferCompanyIds,
       preferCompanyNames,
@@ -336,10 +332,10 @@ const PreferenceSetupPage = () => {
         if (typeof parsed.heightMin === 'number') setHeightMin(parsed.heightMin);
         if (typeof parsed.heightMax === 'number') setHeightMax(parsed.heightMax);
         if (Array.isArray(parsed.preferredBodyTypes)) setPreferredBodyTypes(parsed.preferredBodyTypes);
-        if (Array.isArray(parsed.preferredJobTypes)) setPreferredJobTypes(parsed.preferredJobTypes);
+        if (Array.isArray(parsed.preferredEducations)) setPreferredEducations(parsed.preferredEducations);
         if (typeof parsed.preferHeightNoPreference === 'boolean') setPreferHeightNoPreference(parsed.preferHeightNoPreference);
         if (typeof parsed.preferBodyTypeNoPreference === 'boolean') setPreferBodyTypeNoPreference(parsed.preferBodyTypeNoPreference);
-        if (typeof parsed.preferJobTypeNoPreference === 'boolean') setPreferJobTypeNoPreference(parsed.preferJobTypeNoPreference);
+        if (typeof parsed.preferEducationNoPreference === 'boolean') setPreferEducationNoPreference(parsed.preferEducationNoPreference);
         if (Array.isArray(parsed.preferredMaritalStatuses)) setPreferredMaritalStatuses(parsed.preferredMaritalStatuses);
         if (typeof parsed.preferMaritalNoPreference === 'boolean') setPreferMaritalNoPreference(parsed.preferMaritalNoPreference);
         if (Array.isArray(parsed.preferCompanyIds)) setPreferCompanyIds(parsed.preferCompanyIds);
@@ -477,18 +473,17 @@ const PreferenceSetupPage = () => {
     }
   };
   
-  // 직군 선택 핸들러
-  const handleJobTypeToggle = (jobType: string) => {
-    if (jobType === '상관없음') {
-      setPreferJobTypeNoPreference(!preferJobTypeNoPreference);
-      // 상관없음 선택 시 모든 직군 옵션을 선택
-      setPreferredJobTypes(preferJobTypeNoPreference ? [] : jobTypeOptions);
+  // 학력 선택 핸들러
+  const handleEducationToggle = (level: string) => {
+    if (level === '상관없음') {
+      setPreferEducationNoPreference(!preferEducationNoPreference);
+      setPreferredEducations(preferEducationNoPreference ? [] : [...EDUCATION_OPTIONS]);
     } else {
-      setPreferJobTypeNoPreference(false);
-      setPreferredJobTypes(prev => {
-        const next = prev.includes(jobType)
-          ? prev.filter(type => type !== jobType)
-          : [...prev, jobType];
+      setPreferEducationNoPreference(false);
+      setPreferredEducations(prev => {
+        const next = prev.includes(level)
+          ? prev.filter(x => x !== level)
+          : [...prev, level];
         return next;
       });
     }
@@ -517,8 +512,8 @@ const PreferenceSetupPage = () => {
       toast.error('선호 체형은 최소 3개 이상 선택해주세요');
       return;
     }
-    if (!preferJobTypeNoPreference && preferredJobTypes.length === 0) {
-      toast.error('선호 직군을 선택해주세요');
+    if (!preferEducationNoPreference && preferredEducations.length === 0) {
+      toast.error('선호 학력을 선택해주세요');
       return;
     }
     if (!preferMaritalNoPreference && preferredMaritalStatuses.length === 0) {
@@ -719,24 +714,24 @@ const PreferenceSetupPage = () => {
           )}
         </CompanySection>
         
-        {/* 선호 직군 */}
+        {/* 선호 학력 */}
         <BodyTypeContainer>
-          <Label>선호 직군 (중복 선택 가능)</Label>
-          <CompanyOpenButton type="button" onClick={() => setIsJobTypeModalOpen(true)}>
-            <span>{preferredJobTypes.length === 0 && !preferJobTypeNoPreference ? '선호 직군을 선택해주세요' : '선호 직군 다시 선택하기'}</span>
+          <Label>선호 학력 (중복 선택 가능)</Label>
+          <CompanyOpenButton type="button" onClick={() => setIsEducationModalOpen(true)}>
+            <span>{preferredEducations.length === 0 && !preferEducationNoPreference ? '선호 학력을 선택해주세요' : '선호 학력 다시 선택하기'}</span>
             <span>선택하기</span>
           </CompanyOpenButton>
-          {(!preferredJobTypes.length && !preferJobTypeNoPreference) ? (
+          {(!preferredEducations.length && !preferEducationNoPreference) ? (
             <CompanySummaryText style={{ color: '#ef4444' }}>
-              아직 선호 직군을 선택하지 않았어요.
+              아직 선호 학력을 선택하지 않았어요.
             </CompanySummaryText>
           ) : (
             <CompanySummaryText>
-              {preferJobTypeNoPreference
-                ? '모든 직군 (상관없음)'
+              {preferEducationNoPreference
+                ? '모든 학력 (상관없음)'
                 : (() => {
-                    const count = preferredJobTypes.length;
-                    const preview = preferredJobTypes.slice(0, 3);
+                    const count = preferredEducations.length;
+                    const preview = preferredEducations.slice(0, 3);
                     if (count <= 3) return `${preview.join(', ')} (${count})`;
                     return `${preview.join(', ')} 등 (${count})`;
                   })()}
@@ -833,24 +828,24 @@ const PreferenceSetupPage = () => {
         }}
       />
       <PreferenceMultiSelectModal
-        isOpen={isJobTypeModalOpen}
-        title="선호 직군 선택"
-        description="매칭 시 참고되는 선호 직군을 선택해주세요. 상단의 상관없음 버튼을 누르면 모든 직군을 선호하는 것으로 처리돼요."
-        options={jobTypeOptions}
-        initialSelected={preferredJobTypes}
-        initialNoPreference={preferJobTypeNoPreference}
+        isOpen={isEducationModalOpen}
+        title="선호 학력 선택"
+        description="매칭 시 참고되는 선호 학력을 선택해주세요. 상단의 상관없음 버튼을 누르면 모든 학력을 선호하는 것으로 처리돼요."
+        options={EDUCATION_OPTIONS}
+        initialSelected={preferredEducations}
+        initialNoPreference={preferEducationNoPreference}
         minCount={1}
-        anyInactiveLabel="상관없음 (모든 직군 선택)"
-        anyActiveLabel="모든 직군 선택 해제"
-        onClose={() => setIsJobTypeModalOpen(false)}
+        anyInactiveLabel="상관없음 (모든 학력 선택)"
+        anyActiveLabel="모든 학력 선택 해제"
+        onClose={() => setIsEducationModalOpen(false)}
         onConfirm={(selected, noPref) => {
-          setPreferJobTypeNoPreference(noPref);
-          setPreferredJobTypes(selected);
+          setPreferEducationNoPreference(noPref);
+          setPreferredEducations(selected);
           savePreferenceData({
-            preferredJobTypes: selected,
-            preferJobTypeNoPreference: noPref,
+            preferredEducations: selected,
+            preferEducationNoPreference: noPref,
           });
-          setIsJobTypeModalOpen(false);
+          setIsEducationModalOpen(false);
         }}
       />
       <PreferenceMultiSelectModal

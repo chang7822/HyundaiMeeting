@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getProfileCategories, getProfileOptions, userApi, authApi, companyApi } from '../services/api.ts';
+import { getProfileCategories, getProfileOptions, userApi, authApi } from '../services/api.ts';
 import AddressSelectModal from '../components/AddressSelectModal.tsx';
-import { ProfileCategory, ProfileOption, User, UserProfile } from '../types';
+import { ProfileCategory, ProfileOption, User, UserProfile, EDUCATION_OPTIONS, type EducationLevel } from '../types';
 import Slider from 'rc-slider';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaEye, FaEyeSlash, FaCheckCircle, FaTimesCircle, FaTimes } from 'react-icons/fa';
@@ -268,7 +268,6 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const isPwNotMatch = !!pw2 && pw !== pw2;
   const [nicknameError, setNicknameError] = useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [jobTypeHold, setJobTypeHold] = useState(false);
   // [1] 체형 선택 상태를 배열로 변경 (정확히 3개 선택)
   const [bodyTypes, setBodyTypes] = useState<string[]>(Array.isArray(profile.body_type) ? profile.body_type : (profile.body_type ? JSON.parse(profile.body_type) : []));
   const [bodyTypeLimitWarned, setBodyTypeLimitWarned] = useState(false);
@@ -319,29 +318,6 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         setProfile(userProfile);
         setCategories(categoriesData);
         setOptions(optionsData);
-        
-        // 회사 정보 확인하여 job_type_hold 체크
-        if (userProfile.company) {
-          companyApi.getCompanies().then(companies => {
-            const company = companies.find(c => c.name === userProfile.company);
-            if (company && company.jobTypeHold) {
-              setJobTypeHold(true);
-              // 현재 job_type이 "일반직"으로 시작하지 않으면 첫 번째 일반직 옵션으로 설정
-              if (userProfile.job_type && !userProfile.job_type.startsWith('일반직')) {
-                const jobTypeCategory = categoriesData.find(c => c.name === '직군');
-                if (jobTypeCategory) {
-                  const jobTypeOptions = optionsData.filter(opt => opt.category_id === jobTypeCategory.id);
-                  const generalJobOption = jobTypeOptions.find(opt => 
-                    opt.option_text.startsWith('일반직')
-                  );
-                  if (generalJobOption) {
-                    setProfile({ ...userProfile, job_type: generalJobOption.option_text as UserProfile['job_type'] });
-                  }
-                }
-              }
-            }
-          }).catch(() => {});
-        }
         // console.log('[ProfilePage] getMe 데이터:', userProfile);
         // console.log('[ProfilePage] getProfileCategories 데이터:', categoriesData);
         // console.log('[ProfilePage] getProfileOptions 데이터:', optionsData);
@@ -384,7 +360,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (!profile.height) missingFields.push('키');
     if (!profile.mbti) missingFields.push('MBTI');
     if (!profile.residence) missingFields.push('거주지');
-    if (!profile.job_type) missingFields.push('직군');
+    if (!profile.education) missingFields.push('학력');
     if (!profile.marital_status) missingFields.push('결혼상태');
     // [추가] 체형은 정확히 3개 선택 필수
     if (!bodyTypes || bodyTypes.length !== 3) missingFields.push('체형(3개)');
@@ -414,7 +390,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         appearance,
         personality,
         residence,
-        job_type,
+        education,
         marital_status,
         appeal,
         religion,
@@ -431,7 +407,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         appearance,
         personality,
         residence: profile.residence,
-        job_type,
+        education,
         marital_status,
         appeal,
         religion: profile.religion,
@@ -681,45 +657,17 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             >{opt.option_text}</OptionButton>
           ))}
         </Row>
-        <Label>
-          직군
-          {jobTypeHold ? (
-            <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
-              (해당 회사는 일반직으로 고정됩니다.)
-            </span>
-          ) : (
-            <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
-              (직군 구분이 없는 회사의 경우 일반직으로 설정 바랍니다.)
-            </span>
-          )}
-        </Label>
+        <Label>학력</Label>
         <Row>
-          {getOptions('직군')
-            .filter(opt => {
-              if (!jobTypeHold) return true;
-              // job_type_hold가 true인 경우 "일반직"으로 시작하는 옵션만 표시
-              return opt.option_text.startsWith('일반직');
-            })
-            .map((opt) => {
-              const isGeneralJob = opt.option_text.startsWith('일반직');
-              return (
-              <OptionButton
-                key={opt.id}
-                selected={profile.job_type === opt.option_text}
-                style={{
-                  opacity: jobTypeHold && !isGeneralJob ? 0.5 : 1,
-                  cursor: jobTypeHold && !isGeneralJob ? 'not-allowed' : 'pointer'
-                }}
-                onClick={() => {
-                  if (!jobTypeHold || isGeneralJob) {
-                    setProfile({ ...profile, job_type: opt.option_text as UserProfile['job_type'] });
-                  }
-                }}
-              >
-                {opt.option_text}
-              </OptionButton>
-            );
-          })}
+          {EDUCATION_OPTIONS.map((level) => (
+            <OptionButton
+              key={level}
+              selected={profile.education === level}
+              onClick={() => setProfile({ ...profile, education: level as EducationLevel })}
+            >
+              {level}
+            </OptionButton>
+          ))}
         </Row>
         <Label>결혼상태</Label>
         <Row>

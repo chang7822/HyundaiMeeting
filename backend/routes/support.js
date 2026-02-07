@@ -130,7 +130,7 @@ router.post('/inquiries', authenticate, async (req, res) => {
         profile?.custom_company_name 
           ? `사용자 입력 회사명: ${profile.custom_company_name}`
           : '',
-        `직군: ${profile?.job_type || '-'}`,
+        `학력: ${profile?.education || '-'}`,
         '',
         '=== 문의자 프로필 정보 ===',
         `자기소개: ${profile?.appeal || '-'}`,

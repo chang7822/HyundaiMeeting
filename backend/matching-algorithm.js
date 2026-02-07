@@ -115,13 +115,11 @@ function isMutualMatch(a, b, previousMatches = null) {
   const bPrefBody = b.preferred_body_types ? (Array.isArray(b.preferred_body_types) ? b.preferred_body_types : (typeof b.preferred_body_types === 'string' ? JSON.parse(b.preferred_body_types) : [])) : [];
   const aRealBody = a.body_type ? (Array.isArray(a.body_type) ? a.body_type : (typeof a.body_type === 'string' ? JSON.parse(a.body_type) : [])) : [];
   if (bPrefBody.length > 0 && aRealBody.length > 0 && !bPrefBody.some(type => aRealBody.includes(type))) return false;
-  // 직군
-  if (a.preferred_job_types && a.preferred_job_types.length > 0) {
-    if (!a.preferred_job_types.includes(b.job_type)) return false;
-  }
-  if (b.preferred_job_types && b.preferred_job_types.length > 0) {
-    if (!b.preferred_job_types.includes(a.job_type)) return false;
-  }
+  // 학력
+  const aPrefEd = a.preferred_educations ? (Array.isArray(a.preferred_educations) ? a.preferred_educations : (typeof a.preferred_educations === 'string' ? JSON.parse(a.preferred_educations) : [])) : [];
+  const bPrefEd = b.preferred_educations ? (Array.isArray(b.preferred_educations) ? b.preferred_educations : (typeof b.preferred_educations === 'string' ? JSON.parse(b.preferred_educations) : [])) : [];
+  if (aPrefEd.length > 0 && (!b.education || !aPrefEd.includes(b.education))) return false;
+  if (bPrefEd.length > 0 && (!a.education || !bPrefEd.includes(a.education))) return false;
   // 결혼상태
   const aMarital = a.preferred_marital_statuses ? (typeof a.preferred_marital_statuses === 'string' ? JSON.parse(a.preferred_marital_statuses) : a.preferred_marital_statuses) : [];
   const bMarital = b.preferred_marital_statuses ? (typeof b.preferred_marital_statuses === 'string' ? JSON.parse(b.preferred_marital_statuses) : b.preferred_marital_statuses) : [];
@@ -649,7 +647,7 @@ async function computeMatchesForAllUsers() {
         height,
         residence,
         company,
-        job_type,
+        education,
         marital_status,
         body_type,
         preferred_age_min,
@@ -657,7 +655,7 @@ async function computeMatchesForAllUsers() {
         preferred_height_min,
         preferred_height_max,
         preferred_body_types,
-        preferred_job_types,
+        preferred_educations,
         preferred_marital_statuses,
         prefer_company,
         prefer_region,
@@ -730,7 +728,7 @@ async function computeMatchesForAllUsers() {
       height: row.height,
       residence: row.residence,
       company: row.company,
-      job_type: row.job_type,
+      education: row.education,
       marital_status: row.marital_status,
       body_type: row.body_type,
       preferred_age_min: row.preferred_age_min,
@@ -738,7 +736,7 @@ async function computeMatchesForAllUsers() {
       preferred_height_min: row.preferred_height_min,
       preferred_height_max: row.preferred_height_max,
       preferred_body_types: row.preferred_body_types,
-      preferred_job_types: row.preferred_job_types,
+      preferred_educations: row.preferred_educations,
       preferred_marital_statuses: row.preferred_marital_statuses,
       prefer_company: row.prefer_company,
       prefer_region: row.prefer_region,

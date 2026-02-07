@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { getProfileCategories, getProfileOptions, companyApi } from '../../services/api.ts';
+import { getProfileCategories, getProfileOptions } from '../../services/api.ts';
 import { useNavigate } from 'react-router-dom';
-import { ProfileCategory, ProfileOption } from '../../types/index.ts';
+import { ProfileCategory, ProfileOption, EDUCATION_OPTIONS, type EducationLevel } from '../../types/index.ts';
 import { toast } from 'react-toastify';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
@@ -255,7 +255,7 @@ const ProfileSetupPage = () => {
   // [1] 체형 선택 상태를 배열로 변경
   const [bodyTypes, setBodyTypes] = useState<string[]>([]);
   const [residence, setResidence] = useState('');
-  const [jobType, setJobType] = useState('');
+  const [education, setEducation] = useState<EducationLevel | ''>('');
   const [maritalStatus, setMaritalStatus] = useState('');
   const [religion, setReligion] = useState('');
   const [smoking, setSmoking] = useState('');
@@ -267,8 +267,6 @@ const ProfileSetupPage = () => {
   // 팝업 상태
   const [popup, setPopup] = useState<{type: string} | null>(null);
   const [addressPopup, setAddressPopup] = useState(false);
-  // job_type_hold 상태 (직군 선택 고정 여부)
-  const [jobTypeHold, setJobTypeHold] = useState(false);
   // [3] 체형 MultiSelect (정확히 3개 선택)
   // [삭제] bodyTypePopup 관련 상태/컴포넌트 제거
   // [추가] handleBodyTypeToggle 함수
@@ -295,32 +293,6 @@ const ProfileSetupPage = () => {
     
     getProfileCategories().then(setCategories).catch(() => setCategories([]));
     getProfileOptions().then(setOptions).catch(() => setOptions([]));
-    
-    // 회사 정보 확인하여 job_type_hold 체크
-    const selectedCompanyId = sessionStorage.getItem('userCompany');
-    if (selectedCompanyId) {
-      companyApi.getCompanies().then(companies => {
-        const company = companies.find(c => c.id === selectedCompanyId);
-        if (company && company.jobTypeHold) {
-          setJobTypeHold(true);
-          // DB에서 가져온 직군 옵션 중 "일반직"으로 시작하는 첫 번째 옵션 찾기
-          getProfileOptions().then(allOptions => {
-            getProfileCategories().then(allCategories => {
-              const jobTypeCategory = allCategories.find(c => c.name === '직군');
-              if (jobTypeCategory) {
-                const jobTypeOptions = allOptions.filter(opt => opt.category_id === jobTypeCategory.id);
-                const generalJobOption = jobTypeOptions.find(opt => 
-                  opt.option_text.startsWith('일반직')
-                );
-                if (generalJobOption) {
-                  setJobType(generalJobOption.option_text);
-                }
-              }
-            }).catch(() => {});
-          }).catch(() => {});
-        }
-      }).catch(() => {});
-    }
   }, [userGender, navigate]);
 
   useEffect(() => {
@@ -333,7 +305,7 @@ const ProfileSetupPage = () => {
         if (parsed.mbti) setMbti(parsed.mbti);
         // [2] 복원 시 배열로 복원
         if (parsed.bodyTypes) setBodyTypes(parsed.bodyTypes);
-        if (parsed.jobType) setJobType(parsed.jobType);
+        if (parsed.education) setEducation(parsed.education as EducationLevel);
         if (parsed.residence) setResidence(parsed.residence);
         if (parsed.maritalStatus) setMaritalStatus(parsed.maritalStatus);
         if (parsed.interests) setInterests(parsed.interests);
@@ -354,7 +326,7 @@ const ProfileSetupPage = () => {
       mbti,
       // [4] 저장 시 bodyType을 배열로 저장
       bodyTypes,
-      jobType,
+      education,
       residence,
       maritalStatus,
       interests,
@@ -423,8 +395,8 @@ const ProfileSetupPage = () => {
       missingFields.push('체형(3개)');
     }
     
-    if (!jobType) {
-      missingFields.push('직군');
+    if (!education) {
+      missingFields.push('학력');
     }
     
     if (!residence) {
@@ -484,7 +456,7 @@ const ProfileSetupPage = () => {
       mbti,
       // [4] 저장 시 bodyType을 배열로 저장
       bodyTypes,
-      jobType,
+      education,
       residence,
       maritalStatus,
       interests,
@@ -561,48 +533,18 @@ const ProfileSetupPage = () => {
           })()}
         </BodyTypeGrid>
         
-        <Label>
-          직군
-          {jobTypeHold ? (
-            <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
-              (해당 회사는 일반직으로 고정됩니다.)
-            </span>
-          ) : (
-            <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 6 }}>
-              (직군 구분이 없는 회사의 경우 일반직으로 설정 바랍니다.)
-            </span>
-          )}
-        </Label>
+        <Label>학력</Label>
         <Row style={{flexWrap:'wrap'}}>
-          {getOptions(filteredCategories.find(c => c.name === '직군')?.id || 0)
-            .filter(opt => {
-              if (!jobTypeHold) return true;
-              // job_type_hold가 true인 경우 "일반직"으로 시작하는 옵션만 표시
-              return opt.option_text.startsWith('일반직');
-            })
-            .map(opt => {
-              const isGeneralJob = opt.option_text.startsWith('일반직');
-              return (
-              <OptionButton
-                key={opt.id}
-                selected={jobType === opt.option_text}
-                style={{
-                  minWidth:'80px', 
-                  padding:'8px 16px', 
-                  textAlign:'center',
-                  opacity: jobTypeHold && !isGeneralJob ? 0.5 : 1,
-                  cursor: jobTypeHold && !isGeneralJob ? 'not-allowed' : 'pointer'
-                }}
-                onClick={() => {
-                  if (!jobTypeHold || isGeneralJob) {
-                    setJobType(opt.option_text);
-                  }
-                }}
-              >
-                {opt.option_text}
-              </OptionButton>
-            );
-          })}
+          {EDUCATION_OPTIONS.map((level) => (
+            <OptionButton
+              key={level}
+              selected={education === level}
+              style={{ minWidth: '100px', padding: '8px 16px', textAlign: 'center' }}
+              onClick={() => setEducation(level)}
+            >
+              {level}
+            </OptionButton>
+          ))}
         </Row>
         
         <Label>결혼상태</Label>

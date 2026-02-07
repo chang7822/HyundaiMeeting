@@ -33,7 +33,7 @@ export interface UserProfile {
   residence?: string;
   company?: string;
   custom_company_name?: string; // 프리랜서/자영업, 기타 회사 선택 시 사용자가 입력한 회사명/직업
-  job_type?: '일반직(사무직)' | '기술직(생산직)' | '연구직' | '기타';
+  education?: EducationLevel; // 학력
   appeal?: string;
   
   // 단일 선택 항목들
@@ -55,7 +55,7 @@ export interface UserProfile {
   preferred_height_min?: number;
   preferred_height_max?: number;
   preferred_body_types?: string; // JSON: ["마른", "슬림탄탄", "보통"]
-  preferred_job_types?: string; // JSON: ["일반직", "기술직"]
+  preferred_educations?: string; // JSON: ["고졸", "4년제대졸"] 등
   preferred_marital_statuses?: string; // JSON: ["미혼", "돌싱"]
   prefer_company?: number[]; // integer[]: 선호 회사 id 배열
   prefer_region?: string[]; // text[]: 선호 지역(시/도 등) 배열
@@ -103,13 +103,16 @@ export interface UserPreferenceOption {
   created_at: string;
 }
 
+// 학력 (4종 고정)
+export type EducationLevel = '고졸' | '2년제대졸' | '4년제대졸' | '석사 이상';
+export const EDUCATION_OPTIONS: EducationLevel[] = ['고졸', '2년제대졸', '4년제대졸', '석사 이상'];
+
 // Company Types
 export interface Company {
   id: string;
   name: string;
   emailDomains: string[];
   isActive: boolean;
-  jobTypeHold?: boolean; // 직군 선택을 일반직으로 고정할지 여부
 }
 
 // Matching Types

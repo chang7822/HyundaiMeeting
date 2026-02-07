@@ -2369,33 +2369,38 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       return;
     }
 
-    // 선호 직군 선택 여부 확인
+    // 선호 학력 선택 여부 확인
     try {
-      const rawJobTypes = me?.preferred_job_types;
-      let jobTypes: string[] = [];
+      const rawEducations = me?.preferred_educations;
+      let educationList: string[] = [];
 
-      if (Array.isArray(rawJobTypes)) {
-        jobTypes = rawJobTypes as string[];
-      } else if (typeof rawJobTypes === 'string' && rawJobTypes.trim().length > 0) {
+      if (Array.isArray(rawEducations)) {
+        educationList = rawEducations as string[];
+      } else if (typeof rawEducations === 'string' && rawEducations.trim().length > 0) {
         try {
-          const parsed = JSON.parse(rawJobTypes);
+          const parsed = JSON.parse(rawEducations);
           if (Array.isArray(parsed)) {
-            jobTypes = parsed;
+            educationList = parsed;
           } else if (parsed) {
-            jobTypes = [String(parsed)];
+            educationList = [String(parsed)];
           }
         } catch {
-          // JSON 파싱이 안 되면 단일 값으로 취급
-          jobTypes = [rawJobTypes.trim()];
+          educationList = [rawEducations.trim()];
         }
       }
 
-      if (!jobTypes || jobTypes.length === 0) {
-        toast.error('선호 스타일에서 선호 직군을 선택해주세요.');
+      if (!educationList || educationList.length === 0) {
+        toast.error('선호 스타일에서 선호 학력을 선택해주세요.');
         return;
       }
     } catch (e) {
-      toast.error('선호 스타일에서 선호 직군을 선택해주세요.');
+      toast.error('선호 스타일에서 선호 학력을 선택해주세요.');
+      return;
+    }
+
+    // 프로필 학력 선택 여부 확인
+    if (!me?.education || String(me.education).trim() === '') {
+      toast.error('프로필에서 학력을 선택해주세요.');
       return;
     }
 
@@ -3327,7 +3332,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               nickname={profile?.nickname || displayName}
               birthYear={profile?.birth_year || 0}
               gender={profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
-              job={profile?.job_type || '-'}
+              job={profile?.education || '-'}
               company={getDisplayCompanyName(profile?.company, profile?.custom_company_name)}
               mbti={profile?.mbti}
               maritalStatus={profile?.marital_status}
@@ -3356,7 +3361,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               nickname={partnerProfile.nickname}
               birthYear={partnerProfile.birth_year}
               gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : '-'}
-              job={partnerProfile.job_type || '-'}
+              job={partnerProfile.education || '-'}
               company={getDisplayCompanyName(partnerProfile.company, partnerProfile.custom_company_name)}
               mbti={partnerProfile.mbti}
               maritalStatus={partnerProfile.marital_status}
@@ -3477,7 +3482,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                   <div style={{fontSize:'0.98rem',color:'#666'}}>
                     {profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
                     {getDisplayCompanyName(profile?.company, profile?.custom_company_name) ? ` · ${getDisplayCompanyName(profile?.company, profile?.custom_company_name)}` : ''}
-                    {' · '}{profile?.job_type || '-'}
+                    {' · '}{profile?.education || '-'}
                   </div>
                 </div>
                 <div style={{
@@ -3610,8 +3615,8 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                         .filter((name): name is string => !!name);
                       return names.length > 0 ? names.join(', ') : '-';
                     })()}<br/>
-                    <b>직군:</b> {(() => {
-                      const arr = profile?.preferred_job_types ? (Array.isArray(profile.preferred_job_types) ? profile.preferred_job_types : (()=>{try{return JSON.parse(profile.preferred_job_types);}catch{return[];}})()) : [];
+                    <b>학력:</b> {(() => {
+                      const arr = profile?.preferred_educations ? (Array.isArray(profile.preferred_educations) ? profile.preferred_educations : (()=>{try{return JSON.parse(profile.preferred_educations);}catch{return[];}})()) : [];
                       return arr.length > 0 ? arr.join(', ') : '-';
                     })()}<br/>
                     <b>지역:</b> {(() => {
