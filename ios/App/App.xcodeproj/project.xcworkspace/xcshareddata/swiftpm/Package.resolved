@@ -11,6 +11,24 @@
       }
     },
     {
+      "identity" : "purchases-hybrid-common",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/RevenueCat/purchases-hybrid-common.git",
+      "state" : {
+        "revision" : "10cdc06bccb4867b11cd148da74ba2799f8e6fac",
+        "version" : "17.31.0"
+      }
+    },
+    {
+      "identity" : "purchases-ios-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/RevenueCat/purchases-ios-spm",
+      "state" : {
+        "revision" : "2f90e4352f9c2a9254f9e498c9045bfc8d5291e8",
+        "version" : "5.57.0"
+      }
+    },
+    {
       "identity" : "swift-package-manager-google-mobile-ads",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/googleads/swift-package-manager-google-mobile-ads.git",
