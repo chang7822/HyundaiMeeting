@@ -811,36 +811,48 @@ const RpsArenaPage: React.FC<{
                 {winner !== null ? (
                   <ReplayBtnInRow onClick={replay}>다시하기</ReplayBtnInRow>
                 ) : !running ? (
-                  <Btn
-                    onClick={start}
-                    disabled={
-                      guess === null ||
-                      betAmount === null ||
-                      starBalance === null ||
-                      starBalance < (betAmount ?? 0) ||
-                      playsRemaining <= 0
-                    }
-                  >
-                    시작 (오늘 {playsRemaining}판 남음)
-                  </Btn>
+                  isNativeApp ? (
+                    playsRemaining <= 0 ? (
+                      <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
+                        {adLoading ? '광고 로딩…' : '광고 보고 두 판 더하기'}
+                      </ExtraPlayBtn>
+                    ) : (
+                      <Btn
+                        onClick={start}
+                        disabled={
+                          guess === null ||
+                          betAmount === null ||
+                          starBalance === null ||
+                          starBalance < (betAmount ?? 0)
+                        }
+                      >
+                        시작 (오늘 {playsRemaining}판 남음)
+                      </Btn>
+                    )
+                  ) : (
+                    playsRemaining <= 0 ? (
+                      <span style={{ fontSize: '0.8125rem', color: '#64748b', display: 'block', width: '100%', textAlign: 'center' }}>
+                        오늘 횟수를 모두 사용했어요. 한 판 더 하려면 앱에서 이용해주세요.
+                      </span>
+                    ) : (
+                      <Btn
+                        onClick={start}
+                        disabled={
+                          guess === null ||
+                          betAmount === null ||
+                          starBalance === null ||
+                          starBalance < (betAmount ?? 0) ||
+                          playsRemaining <= 0
+                        }
+                      >
+                        시작 (오늘 {playsRemaining}판 남음)
+                      </Btn>
+                    )
+                  )
                 ) : (
                   <GameInProgressNotice>게임 중 이탈 시 배팅한 별이 사라집니다</GameInProgressNotice>
                 )}
               </StartBtnRow>
-              {playsRemaining <= 0 && winner !== null && (
-                isNativeApp ? (
-                  <>
-                    
-                    <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
-                      {adLoading ? '광고 로딩…' : '광고 보고 두 판 더하기'}
-                    </ExtraPlayBtn>
-                  </>
-                ) : (
-                  <span style={{ fontSize: '0.8125rem', color: '#64748b', marginTop: 4 }}>
-                    오늘 횟수를 모두 사용했어요. 한 판 더 하려면 앱에서 이용해주세요.
-                  </span>
-                )
-              )}
               <ToggleWrap>
                 <input
                   type="checkbox"
