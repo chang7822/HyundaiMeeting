@@ -109,7 +109,7 @@ function createEntities(eachPerType: number): Entity[] {
   return list;
 }
 
-const Container = styled.div<{ $sidebarOpen: boolean }>`
+const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean }>`
   flex: 1;
   margin-left: ${(p) => (p.$sidebarOpen ? '280px' : '0')};
   padding: clamp(0.75rem, 2vw, 2rem);
@@ -128,20 +128,29 @@ const Container = styled.div<{ $sidebarOpen: boolean }>`
     padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
     padding-bottom: 7rem;
   }
+
+  ${(p) =>
+    p.$isNativeApp
+      ? `
+    overflow: hidden;
+    height: 100vh;
+    padding-top: calc(8px + var(--safe-area-inset-top, 0px));
+    padding-bottom: 1rem;
+    @media (max-width: 768px) {
+      padding-top: calc(8px + var(--safe-area-inset-top, 0px));
+      padding-bottom: 1rem;
+    }
+  `
+      : ''}
 `;
 
-const AdBannerPlaceholder = styled.div`
+/** 앱에서 실제 배너 광고가 노출되는 슬롯. 텍스트/배경 없이 비워 둠 */
+const BannerSlot = styled.div`
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
   height: 50px;
-  background: rgba(0, 0, 0, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  color: rgba(255, 255, 255, 0.8);
   z-index: 10;
 `;
 
@@ -194,13 +203,14 @@ const Card = styled.div`
   box-sizing: border-box;
 `;
 
-const Header = styled.div`
+const Header = styled.div<{ $rightAlign?: boolean }>`
   padding: clamp(0.75rem, 2vw, 1.25rem) clamp(1rem, 3vw, 1.5rem);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   font-size: clamp(1rem, 4vw, 1.25rem);
   font-weight: 700;
   box-sizing: border-box;
+  text-align: ${(p) => (p.$rightAlign ? 'right' : 'left')};
 `;
 
 const Body = styled.div`
@@ -712,9 +722,9 @@ const RpsArenaPage: React.FC<{
   };
 
   return (
-    <Container $sidebarOpen={sidebarOpen}>
+    <Container $sidebarOpen={sidebarOpen} $isNativeApp={isNativeApp}>
       <Card>
-        <Header>✂️ 🗿 📄 가위바위보 아레나</Header>
+        <Header $rightAlign={isNativeApp}>✂️ 🗿 📄 가위바위보 아레나</Header>
         <Body>
           <Controls>
             <PaletteControls>
@@ -830,9 +840,7 @@ const RpsArenaPage: React.FC<{
         </Body>
       </Card>
       {isNativeApp ? (
-        <AdBannerPlaceholder id="rps-banner-slot">
-          광고 배너
-        </AdBannerPlaceholder>
+        <BannerSlot id="rps-banner-slot" />
       ) : (
         <AppDownloadBannerWrap>
           <AppDownloadTitle>
