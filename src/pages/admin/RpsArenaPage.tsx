@@ -135,10 +135,10 @@ const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean }>`
     overflow: hidden;
     height: 100vh;
     padding-top: calc(8px + var(--safe-area-inset-top, 0px));
-    padding-bottom: 1rem;
+    padding-bottom: calc(50px + 12px + env(safe-area-inset-bottom, 0px));
     @media (max-width: 768px) {
       padding-top: calc(8px + var(--safe-area-inset-top, 0px));
-      padding-bottom: 1rem;
+      padding-bottom: calc(50px + 12px + env(safe-area-inset-bottom, 0px));
     }
   `
       : ''}
