@@ -2853,6 +2853,78 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </div>
         )}
 
+        {/* 가위바위보 아레나 바로가기 카드 */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.95)',
+          border: '1px solid rgba(124, 58, 237, 0.15)',
+          borderRadius: '10px',
+          padding: '10px 14px',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              color: '#7C3AED',
+              fontSize: '0.75rem',
+              fontWeight: '500',
+              margin: 0,
+              lineHeight: '1.3',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              ⭐ 별이 모자라다구? 가위바위보는 할 줄 알지?
+            </p>
+            <p style={{
+              color: '#9ca3af',
+              fontSize: '0.7rem',
+              margin: '2px 0 0 0',
+              lineHeight: '1.2',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              하루 세판 가위바위보를 해서 별을 더 획득해보세요!
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/rps-arena')}
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 4px rgba(102, 126, 234, 0.2)',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              overflow: 'visible'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 2px 6px rgba(102, 126, 234, 0.3)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 1px 4px rgba(102, 126, 234, 0.2)';
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: -6, lineHeight: 1, overflow: 'visible' }}>
+              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(2px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 3 }}>🗿</span>
+              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-5px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))', zIndex: 2 }}>✂️</span>
+              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-1px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 1 }}>📄</span>
+            </span>
+          </button>
+        </div>
+
         <WelcomeSection>
           {/* 이메일 인증 알림 */}
           {user?.is_verified === false && (
@@ -3165,6 +3237,78 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             </button>
           </div>
         )}
+
+        {/* 가위바위보 아레나 바로가기 카드 */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.95)',
+          border: '1px solid rgba(124, 58, 237, 0.15)',
+          borderRadius: '10px',
+          padding: '10px 14px',
+          marginBottom: '1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              color: '#7C3AED',
+              fontSize: '0.75rem',
+              fontWeight: '500',
+              margin: 0,
+              lineHeight: '1.3',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              ⭐ 별이 모자라다구? 가위바위보는 할 줄 알지?
+            </p>
+            <p style={{
+              color: '#9ca3af',
+              fontSize: '0.7rem',
+              margin: '2px 0 0 0',
+              lineHeight: '1.2',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              하루 세판 가위바위보를 해서 별을 더 획득해보세요!
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/rps-arena')}
+            style={{
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              color: 'white',
+              border: 'none',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 1px 4px rgba(102, 126, 234, 0.2)',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              overflow: 'visible'
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 2px 6px rgba(102, 126, 234, 0.3)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 1px 4px rgba(102, 126, 234, 0.2)';
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: -6, lineHeight: 1, overflow: 'visible' }}>
+              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(2px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 3 }}>🗿</span>
+              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-5px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))', zIndex: 2 }}>✂️</span>
+              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-1px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 1 }}>📄</span>
+            </span>
+          </button>
+        </div>
 
       <WelcomeSection>
         {/* 최신 공지사항 카드 */}

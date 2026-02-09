@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { companyApi } from '../services/api.ts';
+import { companyApi, systemApi } from '../services/api.ts';
 import type { Company } from '../types/index.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
 
@@ -102,28 +102,38 @@ const Button = styled.button<{ $primary?: boolean }>`
   }
 `;
 
-const PlayStoreBadge = styled.a`
-  display: inline-block;
+const StoreBadgesRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   margin-top: 1.5rem;
+
+  @media (max-width: 768px) {
+    margin-top: 1rem;
+  }
+`;
+
+const StoreBadgeLink = styled.a`
+  display: inline-block;
   transition: all 0.3s ease;
-  
+
   img {
     height: 60px;
     width: auto;
   }
-  
+
   &:hover {
     transform: translateY(-2px);
     filter: brightness(1.1);
   }
-  
+
   &:active {
     transform: translateY(0);
   }
-  
+
   @media (max-width: 768px) {
-    margin-top: 1rem;
-    
     img {
       height: 50px;
     }
@@ -510,6 +520,23 @@ const LandingPage = () => {
   const [newCompanyMessage, setNewCompanyMessage] = useState('');
   const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
   const [showCompanyGuideTooltip, setShowCompanyGuideTooltip] = useState(false);
+  const [androidStoreUrl, setAndroidStoreUrl] = useState<string | null>(null);
+  const [iosStoreUrl, setIosStoreUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    systemApi
+      .getVersionPolicy()
+      .then((data: any) => {
+        if (cancelled) return;
+        if (data?.android?.storeUrl) setAndroidStoreUrl(data.android.storeUrl);
+        if (data?.ios?.storeUrl) setIosStoreUrl(data.ios.storeUrl);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // App.tsx에서 라우트 레벨에서 처리하므로 제거
   // useEffect(() => {
@@ -618,16 +645,27 @@ const LandingPage = () => {
         </Button>
       </ButtonContainer>
 
-      <PlayStoreBadge 
-        href="https://play.google.com/store/apps/details?id=com.solo.meeting"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <img 
-          src="https://play.google.com/intl/ko/badges/static/images/badges/ko_badge_web_generic.png"
-          alt="Google Play에서 다운로드"
-        />
-      </PlayStoreBadge>
+      <StoreBadgesRow>
+        {androidStoreUrl && (
+          <StoreBadgeLink href={androidStoreUrl} target="_blank" rel="noopener noreferrer" title="Google Play">
+            <img
+              src="https://play.google.com/intl/ko/badges/static/images/badges/ko_badge_web_generic.png"
+              alt="Google Play에서 다운로드"
+            />
+          </StoreBadgeLink>
+        )}
+        {iosStoreUrl && (
+          <StoreBadgeLink href={iosStoreUrl} target="_blank" rel="noopener noreferrer" title="App Store">
+            <img
+              src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+              alt="App Store에서 다운로드"
+            />
+          </StoreBadgeLink>
+        )}
+        {!androidStoreUrl && !iosStoreUrl && (
+          <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem' }}>앱 다운로드 링크 준비 중</span>
+        )}
+      </StoreBadgesRow>
       
       <Features>
         <FeatureCard>

@@ -472,6 +472,18 @@ export const starApi = {
     const response = await api.post('/stars/attendance/ad');
     return response.data;
   },
+
+  // 가위바위보 미니게임: 배팅 (1~3개 차감)
+  rpsBet: async (amount: number): Promise<{ success: boolean; newBalance: number }> => {
+    const response = await api.post('/stars/rps/bet', { amount });
+    return response.data;
+  },
+
+  // 가위바위보 미니게임: 승리 시 2배 지급
+  rpsWin: async (amount: number): Promise<{ success: boolean; newBalance: number; reward: number }> => {
+    const response = await api.post('/stars/rps/win', { amount });
+    return response.data;
+  },
 };
 
 // 추가 매칭 도전(패자부활전) API

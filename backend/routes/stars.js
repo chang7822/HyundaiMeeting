@@ -58,6 +58,101 @@ async function awardStars(userId, amount, reason, meta) {
   return newBalance;
 }
 
+// 별 차감 공통 함수 (RPS 배팅 등)
+async function deductStars(userId, amount, reason, meta) {
+  if (!userId || typeof amount !== 'number' || amount <= 0) {
+    throw new Error('deductStars: 잘못된 인자');
+  }
+
+  const { data: user, error: userError } = await supabase
+    .from('users')
+    .select('star_balance')
+    .eq('id', userId)
+    .single();
+
+  if (userError || !user) {
+    throw userError || new Error('사용자를 찾을 수 없습니다.');
+  }
+
+  const currentBalance = typeof user.star_balance === 'number' ? user.star_balance : 0;
+  if (currentBalance < amount) {
+    const e = new Error('INSUFFICIENT_STARS');
+    e.code = 'INSUFFICIENT_STARS';
+    throw e;
+  }
+
+  const newBalance = currentBalance - amount;
+
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ star_balance: newBalance })
+    .eq('id', userId);
+
+  if (updateError) {
+    throw updateError;
+  }
+
+  const { error: txError } = await supabase
+    .from('star_transactions')
+    .insert({
+      user_id: userId,
+      amount: -amount,
+      reason,
+      meta: meta || null,
+    });
+
+  if (txError) {
+    throw txError;
+  }
+
+  return newBalance;
+}
+
+// 가위바위보 미니게임: 배팅 (별 차감)
+router.post('/rps/bet', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const amount = Math.floor(Number(req.body?.amount)) || 0;
+    if (amount < 1 || amount > 3) {
+      return res.status(400).json({ message: '배팅은 1~3개만 가능합니다.' });
+    }
+
+    let newBalance;
+    try {
+      newBalance = await deductStars(userId, amount, 'rps_bet', { amount });
+    } catch (e) {
+      if (e.code === 'INSUFFICIENT_STARS') {
+        return res.status(400).json({ message: '보유 별이 부족합니다.', code: 'INSUFFICIENT_STARS' });
+      }
+      throw e;
+    }
+
+    return res.json({ success: true, newBalance });
+  } catch (error) {
+    console.error('[stars] /rps/bet 오류:', error);
+    return res.status(500).json({ message: '배팅 처리 중 오류가 발생했습니다.' });
+  }
+});
+
+// 가위바위보 미니게임: 승리 시 별 2배 지급 (배팅액 + 보상 = 2배)
+router.post('/rps/win', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const amount = Math.floor(Number(req.body?.amount)) || 0;
+    if (amount < 1 || amount > 3) {
+      return res.status(400).json({ message: '유효하지 않은 배팅액입니다.' });
+    }
+
+    const reward = amount * 2; // 배팅 1 -> 2개, 2 -> 4개, 3 -> 6개 지급
+    const newBalance = await awardStars(userId, reward, 'rps_win', { betAmount: amount });
+
+    return res.json({ success: true, newBalance, reward });
+  } catch (error) {
+    console.error('[stars] /rps/win 오류:', error);
+    return res.status(500).json({ message: '별 지급 중 오류가 발생했습니다.' });
+  }
+});
+
 // 내 별 잔액 및 최근 내역 조회
 router.get('/me', async (req, res) => {
   try {
