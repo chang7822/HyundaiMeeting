@@ -657,6 +657,8 @@ const RpsArenaPage: React.FC<{
       toast.warning('오늘 남은 횟수가 없어요. 광고를 보고 한 판 더 도전해보세요!');
       return;
     }
+    setWinner(null);
+    setRunning(true); // 시작과 동시에 배너 숨김
     try {
       const res = await starApi.rpsBet(bet);
       if (typeof res.newBalance === 'number') {
@@ -667,9 +669,8 @@ const RpsArenaPage: React.FC<{
       incrementRpsUsed();
       setRpsDaily(getRpsDailyState());
       entitiesRef.current = createEntities(COUNT_PER_TYPE);
-      setWinner(null);
-      setRunning(true);
     } catch (err: any) {
+      setRunning(false); // 배팅 실패 시 다시 배너 표시
       const msg = err?.response?.data?.message || '배팅에 실패했습니다.';
       const code = err?.response?.data?.code;
       if (code === 'INSUFFICIENT_STARS') {
