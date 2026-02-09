@@ -473,9 +473,21 @@ export const starApi = {
     return response.data;
   },
 
-  // 가위바위보 미니게임: 배팅 (1~3개 차감)
-  rpsBet: async (amount: number): Promise<{ success: boolean; newBalance: number }> => {
+  // 가위바위보 일일 사용량 조회 (앱/웹 동기화)
+  getRpsDaily: async (): Promise<{ used: number; extra: number }> => {
+    const response = await api.get('/stars/rps/daily');
+    return response.data;
+  },
+
+  // 가위바위보 미니게임: 배팅 (1~3개 차감, 서버에서 used 증가)
+  rpsBet: async (amount: number): Promise<{ success: boolean; newBalance: number; used?: number; extra?: number }> => {
     const response = await api.post('/stars/rps/bet', { amount });
+    return response.data;
+  },
+
+  // 가위바위보: 광고 시청 후 추가 횟수 (서버에 반영해 앱/웹 동기화)
+  rpsAddExtra: async (count: number = 2): Promise<{ success: boolean; used: number; extra: number }> => {
+    const response = await api.post('/stars/rps/extra', { count });
     return response.data;
   },
 

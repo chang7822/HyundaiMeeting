@@ -1141,6 +1141,10 @@ const Sidebar: React.FC<{
     } finally {
       try { await removeListeners?.(); } catch {}
       setAdSubmitting(false);
+      // 보상형 광고 1회 시청 후 소비되므로, 다음 사용(출석/RPS 등)을 위해 다시 로드
+      if (preloadedRewarded) {
+        preloadedRewarded.load?.().catch(() => {});
+      }
     }
   };
 

@@ -5,40 +5,6 @@ import { toast } from 'react-toastify';
 import { starApi, systemApi } from '../../services/api.ts';
 
 const RPS_DAILY_LIMIT = 3;
-const RPS_STORAGE_KEY = 'rps_daily';
-
-function getTodayKey() {
-  const now = new Date();
-  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
-  return kst.toISOString().slice(0, 10);
-}
-
-function getRpsDailyState(): { used: number; extra: number } {
-  try {
-    const key = getTodayKey();
-    const raw = localStorage.getItem(RPS_STORAGE_KEY);
-    if (!raw) return { used: 0, extra: 0 };
-    const data = JSON.parse(raw);
-    if (data.date !== key) return { used: 0, extra: 0 };
-    return { used: Math.max(0, Number(data.used) || 0), extra: Math.max(0, Number(data.extra) || 0) };
-  } catch {
-    return { used: 0, extra: 0 };
-  }
-}
-
-function incrementRpsUsed() {
-  const key = getTodayKey();
-  const state = getRpsDailyState();
-  state.used += 1;
-  localStorage.setItem(RPS_STORAGE_KEY, JSON.stringify({ date: key, ...state }));
-}
-
-function incrementRpsExtra(count = 1) {
-  const key = getTodayKey();
-  const state = getRpsDailyState();
-  state.extra += count;
-  localStorage.setItem(RPS_STORAGE_KEY, JSON.stringify({ date: key, ...state }));
-}
 
 const ARENA = 400;
 const EMOJI_SIZE = 20;
@@ -473,7 +439,7 @@ const RpsArenaPage: React.FC<{
   const [passThrough, setPassThrough] = useState(false);
   const [starBalance, setStarBalance] = useState<number | null>(null);
   const [betAmount, setBetAmount] = useState<number | null>(null);
-  const [rpsDaily, setRpsDaily] = useState(getRpsDailyState);
+  const [rpsDaily, setRpsDaily] = useState<{ used: number; extra: number }>({ used: 0, extra: 0 });
   const [adLoading, setAdLoading] = useState(false);
   const [androidStoreUrl, setAndroidStoreUrl] = useState<string | null>(null);
   const [iosStoreUrl, setIosStoreUrl] = useState<string | null>(null);
@@ -496,8 +462,14 @@ const RpsArenaPage: React.FC<{
     return () => { cancelled = true; };
   }, []);
 
+  // 서버에서 RPS 일일 사용량 조회 (앱/웹 동기화)
   useEffect(() => {
-    setRpsDaily(getRpsDailyState());
+    let cancelled = false;
+    starApi.getRpsDaily().then((data) => {
+      if (!cancelled && data)
+        setRpsDaily({ used: data.used ?? 0, extra: data.extra ?? 0 });
+    }).catch(() => {});
+    return () => { cancelled = true; };
   }, [running, winner]);
 
   // 앱 배너: 게임 중이 아닐 때만 표시, 게임 중이면 숨김
@@ -670,9 +642,10 @@ const RpsArenaPage: React.FC<{
         setStarBalance(res.newBalance);
         window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
       }
+      if (typeof res.used === 'number' && typeof res.extra === 'number') {
+        setRpsDaily({ used: res.used, extra: res.extra });
+      }
       currentBetRef.current = bet;
-      incrementRpsUsed();
-      setRpsDaily(getRpsDailyState());
       entitiesRef.current = createEntities(COUNT_PER_TYPE);
     } catch (err: any) {
       setRunning(false); // 배팅 실패 시 다시 배너 표시
@@ -680,6 +653,8 @@ const RpsArenaPage: React.FC<{
       const code = err?.response?.data?.code;
       if (code === 'INSUFFICIENT_STARS') {
         toast.error('보유 별이 부족해요.');
+      } else if (code === 'RPS_NO_PLAYS') {
+        toast.warning(msg);
       } else {
         toast.error(msg);
       }
@@ -745,8 +720,10 @@ const RpsArenaPage: React.FC<{
         new Promise<boolean>((_, rej) => setTimeout(() => rej(new Error('광고 응답이 지연되었습니다.')), 90000)),
       ]);
       if (gotReward) {
-        incrementRpsExtra(2);
-        setRpsDaily(getRpsDailyState());
+        const res = await starApi.rpsAddExtra(2);
+        if (res && typeof res.used === 'number' && typeof res.extra === 'number') {
+          setRpsDaily({ used: res.used, extra: res.extra });
+        }
         toast.success('두 판 더 할 수 있어요!');
       } else {
         toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있어요.');
@@ -756,6 +733,8 @@ const RpsArenaPage: React.FC<{
     } finally {
       try { await removeListeners?.(); } catch {}
       setAdLoading(false);
+      // 보상형 광고는 1회 시청 후 소비되므로, 다음 클릭을 위해 다시 로드
+      preloadedRewarded?.load?.().catch(() => {});
     }
   };
 

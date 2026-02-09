@@ -13,6 +13,42 @@ function getKSTDateString() {
   return kst.toISOString().slice(0, 10);
 }
 
+const RPS_DAILY_LIMIT = 3;
+
+// 오늘 날짜의 RPS 사용량 조회 (없으면 0,0)
+async function getRpsDailyUsage(userId) {
+  const date = getKSTDateString();
+  const { data, error } = await supabase
+    .from('rps_daily_usage')
+    .select('used, extra')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { used: 0, extra: 0 };
+  return { used: Math.max(0, Number(data.used) || 0), extra: Math.max(0, Number(data.extra) || 0) };
+}
+
+// RPS 일일 사용량 upsert (used 또는 extra 증가)
+async function upsertRpsDaily(userId, date, updates) {
+  const { data: existing } = await supabase
+    .from('rps_daily_usage')
+    .select('used, extra')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .maybeSingle();
+
+  const used = existing ? (Number(existing.used) || 0) + (updates.used || 0) : (updates.used || 0);
+  const extra = existing ? (Number(existing.extra) || 0) + (updates.extra || 0) : (updates.extra || 0);
+
+  const { error } = await supabase.from('rps_daily_usage').upsert(
+    { user_id: userId, date, used, extra },
+    { onConflict: 'user_id,date' }
+  );
+  if (error) throw error;
+  return { used, extra };
+}
+
 // 별 지급 공통 함수
 async function awardStars(userId, amount, reason, meta) {
   if (!userId || typeof amount !== 'number' || amount <= 0) {
@@ -108,13 +144,32 @@ async function deductStars(userId, amount, reason, meta) {
   return newBalance;
 }
 
-// 가위바위보 미니게임: 배팅 (별 차감)
+// 가위바위보 일일 사용량 조회 (앱/웹 동기화)
+router.get('/rps/daily', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { used, extra } = await getRpsDailyUsage(userId);
+    return res.json({ used, extra });
+  } catch (error) {
+    console.error('[stars] /rps/daily 오류:', error);
+    return res.status(500).json({ message: '조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// 가위바위보 미니게임: 배팅 (별 차감 + 일일 used 증가, 서버 기준으로 횟수 제한)
 router.post('/rps/bet', async (req, res) => {
   try {
     const userId = req.user.userId;
     const amount = Math.floor(Number(req.body?.amount)) || 0;
     if (amount < 1 || amount > 3) {
       return res.status(400).json({ message: '배팅은 1~3개만 가능합니다.' });
+    }
+
+    const date = getKSTDateString();
+    const daily = await getRpsDailyUsage(userId);
+    const remaining = RPS_DAILY_LIMIT - daily.used + daily.extra;
+    if (remaining <= 0) {
+      return res.status(400).json({ message: '오늘 남은 횟수가 없어요. 광고를 보고 한 판 더 도전해보세요!', code: 'RPS_NO_PLAYS' });
     }
 
     let newBalance;
@@ -127,10 +182,25 @@ router.post('/rps/bet', async (req, res) => {
       throw e;
     }
 
-    return res.json({ success: true, newBalance });
+    const after = await upsertRpsDaily(userId, date, { used: 1 });
+    return res.json({ success: true, newBalance, used: after.used, extra: after.extra });
   } catch (error) {
     console.error('[stars] /rps/bet 오류:', error);
     return res.status(500).json({ message: '배팅 처리 중 오류가 발생했습니다.' });
+  }
+});
+
+// 가위바위보: 광고 시청 후 추가 횟수 (앱/웹 동기화)
+router.post('/rps/extra', async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const count = Math.min(10, Math.max(1, Math.floor(Number(req.body?.count)) || 2));
+    const date = getKSTDateString();
+    const after = await upsertRpsDaily(userId, date, { extra: count });
+    return res.json({ success: true, used: after.used, extra: after.extra });
+  } catch (error) {
+    console.error('[stars] /rps/extra 오류:', error);
+    return res.status(500).json({ message: '추가 횟수 처리 중 오류가 발생했습니다.' });
   }
 });
 
