@@ -500,13 +500,18 @@ const RpsArenaPage: React.FC<{
     setRpsDaily(getRpsDailyState());
   }, [running, winner]);
 
+  // 앱 배너: 게임 중이 아닐 때만 표시, 게임 중이면 숨김
   useEffect(() => {
-    if (!preloadedBanner) return;
-    preloadedBanner.show?.().catch(() => {});
+    if (!preloadedBanner || !Capacitor.isNativePlatform()) return;
+    if (running) {
+      preloadedBanner.hide?.().catch(() => {});
+    } else {
+      preloadedBanner.show?.().catch(() => {});
+    }
     return () => {
       preloadedBanner.hide?.().catch(() => {});
     };
-  }, [preloadedBanner]);
+  }, [preloadedBanner, running]);
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
@@ -691,33 +696,65 @@ const RpsArenaPage: React.FC<{
   const handleExtraPlayAd = async () => {
     if (!preloadedRewarded || adLoading) return;
     setAdLoading(true);
+    let removeListeners: (() => Promise<void>) | undefined;
     try {
-      const rewardPromise = new Promise<boolean>((resolve) => {
-        const handler = (rewarded: boolean) => {
-          resolve(rewarded);
-          removeListeners?.();
+      const admobModule = await import('@capgo/capacitor-admob');
+      const AdMob = admobModule.AdMob;
+      let rewarded = false;
+      let rewardHandle: any;
+      let dismissHandle: any;
+      let showFailHandle: any;
+
+      removeListeners = async () => {
+        try { await rewardHandle?.remove?.(); } catch {}
+        try { await dismissHandle?.remove?.(); } catch {}
+        try { await showFailHandle?.remove?.(); } catch {}
+      };
+
+      const rewardPromise = new Promise<boolean>((resolve, reject) => {
+        const safeResolve = (value: boolean) => {
+          removeListeners?.().then(() => resolve(value));
         };
-        const removeListeners = () => {
-          preloadedRewarded.removeAllListeners?.();
+        const safeReject = (err: Error) => {
+          removeListeners?.().then(() => reject(err));
         };
-        preloadedRewarded.addListener('rewarded', () => handler(true));
-        preloadedRewarded.addListener('dismissed', () => handler(false));
-        preloadedRewarded.show?.().catch(() => handler(false));
+        (async () => {
+          try {
+            rewardHandle = await AdMob.addListener('rewardedi.reward', () => {
+              if (!rewarded) {
+                rewarded = true;
+                safeResolve(true);
+              }
+            });
+            dismissHandle = await AdMob.addListener('rewardedi.dismiss', () => {
+              safeResolve(false);
+            });
+            showFailHandle = await AdMob.addListener('rewardedi.showfail', (event: any) => {
+              const msg = event?.error || event?.message || '광고 표시 실패';
+              safeReject(new Error(msg));
+            });
+          } catch (e) {
+            safeReject(e instanceof Error ? e : new Error(String(e)));
+          }
+        })();
       });
-      const rewarded = await Promise.race([
+
+      await preloadedRewarded.show();
+      const gotReward = await Promise.race([
         rewardPromise,
-        new Promise<boolean>((_, reject) => setTimeout(() => reject(new Error('timeout')), 90000)),
+        new Promise<boolean>((_, rej) => setTimeout(() => rej(new Error('광고 응답이 지연되었습니다.')), 90000)),
       ]);
-      if (rewarded) {
+      if (gotReward) {
         incrementRpsExtra(2);
         setRpsDaily(getRpsDailyState());
         toast.success('두 판 더 할 수 있어요!');
       } else {
         toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있어요.');
       }
-    } catch {
-      toast.error('광고 처리 중 오류가 발생했습니다.');
+    } catch (err: any) {
+      toast.error(err?.message || '광고 처리 중 오류가 발생했습니다.');
     } finally {
+      try { await removeListeners?.(); } catch {}
       setAdLoading(false);
     }
   };
@@ -790,12 +827,10 @@ const RpsArenaPage: React.FC<{
                   <GameInProgressNotice>게임 중 이탈 시 배팅한 별이 사라집니다</GameInProgressNotice>
                 )}
               </StartBtnRow>
-              {playsRemaining <= 0 && (
+              {playsRemaining <= 0 && winner !== null && (
                 isNativeApp ? (
                   <>
-                    <span style={{ fontSize: '0.8125rem', color: '#64748b', marginBottom: 4, display: 'block' }}>
-                      광고 보면 두 판 더 할 수 있어요
-                    </span>
+                    
                     <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
                       {adLoading ? '광고 로딩…' : '광고 보고 두 판 더하기'}
                     </ExtraPlayBtn>
