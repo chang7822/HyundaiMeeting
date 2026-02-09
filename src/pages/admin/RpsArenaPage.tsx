@@ -109,7 +109,7 @@ function createEntities(eachPerType: number): Entity[] {
   return list;
 }
 
-const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean }>`
+const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean; $hideBanner?: boolean }>`
   flex: 1;
   margin-left: ${(p) => (p.$sidebarOpen ? '280px' : '0')};
   padding: clamp(0.75rem, 2vw, 2rem);
@@ -135,10 +135,10 @@ const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean }>`
     overflow: hidden;
     height: 100vh;
     padding-top: calc(8px + var(--safe-area-inset-top, 0px));
-    padding-bottom: calc(50px + 12px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: ${p.$hideBanner ? '1rem' : 'calc(50px + 12px + env(safe-area-inset-bottom, 0px))'};
     @media (max-width: 768px) {
       padding-top: calc(8px + var(--safe-area-inset-top, 0px));
-      padding-bottom: calc(50px + 12px + env(safe-area-inset-bottom, 0px));
+      padding-bottom: ${p.$hideBanner ? '1rem' : 'calc(50px + 12px + env(safe-area-inset-bottom, 0px))'};
     }
   `
       : ''}
@@ -722,7 +722,7 @@ const RpsArenaPage: React.FC<{
   };
 
   return (
-    <Container $sidebarOpen={sidebarOpen} $isNativeApp={isNativeApp}>
+    <Container $sidebarOpen={sidebarOpen} $isNativeApp={isNativeApp} $hideBanner={isNativeApp && running}>
       <Card>
         <Header $rightAlign={isNativeApp}>✂️ 🗿 📄 가위바위보 아레나</Header>
         <Body>
@@ -839,9 +839,9 @@ const RpsArenaPage: React.FC<{
           </ArenaWrap>
         </Body>
       </Card>
-      {isNativeApp ? (
+      {isNativeApp && !running ? (
         <BannerSlot id="rps-banner-slot" />
-      ) : (
+      ) : !isNativeApp ? (
         <AppDownloadBannerWrap>
           <AppDownloadTitle>
             <span style={{ fontSize: '1.1rem' }}>↓</span>
@@ -869,7 +869,7 @@ const RpsArenaPage: React.FC<{
             )}
           </StoreBadgesRow>
         </AppDownloadBannerWrap>
-      )}
+      ) : null}
     </Container>
   );
 };
