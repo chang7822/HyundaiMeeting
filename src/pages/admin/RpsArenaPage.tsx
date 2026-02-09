@@ -635,7 +635,6 @@ const RpsArenaPage: React.FC<{
       return;
     }
     setWinner(null);
-    setRunning(true); // 시작과 동시에 배너 숨김
     try {
       const res = await starApi.rpsBet(bet);
       if (typeof res.newBalance === 'number') {
@@ -647,8 +646,8 @@ const RpsArenaPage: React.FC<{
       }
       currentBetRef.current = bet;
       entitiesRef.current = createEntities(COUNT_PER_TYPE);
+      setRunning(true); // 새 배치 준비된 뒤에만 게임 시작 (배너 숨김 + 루프 시작)
     } catch (err: any) {
-      setRunning(false); // 배팅 실패 시 다시 배너 표시
       const msg = err?.response?.data?.message || '배팅에 실패했습니다.';
       const code = err?.response?.data?.code;
       if (code === 'INSUFFICIENT_STARS') {
@@ -754,14 +753,14 @@ const RpsArenaPage: React.FC<{
                     <BetOption
                       key={n}
                       $selected={betAmount === n}
-                      $disabled={maxBet < n}
+                      $disabled={maxBet < n || winner !== null}
                     >
                       <input
                         type="radio"
                         name="bet"
                         checked={betAmount === n}
                         onChange={() => setBetAmount(n)}
-                        disabled={running || maxBet < n}
+                        disabled={running || maxBet < n || winner !== null}
                       />
                       {n}
                     </BetOption>
@@ -778,7 +777,7 @@ const RpsArenaPage: React.FC<{
                         name="guess"
                         checked={guess === t}
                         onChange={() => setGuess(t)}
-                        disabled={running}
+                        disabled={running || winner !== null}
                       />
                       <GuessEmoji>{EMOJI[t]}</GuessEmoji>
                       <GuessLabel>{LABELS[t]}</GuessLabel>
@@ -837,7 +836,7 @@ const RpsArenaPage: React.FC<{
                   type="checkbox"
                   checked={passThrough}
                   onChange={(e) => setPassThrough(e.target.checked)}
-                  disabled={running}
+                  disabled={running || winner !== null}
                 />
                 통과 모드 (서로 튕기지 않고 지나감)
               </ToggleWrap>
