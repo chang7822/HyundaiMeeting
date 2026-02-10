@@ -441,6 +441,7 @@ const RpsArenaPage: React.FC<{
   const [betAmount, setBetAmount] = useState<number | null>(null);
   const [rpsDaily, setRpsDaily] = useState<{ used: number; extra: number }>({ used: 0, extra: 0 });
   const [adLoading, setAdLoading] = useState(false);
+  const [startingGame, setStartingGame] = useState(false);
   const [androidStoreUrl, setAndroidStoreUrl] = useState<string | null>(null);
   const [iosStoreUrl, setIosStoreUrl] = useState<string | null>(null);
   const entitiesRef = useRef<Entity[]>([]);
@@ -635,6 +636,7 @@ const RpsArenaPage: React.FC<{
       return;
     }
     setWinner(null);
+    setStartingGame(true);
     try {
       const res = await starApi.rpsBet(bet);
       if (typeof res.newBalance === 'number') {
@@ -657,6 +659,8 @@ const RpsArenaPage: React.FC<{
       } else {
         toast.error(msg);
       }
+    } finally {
+      setStartingGame(false);
     }
   };
 
@@ -719,11 +723,15 @@ const RpsArenaPage: React.FC<{
         new Promise<boolean>((_, rej) => setTimeout(() => rej(new Error('광고 응답이 지연되었습니다.')), 90000)),
       ]);
       if (gotReward) {
-        const res = await starApi.rpsAddExtra(2);
+        const res = await starApi.rpsAddExtra(3, 2);
         if (res && typeof res.used === 'number' && typeof res.extra === 'number') {
           setRpsDaily({ used: res.used, extra: res.extra });
         }
-        toast.success('두 판 더 할 수 있어요!');
+        if (typeof res?.newBalance === 'number') {
+          setStarBalance(res.newBalance);
+          window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
+        }
+        toast.success('3판 더 할 수 있어요! 별 2개도 환급되었어요.');
       } else {
         toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있어요.');
       }
@@ -792,19 +800,20 @@ const RpsArenaPage: React.FC<{
                   isNativeApp ? (
                     playsRemaining <= 0 ? (
                       <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
-                        {adLoading ? '광고 로딩…' : '광고 보고 두 판 더하기'}
+                        {adLoading ? '광고 로딩…' : '광고 보고 3판 더 + ⭐2개 환급'}
                       </ExtraPlayBtn>
                     ) : (
                       <Btn
                         onClick={start}
                         disabled={
+                          startingGame ||
                           guess === null ||
                           betAmount === null ||
                           starBalance === null ||
                           starBalance < (betAmount ?? 0)
                         }
                       >
-                        시작 (오늘 {playsRemaining}판 남음)
+                        {startingGame ? '시작 중…' : `시작 (오늘 ${playsRemaining}판 남음)`}
                       </Btn>
                     )
                   ) : (
@@ -816,6 +825,7 @@ const RpsArenaPage: React.FC<{
                       <Btn
                         onClick={start}
                         disabled={
+                          startingGame ||
                           guess === null ||
                           betAmount === null ||
                           starBalance === null ||
@@ -823,7 +833,7 @@ const RpsArenaPage: React.FC<{
                           playsRemaining <= 0
                         }
                       >
-                        시작 (오늘 {playsRemaining}판 남음)
+                        {startingGame ? '시작 중…' : `시작 (오늘 ${playsRemaining}판 남음)`}
                       </Btn>
                     )
                   )

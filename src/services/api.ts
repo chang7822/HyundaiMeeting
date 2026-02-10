@@ -485,9 +485,9 @@ export const starApi = {
     return response.data;
   },
 
-  // 가위바위보: 광고 시청 후 추가 횟수 (서버에 반영해 앱/웹 동기화)
-  rpsAddExtra: async (count: number = 2): Promise<{ success: boolean; used: number; extra: number }> => {
-    const response = await api.post('/stars/rps/extra', { count });
+  // 가위바위보: 광고 시청 후 추가 횟수 + 별 지급 (서버에 반영해 앱/웹 동기화)
+  rpsAddExtra: async (count: number = 3, starReward: number = 2): Promise<{ success: boolean; used: number; extra: number; newBalance?: number }> => {
+    const response = await api.post('/stars/rps/extra', { count, starReward });
     return response.data;
   },
 
