@@ -43,9 +43,9 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   @media (max-width: 768px) {
     width: 100%;
     max-width: 280px;
-    /* 모바일에서는 실제 보이는 화면 높이(dvh)를 강제 */
-    height: 100dvh;
-    min-height: 100dvh;
+    /* 모바일: 하단 네비바에 가리지 않도록 높이 제한 */
+    height: calc(100dvh - var(--safe-area-inset-bottom));
+    min-height: calc(100dvh - var(--safe-area-inset-bottom));
   }
 `;
 
@@ -464,9 +464,9 @@ const NotificationQuickRow = styled.button`
   }
 `;
 
-const LogoutSection = styled.div<{ $isNative?: boolean }>`
+const LogoutSection = styled.div`
   padding: 1rem 1.5rem;
-  padding-bottom: ${props => props.$isNative ? '1rem' : 'calc(1rem + var(--safe-area-inset-bottom))'};
+  padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   flex-shrink: 0;
@@ -1370,7 +1370,7 @@ const Sidebar: React.FC<{
                 </>
               )}
             </NavMenu>
-            <LogoutSection $isNative={isNativeApp()}>
+            <LogoutSection>
               <LogoutButton onClick={handleLogout}>
                 <FaSignOutAlt />
                 로그아웃

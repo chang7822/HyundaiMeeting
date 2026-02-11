@@ -528,7 +528,7 @@ const ChatPage: React.FC = () => {
         <ChatWindow messages={messages} chatWindowRef={chatWindowRef} userId={user?.id || ''} />
       </ChatWindowWrapper>
       {/* 입력창 고정 */}
-      <ChatInputWrapper>
+      <ChatInputWrapper data-safe-area-bottom>
         <ChatInput 
           value={input} 
           onChange={setInput} 

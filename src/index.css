@@ -93,6 +93,15 @@ html, body {
   background-attachment: fixed;
 }
 
+/* Android: 스크롤 영역이 하단 네비바에 가리지 않도록 */
+body.platform-android {
+  padding-bottom: var(--safe-area-inset-bottom);
+}
+/* Android: position:fixed; bottom:0 인 요소를 네비바 위로 (해당 요소에 data-safe-area-bottom 부여) */
+body.platform-android [data-safe-area-bottom] {
+  bottom: var(--safe-area-inset-bottom) !important;
+}
+
 body.modal-open {
   overflow: hidden;
 }

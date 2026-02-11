@@ -876,9 +876,9 @@ const RpsArenaPage: React.FC<{
         </Body>
       </Card>
       {isNativeApp && !running ? (
-        <BannerSlot id="rps-banner-slot" />
+        <BannerSlot id="rps-banner-slot" data-safe-area-bottom />
       ) : !isNativeApp ? (
-        <AppDownloadBannerWrap>
+        <AppDownloadBannerWrap data-safe-area-bottom>
           <AppDownloadTitle>
             <span style={{ fontSize: '1.1rem' }}>↓</span>
             앱다운 받으러 가기
