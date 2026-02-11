@@ -14,10 +14,16 @@ body.platform-ios {
   --safe-area-inset-right: env(safe-area-inset-right, 0px);
 }
 
-/* Android는 기본값(0px) 사용 - 추가 스타일 불필요 */
-
-/* Android에서 상단 여백을 iOS 수준으로 줄이기 */
+/* Android 15+ (targetSdk 36): setOverlaysWebView(false) 무시 → edge-to-edge 강제.
+   Android WebView는 env(safe-area-inset-*)가 0px로 나오는 경우가 많음(Chrome/Android 문서 참고).
+   권장: (1) 네이티브에서 WebView 컨테이너에 WindowInsets padding 적용하거나
+   (2) 네이티브에서 WindowInsets를 dp로 변환 후 JS로 --safe-area-inset-* 주입.
+   아래 vh fallback은 그 전까지의 임시책(기기마다 실제 inset은 다름). */
 body.platform-android {
+  --safe-area-inset-top: env(safe-area-inset-top, 3.5vh);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 6vh);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
   /* Android에서 사이드바 내부 컨텐츠 상단 여백 조정 */
   --sidebar-top-offset: -40px;
 }
