@@ -6,7 +6,7 @@ const config: CapacitorConfig = {
   webDir: 'build',
   // 원격 서버 모드: 앱이 Render 서버에서 웹 파일을 로드
   // main 브랜치 변경 시 자동으로 앱에 반영됨
-  //server 부분 주석처리시 로컬 서버 모드로 변경
+  // server 주석처리시 로컬 번들 사용(실기기 테스트용)
   server: {
     url: 'https://automatchingway.com',
     cleartext: false, // HTTPS 사용
@@ -25,7 +25,10 @@ const config: CapacitorConfig = {
       appId: 'ca-app-pub-1352765336263182~2662629184', // Android
       iosAppId: 'ca-app-pub-1352765336263182~9266276922', // iOS
       testingDevices: ['YOUR_DEVICE_ID']
-    }
+    },
+    FirebaseMessaging: {
+      presentationOptions: ['alert', 'badge', 'sound'],
+    },
   }
 };
 

@@ -5,7 +5,7 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
-import { isNativeApp, getNativePushToken, setupNativePushListeners } from './firebase.ts';
+import { isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from './firebase.ts';
 import { pushApi } from './services/api.ts';
 import ExitConfirmModal from './components/ExitConfirmModal.tsx';
 import PushPermissionModal from './components/PushPermissionModal.tsx';
@@ -338,7 +338,6 @@ const AppInner: React.FC = () => {
 
     const setupPushNotifications = async () => {
       try {
-        const { PushNotifications } = await import('@capacitor/push-notifications');
         const platform = Capacitor.getPlatform();
         const isIOS = platform === 'ios';
 
@@ -401,15 +400,13 @@ const AppInner: React.FC = () => {
           }
         };
         
-        // 현재 권한 상태 확인
-        const permissionStatus = await PushNotifications.checkPermissions();
-        const receive = (permissionStatus.receive === 'prompt-with-rationale')
-          ? 'prompt'
-          : (permissionStatus.receive || 'prompt');
+        // 현재 권한 상태 확인 (firebase.ts)
+        const permissionStatus = await getNativePushPermissionStatus();
+        const receive = permissionStatus ?? 'prompt';
         
         const requestSystemPermission = async () => {
-          const result = await PushNotifications.requestPermissions();
-          const next = (result.receive === 'prompt-with-rationale') ? 'prompt' : (result.receive || 'prompt');
+          const result = await requestNativePushPermission();
+          const next = result;
 
           if (next === 'granted') {
             await ensureTokenRegisteredAndEnabled();

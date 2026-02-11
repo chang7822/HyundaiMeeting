@@ -91,82 +91,84 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
 }
 
 /**
- * 네이티브 앱에서 푸시 알림 토큰 가져오기 (Capacitor)
- * @param skipPermissionCheck 권한 확인을 건너뛸지 여부 (이미 권한이 확인된 경우 true)
+ * 네이티브 앱에서 푸시 권한 상태 조회 (@capacitor-firebase/messaging)
  */
-export async function getNativePushToken(skipPermissionCheck: boolean = false): Promise<string | null> {
+export async function getNativePushPermissionStatus(): Promise<'granted' | 'denied' | 'prompt' | null> {
+  if (!Capacitor.isNativePlatform()) return null;
   try {
-    const { PushNotifications } = await import('@capacitor/push-notifications');
-    const { Capacitor } = await import('@capacitor/core');
-    
-    // 권한 확인이 필요한 경우에만 요청
-    if (!skipPermissionCheck) {
-      const permResult = await PushNotifications.requestPermissions();
-      
-      if (permResult.receive !== 'granted') {
-        console.warn('[push] 네이티브 푸시 알림 권한이 거부되었습니다.');
-        return null;
-      }
-    }
-    
-    // 푸시 알림 등록
-    console.log('[push] 🔵 PushNotifications.register() 호출 시작');
-    await PushNotifications.register();
-    console.log('[push] 🔵 PushNotifications.register() 호출 완료, 토큰 대기 중...');
-    
-    const timeoutMs = 10000;
-    
-    // 토큰 받기 (Promise로 감싸기)
-    return new Promise((resolve) => {
-      PushNotifications.addListener('registration', (token) => {
-        console.log('[push] 🎉 토큰 수신 성공!:', token.value);
-        resolve(token.value);
-      });
-      
-      PushNotifications.addListener('registrationError', (error) => {
-        console.error('[push] ❌ 네이티브 푸시 토큰 등록 실패:', error);
-        console.error('[push] 에러 상세:', JSON.stringify(error));
-        resolve(null);
-      });
-      
-      // 타임아웃
-      setTimeout(() => {
-        console.error('[push] ⏰ 네이티브 푸시 토큰 대기 시간 초과 (10초)');
-        console.error('[push] registration 이벤트가 발생하지 않았습니다.');
-        resolve(null);
-      }, timeoutMs);
-    });
-  } catch (error) {
-    console.error('[push] 네이티브 푸시 알림 초기화 실패:', error);
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+    const result = await FirebaseMessaging.checkPermissions();
+    const receive = result.receive === 'prompt-with-rationale' ? 'prompt' : result.receive;
+    return receive as 'granted' | 'denied' | 'prompt';
+  } catch (e) {
+    console.error('[push] getNativePushPermissionStatus 실패:', e);
     return null;
   }
 }
 
 /**
- * 네이티브 앱에서 푸시 알림 리스너 설정 (Capacitor)
+ * 네이티브 앱에서 푸시 권한 요청 (@capacitor-firebase/messaging)
+ */
+export async function requestNativePushPermission(): Promise<'granted' | 'denied' | 'prompt'> {
+  if (!Capacitor.isNativePlatform()) return 'denied';
+  try {
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+    const result = await FirebaseMessaging.requestPermissions();
+    const receive = result.receive === 'prompt-with-rationale' ? 'prompt' : result.receive;
+    return receive as 'granted' | 'denied' | 'prompt';
+  } catch (e) {
+    console.error('[push] requestNativePushPermission 실패:', e);
+    return 'denied';
+  }
+}
+
+/**
+ * 네이티브 앱에서 푸시 알림 토큰 가져오기 (FCM 토큰, @capacitor-firebase/messaging)
+ * @param skipPermissionCheck 권한 확인을 건너뛸지 여부 (이미 권한이 확인된 경우 true)
+ */
+export async function getNativePushToken(skipPermissionCheck: boolean = false): Promise<string | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  try {
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+
+    if (!skipPermissionCheck) {
+      const permResult = await FirebaseMessaging.requestPermissions();
+      const receive = permResult.receive === 'prompt-with-rationale' ? 'prompt' : permResult.receive;
+      if (receive !== 'granted') {
+        console.warn('[push] 네이티브 푸시 알림 권한이 거부되었습니다.');
+        return null;
+      }
+    }
+
+    const { token } = await FirebaseMessaging.getToken();
+    if (token) {
+      console.log('[push] FCM 토큰 수신:', token.substring(0, 20) + '...');
+    }
+    return token || null;
+  } catch (error) {
+    console.error('[push] 네이티브 푸시 토큰 가져오기 실패:', error);
+    return null;
+  }
+}
+
+/**
+ * 네이티브 앱에서 푸시 알림 리스너 설정 (@capacitor-firebase/messaging)
  */
 export async function setupNativePushListeners(onNotificationReceived?: (notification: any) => void) {
+  if (!Capacitor.isNativePlatform()) return;
   try {
-    const { PushNotifications } = await import('@capacitor/push-notifications');
-    const { LocalNotifications } = await import('@capacitor/local-notifications');
-    
-    // 푸시 알림 수신 시 (포어그라운드에서는 표시 안 함)
-    PushNotifications.addListener('pushNotificationReceived', async (notification) => {
-      // notification 필드가 있는 알림은 백그라운드에서만 표시됨
-      // 포어그라운드에서는 아무것도 하지 않음
-      if (onNotificationReceived) {
-        onNotificationReceived(notification);
+    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
+
+    await FirebaseMessaging.addListener('notificationReceived', (event: any) => {
+      if (event.notification && onNotificationReceived) {
+        onNotificationReceived(event.notification);
       }
     });
-    
-    // 푸시 알림 클릭 시
-    PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
-      
-      // 커스텀 이벤트로 알림 클릭 정보 전달 (App.tsx에서 처리)
-      const data = notification.notification?.data || (notification as any).data || {};
+
+    await FirebaseMessaging.addListener('notificationActionPerformed', (event: any) => {
+      const data = event.notification?.data ?? {};
       let linkUrl = data.linkUrl;
-      
-      // linkUrl이 없으면 타입별로 생성
+
       if (!linkUrl) {
         switch (data.type) {
           case 'chat_unread':
@@ -203,10 +205,10 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
             }
         }
       }
-      
+
       if (linkUrl) {
         window.dispatchEvent(new CustomEvent('push-notification-clicked', {
-          detail: { linkUrl, data }
+          detail: { linkUrl, data },
         }));
       }
     });

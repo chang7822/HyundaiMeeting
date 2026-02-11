@@ -9,7 +9,7 @@ import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
 import { Company } from '../types/index.ts';
 import LoadingSpinner from '../components/LoadingSpinner.tsx';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners } from '../firebase.ts';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase.ts';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
@@ -984,14 +984,11 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const isNative = isNativeApp();
       
       if (isNative) {
-        // 네이티브 앱: 권한 상태와 토큰 등록 상태 확인
+        // 네이티브 앱: 권한 상태와 토큰 등록 상태 확인 (firebase.ts)
         try {
-          const { PushNotifications } = await import('@capacitor/push-notifications');
-          const permStatus = await PushNotifications.checkPermissions();
-          const permission = permStatus.receive || 'prompt';
-          // 'prompt-with-rationale'를 'prompt'로 변환
-          const normalizedPermission = permission === 'prompt-with-rationale' ? 'prompt' : permission;
-          setPushPermissionStatus(normalizedPermission as 'granted' | 'denied' | 'prompt' | null);
+          const permStatus = await getNativePushPermissionStatus();
+          const permission = permStatus ?? 'prompt';
+          setPushPermissionStatus(permission as 'granted' | 'denied' | 'prompt' | null);
           
           // 권한이 granted인 경우 서버에서 실제 토큰 존재 여부 확인
           if (permission === 'granted') {
@@ -1067,21 +1064,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
         let token: string | null = null;
 
-        // 네이티브 앱 환경
+        // 네이티브 앱 환경 (firebase.ts)
         if (isNative) {
-          const { PushNotifications } = await import('@capacitor/push-notifications');
-
-          const normalize = (p: any) => (p === 'prompt-with-rationale' ? 'prompt' : (p || 'prompt'));
+          const normalize = (p: string | null | undefined) => (p === 'prompt-with-rationale' ? 'prompt' : (p || 'prompt'));
           const DENIED_BY_TOGGLE_KEY = `pushDeniedByToggle_v1_${user.id}`;
 
           // 현재 권한 상태 확인 → granted가 아니면 "무조건" requestPermissions() 한번 시도
-          const currentPerm = await PushNotifications.checkPermissions();
-          let perm = normalize(currentPerm.receive);
+          const currentPerm = await getNativePushPermissionStatus();
+          let perm = normalize(currentPerm ?? undefined);
           const prePerm = perm; // requestPermissions() 호출 "전" 상태
 
           if (perm !== 'granted') {
-            const permResult = await PushNotifications.requestPermissions();
-            perm = normalize(permResult.receive);
+            const permResult = await requestNativePushPermission();
+            perm = normalize(permResult);
           }
 
           setPushPermissionStatus(perm as any);
