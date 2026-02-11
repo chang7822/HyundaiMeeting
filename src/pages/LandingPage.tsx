@@ -645,7 +645,7 @@ const LandingPage = () => {
         </Button>
       </ButtonContainer>
 
-      <StoreBadgesRow>
+      {/* <StoreBadgesRow>
         {androidStoreUrl && (
           <StoreBadgeLink href={androidStoreUrl} target="_blank" rel="noopener noreferrer" title="Google Play">
             <img
@@ -665,7 +665,7 @@ const LandingPage = () => {
         {!androidStoreUrl && !iosStoreUrl && (
           <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem' }}>앱 다운로드 링크 준비 중</span>
         )}
-      </StoreBadgesRow>
+      </StoreBadgesRow> */}
       
       <Features>
         <FeatureCard>
