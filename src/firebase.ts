@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getMessaging, type Messaging } from 'firebase/messaging';
 import { Capacitor } from '@capacitor/core';
+import { FirebaseMessaging } from '@capacitor-firebase/messaging';
 
 // Firebase 설정은 전부 .env 에서만 읽도록 구성
 // (값은 Firebase 콘솔에서 발급받은 값으로 채우면 됨)
@@ -96,7 +97,6 @@ export function getFirebaseMessaging(): Promise<Messaging | null> {
 export async function getNativePushPermissionStatus(): Promise<'granted' | 'denied' | 'prompt' | null> {
   if (!Capacitor.isNativePlatform()) return null;
   try {
-    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
     const result = await FirebaseMessaging.checkPermissions();
     const receive = result.receive === 'prompt-with-rationale' ? 'prompt' : result.receive;
     return receive as 'granted' | 'denied' | 'prompt';
@@ -112,7 +112,6 @@ export async function getNativePushPermissionStatus(): Promise<'granted' | 'deni
 export async function requestNativePushPermission(): Promise<'granted' | 'denied' | 'prompt'> {
   if (!Capacitor.isNativePlatform()) return 'denied';
   try {
-    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
     const result = await FirebaseMessaging.requestPermissions();
     const receive = result.receive === 'prompt-with-rationale' ? 'prompt' : result.receive;
     return receive as 'granted' | 'denied' | 'prompt';
@@ -129,8 +128,6 @@ export async function requestNativePushPermission(): Promise<'granted' | 'denied
 export async function getNativePushToken(skipPermissionCheck: boolean = false): Promise<string | null> {
   if (!Capacitor.isNativePlatform()) return null;
   try {
-    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
-
     if (!skipPermissionCheck) {
       const permResult = await FirebaseMessaging.requestPermissions();
       const receive = permResult.receive === 'prompt-with-rationale' ? 'prompt' : permResult.receive;
@@ -157,8 +154,6 @@ export async function getNativePushToken(skipPermissionCheck: boolean = false): 
 export async function setupNativePushListeners(onNotificationReceived?: (notification: any) => void) {
   if (!Capacitor.isNativePlatform()) return;
   try {
-    const { FirebaseMessaging } = await import('@capacitor-firebase/messaging');
-
     await FirebaseMessaging.addListener('notificationReceived', (event: any) => {
       if (event.notification && onNotificationReceived) {
         onNotificationReceived(event.notification);
