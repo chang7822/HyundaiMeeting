@@ -363,7 +363,6 @@ const PreferencePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         if (Array.isArray(parsed.preferredEducations)) setPreferredEducations(parsed.preferredEducations);
         if (typeof parsed.preferHeightNoPreference === 'boolean') setPreferHeightNoPreference(parsed.preferHeightNoPreference);
         if (typeof parsed.preferBodyTypeNoPreference === 'boolean') setPreferBodyTypeNoPreference(parsed.preferBodyTypeNoPreference);
-        if (typeof parsed.preferJobTypeNoPreference === 'boolean') setPreferJobTypeNoPreference(parsed.preferJobTypeNoPreference);
         if (Array.isArray(parsed.preferredMaritalStatuses)) setPreferredMaritalStatuses(parsed.preferredMaritalStatuses);
         if (typeof parsed.preferMaritalNoPreference === 'boolean') setPreferMaritalNoPreference(parsed.preferMaritalNoPreference);
         if (Array.isArray(parsed.preferCompanyIds)) {

@@ -464,9 +464,10 @@ const NotificationQuickRow = styled.button`
   }
 `;
 
+/* Android: 패널 높이만 줄였으므로 하단 패딩은 1rem만 (이중 적용 방지) */
 const LogoutSection = styled.div`
   padding: 1rem 1.5rem;
-  padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
+  padding-bottom: 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
   flex-shrink: 0;

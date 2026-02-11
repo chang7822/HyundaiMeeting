@@ -87,12 +87,14 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
     padding: 1.5rem;
     padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
     padding-bottom: calc(1.5rem + var(--safe-area-inset-bottom));
+    body.platform-android & { padding-bottom: 0; }
   }
   
   @media (max-width: 480px) {
     padding: 1rem;
     padding-top: calc(var(--mobile-top-padding, 70px) + var(--safe-area-inset-top));
     padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
+    body.platform-android & { padding-bottom: 0; }
   }
 `;
 

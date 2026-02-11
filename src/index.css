@@ -93,13 +93,19 @@ html, body {
   background-attachment: fixed;
 }
 
-/* Android: 스크롤 영역이 하단 네비바에 가리지 않도록 */
+/* Android: 상단바 아래로, 하단 네비바에 가리지 않도록 전역 여백 */
 body.platform-android {
+  padding-top: var(--safe-area-inset-top);
   padding-bottom: var(--safe-area-inset-bottom);
 }
 /* Android: position:fixed; bottom:0 인 요소를 네비바 위로 (해당 요소에 data-safe-area-bottom 부여) */
 body.platform-android [data-safe-area-bottom] {
   bottom: var(--safe-area-inset-bottom) !important;
+}
+/* Android: 사이드바 옆 메인 영역(페이지) 상단/하단 — 상단바·네비바에 가리지 않도록 (전역) */
+body.platform-android .app-layout > *:last-child {
+  padding-top: var(--mobile-top-padding) !important;
+  padding-bottom: calc(1.5rem + var(--safe-area-inset-bottom)) !important;
 }
 
 body.modal-open {

@@ -17,12 +17,10 @@ const LandingContainer = styled.div`
   text-align: center;
   padding: 20px;
   padding-top: calc(60px + var(--safe-area-inset-top));
-  
   @media (max-width: 768px) {
     padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
     padding-bottom: 40px;
   }
-  
   @media (max-width: 480px) {
     padding-top: calc(var(--mobile-top-padding, 100px) + var(--safe-area-inset-top));
     padding-bottom: 30px;
