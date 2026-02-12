@@ -10,6 +10,7 @@
 
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { systemApi } from '../services/api.ts';
 
 export interface VersionPolicy {
   // 현재 서버에서 관리하는 버전 정보
@@ -130,21 +131,14 @@ export const openStore = async (storeUrl: string) => {
  *   }
  * }
  */
+/**
+ * 서버 version_policy 조회. 관리자 설정 페이지와 동일한 API(axios baseURL) 사용.
+ * (기존 fetch + process.env.REACT_APP_API_URL 은 네이티브 빌드에서 undefined 등으로 실패할 수 있음)
+ */
 export const fetchVersionPolicy = async (): Promise<VersionPolicy | null> => {
   try {
-    const response = await fetch(`${process.env.REACT_APP_API_URL}/api/system/version-policy`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const policy: VersionPolicy = await response.json();
-    return policy;
+    const policy = await systemApi.getVersionPolicy();
+    return policy as VersionPolicy | null;
   } catch (error) {
     console.error('[VersionCheck] Failed to fetch version policy:', error);
     return null;
