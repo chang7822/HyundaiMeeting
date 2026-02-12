@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer, toast } from 'react-toastify';
@@ -141,12 +141,12 @@ const AppInner: React.FC = () => {
   const { user, profile, isAuthenticated, isLoading, logout, isInitialLoading } = useAuth() as any;
   const [maintenance, setMaintenance] = useState<{ enabled: boolean; message?: string } | null>(null);
   const [maintenanceLoading, setMaintenanceLoading] = useState(true);
-  
+
   // 뒤로가기 버튼 두 번 누르면 앱 종료를 위한 ref
   const [showExitModal, setShowExitModal] = useState(false);
   const [showPushPermissionModal, setShowPushPermissionModal] = useState(false);
   const preloadedAdsRef = useRef<any>({ banner: null, rewarded: null });
-  
+
   // 버전 체크 관련 state
   const [showForceUpdateModal, setShowForceUpdateModal] = useState(false);
   const [showOptionalUpdateModal, setShowOptionalUpdateModal] = useState(false);
@@ -158,7 +158,7 @@ const AppInner: React.FC = () => {
     // WebView가 완전히 로드된 후에 초기화해야 함
     const initializeAdMob = async () => {
       if (!isNativeApp()) return;
-      
+
       // WebView가 준비될 때까지 대기
       const waitForWebView = () => {
         return new Promise<void>((resolve) => {
@@ -177,15 +177,15 @@ const AppInner: React.FC = () => {
           }
         });
       };
-      
+
       try {
         await waitForWebView();
-        
+
         const admobModule = await import('@capgo/capacitor-admob');
         const { AdMob, BannerAd, RewardedInterstitialAd } = admobModule;
-        
+
         await AdMob.start();
-        
+
         // 광고 사전로드 (백그라운드에서 준비)
         const preloadAds = async () => {
           try {
@@ -193,35 +193,35 @@ const AppInner: React.FC = () => {
             const platform = Capacitor.getPlatform();
             const isIOS = platform === 'ios';
             const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-            
+
             // 배너 광고 사전로드 (플랫폼별 ID)
             const bannerAdUnitId = isTesting
               ? 'ca-app-pub-3940256099942544/6300978111' // 테스트 ID
               : isIOS
                 ? 'ca-app-pub-1352765336263182/5438712556' // iOS
                 : 'ca-app-pub-1352765336263182/5676657338'; // Android
-            
+
             const banner = new BannerAd({ adUnitId: bannerAdUnitId });
             preloadedAdsRef.current.banner = banner;
-            
+
             // 보상형 전면 광고 사전로드 (플랫폼별 ID)
             const rewardedAdUnitId = isTesting
               ? 'ca-app-pub-3940256099942544/5354046379' // 테스트 ID
               : isIOS
                 ? 'ca-app-pub-1352765336263182/8848248607' // iOS
                 : 'ca-app-pub-1352765336263182/8702080467'; // Android
-            
+
             const RewardedClass = RewardedInterstitialAd || admobModule.RewardedAd;
             const rewarded = new RewardedClass({ adUnitId: rewardedAdUnitId });
             await rewarded.load(); // 보상형 광고는 미리 로드
             preloadedAdsRef.current.rewarded = rewarded;
-            
+
             console.log('[App] 광고 사전로드 완료');
           } catch (error) {
             console.error('[App] 광고 사전로드 실패:', error);
           }
         };
-        
+
         // 사전로드는 비동기로 실행 (앱 시작을 막지 않음)
         preloadAds();
       } catch (error) {
@@ -229,40 +229,40 @@ const AppInner: React.FC = () => {
         console.error('[App] AdMob 초기화 실패:', error);
       }
     };
-    
+
     // 약간의 지연 후 초기화 (앱이 완전히 로드된 후)
     const timer = setTimeout(() => {
       initializeAdMob();
     }, 2000);
-    
+
     return () => clearTimeout(timer);
   }, []);
-  
+
   // Android 뒤로가기 버튼 처리
   useEffect(() => {
     if (!isNativeApp() || Capacitor.getPlatform() !== 'android') return;
-    
+
     let listener: any = null;
-    
+
     const setupBackButton = async () => {
       try {
         const { App } = await import('@capacitor/app');
-        
+
         listener = await App.addListener('backButton', ({ canGoBack }) => {
           const isMainPage = location.pathname === '/' || location.pathname === '/main';
-          
+
           // 메인 페이지에서만 종료 모달 표시 (광고)
           if (isMainPage) {
             setShowExitModal(true);
             return;
           }
-          
+
           // 다른 페이지에서는 뒤로 갈 곳이 있으면 일반 뒤로가기
           if (canGoBack) {
             navigate(-1);
             return;
           }
-          
+
           // 다른 페이지에서 뒤로 갈 곳이 없으면 메인 페이지로 이동
           navigate('/main', { replace: true });
         });
@@ -270,9 +270,9 @@ const AppInner: React.FC = () => {
         console.error('[App] 뒤로가기 버튼 리스너 설정 실패:', error);
       }
     };
-    
+
     setupBackButton();
-    
+
     return () => {
       if (listener) {
         listener.remove();
@@ -285,13 +285,13 @@ const AppInner: React.FC = () => {
     // 플랫폼 감지하여 body에 클래스 추가 (CSS에서 플랫폼별 스타일링용)
     const platform = Capacitor.getPlatform();
     document.body.classList.add(`platform-${platform}`);
-    
+
     if (Capacitor.isNativePlatform()) {
       StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {
         // StatusBar 플러그인이 사용 불가능한 경우 무시
       });
     }
-    
+
     return () => {
       document.body.classList.remove(`platform-${platform}`);
     };
@@ -305,7 +305,7 @@ const AppInner: React.FC = () => {
       try {
         const { getMessaging, onMessage } = await import('firebase/messaging');
         const { initializeApp, getApps, getApp } = await import('firebase/app');
-        
+
         const firebaseConfig = {
           apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
           authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
@@ -348,19 +348,19 @@ const AppInner: React.FC = () => {
 
         const ensureTokenRegisteredAndEnabled = async () => {
           console.log('[푸시 설정] ensureTokenRegisteredAndEnabled 시작');
-          
-        let token: string | null = null;
-        
-        // 실제 기기: 진짜 토큰 가져오기
-        token = await getNativePushToken(true);
-        console.log('[푸시 설정] 실제 토큰 발급:', token ? '성공' : '실패');
+
+          let token: string | null = null;
+
+          // 실제 기기: 진짜 토큰 가져오기
+          token = await getNativePushToken(true);
+          console.log('[푸시 설정] 실제 토큰 발급:', token ? '성공' : '실패');
 
           if (token) {
-          await setupNativePushListeners();
+            await setupNativePushListeners();
 
             // 이전 토큰 확인
             const previousToken = localStorage.getItem('pushFcmToken');
-            
+
             if (previousToken === token) {
               console.log('[푸시 설정] 동일한 토큰, 재등록 생략');
               localStorage.setItem(`pushEnabled_${user.id}`, 'true');
@@ -369,7 +369,7 @@ const AppInner: React.FC = () => {
               }));
               return;
             }
-            
+
             if (previousToken && previousToken !== token) {
               try {
                 await pushApi.unregisterToken(previousToken);
@@ -381,9 +381,9 @@ const AppInner: React.FC = () => {
 
             // 서버에 토큰 등록 (시뮬레이터 토큰도 등록 시도)
             try {
-            await pushApi.registerToken(token);
-            console.log('[push] 서버에 토큰 등록 완료');
-              
+              await pushApi.registerToken(token);
+              console.log('[push] 서버에 토큰 등록 완료');
+
               localStorage.setItem('pushFcmToken', token);
               localStorage.setItem(`pushEnabled_${user.id}`, 'true');
               console.log('[푸시 설정] ✅ localStorage 저장 완료');
@@ -399,11 +399,11 @@ const AppInner: React.FC = () => {
             console.error('[푸시 설정] ❌ 토큰을 받지 못했습니다');
           }
         };
-        
+
         // 현재 권한 상태 확인 (firebase.ts)
         const permissionStatus = await getNativePushPermissionStatus();
         const receive = permissionStatus ?? 'prompt';
-        
+
         const requestSystemPermission = async () => {
           const result = await requestNativePushPermission();
           const next = result;
@@ -438,11 +438,11 @@ const AppInner: React.FC = () => {
           const promptedValue = localStorage.getItem(PROMPTED_KEY);
           const prompted = promptedValue === 'true';
           console.log('[푸시 알림 설정] 권한 상태:', receive, 'prompted:', prompted);
-          
+
           if (!prompted) {
             localStorage.setItem(PROMPTED_KEY, 'true');
             console.log('[푸시 알림 설정] 플래그 저장 완료');
-            
+
             // iOS & Android 공통: 커스텀 모달을 먼저 표시
             console.log('[푸시 알림 설정] 커스텀 모달 표시 시도 (플랫폼:', platform, ')');
             setShowPushPermissionModal(true);
@@ -454,7 +454,7 @@ const AppInner: React.FC = () => {
                 // denied 상태라면 시스템 권한 요청해도 팝업이 안 뜨므로 
                 // 바로 설정 안내 토스트 표시
                 if (receive === 'denied') {
-                  const settingGuide = isIOS 
+                  const settingGuide = isIOS
                     ? 'iOS 설정에서 알림 권한을 허용해주세요'
                     : 'Android 설정에서 알림 권한을 허용해주세요';
                   toast.info(settingGuide);
@@ -512,7 +512,7 @@ const AppInner: React.FC = () => {
       if (linkUrl) {
         // 먼저 pendingNavigationRef 설정
         pendingNavigationRef.current = linkUrl;
-        
+
         if (isAuthenticated && !isLoading) {
           // 인증 완료 상태면 즉시 이동 (replace로 히스토리 남기지 않음)
           navigate(linkUrl, { replace: true });
@@ -584,31 +584,27 @@ const AppInner: React.FC = () => {
     };
   }, []);
 
-  // 버전 체크 (앱 시작 시 1회 실행)
-  useEffect(() => {
-    const checkAppVersion = async () => {
-      // 웹에서는 버전 체크 안 함
-      if (!isNativeApp()) return;
-      
-      // 약간의 지연 후 실행 (앱 완전히 로드 후)
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      await performVersionCheck(
-        // 강제 업데이트 콜백
-        (result) => {
-          setVersionCheckResult(result);
-          setShowForceUpdateModal(true);
-        },
-        // 선택적 업데이트 콜백
-        (result) => {
-          setVersionCheckResult(result);
-          setShowOptionalUpdateModal(true);
-        }
-      );
-    };
-    
-    checkAppVersion();
+  // 버전 체크 실행 (앱 시작 시 + 설정 모달 열 때 트리거)
+  const runVersionCheck = useCallback(() => {
+    if (!isNativeApp()) return;
+    performVersionCheck(
+      (result) => {
+        setVersionCheckResult(result);
+        setShowForceUpdateModal(true);
+      },
+      (result) => {
+        setVersionCheckResult(result);
+        setShowOptionalUpdateModal(true);
+      }
+    );
   }, []);
+
+  // 앱 시작 시 1회 버전 체크 (2초 지연)
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const timer = setTimeout(() => runVersionCheck(), 2000);
+    return () => clearTimeout(timer);
+  }, [runVersionCheck]);
 
   // F5(새로고침) 시 디버깅 로그를 화면에 출력 (복사 가능)
   if ((window as any)._debugLogs && (window as any)._debugLogs.length > 0) {
@@ -653,362 +649,362 @@ const AppInner: React.FC = () => {
   return (
     <div className="App">
       <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={
-                isInitialLoading || pendingNavigationRef.current ? (
-                  <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
-                ) : (
-                  (user && profile) ? <Navigate to="/main" replace /> : <LandingPage />
-                )
-              } />
-              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-              <Route path="/delete-account" element={<DeleteAccountPage />} />
-              <Route path="/child-safety" element={<ChildSafetyPage />} />
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/register/company" element={<CompanySelectionPage />} />
-              <Route path="/register/email-verification" element={<EmailVerificationPage />} />
-              <Route path="/register/email-sent" element={<EmailSentPage />} />
-              <Route path="/register/password" element={<PasswordSetupPage />} />
-              <Route path="/register/required-info" element={<RequiredInfoPage />} />
-              <Route path="/register/profile" element={<ProfileSetupPage />} />
-              <Route path="/register/address" element={<AddressSelectionPage />} />
-              <Route path="/register/nickname" element={<NicknameSetupPage />} />
-              <Route path="/register/preference" element={<PreferenceSetupPage />} />
-              <Route path="/register/appeal" element={<AppealPage />} />
-              
-              {/* Password Reset Routes */}
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password-verify" element={<ResetPasswordVerifyPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              
-              {/* Protected Routes */}
-              <Route path="/main" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <MainPage 
-                      key={location.state?.forceReload || 'main'} 
-                      sidebarOpen={sidebarOpen} 
-                    />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/profile" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <ProfilePage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/preference" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <PreferencePage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/notice" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <NoticePage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/notice/:id" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <NoticePage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/faq" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <FaqPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/faq/:id" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <FaqPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/rps-arena" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <RpsArenaPage
-                      sidebarOpen={sidebarOpen}
-                      preloadedRewarded={preloadedAdsRef.current.rewarded}
-                      preloadedBanner={preloadedAdsRef.current.banner}
-                    />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/matching-history" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <MatchingHistoryPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/community" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <CommunityPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/extra-matching" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <ExtraMatchingPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/notifications" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <NotificationsPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              {/* Support Routes */}
-              <Route path="/support/inquiry" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <SupportInquiryPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/support/my-inquiries" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <MySupportInquiriesPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/support/inquiry/:id" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <SupportInquiryDetailPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/chat/:partnerUserId" element={
-                <ProtectedRoute>
-                  {/* 사이드바 없이 ChatPage만 렌더 */}
-                  <ChatPage />
-                </ProtectedRoute>
-              } />
-              {/* Admin Routes */}
-              <Route path="/admin" element={
-                <AdminRoute>
-                  <AdminPage />
-                </AdminRoute>
-              } />
-              <Route path="/admin/matching-log" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <MatchingLogAdminPage isSidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/category-manager" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <CategoryManagerPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/company-manager" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <CompanyManagerPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/matching-applications" element={
-                <ProtectedRoute>
-                  <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <MatchingApplicationsPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </ProtectedRoute>
-              } />
-              <Route path="/admin/matching-result" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <MatchingResultPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/user-matching-overview" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <UserMatchingOverviewPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/notice-manager" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <NoticeManagerPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/faq-manager" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <FaqManagerPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/settings" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <SettingsPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/logs" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <LogsPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/report-management" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <ReportManagementPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              {/* Admin Support Routes */}
-              <Route path="/admin/support" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <AdminSupportPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/support/:id" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <AdminSupportDetailPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/broadcast-email" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <BroadcastEmailPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/notifications" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <AdminNotificationPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/star-rewards" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <AdminStarRewardPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-              <Route path="/admin/extra-matching-status" element={
-                <AdminRoute>
-                  <div className="app-layout" style={{ display: 'flex' }}>
-                    <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-                    <ExtraMatchingAdminPage sidebarOpen={sidebarOpen} />
-                  </div>
-                </AdminRoute>
-              } />
-            </Routes>
-            <ToastContainer
-              position="top-right"
-              autoClose={5000}
-              hideProgressBar={false}
-              newestOnTop={false}
-              closeOnClick
-              rtl={false}
-              pauseOnFocusLoss
-              draggable={false}
-              pauseOnHover
-              limit={3}
-              enableMultiContainer={false}
-              toastStyle={{
-                touchAction: 'manipulation'
-              }}
-            />
+        {/* Public Routes */}
+        <Route path="/" element={
+          isInitialLoading || pendingNavigationRef.current ? (
+            <LoadingSpinner preloadedBanner={preloadedAdsRef.current.banner} />
+          ) : (
+            (user && profile) ? <Navigate to="/main" replace /> : <LandingPage />
+          )
+        } />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/delete-account" element={<DeleteAccountPage />} />
+        <Route path="/child-safety" element={<ChildSafetyPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register/company" element={<CompanySelectionPage />} />
+        <Route path="/register/email-verification" element={<EmailVerificationPage />} />
+        <Route path="/register/email-sent" element={<EmailSentPage />} />
+        <Route path="/register/password" element={<PasswordSetupPage />} />
+        <Route path="/register/required-info" element={<RequiredInfoPage />} />
+        <Route path="/register/profile" element={<ProfileSetupPage />} />
+        <Route path="/register/address" element={<AddressSelectionPage />} />
+        <Route path="/register/nickname" element={<NicknameSetupPage />} />
+        <Route path="/register/preference" element={<PreferenceSetupPage />} />
+        <Route path="/register/appeal" element={<AppealPage />} />
 
-            {/* 앱 종료 확인 모달 (네이티브 광고 포함) */}
-            <ExitConfirmModal
-              isOpen={showExitModal}
-              onConfirm={handleExitConfirm}
-              onCancel={handleExitCancel}
-              preloadedBanner={preloadedAdsRef.current.banner}
-            />
+        {/* Password Reset Routes */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password-verify" element={<ResetPasswordVerifyPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            <PushPermissionModal
-              isOpen={showPushPermissionModal}
-              onAllow={handlePushPermissionAllow}
-              onDeny={handlePushPermissionDeny}
-              platform={Capacitor.getPlatform() as 'ios' | 'android' | 'web'}
-            />
-            
-            {/* 버전 업데이트 모달 */}
-            {versionCheckResult && (
-              <>
-                <ForceUpdateModal
-                  isOpen={showForceUpdateModal}
-                  result={versionCheckResult}
-                />
-                <OptionalUpdateModal
-                  isOpen={showOptionalUpdateModal}
-                  result={versionCheckResult}
-                  onClose={() => setShowOptionalUpdateModal(false)}
-                />
-              </>
-            )}
-            
-          </div>
+        {/* Protected Routes */}
+        <Route path="/main" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <MainPage
+                key={location.state?.forceReload || 'main'}
+                sidebarOpen={sidebarOpen}
+              />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/profile" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <ProfilePage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/preference" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <PreferencePage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/notice" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <NoticePage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/notice/:id" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <NoticePage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/faq" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <FaqPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/faq/:id" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <FaqPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/rps-arena" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <RpsArenaPage
+                sidebarOpen={sidebarOpen}
+                preloadedRewarded={preloadedAdsRef.current.rewarded}
+                preloadedBanner={preloadedAdsRef.current.banner}
+              />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/matching-history" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <MatchingHistoryPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/community" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <CommunityPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/extra-matching" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <ExtraMatchingPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/notifications" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <NotificationsPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        {/* Support Routes */}
+        <Route path="/support/inquiry" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <SupportInquiryPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/support/my-inquiries" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <MySupportInquiriesPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/support/inquiry/:id" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <SupportInquiryDetailPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/chat/:partnerUserId" element={
+          <ProtectedRoute>
+            {/* 사이드바 없이 ChatPage만 렌더 */}
+            <ChatPage />
+          </ProtectedRoute>
+        } />
+        {/* Admin Routes */}
+        <Route path="/admin" element={
+          <AdminRoute>
+            <AdminPage />
+          </AdminRoute>
+        } />
+        <Route path="/admin/matching-log" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <MatchingLogAdminPage isSidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/category-manager" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <CategoryManagerPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/company-manager" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <CompanyManagerPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/matching-applications" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <MatchingApplicationsPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/matching-result" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <MatchingResultPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/user-matching-overview" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <UserMatchingOverviewPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/notice-manager" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <NoticeManagerPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/faq-manager" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <FaqManagerPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/settings" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <SettingsPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/logs" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <LogsPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/report-management" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <ReportManagementPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        {/* Admin Support Routes */}
+        <Route path="/admin/support" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <AdminSupportPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/support/:id" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <AdminSupportDetailPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/broadcast-email" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <BroadcastEmailPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/notifications" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <AdminNotificationPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/star-rewards" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <AdminStarRewardPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/extra-matching-status" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <ExtraMatchingAdminPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+      </Routes>
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable={false}
+        pauseOnHover
+        limit={3}
+        enableMultiContainer={false}
+        toastStyle={{
+          touchAction: 'manipulation'
+        }}
+      />
+
+      {/* 앱 종료 확인 모달 (네이티브 광고 포함) */}
+      <ExitConfirmModal
+        isOpen={showExitModal}
+        onConfirm={handleExitConfirm}
+        onCancel={handleExitCancel}
+        preloadedBanner={preloadedAdsRef.current.banner}
+      />
+
+      <PushPermissionModal
+        isOpen={showPushPermissionModal}
+        onAllow={handlePushPermissionAllow}
+        onDeny={handlePushPermissionDeny}
+        platform={Capacitor.getPlatform() as 'ios' | 'android' | 'web'}
+      />
+
+      {/* 버전 업데이트 모달 */}
+      {versionCheckResult && (
+        <>
+          <ForceUpdateModal
+            isOpen={showForceUpdateModal}
+            result={versionCheckResult}
+          />
+          <OptionalUpdateModal
+            isOpen={showOptionalUpdateModal}
+            result={versionCheckResult}
+            onClose={() => setShowOptionalUpdateModal(false)}
+          />
+        </>
+      )}
+
+    </div>
   );
 
   // 앱 종료 확인
@@ -1030,7 +1026,7 @@ const AppInner: React.FC = () => {
   function handlePushPermissionAllow() {
     // 모달 즉시 닫기
     setShowPushPermissionModal(false);
-    
+
     // 시스템 권한 요청 이벤트 발생
     window.dispatchEvent(new CustomEvent('push-permission-response', {
       detail: { allowed: true }
@@ -1041,7 +1037,7 @@ const AppInner: React.FC = () => {
   function handlePushPermissionDeny() {
     // 모달 즉시 닫기
     setShowPushPermissionModal(false);
-    
+
     // 거부 이벤트 발생
     window.dispatchEvent(new CustomEvent('push-permission-response', {
       detail: { allowed: false }

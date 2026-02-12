@@ -23,7 +23,7 @@ import {
 import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi } from '../../services/api.ts';
 import { isNativeApp } from '../../firebase.ts';
 import { Capacitor } from '@capacitor/core';
-import { getCurrentVersion } from '../../utils/versionCheck.ts';
+import { getCurrentVersion, fetchVersionPolicy } from '../../utils/versionCheck.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -617,7 +617,8 @@ const Sidebar: React.FC<{
   isOpen: boolean;
   onToggle: () => void;
   preloadedRewarded?: any;
-}> = ({ isOpen, onToggle, preloadedRewarded }) => {
+  onSettingsModalOpen?: () => void;
+}> = ({ isOpen, onToggle, preloadedRewarded, onSettingsModalOpen }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, logout } = useAuth() as any;
@@ -641,6 +642,7 @@ const Sidebar: React.FC<{
   const [emailNotificationEnabled, setEmailNotificationEnabled] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [latestVersion, setLatestVersion] = useState<string | null>(null);
 
   // 로딩 상태: user가 null이면 true, 아니면 false
   const isUserLoading = user === null;
@@ -668,14 +670,22 @@ const Sidebar: React.FC<{
     }
   }, [user?.id, settingsModalOpen]);
 
-  // 설정 모달 열릴 때 앱 버전 조회 (표시용)
+  // 설정 모달 열릴 때: 앱/최신 버전 조회 + 버전 체크 트리거 (업데이트 안내)
   useEffect(() => {
     if (settingsModalOpen) {
+      onSettingsModalOpen?.();
+      const platform = Capacitor.getPlatform();
+      const platformKey = platform === 'ios' ? 'ios' : platform === 'android' ? 'android' : null;
       getCurrentVersion().then(setAppVersion).catch(() => setAppVersion(null));
+      fetchVersionPolicy().then((policy) => {
+        if (policy && platformKey) setLatestVersion(policy[platformKey].latestVersion);
+        else setLatestVersion(null);
+      }).catch(() => setLatestVersion(null));
     } else {
       setAppVersion(null);
+      setLatestVersion(null);
     }
-  }, [settingsModalOpen]);
+  }, [settingsModalOpen, onSettingsModalOpen]);
 
   // 이메일 수신 허용 설정 토글
   const handleToggleEmailNotification = async () => {
@@ -1498,6 +1508,7 @@ const Sidebar: React.FC<{
             </SettingsModalActions>
             <SettingsModalVersion>
               앱 버전 {appVersion != null ? `v${appVersion}` : '–'}
+              {latestVersion != null && ` · 최신 버전 v${latestVersion}`}
             </SettingsModalVersion>
           </SettingsModalContent>
         </SettingsModalOverlay>
