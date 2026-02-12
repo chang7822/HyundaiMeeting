@@ -46,15 +46,15 @@ export interface VersionCheckResult {
 const compareVersion = (v1: string, v2: string): number => {
   const parts1 = v1.split('.').map(Number);
   const parts2 = v2.split('.').map(Number);
-  
+
   for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
     const num1 = parts1[i] || 0;
     const num2 = parts2[i] || 0;
-    
+
     if (num1 > num2) return 1;
     if (num1 < num2) return -1;
   }
-  
+
   return 0;
 };
 
@@ -67,7 +67,7 @@ export const getCurrentVersion = async (): Promise<string> => {
       // 웹에서는 package.json 버전 반환 (테스트용)
       return '0.1.0';
     }
-    
+
     const appInfo = await App.getInfo();
     return appInfo.version; // 예: "1.0.0"
   } catch (error) {
@@ -95,7 +95,7 @@ export const openStore = async (storeUrl: string) => {
       window.open(storeUrl, '_blank');
       return;
     }
-    
+
     // 네이티브 앱에서는 스토어 앱으로 이동
     const { Browser } = await import('@capacitor/browser');
     await Browser.open({ url: storeUrl });
@@ -138,11 +138,11 @@ export const fetchVersionPolicy = async (): Promise<VersionPolicy | null> => {
         'Content-Type': 'application/json',
       },
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
-    
+
     const policy: VersionPolicy = await response.json();
     return policy;
   } catch (error) {
@@ -159,10 +159,10 @@ export const checkVersion = async (): Promise<VersionCheckResult> => {
   try {
     // 1. 현재 버전 가져오기
     const currentVersion = await getCurrentVersion();
-    
+
     // 2. 서버 정책 가져오기
     const policy = await fetchVersionPolicy();
-    
+
     if (!policy) {
       // 서버 정책을 가져올 수 없으면 업데이트 안 함
       return {
@@ -172,10 +172,10 @@ export const checkVersion = async (): Promise<VersionCheckResult> => {
         message: '',
       };
     }
-    
+
     // 3. 플랫폼 확인
     const platform = getCurrentPlatform();
-    
+
     if (platform === 'web') {
       // 웹에서는 버전 체크 안 함
       return {
@@ -185,9 +185,9 @@ export const checkVersion = async (): Promise<VersionCheckResult> => {
         message: '',
       };
     }
-    
+
     const platformPolicy = policy[platform];
-    
+
     // 4. 최소 버전 체크 (강제 업데이트)
     if (compareVersion(currentVersion, platformPolicy.minimumVersion) < 0) {
       return {
@@ -198,7 +198,7 @@ export const checkVersion = async (): Promise<VersionCheckResult> => {
         storeUrl: platformPolicy.storeUrl,
       };
     }
-    
+
     // 5. 최신 버전 체크 (선택적 업데이트)
     if (compareVersion(currentVersion, platformPolicy.latestVersion) < 0) {
       return {
@@ -209,7 +209,7 @@ export const checkVersion = async (): Promise<VersionCheckResult> => {
         storeUrl: platformPolicy.storeUrl,
       };
     }
-    
+
     // 6. 최신 버전 사용 중
     return {
       type: 'none',
@@ -219,7 +219,7 @@ export const checkVersion = async (): Promise<VersionCheckResult> => {
     };
   } catch (error) {
     console.error('[VersionCheck] Error during version check:', error);
-    
+
     // 에러 발생 시 업데이트 안 함 (앱 사용 가능하도록)
     const currentVersion = await getCurrentVersion();
     return {
@@ -243,7 +243,7 @@ export const performVersionCheck = async (
   onOptionalUpdate: (result: VersionCheckResult) => void
 ) => {
   const result = await checkVersion();
-  
+
   if (result.type === 'force') {
     onForceUpdate(result);
   } else if (result.type === 'optional') {

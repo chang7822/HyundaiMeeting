@@ -3,10 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import { toast } from 'react-toastify';
-import { 
-  FaHome, 
-  FaComments, 
-  FaUser, 
+import {
+  FaHome,
+  FaComments,
+  FaUser,
   FaSignOutAlt,
   FaBars,
   FaChevronLeft,
@@ -23,6 +23,7 @@ import {
 import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi } from '../../services/api.ts';
 import { isNativeApp } from '../../firebase.ts';
 import { Capacitor } from '@capacitor/core';
+import { getCurrentVersion } from '../../utils/versionCheck.ts';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;
@@ -245,6 +246,15 @@ const SettingsModalActions = styled.div`
   margin-top: 24px;
 `;
 
+const SettingsModalVersion = styled.div`
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  font-size: 0.8rem;
+  color: #9ca3af;
+  text-align: center;
+`;
+
 const SettingsModalButton = styled.button`
   padding: 10px 20px;
   border-radius: 8px;
@@ -395,7 +405,7 @@ const MenuTitle = styled.div`
 
 const NavItem = styled.div.withConfig({
   shouldForwardProp: (prop) => prop !== 'active'
-})<{ active: boolean }>`
+}) <{ active: boolean }>`
   padding: 1rem 1.5rem;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -603,8 +613,8 @@ const AppOnlyBadge = styled.span`
   color: rgba(255, 255, 255, 0.9);
 `;
 
-const Sidebar: React.FC<{ 
-  isOpen: boolean; 
+const Sidebar: React.FC<{
+  isOpen: boolean;
   onToggle: () => void;
   preloadedRewarded?: any;
 }> = ({ isOpen, onToggle, preloadedRewarded }) => {
@@ -630,6 +640,7 @@ const Sidebar: React.FC<{
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [emailNotificationEnabled, setEmailNotificationEnabled] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
 
   // 로딩 상태: user가 null이면 true, 아니면 false
   const isUserLoading = user === null;
@@ -657,13 +668,22 @@ const Sidebar: React.FC<{
     }
   }, [user?.id, settingsModalOpen]);
 
+  // 설정 모달 열릴 때 앱 버전 조회 (표시용)
+  useEffect(() => {
+    if (settingsModalOpen) {
+      getCurrentVersion().then(setAppVersion).catch(() => setAppVersion(null));
+    } else {
+      setAppVersion(null);
+    }
+  }, [settingsModalOpen]);
+
   // 이메일 수신 허용 설정 토글
   const handleToggleEmailNotification = async () => {
     if (settingsLoading) return;
-    
+
     const newValue = !emailNotificationEnabled;
     setSettingsLoading(true);
-    
+
     try {
       const result = await userApi.updateEmailNotificationSetting(newValue);
       setEmailNotificationEnabled(result.email_notification_enabled);
@@ -702,12 +722,12 @@ const Sidebar: React.FC<{
             setPeriod(periodData);
             const now = new Date();
             const finish = periodData.finish ? new Date(periodData.finish) : null;
-            
+
             // 사용자 정지 상태 확인
             const isBanned = user?.is_banned === true;
             const bannedUntil = user?.banned_until ? new Date(user.banned_until) : null;
             const isBanActive = isBanned && (!bannedUntil || bannedUntil > now);
-            
+
             if (!isBanActive && (!finish || now < finish)) {
               setCanChat(true);
             } else {
@@ -736,10 +756,10 @@ const Sidebar: React.FC<{
     let cancelled = false;
     let shouldStop = false;
     let timer: number | null = null;
-    
+
     const load = async () => {
       if (shouldStop || cancelled) return;
-      
+
       const token = localStorage.getItem('token');
       if (!token) {
         shouldStop = true;
@@ -747,7 +767,7 @@ const Sidebar: React.FC<{
         if (timer) window.clearInterval(timer);
         return;
       }
-      
+
       try {
         const res = await notificationApi.getUnreadCount();
         if (!cancelled && !shouldStop) {
@@ -767,10 +787,10 @@ const Sidebar: React.FC<{
         }
       }
     };
-    
+
     load();
     timer = window.setInterval(load, 15000);
-    
+
     return () => {
       cancelled = true;
       shouldStop = true;
@@ -787,10 +807,10 @@ const Sidebar: React.FC<{
     let cancelled = false;
     let shouldStop = false;
     let timer: number | null = null;
-    
+
     const loadExtraStatus = async () => {
       if (shouldStop || cancelled) return;
-      
+
       const token = localStorage.getItem('token');
       if (!token) {
         shouldStop = true;
@@ -798,17 +818,17 @@ const Sidebar: React.FC<{
         if (timer) window.clearInterval(timer);
         return;
       }
-      
+
       try {
         const res = await extraMatchingApi.getStatus();
         if (cancelled || shouldStop) return;
-        
+
         // 기능이 비활성화되어 있으면 false로 설정
         if (res?.featureEnabled === false) {
           setExtraMatchingInWindow(false);
           return;
         }
-        
+
         const p = res?.currentPeriod;
         if (!p || !p.matching_announce || !p.finish) {
           setExtraMatchingInWindow(false);
@@ -836,10 +856,10 @@ const Sidebar: React.FC<{
         }
       }
     };
-    
+
     loadExtraStatus();
     timer = window.setInterval(loadExtraStatus, 30000);
-    
+
     return () => {
       cancelled = true;
       shouldStop = true;
@@ -910,14 +930,14 @@ const Sidebar: React.FC<{
   // 커뮤니티 기능 활성화 여부 로드
   useEffect(() => {
     let cancelled = false;
-    
+
     const loadCommunitySettings = async () => {
       // 관리자가 아닌 경우 기본값(true) 사용, API 호출 안 함
       if (!user?.isAdmin) {
         setCommunityEnabled(true);
         return;
       }
-      
+
       try {
         const res = await adminApi.getSystemSettings();
         if (cancelled) return;
@@ -928,9 +948,9 @@ const Sidebar: React.FC<{
         setCommunityEnabled(true); // 오류 시 기본값 true
       }
     };
-    
+
     loadCommunitySettings();
-    
+
     return () => {
       cancelled = true;
     };
@@ -964,7 +984,7 @@ const Sidebar: React.FC<{
       return;
     }
     if (hasDailyToday) return;
-    
+
     setAdSubmitting(true);
     let removeListeners: (() => Promise<void>) | null = null;
     try {
@@ -980,9 +1000,9 @@ const Sidebar: React.FC<{
           }
         });
       };
-      
+
       await waitForWebViewReady();
-      
+
       // AdMob 모듈 로드
       let RewardedAd;
       let RewardedInterstitialAd;
@@ -997,7 +1017,7 @@ const Sidebar: React.FC<{
         setAdSubmitting(false);
         return;
       }
-      
+
       // 사전로드된 광고가 있으면 사용, 없으면 새로 생성
       let rewardedAd;
       if (preloadedRewarded) {
@@ -1008,12 +1028,12 @@ const Sidebar: React.FC<{
         const platform = Capacitor.getPlatform();
         const isIOS = platform === 'ios';
         const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-        const adId = isTesting 
+        const adId = isTesting
           ? 'ca-app-pub-3940256099942544/5354046379' // Google 테스트 Rewarded Interstitial ID
           : isIOS
             ? 'ca-app-pub-1352765336263182/8848248607' // iOS 보상형
             : 'ca-app-pub-1352765336263182/8702080467'; // Android 보상형
-        
+
         // 보상형 전면 광고 생성
         rewardedAd = new RewardedInterstitialAd({
           adUnitId: adId,
@@ -1029,7 +1049,7 @@ const Sidebar: React.FC<{
       let dismissed = false;
       let showFailed: string | undefined;
       let rewardPromise: Promise<void> | null = null;
-      
+
       // 광고 로드 (사전로드되지 않은 경우에만)
       if (!preloadedRewarded) {
         try {
@@ -1048,9 +1068,9 @@ const Sidebar: React.FC<{
         let showFailHandle: any;
 
         removeListeners = async () => {
-          try { await rewardHandle?.remove?.(); } catch {}
-          try { await dismissHandle?.remove?.(); } catch {}
-          try { await showFailHandle?.remove?.(); } catch {}
+          try { await rewardHandle?.remove?.(); } catch { }
+          try { await dismissHandle?.remove?.(); } catch { }
+          try { await showFailHandle?.remove?.(); } catch { }
         };
 
         rewardPromise = new Promise<void>((resolve, reject) => {
@@ -1087,7 +1107,7 @@ const Sidebar: React.FC<{
                 showFailed = event?.error || event?.message || '광고 표시 실패';
                 safeReject(new Error(showFailed || '광고 표시 실패'));
               });
-              
+
               console.log('[AdMob] 📡 보상형 전면 광고 이벤트 리스너 등록 완료');
             } catch (e) {
               console.error('[AdMob] ❌ 이벤트 리스너 등록 실패:', e);
@@ -1096,7 +1116,7 @@ const Sidebar: React.FC<{
           })();
         });
       }
-      
+
       // 광고 표시
       await rewardedAd.show();
 
@@ -1140,11 +1160,11 @@ const Sidebar: React.FC<{
     } catch (error: any) {
       toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
     } finally {
-      try { await removeListeners?.(); } catch {}
+      try { await removeListeners?.(); } catch { }
       setAdSubmitting(false);
       // 보상형 광고 1회 시청 후 소비되므로, 다음 사용(출석/RPS 등)을 위해 다시 로드
       if (preloadedRewarded) {
-        preloadedRewarded.load?.().catch(() => {});
+        preloadedRewarded.load?.().catch(() => { });
       }
     }
   };
@@ -1161,9 +1181,9 @@ const Sidebar: React.FC<{
     },
     { path: '/rps-arena', icon: <span role="img" aria-label="가위바위보">🗿</span>, text: '가위바위보 아레나' },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
-    { 
-      path: '/community', 
-      icon: <FaComments />, 
+    {
+      path: '/community',
+      icon: <FaComments />,
       text: '커뮤니티',
       disabled: communityEnabled === false
     },
@@ -1205,7 +1225,7 @@ const Sidebar: React.FC<{
       window.dispatchEvent(new CustomEvent('main-page-reload'));
       return;
     }
-    
+
     navigate(path);
     if (window.innerWidth <= 768) onToggle();
   };
@@ -1221,22 +1241,22 @@ const Sidebar: React.FC<{
 
   // 플랫폼별 플로팅 버튼 위치 조정 (Android는 iOS보다 위쪽 공간 줄이기)
   const platform = Capacitor.getPlatform();
-  const floatingButtonTop = platform === 'android' 
-    ? `calc(20px + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px) + 10px)` 
+  const floatingButtonTop = platform === 'android'
+    ? `calc(20px + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px) + 10px)`
     : `calc(20px + var(--safe-area-inset-top))`;
 
   return (
     <>
       {!isOpen && (
-        <SidebarCloseButton 
-          onClick={onToggle} 
-          style={{ 
-            position: 'fixed', 
-            left: 20, 
+        <SidebarCloseButton
+          onClick={onToggle}
+          style={{
+            position: 'fixed',
+            left: 20,
             top: floatingButtonTop,
-            background: '#667eea', 
-            color: '#fff', 
-            boxShadow: '0 2px 10px rgba(0,0,0,0.2)' 
+            background: '#667eea',
+            color: '#fff',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.2)'
           }}
         >
           <FaBars />
@@ -1300,8 +1320,8 @@ const Sidebar: React.FC<{
                       {starLoading
                         ? '별 확인 중...'
                         : typeof starBalance === 'number'
-                        ? `별 ${starBalance}개`
-                        : '별 정보 없음'}
+                          ? `별 ${starBalance}개`
+                          : '별 정보 없음'}
                     </span>
                   </StarBadge>
                   <AttendanceButton
@@ -1351,7 +1371,7 @@ const Sidebar: React.FC<{
                   </NavItem>
                 ))}
               </MenuSection>
-              
+
               {adminMenuItems.length > 0 && (
                 <>
                   <MenuDivider />
@@ -1443,7 +1463,7 @@ const Sidebar: React.FC<{
         >
           <SettingsModalContent onClick={(e) => e.stopPropagation()}>
             <SettingsModalTitle>설정</SettingsModalTitle>
-            
+
             <SettingsRow>
               <div style={{ flex: 1 }}>
                 <SettingsLabel>이메일 수신 허용</SettingsLabel>
@@ -1476,6 +1496,9 @@ const Sidebar: React.FC<{
                 닫기
               </SettingsModalButton>
             </SettingsModalActions>
+            <SettingsModalVersion>
+              앱 버전 {appVersion != null ? `v${appVersion}` : '–'}
+            </SettingsModalVersion>
           </SettingsModalContent>
         </SettingsModalOverlay>
       )}
