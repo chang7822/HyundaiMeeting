@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer, toast } from 'react-toastify';
@@ -584,27 +584,21 @@ const AppInner: React.FC = () => {
     };
   }, []);
 
-  // 버전 체크 실행 (앱 시작 시 + 설정 모달 열 때 트리거)
-  const runVersionCheck = useCallback(() => {
-    if (!isNativeApp()) return;
-    performVersionCheck(
-      (result) => {
-        setVersionCheckResult(result);
-        setShowForceUpdateModal(true);
-      },
-      (result) => {
-        setVersionCheckResult(result);
-        setShowOptionalUpdateModal(true);
-      }
-    );
-  }, []);
-
-  // 앱 시작 시 1회 버전 체크 (2초 지연)
+  // 버전 체크: 앱 시작 시 1회(2초 지연) + 설정 모달 열 때(이벤트로 트리거)
   useEffect(() => {
     if (!isNativeApp()) return;
-    const timer = setTimeout(() => runVersionCheck(), 2000);
-    return () => clearTimeout(timer);
-  }, [runVersionCheck]);
+    const run = () => performVersionCheck(
+      (result) => { setVersionCheckResult(result); setShowForceUpdateModal(true); },
+      (result) => { setVersionCheckResult(result); setShowOptionalUpdateModal(true); }
+    );
+    const t = setTimeout(run, 2000);
+    const onRequest = () => run();
+    window.addEventListener('request-version-check', onRequest);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('request-version-check', onRequest);
+    };
+  }, []);
 
   // F5(새로고침) 시 디버깅 로그를 화면에 출력 (복사 가능)
   if ((window as any)._debugLogs && (window as any)._debugLogs.length > 0) {
@@ -682,7 +676,7 @@ const AppInner: React.FC = () => {
         <Route path="/main" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MainPage
                 key={location.state?.forceReload || 'main'}
                 sidebarOpen={sidebarOpen}
@@ -693,7 +687,7 @@ const AppInner: React.FC = () => {
         <Route path="/profile" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <ProfilePage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -701,7 +695,7 @@ const AppInner: React.FC = () => {
         <Route path="/preference" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <PreferencePage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -709,7 +703,7 @@ const AppInner: React.FC = () => {
         <Route path="/notice" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <NoticePage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -717,7 +711,7 @@ const AppInner: React.FC = () => {
         <Route path="/notice/:id" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <NoticePage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -725,7 +719,7 @@ const AppInner: React.FC = () => {
         <Route path="/faq" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <FaqPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -733,7 +727,7 @@ const AppInner: React.FC = () => {
         <Route path="/faq/:id" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <FaqPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -741,7 +735,7 @@ const AppInner: React.FC = () => {
         <Route path="/rps-arena" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <RpsArenaPage
                 sidebarOpen={sidebarOpen}
                 preloadedRewarded={preloadedAdsRef.current.rewarded}
@@ -753,7 +747,7 @@ const AppInner: React.FC = () => {
         <Route path="/matching-history" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MatchingHistoryPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -761,7 +755,7 @@ const AppInner: React.FC = () => {
         <Route path="/community" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <CommunityPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -769,7 +763,7 @@ const AppInner: React.FC = () => {
         <Route path="/extra-matching" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <ExtraMatchingPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -777,7 +771,7 @@ const AppInner: React.FC = () => {
         <Route path="/notifications" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <NotificationsPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -786,7 +780,7 @@ const AppInner: React.FC = () => {
         <Route path="/support/inquiry" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <SupportInquiryPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -794,7 +788,7 @@ const AppInner: React.FC = () => {
         <Route path="/support/my-inquiries" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MySupportInquiriesPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -802,7 +796,7 @@ const AppInner: React.FC = () => {
         <Route path="/support/inquiry/:id" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <SupportInquiryDetailPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -822,7 +816,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/matching-log" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MatchingLogAdminPage isSidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
             </div>
           </AdminRoute>
@@ -830,7 +824,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/category-manager" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <CategoryManagerPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -838,7 +832,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/company-manager" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <CompanyManagerPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -846,7 +840,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/matching-applications" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MatchingApplicationsPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
@@ -854,7 +848,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/matching-result" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MatchingResultPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -862,7 +856,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/user-matching-overview" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <UserMatchingOverviewPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -870,7 +864,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/notice-manager" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <NoticeManagerPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -878,7 +872,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/faq-manager" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <FaqManagerPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -886,7 +880,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/settings" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <SettingsPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -894,7 +888,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/logs" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <LogsPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -902,7 +896,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/report-management" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <ReportManagementPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -911,7 +905,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/support" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminSupportPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -919,7 +913,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/support/:id" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminSupportDetailPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -927,7 +921,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/broadcast-email" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <BroadcastEmailPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -935,7 +929,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/notifications" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminNotificationPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -943,7 +937,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/star-rewards" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminStarRewardPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
@@ -951,7 +945,7 @@ const AppInner: React.FC = () => {
         <Route path="/admin/extra-matching-status" element={
           <AdminRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} onSettingsModalOpen={runVersionCheck} />
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <ExtraMatchingAdminPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>

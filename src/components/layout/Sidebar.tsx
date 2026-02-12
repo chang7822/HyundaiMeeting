@@ -617,8 +617,7 @@ const Sidebar: React.FC<{
   isOpen: boolean;
   onToggle: () => void;
   preloadedRewarded?: any;
-  onSettingsModalOpen?: () => void;
-}> = ({ isOpen, onToggle, preloadedRewarded, onSettingsModalOpen }) => {
+}> = ({ isOpen, onToggle, preloadedRewarded }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, logout } = useAuth() as any;
@@ -673,7 +672,7 @@ const Sidebar: React.FC<{
   // 설정 모달 열릴 때: 앱/최신 버전 조회 + 버전 체크 트리거 (업데이트 안내)
   useEffect(() => {
     if (settingsModalOpen) {
-      onSettingsModalOpen?.();
+      window.dispatchEvent(new CustomEvent('request-version-check'));
       const platform = Capacitor.getPlatform();
       const platformKey = platform === 'ios' ? 'ios' : platform === 'android' ? 'android' : null;
       getCurrentVersion().then(setAppVersion).catch(() => setAppVersion(null));
@@ -685,7 +684,7 @@ const Sidebar: React.FC<{
       setAppVersion(null);
       setLatestVersion(null);
     }
-  }, [settingsModalOpen, onSettingsModalOpen]);
+  }, [settingsModalOpen]);
 
   // 이메일 수신 허용 설정 토글
   const handleToggleEmailNotification = async () => {
