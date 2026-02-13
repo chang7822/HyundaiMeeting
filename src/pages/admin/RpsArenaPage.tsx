@@ -9,7 +9,8 @@ const RPS_DAILY_LIMIT = 3;
 const ARENA = 400;
 const EMOJI_SIZE = 20;
 const RADIUS = EMOJI_SIZE / 2; // 충돌/경계 = 이모지 크기에 맞춤
-const SPEED = 1;
+/** 초당 픽셀 이동량 기준으로 사용. 델타타임(dt)과 곱해 기기별 프레임률에 무관하게 속도 동일 유지 */
+const SPEED = 60;
 const COUNT_PER_TYPE = 20; // 종류당 개수 고정
 const TYPES = ['rock', 'scissors', 'paper'] as const;
 type Type = (typeof TYPES)[number];
@@ -80,10 +81,12 @@ const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean; $h
   margin-left: ${(p) => (p.$sidebarOpen ? '280px' : '0')};
   padding: clamp(0.75rem, 2vw, 2rem);
   padding-bottom: 7rem;
+  height: 100vh;
   min-height: 100vh;
+  max-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   transition: margin-left 0.3s;
-  overflow-x: hidden;
+  overflow: hidden;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -192,7 +195,7 @@ const ArenaWrap = styled.div`
   margin: 0 auto 1rem;
   border: 3px solid #334155;
   border-radius: 12px;
-  background: #f8fafc;
+  background: #ede9fe;
   overflow: hidden;
   box-sizing: border-box;
   canvas {
@@ -274,8 +277,68 @@ const ReplayBtnInRow = styled.button`
   &:hover { background: #0f766e; }
 `;
 
+/** 게임 종료 시 상단에 크게 보이는 다시하기 버튼 (시작 버튼과 동일 배경, 캔버스와 동일 폭) */
+const ReplayBtnBig = styled.button`
+  width: 100%;
+  max-width: ${ARENA}px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.875rem 1.5rem;
+  min-height: 4rem;
+  border-radius: 16px;
+  border: none;
+  font-weight: 700;
+  font-size: 1.25rem;
+  cursor: pointer;
+  background: #4f46e5;
+  color: white;
+  transition: transform 0.2s, background 0.2s;
+  &:hover {
+    background: #4338ca;
+    transform: translateY(-2px);
+  }
+`;
+
+/** 상단 영역 고정 높이 (두 상태에서 동일 → 캔버스 위치·화면 흔들림 방지) */
+const TOP_SECTION_HEIGHT = 280;
+
+/** 게임 종료 시 내 별 + 다시하기 버튼 래퍼 (고정 높이 안에서 수직 가운데) */
+const ReplaySectionWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: ${TOP_SECTION_HEIGHT}px;
+  width: 100%;
+  gap: 1rem;
+`;
+
+/** 게임 종료 시 내 별·남은판수 한 묶음 (캔버스 폭, 왼쪽 정렬, 글자 키움) */
+const ReplayInfoBlock = styled.div`
+  width: 100%;
+  max-width: ${ARENA}px;
+  text-align: left;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: clamp(1rem, 3vw, 1.15rem);
+  line-height: 1.5;
+`;
+
+/** 배팅/선택 또는 다시하기 영역 래퍼 (고정 높이 → 전환 시 화면 흔들림 없음) */
+const TopSectionWrap = styled.div`
+  min-height: ${TOP_SECTION_HEIGHT}px;
+  margin-bottom: 0.25rem;
+`;
+
 const Controls = styled.div`
   margin-bottom: 1rem;
+  min-height: ${TOP_SECTION_HEIGHT}px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 `;
 
 const PaletteControls = styled.div`
@@ -295,7 +358,9 @@ const StartBtnRow = styled.div`
   width: 100%;
   > button {
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: 1.25rem 1.5rem;
+    font-size: 1.1rem;
+    font-weight: 700;
   }
 `;
 
@@ -350,21 +415,6 @@ const GuessLabel = styled.span`
   font-size: 0.8125rem;
   font-weight: 600;
   color: #334155;
-`;
-
-const ToggleWrap = styled.label`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  font-size: clamp(0.75rem, 2vw, 0.875rem);
-  color: #475569;
-  user-select: none;
-  min-width: 0;
-  width: 100%;
-  justify-content: center;
-  flex-wrap: wrap;
-  input { width: 18px; height: 18px; cursor: pointer; accent-color: #4f46e5; flex-shrink: 0; }
 `;
 
 const Btn = styled.button`
@@ -446,6 +496,7 @@ const RpsArenaPage: React.FC<{
   const [iosStoreUrl, setIosStoreUrl] = useState<string | null>(null);
   const entitiesRef = useRef<Entity[]>([]);
   const rafRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
   const passThroughRef = useRef(false);
   const currentBetRef = useRef<number>(0);
   const resultProcessedRef = useRef(false);
@@ -524,7 +575,7 @@ const RpsArenaPage: React.FC<{
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.fillStyle = '#f8fafc';
+    ctx.fillStyle = '#ede9fe';
     ctx.fillRect(0, 0, ARENA, ARENA);
     ctx.font = `${EMOJI_SIZE}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
     ctx.textAlign = 'center';
@@ -535,15 +586,20 @@ const RpsArenaPage: React.FC<{
     });
   }, []);
 
-  const runFrame = useCallback(() => {
+  const runFrame = useCallback((timestamp: number = performance.now()) => {
     const list = entitiesRef.current;
     const n = list.length;
     if (n === 0) return;
 
+    const prev = lastFrameTimeRef.current;
+    const dtSec = prev > 0 ? (timestamp - prev) / 1000 : 1 / 60;
+    const dt = Math.min(dtSec, 0.1);
+    lastFrameTimeRef.current = timestamp;
+
     for (let i = 0; i < n; i++) {
       const a = list[i];
-      a.x += a.vx;
-      a.y += a.vy;
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
       if (a.x - RADIUS < 0) {
         a.x = RADIUS;
         a.vx = Math.abs(a.vx);
@@ -648,6 +704,7 @@ const RpsArenaPage: React.FC<{
       }
       currentBetRef.current = bet;
       entitiesRef.current = createEntities(COUNT_PER_TYPE);
+      lastFrameTimeRef.current = 0;
       setRunning(true); // 새 배치 준비된 뒤에만 게임 시작 (배너 숨김 + 루프 시작)
     } catch (err: any) {
       const msg = err?.response?.data?.message || '배팅에 실패했습니다.';
@@ -667,8 +724,12 @@ const RpsArenaPage: React.FC<{
   const stop = () => setRunning(false);
   const replay = () => {
     setWinner(null);
-    setGuess(null);
-    setBetAmount(null);
+    // 선택 유지: guess, betAmount 그대로 둠. 단 별이 모자라면 배팅만 해제
+    setBetAmount((prev) => {
+      if (prev === null) return null;
+      if (starBalance === null) return prev;
+      return starBalance < prev ? null : prev;
+    });
   };
 
   const handleExtraPlayAd = async () => {
@@ -750,6 +811,18 @@ const RpsArenaPage: React.FC<{
       <Card>
         <Header $rightAlign={isNativeApp}>✂️ 🗿 📄 가위바위보 아레나</Header>
         <Body>
+          <TopSectionWrap>
+          {winner !== null ? (
+            <ReplaySectionWrap>
+              <ReplayInfoBlock>
+                <div> ⭐ 내 별 {starBalance === null ? '…' : `${starBalance}개`}</div>
+                <div style={{ fontWeight: 600, color: '#475569', marginTop: '0.25rem' }}>
+                   오늘 남은판수 : {playsRemaining}회
+                </div>
+              </ReplayInfoBlock>
+              <ReplayBtnBig onClick={replay}>다시하기</ReplayBtnBig>
+            </ReplaySectionWrap>
+          ) : (
           <Controls>
             <PaletteControls>
               <StarBetRow>
@@ -761,14 +834,14 @@ const RpsArenaPage: React.FC<{
                     <BetOption
                       key={n}
                       $selected={betAmount === n}
-                      $disabled={maxBet < n || winner !== null}
+                      $disabled={maxBet < n}
                     >
                       <input
                         type="radio"
                         name="bet"
                         checked={betAmount === n}
                         onChange={() => setBetAmount(n)}
-                        disabled={running || maxBet < n || winner !== null}
+                        disabled={running || maxBet < n}
                       />
                       {n}
                     </BetOption>
@@ -785,7 +858,7 @@ const RpsArenaPage: React.FC<{
                         name="guess"
                         checked={guess === t}
                         onChange={() => setGuess(t)}
-                        disabled={running || winner !== null}
+                        disabled={running}
                       />
                       <GuessEmoji>{EMOJI[t]}</GuessEmoji>
                       <GuessLabel>{LABELS[t]}</GuessLabel>
@@ -794,9 +867,7 @@ const RpsArenaPage: React.FC<{
                 </GuessOptions>
               </GuessSection>
               <StartBtnRow>
-                {winner !== null ? (
-                  <ReplayBtnInRow onClick={replay}>다시하기</ReplayBtnInRow>
-                ) : !running ? (
+                {!running ? (
                   isNativeApp ? (
                     playsRemaining <= 0 ? (
                       <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
@@ -819,7 +890,7 @@ const RpsArenaPage: React.FC<{
                   ) : (
                     playsRemaining <= 0 ? (
                       <span style={{ fontSize: '0.8125rem', color: '#64748b', display: 'block', width: '100%', textAlign: 'center' }}>
-                        오늘 횟수를 모두 사용했어요. 한 판 더 하려면 앱에서 이용해주세요.
+                        오늘 횟수를 모두 사용했어요. 한 판 더 하려면 앱을 이용해주세요.
                       </span>
                     ) : (
                       <Btn
@@ -841,17 +912,10 @@ const RpsArenaPage: React.FC<{
                   <GameInProgressNotice>게임 중 이탈 시 배팅한 별이 사라집니다</GameInProgressNotice>
                 )}
               </StartBtnRow>
-              <ToggleWrap>
-                <input
-                  type="checkbox"
-                  checked={passThrough}
-                  onChange={(e) => setPassThrough(e.target.checked)}
-                  disabled={running || winner !== null}
-                />
-                통과 모드 (서로 튕기지 않고 지나감)
-              </ToggleWrap>
             </PaletteControls>
           </Controls>
+          )}
+          </TopSectionWrap>
           <ArenaWrap>
             <canvas ref={canvasRef} width={ARENA} height={ARENA} />
             {winner !== null && (
