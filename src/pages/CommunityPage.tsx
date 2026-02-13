@@ -1097,8 +1097,10 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const allowedDisplayTags = currentPeriod?.status === '진행중'
     ? ['매칭신청X', '매칭신청완료']
     : currentPeriod?.status === '발표완료'
-      ? ['매칭성공']
+      ? ['매칭실패', '매칭성공']
       : [];
+  const showTagSelector = allowedDisplayTags.length > 0;
+  const tagRequiredForAnonymous = showTagSelector;
 
   // 커뮤니티 기능 활성화 여부 확인
   useEffect(() => {
@@ -1468,8 +1470,8 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     }
     const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
     const fixedPostTag = selectedIdentity?.fixedDisplayTag;
-    // 관리자 익명 작성 시: 고정 태그 없으면 선택 필수
-    if (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !fixedPostTag && !selectedPostDisplayTag) {
+    // 관리자 익명 작성 시: 태그 선택 필수
+    if (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !fixedPostTag && !selectedPostDisplayTag) {
       toast.warn('익명으로 작성할 때는 태그를 선택해주세요.');
       return;
     }
@@ -1477,7 +1479,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     setSubmitting(true);
     try {
       const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
-      const displayTag = user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0
+      const displayTag = user?.isAdmin && !postAsAdmin && showTagSelector
         ? (fixedPostTag ?? selectedPostDisplayTag)
         : undefined;
       await communityApi.createPost(currentPeriodId, newPostContent, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
@@ -1568,14 +1570,14 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     }
     const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
     const fixedCommentTag = selectedIdentity?.fixedDisplayTag;
-    if (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !fixedCommentTag && !selectedCommentDisplayTag) {
+    if (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !fixedCommentTag && !selectedCommentDisplayTag) {
       toast.warn('익명으로 작성할 때는 태그를 선택해주세요.');
       return;
     }
 
     try {
       const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
-      const displayTag = user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0
+      const displayTag = user?.isAdmin && !postAsAdmin && showTagSelector
         ? (fixedCommentTag ?? selectedCommentDisplayTag)
         : undefined;
       await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
@@ -2061,7 +2063,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       )}
 
       <WriteSection>
-        {user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && (() => {
+        {user?.isAdmin && !postAsAdmin && showTagSelector && (() => {
           const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
           const fixedTag = selectedIdentity?.fixedDisplayTag;
           return (
@@ -2112,7 +2114,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
               !newPostContent.trim() ||
               newPostContent.length > 500 ||
               (postCooldown > 0 && !user?.isAdmin) ||
-              (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedPostDisplayTag))
+              (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedPostDisplayTag))
             }
           >
             {submitting ? '작성 중...' : postCooldown > 0 && !user?.isAdmin ? `${postCooldown}초 후 작성 가능` : '게시'}
@@ -2390,7 +2392,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                           </span>
                         </div>
                       )}
-                      {user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && (() => {
+                      {user?.isAdmin && !postAsAdmin && showTagSelector && (() => {
                         const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
                         const fixedTag = selectedIdentity?.fixedDisplayTag;
                         return (
@@ -2442,7 +2444,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                         disabled={
                           !commentInputs[post.id]?.trim() ||
                           (commentCooldowns[post.id] > 0 && !user?.isAdmin) ||
-                          (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedCommentDisplayTag))
+                          (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedCommentDisplayTag))
                         }
                       >
                         {commentCooldowns[post.id] > 0 && !user?.isAdmin 

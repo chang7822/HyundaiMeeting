@@ -547,10 +547,10 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
       const identityKey = `${post.user_id}_${post.anonymous_number}`;
       const colorCode = identityMap.get(identityKey) || '#888888';
 
-      // 태그 결정: 저장된 display_tag가 있으면 사용(기존 글 고정), 없으면 매칭 상태로 계산
+      // 태그 결정: 저장된 display_tag가 있으면 사용(기존 글 고정). 매칭실패는 화면에 태그 미표시(null)
       let tag = null;
       if (post.display_tag != null && post.display_tag !== '') {
-        tag = post.display_tag;
+        tag = post.display_tag === '매칭실패' ? null : post.display_tag;
       } else if (shouldShowTags) {
         const application = applicationMap.get(post.user_id);
         const isApplied = application && application.applied && !application.cancelled;
@@ -585,7 +585,7 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
 /** 회차 상태에 따른 허용 display_tag 목록 (관리자 익명 작성용) */
 function getAllowedDisplayTags(periodStatus) {
   if (periodStatus === '진행중') return ['매칭신청X', '매칭신청완료'];
-  if (periodStatus === '발표완료') return ['매칭성공'];
+  if (periodStatus === '발표완료') return ['매칭실패', '매칭성공'];
   return [];
 }
 
@@ -602,7 +602,7 @@ async function getFixedDisplayTagForIdentity(userId, periodId, anonymousNumber) 
     .not('display_tag', 'is', null)
     .limit(1)
     .maybeSingle();
-  if (postRow?.display_tag) return postRow.display_tag;
+  if (postRow) return postRow.display_tag;
 
   const { data: commentsWithPeriod } = await supabase
     .from('community_comments')
@@ -612,7 +612,7 @@ async function getFixedDisplayTagForIdentity(userId, periodId, anonymousNumber) 
     .not('display_tag', 'is', null)
     .limit(50);
   const inPeriod = commentsWithPeriod?.find(c => c.community_posts?.period_id === periodId);
-  if (inPeriod?.display_tag) return inPeriod.display_tag;
+  if (inPeriod) return inPeriod.display_tag;
 
   return null;
 }
@@ -796,7 +796,7 @@ router.post('/posts', authenticate, async (req, res) => {
         anonymous_number: anonymousNumber,
         content: content,
         ...(isAdminPost && { is_admin_post: true }),
-        ...(resolvedDisplayTag != null && { display_tag: resolvedDisplayTag })
+        ...(resolvedDisplayTag && { display_tag: resolvedDisplayTag })
       })
       .select()
       .single();
@@ -1179,10 +1179,10 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
       const identityKey = `${comment.user_id}_${comment.anonymous_number}`;
       const colorCode = identityMap.get(identityKey) || '#888888';
 
-      // 태그 결정: 저장된 display_tag가 있으면 사용(기존 댓글 고정), 없으면 매칭 상태로 계산
+      // 태그 결정: 저장된 display_tag가 있으면 사용(기존 댓글 고정). 매칭실패는 화면에 태그 미표시(null)
       let tag = null;
       if (comment.display_tag != null && comment.display_tag !== '') {
-        tag = comment.display_tag;
+        tag = comment.display_tag === '매칭실패' ? null : comment.display_tag;
       } else if (shouldShowTags) {
         const application = applicationMap.get(comment.user_id);
         const isApplied = application && application.applied && !application.cancelled;
@@ -1388,7 +1388,7 @@ router.post('/comments', authenticate, async (req, res) => {
         anonymous_number: anonymousNumber,
         content: content,
         ...(isAdminPost && { is_admin_post: true }),
-        ...(resolvedDisplayTag != null && { display_tag: resolvedDisplayTag })
+        ...(resolvedDisplayTag && { display_tag: resolvedDisplayTag })
       })
       .select()
       .single();
