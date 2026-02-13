@@ -190,12 +190,12 @@ router.post('/rps/bet', async (req, res) => {
   }
 });
 
-// 가위바위보: 광고 시청 후 추가 횟수 + 별 2개 지급 (앱/웹 동기화)
+// 가위바위보: 광고 시청 후 추가 횟수 + 별 3개 지급 (앱/웹 동기화)
 router.post('/rps/extra', async (req, res) => {
   try {
     const userId = req.user.userId;
     const count = Math.min(10, Math.max(1, Math.floor(Number(req.body?.count)) || 3));
-    const starReward = Math.min(10, Math.max(0, Math.floor(Number(req.body?.starReward)) || 2));
+    const starReward = Math.min(10, Math.max(0, Math.floor(Number(req.body?.starReward)) || 3));
     const date = getKSTDateString();
     const after = await upsertRpsDaily(userId, date, { extra: count });
     let newBalance = null;

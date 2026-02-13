@@ -946,7 +946,7 @@ const RpsArenaPage: React.FC<{
         new Promise<boolean>((_, rej) => setTimeout(() => rej(new Error('광고 응답이 지연되었습니다.')), 90000)),
       ]);
       if (gotReward) {
-        const res = await starApi.rpsAddExtra(3, 2);
+        const res = await starApi.rpsAddExtra(3, 3);
         if (res && typeof res.used === 'number' && typeof res.extra === 'number') {
           setRpsDaily({ used: res.used, extra: res.extra });
         }
@@ -954,7 +954,7 @@ const RpsArenaPage: React.FC<{
           setStarBalance(res.newBalance);
           window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
         }
-        toast.success('3판 더 할 수 있어요! 별 2개도 환급되었어요.');
+        toast.success('3판 더 할 수 있어요! 별 3개도 환급되었어요.');
       } else {
         toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있어요.');
       }
@@ -1078,7 +1078,7 @@ const RpsArenaPage: React.FC<{
                   isNativeApp ? (
                     playsRemaining <= 0 ? (
                       <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
-                        {adLoading ? '광고 로딩…' : '광고 보고 3판 더 + ⭐2개 환급'}
+                        {adLoading ? '광고 로딩…' : '광고 보고 3판 더 + ⭐3개 환급'}
                       </ExtraPlayBtn>
                     ) : (
                       <Btn
