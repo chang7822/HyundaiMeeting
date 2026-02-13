@@ -1076,7 +1076,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [bulkCreateCount, setBulkCreateCount] = useState<string>('1');
   const [creatingBulkIdentity, setCreatingBulkIdentity] = useState(false);
   // [관리자 전용] false = 익명으로 작성(익명 ID 박스 표시), true = 관리자로 작성
-  const [postAsAdmin, setPostAsAdmin] = useState(false);
+  const [postAsAdmin, setPostAsAdmin] = useState(true);
   // [관리자 전용] 익명 ID 박스 접기/펼치기 (익명 모드일 때만 박스 표시)
   const [anonymousIdBoxCollapsed, setAnonymousIdBoxCollapsed] = useState(false);
 
@@ -2322,7 +2322,6 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                           >
                             {postAsAdmin ? '👑 관리자' : (adminIdentities.length > 0 && selectedAnonymousNumber ? `익명${selectedAnonymousNumber}` : '—')}
                           </span>
-                          <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>(상단 토글에서 변경)</span>
                         </div>
                       )}
                       <CommentInput
