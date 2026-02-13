@@ -262,10 +262,12 @@ const StatsTabRow = styled.div`
   }
 `;
 
+/** 순위 15명이 보이는 높이로 고정 (헤더 1줄 + 본문 15줄), 미만이면 아래 여백, 초과 시 스크롤 */
 const StatsTableWrap = styled.div`
   overflow: auto;
-  flex: 1;
-  min-height: 200px;
+  height: 512px;
+  min-height: 512px;
+  flex-shrink: 0;
 `;
 
 const StatsTable = styled.table`

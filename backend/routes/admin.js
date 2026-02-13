@@ -811,7 +811,8 @@ router.get('/rps/stats', authenticate, async (req, res) => {
 
     const viewerId = req.user?.userId || req.user?.id || null;
 
-    // 관리자 행은 항상 제외. 제외 닉네임 목록에 있는 사람은 다른 사람에게만 안 보이고, 본인에게는 전체 순위(본인 행 포함)로 보임
+    // 일반 회원이 볼 때: 관리자 행은 항상 제외, 제외 닉네임 목록에 있는 사람은 다른 사람에게만 안 보이고 본인에게는 전체 순위(본인 행 포함)로 보임
+    // 관리자가 볼 때: 제외 없이 모든 사람(관리자 포함) 표시
     const filterExcluded = (list) => {
       const filtered = list.filter((r) => {
         if (adminUserIdsSet.has(r.userId)) return false;
@@ -828,9 +829,9 @@ router.get('/rps/stats', authenticate, async (req, res) => {
 
     if (isAdmin) {
       return res.json({
-        cumulative: filterExcluded(cumNamed),
-        today: filterExcluded(todayNamed),
-        weekly: filterExcluded(weeklyNamed),
+        cumulative: cumNamed,
+        today: todayNamed,
+        weekly: weeklyNamed,
       });
     }
     return res.json({
