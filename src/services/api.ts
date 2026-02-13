@@ -583,6 +583,16 @@ export const adminApi = {
     return response.data;
   },
 
+  /** 가위바위보 통계: 누적·오늘·주간(최근7일) 판수·±별·광고환급·계, 많이 둔 순 */
+  getRpsStats: async (): Promise<{
+    cumulative: Array<{ rank: number; userId: string; displayName: string; playCount: number; netStars: number; adRewardStars: number; totalNetStars: number }>;
+    today: Array<{ rank: number; userId: string; displayName: string; playCount: number; netStars: number; adRewardStars: number; totalNetStars: number }>;
+    weekly: Array<{ rank: number; userId: string; displayName: string; playCount: number; netStars: number; adRewardStars: number; totalNetStars: number }>;
+  }> => {
+    const response = await api.get('/admin/rps/stats');
+    return response.data;
+  },
+
   // 시스템 설정 조회 (유지보수 모드 등)
   getSystemSettings: async (): Promise<{
     success: boolean;

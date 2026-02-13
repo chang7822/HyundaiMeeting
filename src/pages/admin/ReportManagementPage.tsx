@@ -1059,7 +1059,7 @@ const ReportManagementPage: React.FC<ReportManagementPageProps> = ({ sidebarOpen
                 <h3>프로필 정보</h3>
                 <ProfileInfoGrid>
                   <div><strong>성별:</strong> {userProfile.gender === 'male' ? '남성' : userProfile.gender === 'female' ? '여성' : '기타'}</div>
-                  <div><strong>나이:</strong> {userProfile.age}세</div>
+                  <div><strong>생년:</strong> {userProfile.birth_year != null && userProfile.birth_year !== '' ? `${userProfile.birth_year}년` : '-'}</div>
                   <div><strong>키:</strong> {userProfile.height}cm</div>
                   <div><strong>체형:</strong> {Array.isArray(userProfile.body_type) ? userProfile.body_type.join(', ') : (userProfile.body_type ? JSON.parse(userProfile.body_type).join(', ') : '-')}</div>
                   <div><strong>MBTI:</strong> {userProfile.mbti || '-'}</div>

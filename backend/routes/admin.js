@@ -637,6 +637,111 @@ router.get('/stats', authenticate, async (req, res) => {
   }
 });
 
+// KST 기준 오늘 00:00 ~ 23:59:59.999 (UTC Date)
+function getKSTTodayRange() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(kst.getUTCDate()).padStart(2, '0');
+  const start = new Date(`${y}-${m}-${d}T00:00:00.000+09:00`);
+  const end = new Date(`${y}-${m}-${d}T23:59:59.999+09:00`);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+// KST 기준 최근 7일 전 00:00:00 (주간 누적 시작 시점)
+function getKSTWeekAgoStart() {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  kst.setUTCDate(kst.getUTCDate() - 7);
+  const y = kst.getUTCFullYear();
+  const m = String(kst.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(kst.getUTCDate()).padStart(2, '0');
+  return new Date(`${y}-${m}-${d}T00:00:00.000+09:00`).toISOString();
+}
+
+// 가위바위보 통계: 인증 사용자 모두 조회. 관리자만 누적 포함, 일반 회원은 오늘·주간만
+router.get('/rps/stats', authenticate, async (req, res) => {
+  try {
+    const isAdmin = Boolean(req.user?.isAdmin);
+
+    const { data: allTx, error: allErr } = await supabase
+      .from('star_transactions')
+      .select('user_id, amount, reason, created_at')
+      .in('reason', ['rps_bet', 'rps_win', 'rps_ad_reward']);
+
+    if (allErr) {
+      console.error('[admin] rps/stats star_transactions 조회 오류', allErr);
+      return res.status(500).json({ message: 'RPS 통계 조회에 실패했습니다.' });
+    }
+
+    const { start: todayStart, end: todayEnd } = getKSTTodayRange();
+
+    function aggregate(rows) {
+      const byUser = {};
+      (rows || []).forEach((row) => {
+        const uid = row.user_id;
+        if (!byUser[uid]) byUser[uid] = { playCount: 0, netStars: 0, adRewardStars: 0 };
+        if (row.reason === 'rps_bet') byUser[uid].playCount += 1;
+        if (row.reason === 'rps_bet' || row.reason === 'rps_win') {
+          byUser[uid].netStars += Number(row.amount) || 0;
+        }
+        if (row.reason === 'rps_ad_reward') {
+          byUser[uid].adRewardStars += Number(row.amount) || 0;
+        }
+      });
+      return Object.entries(byUser)
+        .map(([userId, v]) => ({
+          userId,
+          playCount: v.playCount,
+          netStars: v.netStars,
+          adRewardStars: v.adRewardStars,
+          totalNetStars: v.netStars + v.adRewardStars,
+        }))
+        .sort((a, b) => b.playCount - a.playCount)
+        .map((row, i) => ({ rank: i + 1, ...row }));
+    }
+
+    const cumulative = aggregate(allTx || []);
+    const todayRows = (allTx || []).filter(
+      (r) => r.created_at >= todayStart && r.created_at <= todayEnd
+    );
+    const today = aggregate(todayRows);
+
+    const weekStart = getKSTWeekAgoStart();
+    const weeklyRows = (allTx || []).filter((r) => r.created_at >= weekStart);
+    const weekly = aggregate(weeklyRows);
+
+    const userIds = [...new Set([...cumulative.map((r) => r.userId), ...today.map((r) => r.userId), ...weekly.map((r) => r.userId)])];
+    const profileMap = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, nickname')
+        .in('user_id', userIds);
+      (profiles || []).forEach((p) => {
+        profileMap[p.user_id] = p.nickname != null && String(p.nickname).trim() !== '' ? String(p.nickname).trim() : '-';
+      });
+    }
+
+    const withName = (list) =>
+      list.map((r) => ({ ...r, displayName: profileMap[r.userId] || '-' }));
+
+    if (isAdmin) {
+      return res.json({
+        cumulative: withName(cumulative),
+        today: withName(today),
+        weekly: withName(weekly),
+      });
+    }
+    return res.json({
+      today: withName(today),
+      weekly: withName(weekly),
+    });
+  } catch (error) {
+    console.error('[admin] rps/stats 오류', error);
+    return res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // matching_log 전체 조회
 router.get('/matching-log', authenticate, async (req, res) => {
   try {

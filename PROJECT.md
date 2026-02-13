@@ -176,6 +176,18 @@ AI 에이전트·신규 개발자가 이 프로젝트를 처음 접할 때 필�
 | `src/firebase.ts` | Firebase 메시징, 네이티브 푸시 토큰·권한 등 |
 | `src/index.css` | 전역 스타일, `--safe-area-inset-*`, `body.platform-ios` / `body.platform-android` 패딩 |
 
+### 6.5.1 프로필 모달 위치 (재사용 시 참고)
+
+| 종류 | 파일/위치 | 용도 | 사용처 |
+|------|-----------|------|--------|
+| **ProfileDetailModal** | `src/pages/admin/ProfileDetailModal.tsx` | 관리자용 프로필 상세 (닉네임, 이메일, 성별, 생년, 키, 거주지, 회사, 학력, MBTI, 자기소개, 선호 조건 등). `user` 객체 필요. | UserMatchingOverviewPage, MatchingApplicationsPage, MatchingResultPage, **RpsArenaPage**(가위바위보 통계 닉네임 클릭) |
+| 프로필 카드 모달 / 상대방 프로필 모달 | `MainPage.tsx` 인라인 | 메인 페이지 내 내 프로필·상대 프로필 보기 | MainPage |
+| 신청/수신 프로필 모달 | `ExtraMatchingPage.tsx` 인라인 | 추가 매칭 도전 시 신청자/수신자 프로필 | ExtraMatchingPage |
+| 프로필 모달 | `ChatPage.tsx` | 채팅 상대 프로필 | ChatPage |
+| 사용자 프로필 조회 모달 | `ReportManagementPage.tsx` 인라인 | 신고 관리에서 피신고자 등 프로필 조회 | ReportManagementPage |
+
+다른 화면에서 “닉네임 클릭 시 프로필 보기”가 필요하면 **ProfileDetailModal** 재사용을 권장. 사용자 데이터는 `adminReportApi.getUserProfile(userId)` 로 조회 후 `user` prop 으로 넘기면 됨. (필요한 프로필 종류가 다르면 개발 시 문의.)
+
 ### 6.6 버전 체크·업데이트 안내
 
 - **트리거**: (1) 앱 시작 후 2초 1회 (2) 설정 모달 열릴 때 `request-version-check` 이벤트.

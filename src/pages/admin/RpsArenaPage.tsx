@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'react-toastify';
-import { starApi, systemApi } from '../../services/api.ts';
+import { starApi, systemApi, adminApi, adminReportApi } from '../../services/api.ts';
+import { useAuth } from '../../contexts/AuthContext.tsx';
+import ProfileDetailModal from './ProfileDetailModal.tsx';
 
 const RPS_DAILY_LIMIT = 3;
 
@@ -180,6 +182,121 @@ const Header = styled.div<{ $rightAlign?: boolean }>`
   font-weight: 700;
   box-sizing: border-box;
   text-align: ${(p) => (p.$rightAlign ? 'right' : 'left')};
+`;
+
+const HeaderRow = styled.div<{ $rightAlign?: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  & > span:first-child {
+    flex: 1;
+    text-align: ${(p) => (p.$rightAlign ? 'right' : 'left')};
+  }
+`;
+
+const StatsFloatingBtn = styled.button`
+  flex-shrink: 0;
+  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.2);
+  color: white;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  &:hover { background: rgba(255,255,255,0.35); }
+`;
+
+const StatsModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+`;
+
+const StatsModalBox = styled.div`
+  background: white;
+  border-radius: 16px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+`;
+
+const StatsModalTitle = styled.div`
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 1.1rem;
+`;
+
+const StatsTabRow = styled.div`
+  display: flex;
+  border-bottom: 1px solid #e2e8f0;
+  & > button {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: #f8fafc;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+  }
+  & > button.active {
+    background: white;
+    color: #4f46e5;
+    border-bottom: 2px solid #4f46e5;
+    margin-bottom: -1px;
+  }
+`;
+
+const StatsTableWrap = styled.div`
+  overflow: auto;
+  flex: 1;
+  min-height: 200px;
+`;
+
+const StatsTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  th, td { padding: 0.25rem 0.4rem; border-bottom: 1px solid #f1f5f9; white-space: nowrap; }
+  th { background: #f8fafc; font-weight: 600; color: #475569; text-align: center; }
+  td:nth-child(1) { width: 2.25rem; text-align: center; }
+  td:nth-child(2) { text-align: left; }
+  td:nth-child(3), td:nth-child(4), td:nth-child(5) { text-align: center; }
+  td:nth-child(5) { font-weight: 600; }
+  /* 일반 회원: 닉네임 칼럼 없음 → 2~4번 셀 가운데, 4번 굵게 */
+  &.member-view td:nth-child(2),
+  &.member-view td:nth-child(3),
+  &.member-view td:nth-child(4) { text-align: center; }
+  &.member-view td:nth-child(4) { font-weight: 600; }
+`;
+
+const NicknameLink = styled.button`
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  color: #4f46e5;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+  &:hover { color: #4338ca; }
 `;
 
 const Body = styled.div`
@@ -477,11 +594,18 @@ const ExtraPlayBtn = styled.button`
   &:disabled { opacity: 0.6; cursor: not-allowed; }
 `;
 
+type RpsStatsRow = { rank: number; userId: string; displayName: string; playCount: number; netStars: number; adRewardStars: number; totalNetStars: number };
+
 const RpsArenaPage: React.FC<{
   sidebarOpen?: boolean;
   preloadedRewarded?: any;
   preloadedBanner?: any;
 }> = ({ sidebarOpen = true, preloadedRewarded, preloadedBanner }) => {
+  const { user } = useAuth() as { user?: { isAdmin?: boolean; id?: string } };
+  const isAdmin = Boolean(user?.isAdmin);
+  // 통계는 추후 일반 회원 공개 예정. 내 순위 강조 등은 '로그인한 사용자' 기준으로 동작하도록 구현.
+  const currentUserId = user?.id ?? null;
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [running, setRunning] = useState(false);
   const [winner, setWinner] = useState<Type | null>(null);
@@ -494,6 +618,15 @@ const RpsArenaPage: React.FC<{
   const [startingGame, setStartingGame] = useState(false);
   const [androidStoreUrl, setAndroidStoreUrl] = useState<string | null>(null);
   const [iosStoreUrl, setIosStoreUrl] = useState<string | null>(null);
+
+  const [statsModalOpen, setStatsModalOpen] = useState(false);
+  const [statsPeriod, setStatsPeriod] = useState<'cumulative' | 'today' | 'weekly'>('cumulative');
+  const [statsData, setStatsData] = useState<{ cumulative: RpsStatsRow[]; today: RpsStatsRow[]; weekly: RpsStatsRow[] } | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileModalUser, setProfileModalUser] = useState<any>(null);
+  const [profileModalLoading, setProfileModalLoading] = useState(false);
   const entitiesRef = useRef<Entity[]>([]);
   const rafRef = useRef<number>(0);
   const lastFrameTimeRef = useRef<number>(0);
@@ -806,10 +939,55 @@ const RpsArenaPage: React.FC<{
     }
   };
 
+  const openStatsModal = useCallback(async () => {
+    setStatsModalOpen(true);
+    setStatsLoading(true);
+    setStatsData(null);
+    try {
+      const data = await adminApi.getRpsStats();
+      setStatsData(data);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || '통계 조회에 실패했습니다.');
+    } finally {
+      setStatsLoading(false);
+    }
+  }, []);
+
+  const showStatsButton = !running && winner === null;
+
+  const openProfileModal = useCallback(async (userId: string) => {
+    setProfileModalOpen(true);
+    setProfileModalUser(null);
+    setProfileModalLoading(true);
+    try {
+      const u = await adminReportApi.getUserProfile(userId);
+      setProfileModalUser(u);
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message || '프로필을 불러올 수 없습니다.');
+      setProfileModalOpen(false);
+    } finally {
+      setProfileModalLoading(false);
+    }
+  }, []);
+
+  const closeProfileModal = useCallback(() => {
+    setProfileModalOpen(false);
+    setProfileModalUser(null);
+  }, []);
+
   return (
     <Container $sidebarOpen={sidebarOpen} $isNativeApp={isNativeApp} $hideBanner={isNativeApp && running}>
       <Card>
-        <Header $rightAlign={isNativeApp}>✂️ 🗿 📄 가위바위보 아레나</Header>
+        <Header $rightAlign={isNativeApp}>
+          <HeaderRow $rightAlign={isNativeApp}>
+            <span>✂️ 🗿 📄 가위바위보 아레나</span>
+            {showStatsButton && (
+              <StatsFloatingBtn type="button" onClick={openStatsModal} title="RPS 통계">
+                📊 통계
+              </StatsFloatingBtn>
+            )}
+          </HeaderRow>
+        </Header>
         <Body>
           <TopSectionWrap>
           {winner !== null ? (
@@ -939,6 +1117,117 @@ const RpsArenaPage: React.FC<{
           </ArenaWrap>
         </Body>
       </Card>
+      {profileModalOpen && profileModalLoading && (
+        <StatsModalOverlay style={{ zIndex: 1100 }} onClick={() => { setProfileModalOpen(false); setProfileModalLoading(false); }}>
+          <StatsModalBox onClick={(e) => e.stopPropagation()} style={{ maxWidth: 280 }}>
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>프로필 불러오는 중…</div>
+          </StatsModalBox>
+        </StatsModalOverlay>
+      )}
+      {profileModalOpen && !profileModalLoading && profileModalUser && (
+        <ProfileDetailModal isOpen onRequestClose={closeProfileModal} user={profileModalUser} overlayZIndex={1100} />
+      )}
+      {statsModalOpen && (
+        <StatsModalOverlay onClick={() => setStatsModalOpen(false)}>
+          <StatsModalBox onClick={(e) => e.stopPropagation()}>
+            <StatsModalTitle>
+              {isAdmin ? '📊 가위바위보 통계 (관리자)' : '📊 가위바위보 순위'}
+            </StatsModalTitle>
+            <StatsTabRow>
+              {isAdmin && (
+                <button
+                  type="button"
+                  className={statsPeriod === 'cumulative' ? 'active' : ''}
+                  onClick={() => setStatsPeriod('cumulative')}
+                >
+                  누적
+                </button>
+              )}
+              <button
+                type="button"
+                className={statsPeriod === 'today' ? 'active' : ''}
+                onClick={() => setStatsPeriod('today')}
+              >
+                오늘
+              </button>
+              <button
+                type="button"
+                className={statsPeriod === 'weekly' ? 'active' : ''}
+                onClick={() => setStatsPeriod('weekly')}
+              >
+                주간
+              </button>
+            </StatsTabRow>
+            <StatsTableWrap>
+              {statsLoading ? (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>불러오는 중…</div>
+              ) : statsData ? (
+                <StatsTable className={!isAdmin ? 'member-view' : ''}>
+                  <thead>
+                    <tr>
+                      <th>순위</th>
+                      {isAdmin && <th>닉네임</th>}
+                      <th>보상</th>
+                      <th>환급</th>
+                      <th>계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {((statsPeriod === 'cumulative' && isAdmin ? statsData.cumulative : statsPeriod === 'weekly' ? (statsData.weekly ?? []) : statsData.today)).length === 0 ? (
+                      <tr>
+                        <td colSpan={isAdmin ? 5 : 4} style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b' }}>
+                          참여 내역이 없습니다.
+                        </td>
+                      </tr>
+                    ) : (
+                      (statsPeriod === 'cumulative' && isAdmin ? statsData.cumulative : statsPeriod === 'weekly' ? (statsData.weekly ?? []) : statsData.today).map((row) => (
+                          <tr key={row.userId} style={row.userId === currentUserId ? { background: 'rgba(79, 70, 229, 0.12)' } : undefined}>
+                            <td>{row.rank}</td>
+                            {isAdmin && (
+                              <td>
+                                <NicknameLink type="button" onClick={() => openProfileModal(row.userId)} title="프로필 보기">
+                                  {row.displayName}
+                                </NicknameLink>
+                              </td>
+                            )}
+                            <td style={{ color: (row.netStars ?? 0) >= 0 ? '#059669' : '#dc2626' }}>
+                              {(row.netStars ?? 0) >= 0 ? '+' : ''}{row.netStars ?? 0}
+                            </td>
+                            <td style={{ color: (row.adRewardStars ?? 0) >= 0 ? '#059669' : '#dc2626' }}>
+                              {(row.adRewardStars ?? 0) >= 0 ? '+' : ''}{row.adRewardStars ?? 0}
+                            </td>
+                            <td style={{ color: (row.totalNetStars ?? 0) >= 0 ? '#059669' : '#dc2626' }}>
+                              {(row.totalNetStars ?? 0) >= 0 ? '+' : ''}{row.totalNetStars ?? 0}
+                            </td>
+                          </tr>
+                      ))
+                    )}
+                  </tbody>
+                </StatsTable>
+              ) : (
+                <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>데이터 없음</div>
+              )}
+            </StatsTableWrap>
+            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #e2e8f0' }}>
+              <button
+                type="button"
+                onClick={() => setStatsModalOpen(false)}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  background: '#f1f5f9',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                닫기
+              </button>
+            </div>
+          </StatsModalBox>
+        </StatsModalOverlay>
+      )}
       {isNativeApp && !running ? (
         <BannerSlot id="rps-banner-slot" data-safe-area-bottom />
       ) : !isNativeApp ? (

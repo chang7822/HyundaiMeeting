@@ -4,7 +4,7 @@ import { companyApi } from '../../services/api.ts';
 import { Company } from '../../types/index.ts';
 import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
 
-const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean, onRequestClose: () => void, user: any }) => {
+const ProfileDetailModal = ({ isOpen, onRequestClose, user, overlayZIndex }: { isOpen: boolean; onRequestClose: () => void; user: any; overlayZIndex?: number }) => {
   const [companies, setCompanies] = useState<Company[]>([]);
 
   const parseArray = (val: any) => {
@@ -45,6 +45,7 @@ const ProfileDetailModal = ({ isOpen, onRequestClose, user }: { isOpen: boolean,
       isOpen={isOpen}
       onRequestClose={onRequestClose}
       style={{
+        overlay: { zIndex: overlayZIndex ?? 1000 },
         content: {
           top: '50%',
           left: '50%',
