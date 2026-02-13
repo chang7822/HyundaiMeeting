@@ -748,7 +748,7 @@ router.get('/rps/stats', authenticate, async (req, res) => {
           adRewardStars: v.adRewardStars,
           totalNetStars: v.netStars + v.adRewardStars,
         }))
-        .sort((a, b) => b.playCount - a.playCount)
+        .sort((a, b) => b.totalNetStars - a.totalNetStars)
         .map((row, i) => ({ rank: i + 1, ...row }));
     }
 

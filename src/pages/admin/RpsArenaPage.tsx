@@ -235,11 +235,28 @@ const StatsModalBox = styled.div`
 `;
 
 const StatsModalTitle = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   padding: 1rem 1.25rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   font-weight: 700;
   font-size: 1.1rem;
+`;
+
+const StatsModalCloseBtn = styled.button`
+  flex-shrink: 0;
+  padding: 0.35rem 0.6rem;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.25);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  &:hover { background: rgba(255,255,255,0.4); }
 `;
 
 const StatsTabRow = styled.div`
@@ -985,7 +1002,7 @@ const RpsArenaPage: React.FC<{
             <span>✂️ 🗿 📄 가위바위보 아레나</span>
             {showStatsButton && (
               <StatsFloatingBtn type="button" onClick={openStatsModal} title="RPS 통계">
-                📊 통계
+                📊
               </StatsFloatingBtn>
             )}
           </HeaderRow>
@@ -1133,7 +1150,8 @@ const RpsArenaPage: React.FC<{
         <StatsModalOverlay onClick={() => setStatsModalOpen(false)}>
           <StatsModalBox onClick={(e) => e.stopPropagation()}>
             <StatsModalTitle>
-              {isAdmin ? '📊 가위바위보 통계 (관리자)' : '📊 가위바위보 순위'}
+              <span>{isAdmin ? '📊 가위바위보 통계 (관리자)' : '📊 가위바위보 순위'}</span>
+              <StatsModalCloseBtn type="button" onClick={() => setStatsModalOpen(false)}>닫기</StatsModalCloseBtn>
             </StatsModalTitle>
             <StatsTabRow>
               {isAdmin && (
@@ -1210,23 +1228,6 @@ const RpsArenaPage: React.FC<{
                 <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>데이터 없음</div>
               )}
             </StatsTableWrap>
-            <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid #e2e8f0' }}>
-              <button
-                type="button"
-                onClick={() => setStatsModalOpen(false)}
-                style={{
-                  width: '100%',
-                  padding: '0.5rem',
-                  borderRadius: '8px',
-                  border: '1px solid #cbd5e1',
-                  background: '#f1f5f9',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                닫기
-              </button>
-            </div>
           </StatsModalBox>
         </StatsModalOverlay>
       )}
