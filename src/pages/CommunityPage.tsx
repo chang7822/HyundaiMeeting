@@ -345,6 +345,78 @@ const AdminIdentitySection = styled.div`
   }
 `;
 
+/** 주의사항 버튼 바로 아래 플로팅: 관리자용 익명 ON/OFF 작은 토글 */
+const AdminToggleFloating = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+`;
+
+const AdminToggleLabel = styled.span`
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+`;
+
+const AdminToggleSwitch = styled.button<{ $on: boolean }>`
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  border: 1px solid ${props => props.$on ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.3)'};
+  background: ${props => props.$on ? 'rgba(124, 58, 237, 0.9)' : 'rgba(255,255,255,0.25)'};
+  cursor: pointer;
+  padding: 0;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    top: 1px;
+    left: ${props => props.$on ? '17px' : '1px'};
+    transition: left 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+`;
+
+/** 익명 ID 박스 한 줄 (드롭다운·버튼·화살표 우측) */
+const AnonymousIdBoxRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  width: 100%;
+`;
+
+const CollapseButton = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0.4rem;
+  background: none;
+  border: none;
+  color: #7C3AED;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+
+  &:hover {
+    color: #5b21b6;
+    background: rgba(124, 58, 237, 0.1);
+  }
+
+  svg {
+    font-size: 1.1rem;
+  }
+`;
+
 const WriteSection = styled.div`
   background: white;
   padding: 1.25rem;
@@ -512,6 +584,20 @@ const StatusTag = styled.span<{ $type: string }>`
     return 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)';
   }};
   color: white;
+`;
+
+/** 공식 관리자 글로 표시될 때 사용하는 배지 (누가 봐도 관리자 글임이 드러남) */
+const AdminBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+  letter-spacing: 0.02em;
 `;
 
 const TimeStamp = styled.span`
@@ -989,6 +1075,10 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [creatingIdentity, setCreatingIdentity] = useState(false);
   const [bulkCreateCount, setBulkCreateCount] = useState<string>('1');
   const [creatingBulkIdentity, setCreatingBulkIdentity] = useState(false);
+  // [관리자 전용] false = 익명으로 작성(익명 ID 박스 표시), true = 관리자로 작성
+  const [postAsAdmin, setPostAsAdmin] = useState(false);
+  // [관리자 전용] 익명 ID 박스 접기/펼치기 (익명 모드일 때만 박스 표시)
+  const [anonymousIdBoxCollapsed, setAnonymousIdBoxCollapsed] = useState(false);
 
   // 정렬 옵션
   const [sortOrder, setSortOrder] = useState<'latest' | 'popular'>('latest');
@@ -1066,7 +1156,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       });
     }, 1000);
 
-    return () => clearInterval(timer);
+    return () => clearInterval(timer as unknown as number);
   }, []);
 
   // 현재 회차 정보 조회 (커뮤니티 전용: 준비중 상태 제외)
@@ -1369,9 +1459,9 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
 
     setSubmitting(true);
     try {
-      // 관리자가 익명 ID를 선택한 경우 해당 ID로 작성
+      // 관리자가 익명 ID를 선택한 경우 해당 ID로 작성; postAsAdmin이면 공식 관리자 ID로 표시
       const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
-      await communityApi.createPost(currentPeriodId, newPostContent, preferredNumber || undefined);
+      await communityApi.createPost(currentPeriodId, newPostContent, preferredNumber ?? undefined, postAsAdmin || undefined);
       toast.success('게시글이 작성되었습니다.');
       setNewPostContent('');
       setPostCooldown(30); // 30초 쿨다운 시작
@@ -1459,9 +1549,9 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     }
 
     try {
-      // 관리자가 익명 ID를 선택한 경우 해당 ID로 작성
+      // 관리자가 익명 ID를 선택한 경우 해당 ID로 작성; postAsAdmin이면 공식 관리자 ID로 표시
       const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
-      await communityApi.createComment(postId, content, preferredNumber || undefined);
+      await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined);
       toast.success('댓글이 작성되었습니다.');
       setCommentInputs(prev => ({ ...prev, [postId]: '' }));
       setCommentCooldowns(prev => ({ ...prev, [postId]: 10 })); // 10초 쿨다운 시작
@@ -1705,6 +1795,17 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
             ⚠️ 주의사항
           </WarningButton>
         </HeaderTitleRow>
+        {user?.isAdmin && (
+          <AdminToggleFloating>
+            <AdminToggleLabel>익명</AdminToggleLabel>
+            <AdminToggleSwitch
+              type="button"
+              $on={!postAsAdmin}
+              onClick={() => setPostAsAdmin(prev => !prev)}
+              title={postAsAdmin ? '익명으로 전환' : '관리자로 전환'}
+            />
+          </AdminToggleFloating>
+        )}
         
         <HeaderSubtitle>
           익명으로 자유롭게 소통하세요<br/>
@@ -1811,115 +1912,125 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         </div>
       </Modal>
 
-      {/* [관리자 전용] 익명 ID 선택 */}
-      {user?.isAdmin && (
-        <AdminIdentitySection>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ fontWeight: 600, color: '#7C3AED' }}>🎭 익명 ID 선택:</span>
-            {adminIdentities.length > 0 && selectedAnonymousNumber && (
-              <span 
-                style={{ 
-                  padding: '0.4rem 0.8rem',
-                  borderRadius: '8px',
-                  background: adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.colorCode || '#888888',
-                  color: 'white',
-                  fontSize: '0.9rem',
-                  fontWeight: 700,
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                }}
-              >
-                익명{selectedAnonymousNumber}
-              </span>
-            )}
-            <select 
-              value={selectedAnonymousNumber || ''} 
-              onChange={(e) => setSelectedAnonymousNumber(Number(e.target.value))}
-              style={{
-                padding: '0.5rem',
-                borderRadius: '8px',
-                border: '2px solid #7C3AED',
-                background: 'white',
-                cursor: 'pointer',
-                fontSize: '0.9rem',
-                fontWeight: 600
-              }}
-            >
-              {adminIdentities.length === 0 && <option value="">익명 ID 없음</option>}
-              {adminIdentities.map(identity => (
-                <option key={identity.anonymousNumber} value={identity.anonymousNumber}>
-                  익명{identity.anonymousNumber}
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={handleCreateIdentity}
-              disabled={creatingIdentity || creatingBulkIdentity}
-              style={{
-                padding: '0.5rem 1rem',
-                borderRadius: '8px',
-                border: '2px solid #10B981',
-                background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#10B981',
-                color: 'white',
-                cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => {
-                if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#059669';
-              }}
-              onMouseLeave={(e) => {
-                if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#10B981';
-              }}
-            >
-              {creatingIdentity ? '생성 중...' : '+ 새 익명 ID 생성'}
-            </button>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={bulkCreateCount}
-                onChange={(e) => setBulkCreateCount(e.target.value)}
-                disabled={creatingIdentity || creatingBulkIdentity}
-                placeholder="개수"
-                style={{
-                  width: '60px',
-                  padding: '0.5rem',
-                  borderRadius: '8px',
-                  border: '2px solid #7C3AED',
-                  background: 'white',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  textAlign: 'center'
-                }}
-              />
-              <button
-                onClick={handleCreateBulkIdentities}
-                disabled={creatingIdentity || creatingBulkIdentity}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: '8px',
-                  border: '2px solid #7C3AED',
-                  background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#7C3AED',
-                  color: 'white',
-                  cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
-                  fontSize: '0.9rem',
-                  fontWeight: 600,
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#6D28D9';
-                }}
-                onMouseLeave={(e) => {
-                  if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#7C3AED';
-                }}
-              >
-                {creatingBulkIdentity ? '생성 중...' : '다중 생성'}
-              </button>
-            </div>
-          </div>
-        </AdminIdentitySection>
+      {/* [관리자 전용] 익명 ON이면 익명 ID 박스 표시 */}
+      {user?.isAdmin && !postAsAdmin && (
+            <AdminIdentitySection>
+              <AnonymousIdBoxRow>
+                {!anonymousIdBoxCollapsed && (
+                  <>
+                    {adminIdentities.length > 0 && selectedAnonymousNumber && (
+                      <span
+                        style={{
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '8px',
+                          background: adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.colorCode || '#888888',
+                          color: 'white',
+                          fontSize: '0.9rem',
+                          fontWeight: 700,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        익명{selectedAnonymousNumber}
+                      </span>
+                    )}
+                    <select
+                      value={selectedAnonymousNumber || ''}
+                      onChange={(e) => setSelectedAnonymousNumber(Number(e.target.value))}
+                      style={{
+                        padding: '0.5rem',
+                        borderRadius: '8px',
+                        border: '2px solid #7C3AED',
+                        background: 'white',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      {adminIdentities.length === 0 && <option value="">익명 ID 없음</option>}
+                      {adminIdentities.map(identity => (
+                        <option key={identity.anonymousNumber} value={identity.anonymousNumber}>
+                          익명{identity.anonymousNumber}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleCreateIdentity}
+                      disabled={creatingIdentity || creatingBulkIdentity}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '8px',
+                        border: '2px solid #10B981',
+                        background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#10B981',
+                        color: 'white',
+                        cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#059669';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#10B981';
+                      }}
+                    >
+                      {creatingIdentity ? '생성 중...' : '+ 새 익명 ID 생성'}
+                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={bulkCreateCount}
+                        onChange={(e) => setBulkCreateCount(e.target.value)}
+                        disabled={creatingIdentity || creatingBulkIdentity}
+                        placeholder="개수"
+                        style={{
+                          width: '60px',
+                          padding: '0.5rem',
+                          borderRadius: '8px',
+                          border: '2px solid #7C3AED',
+                          background: 'white',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          textAlign: 'center'
+                        }}
+                      />
+                      <button
+                        onClick={handleCreateBulkIdentities}
+                        disabled={creatingIdentity || creatingBulkIdentity}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: '2px solid #7C3AED',
+                          background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#7C3AED',
+                          color: 'white',
+                          cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#6D28D9';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#7C3AED';
+                        }}
+                      >
+                        {creatingBulkIdentity ? '생성 중...' : '다중 생성'}
+                      </button>
+                    </div>
+                  </>
+                )}
+                <CollapseButton
+                  type="button"
+                  onClick={() => setAnonymousIdBoxCollapsed(prev => !prev)}
+                  title={anonymousIdBoxCollapsed ? '펼치기' : '접기'}
+                >
+                  {anonymousIdBoxCollapsed ? <FaChevronDown /> : <FaChevronUp />}
+                </CollapseButton>
+              </AnonymousIdBoxRow>
+            </AdminIdentitySection>
       )}
 
       <WriteSection>
@@ -2003,9 +2114,13 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
               >
                 <PostHeader>
                   <PostAuthor>
-                    <AnonymousName $color={post.color_code}>
-                      익명{post.anonymous_number}
-                    </AnonymousName>
+                    {post.is_admin_post ? (
+                      <AdminBadge>👑 관리자</AdminBadge>
+                    ) : (
+                      <AnonymousName $color={post.color_code}>
+                        익명{post.anonymous_number}
+                      </AnonymousName>
+                    )}
                     {post.tag && <StatusTag $type={post.tag}>{post.tag}</StatusTag>}
                     <TimeStamp>{getRelativeTime(post.created_at)}</TimeStamp>
                   </PostAuthor>
@@ -2112,9 +2227,13 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                         <CommentItem key={comment.id}>
                           <CommentHeader>
                             <PostAuthor>
-                              <AnonymousName $color={comment.color_code} style={{ fontSize: '0.9rem' }}>
-                                익명{comment.anonymous_number}
-                              </AnonymousName>
+                              {comment.is_admin_post ? (
+                                <AdminBadge style={{ fontSize: '0.75rem' }}>👑 관리자</AdminBadge>
+                              ) : (
+                                <AnonymousName $color={comment.color_code} style={{ fontSize: '0.9rem' }}>
+                                  익명{comment.anonymous_number}
+                                </AnonymousName>
+                              )}
                               {comment.tag && <StatusTag $type={comment.tag}>{comment.tag}</StatusTag>}
                               <TimeStamp style={{ fontSize: '0.75rem' }}>{getRelativeTime(comment.created_at)}</TimeStamp>
                             </PostAuthor>
@@ -2180,10 +2299,11 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                     })}
 
                     <div style={{ marginTop: '1rem' }}>
-                      {user?.isAdmin && adminIdentities.length > 0 && selectedAnonymousNumber && (
+                      {user?.isAdmin && (
                         <div style={{ 
                           display: 'flex', 
                           alignItems: 'center', 
+                          flexWrap: 'wrap',
                           gap: '0.5rem', 
                           marginBottom: '0.5rem',
                           fontSize: '0.85rem',
@@ -2194,14 +2314,15 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                             style={{ 
                               padding: '0.25rem 0.6rem',
                               borderRadius: '6px',
-                              background: adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.colorCode || '#888888',
+                              background: postAsAdmin ? '#dc2626' : (adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.colorCode || '#888888'),
                               color: 'white',
                               fontSize: '0.8rem',
                               fontWeight: 700
                             }}
                           >
-                            익명{selectedAnonymousNumber}
+                            {postAsAdmin ? '👑 관리자' : (adminIdentities.length > 0 && selectedAnonymousNumber ? `익명${selectedAnonymousNumber}` : '—')}
                           </span>
+                          <span style={{ color: '#9ca3af', fontSize: '0.8rem' }}>(상단 토글에서 변경)</span>
                         </div>
                       )}
                       <CommentInput

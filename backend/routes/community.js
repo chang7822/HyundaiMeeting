@@ -581,13 +581,14 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
 /**
  * 게시글 작성
  * POST /api/community/posts
- * Body: { period_id, content, preferred_anonymous_number? (관리자 전용) }
+ * Body: { period_id, content, preferred_anonymous_number? (관리자 전용), post_as_admin? (관리자 전용, true면 공식 관리자 ID로 표시) }
  */
 router.post('/posts', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const isAdmin = req.user.isAdmin;
-    const { period_id, content, preferred_anonymous_number } = req.body;
+    const { period_id, content, preferred_anonymous_number, post_as_admin } = req.body;
+    const isAdminPost = !!(isAdmin && post_as_admin);
 
     if (!period_id || !content) {
       return res.status(400).json({ error: 'period_id와 content가 필요합니다.' });
@@ -723,14 +724,15 @@ router.post('/posts', authenticate, async (req, res) => {
       }
     }
 
-    // 게시글 생성
+    // 게시글 생성 (관리자 공식 작성 시 is_admin_post = true)
     const { data: post, error: postError } = await supabase
       .from('community_posts')
       .insert({
         period_id: period_id,
         user_id: userId,
         anonymous_number: anonymousNumber,
-        content: content
+        content: content,
+        ...(isAdminPost && { is_admin_post: true })
       })
       .select()
       .single();
@@ -1145,13 +1147,14 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
 /**
  * 댓글 작성
  * POST /api/community/comments
- * Body: { post_id, content, preferred_anonymous_number? (관리자 전용) }
+ * Body: { post_id, content, preferred_anonymous_number? (관리자 전용), post_as_admin? (관리자 전용, true면 공식 관리자 ID로 표시) }
  */
 router.post('/comments', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const isAdmin = req.user.isAdmin;
-    const { post_id, content, preferred_anonymous_number } = req.body;
+    const { post_id, content, preferred_anonymous_number, post_as_admin } = req.body;
+    const isAdminPost = !!(isAdmin && post_as_admin);
 
     if (!post_id || !content) {
       return res.status(400).json({ error: 'post_id와 content가 필요합니다.' });
@@ -1286,14 +1289,15 @@ router.post('/comments', authenticate, async (req, res) => {
       }
     }
 
-    // 댓글 생성
+    // 댓글 생성 (관리자 공식 작성 시 is_admin_post = true)
     const { data: comment, error: commentError } = await supabase
       .from('community_comments')
       .insert({
         post_id: post_id,
         user_id: userId,
         anonymous_number: anonymousNumber,
-        content: content
+        content: content,
+        ...(isAdminPost && { is_admin_post: true })
       })
       .select()
       .single();

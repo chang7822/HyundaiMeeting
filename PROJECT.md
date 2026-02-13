@@ -341,4 +341,51 @@ AI·개발자가 기능 수정/추가 시 참고할, **회원가입 / 매칭 / �
 
 ---
 
-**AI 참고**: 이 프로젝트에 처음 접할 때는 위 **§1~§9**로 구조를 파악한 뒤, **§10**에서 회원가입·매칭·메인 분기 등 수정 대상 플로우의 프론트/백엔드 파일을 확인하면 된다. 라우트·API·상태값은 이 문서의 표와 경로를 우선 참고하고, 세부 로직은 해당 파일에서 검색하면 된다.
+### 10.5 커뮤니티 페이지
+
+**역할:** 매칭 **회차(period) 단위** 익명 게시판. 회원이 익명으로 게시글·댓글·좋아요·신고를 할 수 있음. 접근은 로그인 필수이며, `app_settings.community_enabled` 로 기능 on/off 가능 (관리자 설정 페이지).
+
+**익명 ID 구조**
+
+- **회차별 식별:** 한 회차 안에서 사용자는 **익명 번호(anonymous_number)** 로만 노출됨 (예: "익명3"). 실제 `user_id`는 게시/댓글/좋아요/신고 시 백엔드에서만 사용.
+- **일반 회원:** 회차당 **익명 ID 1개**. `GET /api/community/my-identity/:periodId` 호출 시 없으면 자동 생성(해당 회차에서 전역 최대 번호+1), 있으면 기존 것 반환. 게시·댓글·좋아요·신고는 모두 이 하나의 익명 번호로 기록됨.
+- **관리자:** 같은 회차에 대해 **여러 익명 ID를 생성**해서 사용할 수 있음. “관리자용 익명 페르소나”를 여러 개 두고, 그중 하나를 **선택한 뒤** 그 ID로 게시·댓글·좋아요·신고를 하는 구조.
+
+**관리자 익명 ID 생성·사용 (핵심)**
+
+| 구분 | 설명 |
+|------|------|
+| **저장** | `community_user_identities` 테이블. `period_id`, `user_id`(관리자 본인), `anonymous_number`, `color_code`. 관리자가 만든 익명 ID도 동일 테이블에 저장되며 `user_id`는 관리자 계정으로 고정. |
+| **생성** | **1개 생성:** `POST /api/community/admin/identities` (body: `period_id`). 해당 회차에서 전역 최대 `anonymous_number`+1 로 한 건 insert. **일괄 생성:** `POST /api/community/admin/identities/bulk` (body: `period_id`, `count`). 한 번에 최대 100개까지. |
+| **조회** | `GET /api/community/admin/identities/:periodId` → 해당 회차에서 이 관리자(`user_id`)가 가진 모든 익명 ID 목록 반환. |
+| **사용** | 프론트(`CommunityPage`)에서 관리자일 때 **익명 ID 선택 드롭다운** 표시. 선택한 `anonymous_number`를 `selectedAnonymousNumber`로 두고, **게시글 작성 / 댓글 작성 / 좋아요 / 신고** 시 해당 값을 `preferred_anonymous_number` 또는 `anonymous_number`로 API에 넘김. 백엔드는 `isAdmin && preferred_anonymous_number` 있으면 해당 관리자 소유 익명 ID로 게시/댓글/좋아요/신고 처리. |
+
+**관리자 공식 작성 (관리자 ID로 보이게)**
+
+- 관리자가 **익명 OFF(관리자 모드)** 로 글/댓글을 쓰면, 목록·상세에서 **"👑 관리자"** 로 표시되어 누가 봐도 공식 관리자 글로 인지할 수 있음.
+- **저장:** `community_posts`, `community_comments` 테이블에 `is_admin_post` 컬럼. 작성 시 body에 `post_as_admin: true` 를 넘기면 해당 행에 `is_admin_post = true` 로 저장됨.
+- **API:** 게시글/댓글 작성 시 `POST /api/community/posts`, `POST /api/community/comments` 에서 `post_as_admin` (관리자만 유효) 지원. 목록/상세 응답에 `is_admin_post` 포함.
+
+**관리자 UI (프론트)**
+
+- **위치:** 관리자일 때만 **주의사항 버튼 바로 아래**에 작은 **익명 ON/OFF 토글**이 플로팅(우측 정렬)으로 노출됨.
+- **익명 ON:** 익명 모드. 그 아래 **익명 ID 선택 박스**가 보임(한 줄: 드롭다운·새 ID 생성·다중 생성·**우측 끝 접기/펼치기 화살표**). 글/댓글은 선택한 익명 ID로 작성.
+- **익명 OFF:** 관리자 모드. 익명 ID 박스 숨김. 글/댓글은 공식 관리자(👑 관리자)로 작성됨.
+- **배지:** `is_admin_post === true` 인 글/댓글은 작성자명을 **👑 관리자** 배지(빨간 배경)로 표시. `postAsAdmin` 상태는 상단 토글로만 제어하며, `communityApi.createPost` / `createComment` 호출 시 네 번째 인자 `postAsAdmin` 전달.
+
+**백엔드·프론트**
+
+- **라우트:** `backend/routes/community.js` → `/api/community/*`.
+- **주요 API:**  
+  - 익명 ID: `getMyIdentity`, `getAdminIdentities`, `createAdminIdentity`, `createAdminIdentitiesBulk`.  
+  - 게시: `getPosts`, `createPost`, `deletePost`; 관리자 강제 삭제 `adminDeletePost`.  
+  - 댓글: `getComments`, `createComment`, `deleteComment`; 관리자 강제 삭제 `adminDeleteComment`.  
+  - 좋아요: `toggleLike`, `getMyLikes`.  
+  - 신고: `reportContent` (post/comment).  
+- **프론트:** `src/pages/CommunityPage.tsx`. 회차 선택, 게시글 목록/상세/댓글, 작성/삭제/좋아요/신고. **관리자일 때만** 주의사항 버튼 아래 익명 ON/OFF 토글 플로팅, 익명 ON이면 익명 ID 선택 박스(한 줄·우측 접기 화살표)와 "새 익명 ID 생성"/"다중 생성" 노출. 관리자 배지 **👑 관리자**. `communityApi` (`src/services/api.ts`) 사용.
+
+**정리:** 일반 회원은 회차당 익명 1개로 활동한다. 관리자는 상단 **익명 ON/OFF 토글**으로 익명 모드(익명 ID 박스 사용)와 관리자 모드(👑 관리자로 공식 작성)를 바꾸며, 익명 모드일 때는 회차별로 익명 ID를 여러 개 만든 뒤 그중 하나를 골라 “그 페르소나”로 글/댓글/좋아요/신고를 할 수 있다.
+
+---
+
+**AI 참고**: 이 프로젝트에 처음 접할 때는 위 **§1~§9**로 구조를 파악한 뒤, **§10**에서 회원가입·매칭·메인 분기·커뮤니티 등 수정 대상 플로우의 프론트/백엔드 파일을 확인하면 된다. 라우트·API·상태값은 이 문서의 표와 경로를 우선 참고하고, 세부 로직은 해당 파일에서 검색하면 된다. 커뮤니티는 **§10.5**에서 회차별 익명 ID와 관리자 익명 ID 생성·사용 구조를 참고하면 된다.

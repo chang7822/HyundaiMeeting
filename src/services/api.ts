@@ -1275,12 +1275,13 @@ export const communityApi = {
     return response.data;
   },
 
-  // 게시글 작성
-  createPost: async (periodId: number, content: string, preferredAnonymousNumber?: number): Promise<{ post: any }> => {
+  // 게시글 작성 (postAsAdmin: true면 공식 관리자 ID로 표시되어 "관리자"로 보임)
+  createPost: async (periodId: number, content: string, preferredAnonymousNumber?: number, postAsAdmin?: boolean): Promise<{ post: any }> => {
     const response = await api.post('/community/posts', { 
       period_id: periodId, 
       content,
-      ...(preferredAnonymousNumber && { preferred_anonymous_number: preferredAnonymousNumber })
+      ...(preferredAnonymousNumber != null && preferredAnonymousNumber !== undefined && { preferred_anonymous_number: preferredAnonymousNumber }),
+      ...(postAsAdmin && { post_as_admin: true })
     });
     return response.data;
   },
@@ -1297,12 +1298,13 @@ export const communityApi = {
     return response.data;
   },
 
-  // 댓글 작성
-  createComment: async (postId: number, content: string, preferredAnonymousNumber?: number): Promise<{ comment: any }> => {
+  // 댓글 작성 (postAsAdmin: true면 공식 관리자 ID로 표시되어 "관리자"로 보임)
+  createComment: async (postId: number, content: string, preferredAnonymousNumber?: number, postAsAdmin?: boolean): Promise<{ comment: any }> => {
     const response = await api.post('/community/comments', { 
       post_id: postId, 
       content,
-      ...(preferredAnonymousNumber && { preferred_anonymous_number: preferredAnonymousNumber })
+      ...(preferredAnonymousNumber != null && preferredAnonymousNumber !== undefined && { preferred_anonymous_number: preferredAnonymousNumber }),
+      ...(postAsAdmin && { post_as_admin: true })
     });
     return response.data;
   },
