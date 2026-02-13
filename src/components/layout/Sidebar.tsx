@@ -972,6 +972,7 @@ const Sidebar: React.FC<{
       const res = await starApi.dailyAttendance();
       if (typeof res.newBalance === 'number') {
         setStarBalance(res.newBalance);
+        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
       }
       toast.success(res.message || '출석 체크가 완료되었습니다.');
       setHasDailyToday(true);
@@ -1142,6 +1143,7 @@ const Sidebar: React.FC<{
           const res = await starApi.adReward();
           if (res.success && typeof res.newBalance === 'number') {
             setStarBalance(res.newBalance);
+            window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
             toast.success(res.message || '광고 보상 별이 지급되었습니다.');
             setAttendanceModalOpen(false);
             setHasAdToday(true);

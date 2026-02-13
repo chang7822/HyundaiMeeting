@@ -667,6 +667,15 @@ const RpsArenaPage: React.FC<{
     return () => { cancelled = true; };
   }, []);
 
+  // 사이드바에서 출석체크/광고 보상 등으로 별이 바뀌면 게임 화면에도 반영
+  useEffect(() => {
+    const handler = (e: CustomEvent<{ balance: number }>) => {
+      if (typeof e?.detail?.balance === 'number') setStarBalance(e.detail.balance);
+    };
+    window.addEventListener('stars-updated', handler as EventListener);
+    return () => window.removeEventListener('stars-updated', handler as EventListener);
+  }, []);
+
   // 서버에서 RPS 일일 사용량 조회 (앱/웹 동기화)
   useEffect(() => {
     let cancelled = false;
