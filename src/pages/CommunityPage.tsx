@@ -2390,29 +2390,39 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                           </span>
                         </div>
                       )}
-                      {user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>표시 태그:</span>
-                          <select
-                            value={selectedCommentDisplayTag}
-                            onChange={(e) => setSelectedCommentDisplayTag(e.target.value)}
-                            style={{
-                              padding: '0.35rem 0.5rem',
-                              borderRadius: '6px',
-                              border: '2px solid #7C3AED',
-                              background: 'white',
-                              fontSize: '0.85rem',
-                              fontWeight: 600,
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <option value="">태그 선택 (필수)</option>
-                            {allowedDisplayTags.map(t => (
-                              <option key={t} value={t}>{t}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+                      {user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && (() => {
+                        const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+                        const fixedTag = selectedIdentity?.fixedDisplayTag;
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>표시 태그:</span>
+                            {fixedTag ? (
+                              <span style={{ padding: '0.35rem 0.5rem', borderRadius: '6px', background: '#e5e7eb', fontSize: '0.85rem', fontWeight: 600 }}>
+                                {fixedTag} (고정)
+                              </span>
+                            ) : (
+                              <select
+                                value={selectedCommentDisplayTag}
+                                onChange={(e) => setSelectedCommentDisplayTag(e.target.value)}
+                                style={{
+                                  padding: '0.35rem 0.5rem',
+                                  borderRadius: '6px',
+                                  border: '2px solid #7C3AED',
+                                  background: 'white',
+                                  fontSize: '0.85rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <option value="">태그 선택 (필수)</option>
+                                {allowedDisplayTags.map(t => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })()}
                       <CommentInput
                         placeholder="댓글을 입력하세요... (최대 100자)"
                         value={commentInputs[post.id] || ''}
