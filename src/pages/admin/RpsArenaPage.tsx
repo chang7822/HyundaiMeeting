@@ -295,13 +295,14 @@ const StatsTable = styled.table`
   th { background: #f8fafc; font-weight: 600; color: #475569; text-align: center; }
   td:nth-child(1) { width: 2.25rem; text-align: center; }
   td:nth-child(2) { text-align: left; }
-  td:nth-child(3), td:nth-child(4), td:nth-child(5) { text-align: center; }
-  td:nth-child(5) { font-weight: 600; }
-  /* 일반 회원: 닉네임 칼럼 없음 → 2~4번 셀 가운데, 4번 굵게 */
+  td:nth-child(3), td:nth-child(4), td:nth-child(5), td:nth-child(6) { text-align: center; }
+  td:nth-child(6) { font-weight: 600; }
+  /* 일반 회원: 닉네임 없음 → 2=도전,3=보상,4=환급,5=계 가운데, 5번 굵게 */
   &.member-view td:nth-child(2),
   &.member-view td:nth-child(3),
-  &.member-view td:nth-child(4) { text-align: center; }
-  &.member-view td:nth-child(4) { font-weight: 600; }
+  &.member-view td:nth-child(4),
+  &.member-view td:nth-child(5) { text-align: center; }
+  &.member-view td:nth-child(5) { font-weight: 600; }
 `;
 
 const NicknameLink = styled.button`
@@ -1187,6 +1188,7 @@ const RpsArenaPage: React.FC<{
                     <tr>
                       <th>순위</th>
                       {isAdmin && <th>닉네임</th>}
+                      <th>도전</th>
                       <th>보상</th>
                       <th>환급</th>
                       <th>계</th>
@@ -1195,7 +1197,7 @@ const RpsArenaPage: React.FC<{
                   <tbody>
                     {((statsPeriod === 'cumulative' && isAdmin ? statsData.cumulative : statsPeriod === 'weekly' ? (statsData.weekly ?? []) : statsData.today)).length === 0 ? (
                       <tr>
-                        <td colSpan={isAdmin ? 5 : 4} style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b' }}>
+                        <td colSpan={isAdmin ? 6 : 5} style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b' }}>
                           참여 내역이 없습니다.
                         </td>
                       </tr>
@@ -1210,6 +1212,7 @@ const RpsArenaPage: React.FC<{
                                 </NicknameLink>
                               </td>
                             )}
+                            <td>{row.playCount ?? 0}</td>
                             <td style={{ color: (row.netStars ?? 0) >= 0 ? '#059669' : '#dc2626' }}>
                               {(row.netStars ?? 0) >= 0 ? '+' : ''}{row.netStars ?? 0}
                             </td>
