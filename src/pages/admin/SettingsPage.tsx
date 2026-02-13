@@ -211,6 +211,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   });
   const [versionSaving, setVersionSaving] = useState(false);
 
+  const [rpsStatsExcludedNicknames, setRpsStatsExcludedNicknames] = useState<string[]>([]);
+  const [rpsExcludedInput, setRpsExcludedInput] = useState('');
+  const [rpsExcludedSaving, setRpsExcludedSaving] = useState(false);
+
   useEffect(() => {
     const fetchSettings = async () => {
       setLoading(true);
@@ -225,6 +229,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         // 버전 정책 로드
         if (res?.versionPolicy) {
           setVersionPolicy(res.versionPolicy);
+        }
+        // 가위바위보 통계 제외 닉네임
+        if (Array.isArray(res?.rpsStatsExcluded?.nicknames)) {
+          setRpsStatsExcludedNicknames(res.rpsStatsExcluded.nicknames);
         }
       } catch (e) {
         console.error('[SettingsPage] 시스템 설정 조회 오류:', e);
@@ -395,6 +403,34 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
     }
   };
 
+  const handleAddRpsExcluded = () => {
+    const n = rpsExcludedInput.trim();
+    if (!n) return;
+    if (rpsStatsExcludedNicknames.includes(n)) {
+      toast.warn('이미 목록에 있습니다.');
+      return;
+    }
+    setRpsStatsExcludedNicknames((prev) => [...prev, n]);
+    setRpsExcludedInput('');
+  };
+
+  const handleRemoveRpsExcluded = (index: number) => {
+    setRpsStatsExcludedNicknames((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveRpsStatsExcluded = async () => {
+    setRpsExcludedSaving(true);
+    try {
+      await adminApi.updateRpsStatsExcluded(rpsStatsExcludedNicknames);
+      toast.success('가위바위보 통계 제외 목록이 저장되었습니다.');
+    } catch (e: any) {
+      console.error('[SettingsPage] RPS 통계 제외 저장 오류:', e);
+      toast.error(e?.response?.data?.message || '저장에 실패했습니다.');
+    } finally {
+      setRpsExcludedSaving(false);
+    }
+  };
+
 
   return (
     <MainContainer $sidebarOpen={sidebarOpen}>
@@ -534,6 +570,106 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 <SwitchSlider />
               </SwitchLabel>
             </ToggleRow>
+          </Section>
+
+          <Section>
+            <SectionTitle>가위바위보 통계 제외</SectionTitle>
+            <SectionDescription>
+              아래 목록에 넣은 닉네임(관리자 포함)은 가위바위보 통계(누적/오늘/주간)에 노출되지 않습니다.
+              {'\n'}닉네임을 입력 후 추가하고, 저장 버튼을 눌러 적용하세요.
+            </SectionDescription>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  type="text"
+                  value={rpsExcludedInput}
+                  onChange={(e) => setRpsExcludedInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddRpsExcluded())}
+                  placeholder="닉네임 입력"
+                  style={{
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: 8,
+                    border: '1px solid #e2e8f0',
+                    fontSize: '0.9rem',
+                    width: '160px',
+                    outline: 'none',
+                  }}
+                  disabled={rpsExcludedSaving}
+                />
+                <button
+                  type="button"
+                  onClick={handleAddRpsExcluded}
+                  disabled={rpsExcludedSaving}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: 8,
+                    border: '1px solid #cbd5e1',
+                    background: '#f1f5f9',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  추가
+                </button>
+              </div>
+              {rpsStatsExcludedNicknames.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+                  {rpsStatsExcludedNicknames.map((nick, i) => (
+                    <span
+                      key={`${nick}-${i}`}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        padding: '0.35rem 0.6rem',
+                        borderRadius: 8,
+                        background: '#eef2ff',
+                        color: '#4338ca',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {nick}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveRpsExcluded(i)}
+                        disabled={rpsExcludedSaving}
+                        style={{
+                          padding: 0,
+                          margin: 0,
+                          border: 'none',
+                          background: 'none',
+                          cursor: 'pointer',
+                          color: '#6366f1',
+                          fontSize: '1rem',
+                          lineHeight: 1,
+                        }}
+                        aria-label="제거"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleSaveRpsStatsExcluded}
+                disabled={rpsExcludedSaving || loading}
+                style={{
+                  alignSelf: 'flex-start',
+                  padding: '0.5rem 1rem',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: rpsExcludedSaving ? '#cbd5e0' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  fontWeight: 600,
+                  cursor: rpsExcludedSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {rpsExcludedSaving ? '저장 중…' : '저장'}
+              </button>
+            </div>
           </Section>
 
           <Section>

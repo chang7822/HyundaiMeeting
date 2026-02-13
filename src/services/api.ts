@@ -600,8 +600,15 @@ export const adminApi = {
     devMode?: { enabled: boolean };
     extraMatching?: { enabled: boolean };
     community?: { enabled: boolean };
+    rpsStatsExcluded?: { nicknames: string[] };
   }> => {
     const response = await api.get('/admin/system-settings');
+    return response.data;
+  },
+
+  // 가위바위보 통계 제외 닉네임 목록 업데이트 (닉네임 기준)
+  updateRpsStatsExcluded: async (nicknames: string[]): Promise<{ success: boolean; nicknames: string[] }> => {
+    const response = await api.put('/admin/system-settings/rps-stats-excluded', { nicknames });
     return response.data;
   },
 

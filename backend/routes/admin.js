@@ -243,6 +243,22 @@ router.get('/system-settings', authenticate, async (req, res) => {
       console.error('[admin][system-settings] version_policy 조회 오류');
     }
 
+    // 가위바위보 통계 제외 닉네임 목록 (닉네임 기준)
+    let rpsStatsExcludedNicknames = [];
+    try {
+      const { data: rpsExcludedRow, error: rpsExcludedError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'rps_stats_excluded_nicknames')
+        .maybeSingle();
+
+      if (!rpsExcludedError && rpsExcludedRow && rpsExcludedRow.value && Array.isArray(rpsExcludedRow.value.nicknames)) {
+        rpsStatsExcludedNicknames = rpsExcludedRow.value.nicknames;
+      }
+    } catch (rpsExcludedErr) {
+      console.error('[admin][system-settings] rps_stats_excluded_nicknames 조회 오류');
+    }
+
     res.json({
       success: true,
       maintenance: {
@@ -262,7 +278,10 @@ router.get('/system-settings', authenticate, async (req, res) => {
         ios: { minimumVersion: '0.1.0', latestVersion: '0.1.0', storeUrl: '' },
         android: { minimumVersion: '0.1.0', latestVersion: '0.1.0', storeUrl: '' },
         messages: { forceUpdate: '', optionalUpdate: '' }
-      }
+      },
+      rpsStatsExcluded: {
+        nicknames: rpsStatsExcludedNicknames,
+      },
     });
   } catch (error) {
     console.error('[admin][system-settings] 조회 오류');
@@ -481,6 +500,39 @@ router.put('/system-settings/version-policy', authenticate, async (req, res) => 
   } catch (error) {
     console.error('[admin][system-settings] 버전 정책 업데이트 오류');
     res.status(500).json({ success: false, message: '버전 정책 변경에 실패했습니다.' });
+  }
+});
+
+// 가위바위보 통계 제외 닉네임 목록 업데이트 (관리자 전용, 닉네임 기준)
+router.put('/system-settings/rps-stats-excluded', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const nicknames = Array.isArray(req.body?.nicknames) ? req.body.nicknames : [];
+    const trimmed = nicknames.map((n) => (typeof n === 'string' ? n.trim() : '')).filter((n) => n !== '');
+
+    const value = { nicknames: trimmed };
+
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert(
+        {
+          key: 'rps_stats_excluded_nicknames',
+          value,
+          updated_by: req.user.userId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      );
+
+    if (error) {
+      console.error('[admin][system-settings] rps-stats-excluded 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '가위바위보 통계 제외 목록 저장에 실패했습니다.' });
+    }
+
+    return res.json({ success: true, nicknames: trimmed, message: '저장되었습니다.' });
+  } catch (err) {
+    console.error('[admin][system-settings] rps-stats-excluded 오류', err);
+    return res.status(500).json({ success: false, message: '저장 중 오류가 발생했습니다.' });
   }
 });
 
@@ -725,16 +777,65 @@ router.get('/rps/stats', authenticate, async (req, res) => {
     const withName = (list) =>
       list.map((r) => ({ ...r, displayName: profileMap[r.userId] || '-' }));
 
+    // 관리자 계정: 누가 보든 무조건 통계에서 제외
+    let adminUserIdsSet = new Set();
+    try {
+      const { data: adminUsers } = await supabase
+        .from('users')
+        .select('id')
+        .eq('is_admin', true);
+      if (adminUsers && adminUsers.length) {
+        adminUsers.forEach((u) => adminUserIdsSet.add(u.id));
+      }
+    } catch (e) {
+      console.error('[admin] rps/stats 관리자 목록 조회 오류', e);
+    }
+
+    // 통계 제외 닉네임 (설정에서 관리). 본인은 자기 순위만 보이게 하려고 viewerId 사용
+    let excludedNicknamesSet = new Set();
+    try {
+      const { data: excludedRow } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'rps_stats_excluded_nicknames')
+        .maybeSingle();
+      if (excludedRow?.value?.nicknames && Array.isArray(excludedRow.value.nicknames)) {
+        excludedRow.value.nicknames.forEach((n) => {
+          const t = typeof n === 'string' ? n.trim() : '';
+          if (t) excludedNicknamesSet.add(t);
+        });
+      }
+    } catch (e) {
+      console.error('[admin] rps/stats 제외 목록 조회 오류', e);
+    }
+
+    const viewerId = req.user?.userId || req.user?.id || null;
+
+    // 관리자 행은 항상 제외. 제외 닉네임 목록에 있는 사람은 다른 사람에게만 안 보이고, 본인에게는 전체 순위(본인 행 포함)로 보임
+    const filterExcluded = (list) => {
+      const filtered = list.filter((r) => {
+        if (adminUserIdsSet.has(r.userId)) return false;
+        const inExcludedList = excludedNicknamesSet.has((r.displayName || '').trim());
+        if (inExcludedList && r.userId !== viewerId) return false;
+        return true;
+      });
+      return filtered.map((row, i) => ({ ...row, rank: i + 1 }));
+    };
+
+    const cumNamed = withName(cumulative);
+    const todayNamed = withName(today);
+    const weeklyNamed = withName(weekly);
+
     if (isAdmin) {
       return res.json({
-        cumulative: withName(cumulative),
-        today: withName(today),
-        weekly: withName(weekly),
+        cumulative: filterExcluded(cumNamed),
+        today: filterExcluded(todayNamed),
+        weekly: filterExcluded(weeklyNamed),
       });
     }
     return res.json({
-      today: withName(today),
-      weekly: withName(weekly),
+      today: filterExcluded(todayNamed),
+      weekly: filterExcluded(weeklyNamed),
     });
   } catch (error) {
     console.error('[admin] rps/stats 오류', error);
