@@ -1070,7 +1070,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [reportedItems, setReportedItems] = useState<Set<string>>(new Set()); // 'post:123' 또는 'comment:456' 형식
   
   // [관리자 전용] 익명 ID 관리
-  const [adminIdentities, setAdminIdentities] = useState<Array<{ anonymousNumber: number; colorCode: string; tag: string }>>([]);
+  const [adminIdentities, setAdminIdentities] = useState<Array<{ anonymousNumber: number; colorCode: string; tag: string; fixedDisplayTag?: string }>>([]);
   const [selectedAnonymousNumber, setSelectedAnonymousNumber] = useState<number | null>(null);
   const [creatingIdentity, setCreatingIdentity] = useState(false);
   const [bulkCreateCount, setBulkCreateCount] = useState<string>('1');
@@ -1079,6 +1079,9 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [postAsAdmin, setPostAsAdmin] = useState(true);
   // [관리자 전용] 익명 ID 박스 접기/펼치기 (익명 모드일 때만 박스 표시)
   const [anonymousIdBoxCollapsed, setAnonymousIdBoxCollapsed] = useState(false);
+  // [관리자 전용] 익명 작성 시 선택한 표시 태그 (회차 분기에 맞춤, 선택 필수)
+  const [selectedPostDisplayTag, setSelectedPostDisplayTag] = useState<string>('');
+  const [selectedCommentDisplayTag, setSelectedCommentDisplayTag] = useState<string>('');
 
   // 정렬 옵션
   const [sortOrder, setSortOrder] = useState<'latest' | 'popular'>('latest');
@@ -1089,6 +1092,13 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   // 도배 방지 쿨다운
   const [postCooldown, setPostCooldown] = useState(0);
   const [commentCooldowns, setCommentCooldowns] = useState<Record<number, number>>({});
+
+  // 회차 상태에 따른 관리자 익명 작성 시 선택 가능 태그 (커뮤니티 태그 분기와 동일)
+  const allowedDisplayTags = currentPeriod?.status === '진행중'
+    ? ['매칭신청X', '매칭신청완료']
+    : currentPeriod?.status === '발표완료'
+      ? ['매칭성공']
+      : [];
 
   // 커뮤니티 기능 활성화 여부 확인
   useEffect(() => {
@@ -1456,12 +1466,21 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       toast.warn('게시글은 500자 이내로 작성해주세요.');
       return;
     }
+    const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+    const fixedPostTag = selectedIdentity?.fixedDisplayTag;
+    // 관리자 익명 작성 시: 고정 태그 없으면 선택 필수
+    if (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !fixedPostTag && !selectedPostDisplayTag) {
+      toast.warn('익명으로 작성할 때는 태그를 선택해주세요.');
+      return;
+    }
 
     setSubmitting(true);
     try {
-      // 관리자가 익명 ID를 선택한 경우 해당 ID로 작성; postAsAdmin이면 공식 관리자 ID로 표시
       const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
-      await communityApi.createPost(currentPeriodId, newPostContent, preferredNumber ?? undefined, postAsAdmin || undefined);
+      const displayTag = user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0
+        ? (fixedPostTag ?? selectedPostDisplayTag)
+        : undefined;
+      await communityApi.createPost(currentPeriodId, newPostContent, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
       toast.success('게시글이 작성되었습니다.');
       setNewPostContent('');
       setPostCooldown(30); // 30초 쿨다운 시작
@@ -1547,11 +1566,19 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       toast.warn('댓글은 100자 이내로 작성해주세요.');
       return;
     }
+    const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+    const fixedCommentTag = selectedIdentity?.fixedDisplayTag;
+    if (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !fixedCommentTag && !selectedCommentDisplayTag) {
+      toast.warn('익명으로 작성할 때는 태그를 선택해주세요.');
+      return;
+    }
 
     try {
-      // 관리자가 익명 ID를 선택한 경우 해당 ID로 작성; postAsAdmin이면 공식 관리자 ID로 표시
       const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
-      await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined);
+      const displayTag = user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0
+        ? (fixedCommentTag ?? selectedCommentDisplayTag)
+        : undefined;
+      await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
       toast.success('댓글이 작성되었습니다.');
       setCommentInputs(prev => ({ ...prev, [postId]: '' }));
       setCommentCooldowns(prev => ({ ...prev, [postId]: 10 })); // 10초 쿨다운 시작
@@ -2034,6 +2061,39 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       )}
 
       <WriteSection>
+        {user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && (() => {
+          const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+          const fixedTag = selectedIdentity?.fixedDisplayTag;
+          return (
+            <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#374151' }}>표시 태그:</span>
+              {fixedTag ? (
+                <span style={{ padding: '0.4rem 0.6rem', borderRadius: '8px', background: '#e5e7eb', fontSize: '0.9rem', fontWeight: 600 }}>
+                  {fixedTag} (고정)
+                </span>
+              ) : (
+                <select
+                  value={selectedPostDisplayTag}
+                  onChange={(e) => setSelectedPostDisplayTag(e.target.value)}
+                  style={{
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: '8px',
+                    border: '2px solid #7C3AED',
+                    background: 'white',
+                    fontSize: '0.9rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <option value="">태그 선택 (필수)</option>
+                  {allowedDisplayTags.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          );
+        })()}
         <WriteTextarea
           placeholder="게시글을 입력하세요... (최대 500자)"
           value={newPostContent}
@@ -2047,7 +2107,13 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
           </CharCount>
           <WriteButton
             onClick={handleSubmitPost}
-            disabled={submitting || !newPostContent.trim() || newPostContent.length > 500 || (postCooldown > 0 && !user?.isAdmin)}
+            disabled={
+              submitting ||
+              !newPostContent.trim() ||
+              newPostContent.length > 500 ||
+              (postCooldown > 0 && !user?.isAdmin) ||
+              (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedPostDisplayTag))
+            }
           >
             {submitting ? '작성 중...' : postCooldown > 0 && !user?.isAdmin ? `${postCooldown}초 후 작성 가능` : '게시'}
           </WriteButton>
@@ -2324,6 +2390,29 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                           </span>
                         </div>
                       )}
+                      {user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>표시 태그:</span>
+                          <select
+                            value={selectedCommentDisplayTag}
+                            onChange={(e) => setSelectedCommentDisplayTag(e.target.value)}
+                            style={{
+                              padding: '0.35rem 0.5rem',
+                              borderRadius: '6px',
+                              border: '2px solid #7C3AED',
+                              background: 'white',
+                              fontSize: '0.85rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <option value="">태그 선택 (필수)</option>
+                            {allowedDisplayTags.map(t => (
+                              <option key={t} value={t}>{t}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
                       <CommentInput
                         placeholder="댓글을 입력하세요... (최대 100자)"
                         value={commentInputs[post.id] || ''}
@@ -2340,7 +2429,11 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                       />
                       <CommentSubmitButton
                         onClick={() => handleSubmitComment(post.id)}
-                        disabled={!commentInputs[post.id]?.trim() || (commentCooldowns[post.id] > 0 && !user?.isAdmin)}
+                        disabled={
+                          !commentInputs[post.id]?.trim() ||
+                          (commentCooldowns[post.id] > 0 && !user?.isAdmin) ||
+                          (user?.isAdmin && !postAsAdmin && allowedDisplayTags.length > 0 && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedCommentDisplayTag))
+                        }
                       >
                         {commentCooldowns[post.id] > 0 && !user?.isAdmin 
                           ? `${commentCooldowns[post.id]}초 후 작성 가능` 

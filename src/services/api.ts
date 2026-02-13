@@ -1256,8 +1256,8 @@ export const communityApi = {
     return response.data;
   },
 
-  // [관리자 전용] 모든 익명 ID 조회
-  getAdminIdentities: async (periodId: number): Promise<{ identities: Array<{ anonymousNumber: number; colorCode: string; tag: string }> }> => {
+  // [관리자 전용] 모든 익명 ID 조회 (fixedDisplayTag: 해당 ID로 이미 글/댓글 쓴 적 있으면 그때 태그 고정)
+  getAdminIdentities: async (periodId: number): Promise<{ identities: Array<{ anonymousNumber: number; colorCode: string; tag: string; fixedDisplayTag?: string }> }> => {
     const response = await api.get(`/community/admin/identities/${periodId}`);
     return response.data;
   },
@@ -1292,13 +1292,14 @@ export const communityApi = {
     return response.data;
   },
 
-  // 게시글 작성 (postAsAdmin: true면 공식 관리자 ID로 표시되어 "관리자"로 보임)
-  createPost: async (periodId: number, content: string, preferredAnonymousNumber?: number, postAsAdmin?: boolean): Promise<{ post: any }> => {
+  // 게시글 작성 (postAsAdmin: true면 공식 관리자 ID로 표시, displayTag: 관리자 익명 시 선택 태그)
+  createPost: async (periodId: number, content: string, preferredAnonymousNumber?: number, postAsAdmin?: boolean, displayTag?: string | null): Promise<{ post: any }> => {
     const response = await api.post('/community/posts', { 
       period_id: periodId, 
       content,
       ...(preferredAnonymousNumber != null && preferredAnonymousNumber !== undefined && { preferred_anonymous_number: preferredAnonymousNumber }),
-      ...(postAsAdmin && { post_as_admin: true })
+      ...(postAsAdmin && { post_as_admin: true }),
+      ...(displayTag != null && displayTag !== '' && { display_tag: displayTag })
     });
     return response.data;
   },
@@ -1315,13 +1316,14 @@ export const communityApi = {
     return response.data;
   },
 
-  // 댓글 작성 (postAsAdmin: true면 공식 관리자 ID로 표시되어 "관리자"로 보임)
-  createComment: async (postId: number, content: string, preferredAnonymousNumber?: number, postAsAdmin?: boolean): Promise<{ comment: any }> => {
+  // 댓글 작성 (postAsAdmin: true면 공식 관리자 ID로 표시, displayTag: 관리자 익명 시 선택 태그)
+  createComment: async (postId: number, content: string, preferredAnonymousNumber?: number, postAsAdmin?: boolean, displayTag?: string | null): Promise<{ comment: any }> => {
     const response = await api.post('/community/comments', { 
       post_id: postId, 
       content,
       ...(preferredAnonymousNumber != null && preferredAnonymousNumber !== undefined && { preferred_anonymous_number: preferredAnonymousNumber }),
-      ...(postAsAdmin && { post_as_admin: true })
+      ...(postAsAdmin && { post_as_admin: true }),
+      ...(displayTag != null && displayTag !== '' && { display_tag: displayTag })
     });
     return response.data;
   },

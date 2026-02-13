@@ -42,14 +42,16 @@ router.get('/admin/identities/:periodId', authenticate, async (req, res) => {
       return res.status(500).json({ error: '익명 ID 조회 실패' });
     }
 
-    // 각 익명 ID의 태그 정보 추가
+    // 각 익명 ID의 태그 정보 + 이미 사용한 경우 고정 display_tag
     const identitiesWithTags = await Promise.all(
       identities.map(async (identity) => {
         const tag = await getUserMatchingTag(userId, periodId);
+        const fixedDisplayTag = await getFixedDisplayTagForIdentity(userId, periodId, identity.anonymous_number);
         return {
           anonymousNumber: identity.anonymous_number,
           colorCode: identity.color_code,
-          tag
+          tag,
+          ...(fixedDisplayTag && { fixedDisplayTag })
         };
       })
     );
@@ -545,9 +547,11 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
       const identityKey = `${post.user_id}_${post.anonymous_number}`;
       const colorCode = identityMap.get(identityKey) || '#888888';
 
-      // 태그 결정 (메모리에서)
+      // 태그 결정: 저장된 display_tag가 있으면 사용(기존 글 고정), 없으면 매칭 상태로 계산
       let tag = null;
-      if (shouldShowTags) {
+      if (post.display_tag != null && post.display_tag !== '') {
+        tag = post.display_tag;
+      } else if (shouldShowTags) {
         const application = applicationMap.get(post.user_id);
         const isApplied = application && application.applied && !application.cancelled;
 
@@ -567,7 +571,7 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
       };
     });
 
-    res.json({ 
+    res.json({
       posts: postsWithIdentity,
       hasMore,
       totalCount
@@ -578,21 +582,58 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
   }
 });
 
+/** 회차 상태에 따른 허용 display_tag 목록 (관리자 익명 작성용) */
+function getAllowedDisplayTags(periodStatus) {
+  if (periodStatus === '진행중') return ['매칭신청X', '매칭신청완료'];
+  if (periodStatus === '발표완료') return ['매칭성공'];
+  return [];
+}
+
+/**
+ * 해당 익명 ID로 이미 글/댓글을 쓴 적이 있고 display_tag가 저장돼 있으면 그 값을 반환 (한 번 정해지면 고정)
+ */
+async function getFixedDisplayTagForIdentity(userId, periodId, anonymousNumber) {
+  const { data: postRow } = await supabase
+    .from('community_posts')
+    .select('display_tag')
+    .eq('period_id', periodId)
+    .eq('user_id', userId)
+    .eq('anonymous_number', anonymousNumber)
+    .not('display_tag', 'is', null)
+    .limit(1)
+    .maybeSingle();
+  if (postRow?.display_tag) return postRow.display_tag;
+
+  const { data: commentsWithPeriod } = await supabase
+    .from('community_comments')
+    .select('display_tag, community_posts(period_id)')
+    .eq('user_id', userId)
+    .eq('anonymous_number', anonymousNumber)
+    .not('display_tag', 'is', null)
+    .limit(50);
+  const inPeriod = commentsWithPeriod?.find(c => c.community_posts?.period_id === periodId);
+  if (inPeriod?.display_tag) return inPeriod.display_tag;
+
+  return null;
+}
+
 /**
  * 게시글 작성
  * POST /api/community/posts
- * Body: { period_id, content, preferred_anonymous_number? (관리자 전용), post_as_admin? (관리자 전용, true면 공식 관리자 ID로 표시) }
+ * Body: { period_id, content, preferred_anonymous_number? (관리자 전용), post_as_admin? (관리자 전용), display_tag? (관리자 익명 시 선택 태그) }
  */
 router.post('/posts', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const isAdmin = req.user.isAdmin;
-    const { period_id, content, preferred_anonymous_number, post_as_admin } = req.body;
+    const { period_id, content, preferred_anonymous_number, post_as_admin, display_tag } = req.body;
     const isAdminPost = !!(isAdmin && post_as_admin);
 
     if (!period_id || !content) {
       return res.status(400).json({ error: 'period_id와 content가 필요합니다.' });
     }
+
+    let resolvedDisplayTag = null;
 
     if (content.length > 500) {
       return res.status(400).json({ error: '게시글은 500자 이내로 작성해주세요.' });
@@ -724,7 +765,29 @@ router.post('/posts', authenticate, async (req, res) => {
       }
     }
 
-    // 게시글 생성 (관리자 공식 작성 시 is_admin_post = true)
+    // 관리자 익명 작성 시: 이 익명 ID로 이미 쓴 글이 있으면 그때 쓴 태그로 고정, 없으면 이번에 선택한 태그 필수
+    if (isAdmin && !isAdminPost) {
+      const { data: period } = await supabase
+        .from('matching_log')
+        .select('status')
+        .eq('id', period_id)
+        .single();
+      const allowed = getAllowedDisplayTags(period?.status);
+      const fixedDisplayTag = await getFixedDisplayTagForIdentity(userId, period_id, anonymousNumber);
+      if (fixedDisplayTag) {
+        resolvedDisplayTag = fixedDisplayTag;
+      } else if (allowed.length > 0) {
+        if (display_tag == null || display_tag === '') {
+          return res.status(400).json({ error: '익명으로 작성할 때는 태그를 선택해주세요.' });
+        }
+        if (!allowed.includes(display_tag)) {
+          return res.status(400).json({ error: `현재 회차에서 선택 가능한 태그가 아닙니다. (${allowed.join(', ')})` });
+        }
+        resolvedDisplayTag = display_tag;
+      }
+    }
+
+    // 게시글 생성 (관리자 공식 작성 시 is_admin_post = true, 관리자 익명 시 display_tag 저장)
     const { data: post, error: postError } = await supabase
       .from('community_posts')
       .insert({
@@ -732,7 +795,8 @@ router.post('/posts', authenticate, async (req, res) => {
         user_id: userId,
         anonymous_number: anonymousNumber,
         content: content,
-        ...(isAdminPost && { is_admin_post: true })
+        ...(isAdminPost && { is_admin_post: true }),
+        ...(resolvedDisplayTag != null && { display_tag: resolvedDisplayTag })
       })
       .select()
       .single();
@@ -795,7 +859,7 @@ router.post('/posts', authenticate, async (req, res) => {
       }
     }
 
-    const tag = await getUserMatchingTag(userId, period_id);
+    const tag = resolvedDisplayTag != null ? resolvedDisplayTag : await getUserMatchingTag(userId, period_id);
 
     res.json({
       post: {
@@ -1115,9 +1179,11 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
       const identityKey = `${comment.user_id}_${comment.anonymous_number}`;
       const colorCode = identityMap.get(identityKey) || '#888888';
 
-      // 태그 결정 (메모리에서)
+      // 태그 결정: 저장된 display_tag가 있으면 사용(기존 댓글 고정), 없으면 매칭 상태로 계산
       let tag = null;
-      if (shouldShowTags) {
+      if (comment.display_tag != null && comment.display_tag !== '') {
+        tag = comment.display_tag;
+      } else if (shouldShowTags) {
         const application = applicationMap.get(comment.user_id);
         const isApplied = application && application.applied && !application.cancelled;
 
@@ -1147,13 +1213,13 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
 /**
  * 댓글 작성
  * POST /api/community/comments
- * Body: { post_id, content, preferred_anonymous_number? (관리자 전용), post_as_admin? (관리자 전용, true면 공식 관리자 ID로 표시) }
+ * Body: { post_id, content, preferred_anonymous_number? (관리자 전용), post_as_admin? (관리자 전용), display_tag? (관리자 익명 시 선택 태그) }
  */
 router.post('/comments', authenticate, async (req, res) => {
   try {
     const userId = req.user.userId;
     const isAdmin = req.user.isAdmin;
-    const { post_id, content, preferred_anonymous_number, post_as_admin } = req.body;
+    const { post_id, content, preferred_anonymous_number, post_as_admin, display_tag } = req.body;
     const isAdminPost = !!(isAdmin && post_as_admin);
 
     if (!post_id || !content) {
@@ -1179,6 +1245,8 @@ router.post('/comments', authenticate, async (req, res) => {
     if (post.is_deleted) {
       return res.status(410).json({ error: '삭제된 게시글입니다.', code: 'POST_DELETED' });
     }
+
+    let resolvedDisplayTag = null;
 
     // 관리자가 아닌 경우 도배 방지 체크
     if (!isAdmin) {
@@ -1289,7 +1357,29 @@ router.post('/comments', authenticate, async (req, res) => {
       }
     }
 
-    // 댓글 생성 (관리자 공식 작성 시 is_admin_post = true)
+    // 관리자 익명 작성 시: 이 익명 ID로 이미 쓴 글이 있으면 그때 쓴 태그로 고정, 없으면 이번에 선택한 태그 필수
+    if (isAdmin && !isAdminPost) {
+      const { data: period } = await supabase
+        .from('matching_log')
+        .select('status')
+        .eq('id', post.period_id)
+        .single();
+      const allowed = getAllowedDisplayTags(period?.status);
+      const fixedDisplayTag = await getFixedDisplayTagForIdentity(userId, post.period_id, anonymousNumber);
+      if (fixedDisplayTag) {
+        resolvedDisplayTag = fixedDisplayTag;
+      } else if (allowed.length > 0) {
+        if (display_tag == null || display_tag === '') {
+          return res.status(400).json({ error: '익명으로 작성할 때는 태그를 선택해주세요.' });
+        }
+        if (!allowed.includes(display_tag)) {
+          return res.status(400).json({ error: `현재 회차에서 선택 가능한 태그가 아닙니다. (${allowed.join(', ')})` });
+        }
+        resolvedDisplayTag = display_tag;
+      }
+    }
+
+    // 댓글 생성 (관리자 공식 작성 시 is_admin_post = true, 관리자 익명 시 display_tag 저장)
     const { data: comment, error: commentError } = await supabase
       .from('community_comments')
       .insert({
@@ -1297,7 +1387,8 @@ router.post('/comments', authenticate, async (req, res) => {
         user_id: userId,
         anonymous_number: anonymousNumber,
         content: content,
-        ...(isAdminPost && { is_admin_post: true })
+        ...(isAdminPost && { is_admin_post: true }),
+        ...(resolvedDisplayTag != null && { display_tag: resolvedDisplayTag })
       })
       .select()
       .single();
@@ -1336,7 +1427,7 @@ router.post('/comments', authenticate, async (req, res) => {
       })
       .eq('id', post_id);
 
-    const tag = await getUserMatchingTag(userId, post.period_id);
+    const tag = resolvedDisplayTag != null ? resolvedDisplayTag : await getUserMatchingTag(userId, post.period_id);
 
     // 알림을 받을 사용자 목록 수집
     const notificationUserIds = new Set();
