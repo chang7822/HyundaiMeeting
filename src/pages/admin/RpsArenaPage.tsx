@@ -954,7 +954,7 @@ const RpsArenaPage: React.FC<{
           setStarBalance(res.newBalance);
           window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
         }
-        toast.success('3판 더 할 수 있어요! 별 3개도 환급되었어요.');
+        toast.success('3판 더 할 수 있어요! ⭐ 3개도 환급되었어요.');
       } else {
         toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있어요.');
       }
