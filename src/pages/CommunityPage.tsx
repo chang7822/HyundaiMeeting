@@ -2121,7 +2121,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                         익명{post.anonymous_number}
                       </AnonymousName>
                     )}
-                    {post.tag && <StatusTag $type={post.tag}>{post.tag}</StatusTag>}
+                    {post.tag && !post.is_admin_post && <StatusTag $type={post.tag}>{post.tag}</StatusTag>}
                     <TimeStamp>{getRelativeTime(post.created_at)}</TimeStamp>
                   </PostAuthor>
                   <PostActions>
@@ -2234,7 +2234,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                                   익명{comment.anonymous_number}
                                 </AnonymousName>
                               )}
-                              {comment.tag && <StatusTag $type={comment.tag}>{comment.tag}</StatusTag>}
+                              {comment.tag && !comment.is_admin_post && <StatusTag $type={comment.tag}>{comment.tag}</StatusTag>}
                               <TimeStamp style={{ fontSize: '0.75rem' }}>{getRelativeTime(comment.created_at)}</TimeStamp>
                             </PostAuthor>
                             <PostActions>
