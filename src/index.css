@@ -40,10 +40,8 @@ body:not(.platform-android):not(.platform-ios) {
 /* 상단 헤더(플로팅 버튼·알림종 40px) 높이 + 여유. 모든 페이지 콘텐츠가 헤더 아래서 출발하도록 통일 */
 @media (max-width: 768px) {
   html.platform-android,
-  body.platform-android {
-    --mobile-top-padding: 72px;
-  }
-  
+  body.platform-android,
+  html.platform-ios,
   body.platform-ios {
     --mobile-top-padding: 72px;
   }
@@ -55,10 +53,8 @@ body:not(.platform-android):not(.platform-ios) {
 
 @media (max-width: 480px) {
   html.platform-android,
-  body.platform-android {
-    --mobile-top-padding: 72px;
-  }
-  
+  body.platform-android,
+  html.platform-ios,
   body.platform-ios {
     --mobile-top-padding: 72px;
   }
@@ -145,6 +141,7 @@ body.modal-open {
 }
 
 /* 네이티브: 상단/하단 시스템바 영역 침범 방지 — 전역 한 방 적용 */
+/* Android: viewport가 이미 safe area 안(플러그인 padding). iOS: env()로 wrap에 패딩 적용 */
 body.platform-android .app-safe-area-wrap,
 body.platform-ios .app-safe-area-wrap {
   min-height: var(--safe-viewport-height, 100vh) !important;
@@ -152,6 +149,22 @@ body.platform-ios .app-safe-area-wrap {
   overflow-y: auto !important;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+}
+body.platform-ios .app-safe-area-wrap {
+  padding-top: var(--safe-area-inset-top, 0px);
+  padding-right: var(--safe-area-inset-right, 0px);
+  padding-bottom: var(--safe-area-inset-bottom, 0px);
+  padding-left: var(--safe-area-inset-left, 0px);
+  box-sizing: border-box;
+}
+/* iOS: 고정 영역(채팅 헤더/입력창, 사이드바)이 노치·홈인디케이터를 피하도록 */
+body.platform-ios [data-safe-area-top] {
+  padding-top: var(--safe-area-inset-top, 0px);
+  box-sizing: border-box;
+}
+body.platform-ios [data-safe-area-bottom] {
+  padding-bottom: var(--safe-area-inset-bottom, 0px);
+  box-sizing: border-box;
 }
 body.platform-android .app-layout,
 body.platform-ios .app-layout {

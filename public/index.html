@@ -18,15 +18,21 @@
   <body style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0;">
     <script>
       (function(){
-        if (!/android/i.test(navigator.userAgent)) return;
-        document.documentElement.classList.add('platform-android');
-        var d = document.documentElement.style;
-        d.setProperty('--native-safe-area-inset-top', '24px');
-        d.setProperty('--native-safe-area-inset-bottom', '48px');
-        d.setProperty('--native-safe-area-inset-left', '0px');
-        d.setProperty('--native-safe-area-inset-right', '0px');
-        if (document.body) document.body.classList.add('platform-android');
-        else document.addEventListener('DOMContentLoaded', function(){ document.body.classList.add('platform-android'); });
+        var ua = navigator.userAgent;
+        if (/android/i.test(ua)) {
+          document.documentElement.classList.add('platform-android');
+          var d = document.documentElement.style;
+          d.setProperty('--native-safe-area-inset-top', '24px');
+          d.setProperty('--native-safe-area-inset-bottom', '48px');
+          d.setProperty('--native-safe-area-inset-left', '0px');
+          d.setProperty('--native-safe-area-inset-right', '0px');
+          if (document.body) document.body.classList.add('platform-android');
+          else document.addEventListener('DOMContentLoaded', function(){ document.body.classList.add('platform-android'); });
+        } else if (/iphone|ipad|ipod/i.test(ua)) {
+          document.documentElement.classList.add('platform-ios');
+          if (document.body) document.body.classList.add('platform-ios');
+          else document.addEventListener('DOMContentLoaded', function(){ document.body.classList.add('platform-ios'); });
+        }
       })();
     </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>

@@ -337,9 +337,10 @@ const AppInner: React.FC = () => {
     };
   }, []);
 
-  // [Safe Area 디버그] chrome://inspect 콘솔에서 확인용 (Android 앱에서만)
+  // [Safe Area 디버그] chrome://inspect / Safari Web Inspector에서 확인용 (Android·iOS 공통)
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return;
+    const platform = Capacitor.getPlatform();
+    if (!Capacitor.isNativePlatform() || (platform !== 'android' && platform !== 'ios')) return;
 
     const logSafeArea = (label: string) => {
       const doc = document.documentElement;
