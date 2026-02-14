@@ -10,6 +10,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.activity.EdgeToEdge;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Bridge;
 import com.google.android.gms.ads.MobileAds;
@@ -28,15 +29,10 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(AppSettingsPlugin.class);
         
         super.onCreate(savedInstanceState);
-        
+        EdgeToEdge.enable(this); // @capacitor-community/safe-area: Edge-to-Edge + Safe Area
+
         // AdMob SDK 초기화는 onStart()에서 WebView가 완전히 로드된 후에 수행
-        
-        // API URL 확인을 위한 로그
         android.util.Log.d("MainActivity", "MainActivity onCreate 완료");
-        
-        // WindowInsets를 사용하지 않음
-        // StatusBar.setOverlaysWebView({ overlay: false })가 자동으로 처리
-        // CSS는 플로팅 버튼과 콘텐츠에만 여백 추가
     }
     
     @Override

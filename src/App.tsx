@@ -3,7 +3,6 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { StatusBar } from '@capacitor/status-bar';
 import { Capacitor } from '@capacitor/core';
 import { isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from './firebase.ts';
 import { pushApi } from './services/api.ts';
@@ -280,18 +279,10 @@ const AppInner: React.FC = () => {
     };
   }, [location.pathname, navigate]);
 
-  // StatusBar 설정 및 플랫폼 클래스 추가
+  // 플랫폼 클래스 추가 (CSS에서 플랫폼별 스타일링·safe area용)
   useEffect(() => {
-    // 플랫폼 감지하여 body에 클래스 추가 (CSS에서 플랫폼별 스타일링용)
     const platform = Capacitor.getPlatform();
     document.body.classList.add(`platform-${platform}`);
-
-    if (Capacitor.isNativePlatform()) {
-      StatusBar.setOverlaysWebView({ overlay: false }).catch(() => {
-        // StatusBar 플러그인이 사용 불가능한 경우 무시
-      });
-    }
-
     return () => {
       document.body.classList.remove(`platform-${platform}`);
     };

@@ -65,7 +65,7 @@ AI 에이전트·신규 개발자가 이 프로젝트를 처음 접할 때 필�
 
 **아래의 경우에만 스토어 앱 업데이트가 필요합니다.**
 
-- **Capacitor 플러그인 추가/변경/업데이트** (예: 푸시, StatusBar, AdMob, safe-area 등)
+- **Capacitor 플러그인 추가/변경/업데이트** (예: 푸시, AdMob, safe-area 등)
 - **네이티브 설정 변경** (Android `build.gradle` versionCode/versionName, iOS Info.plist 등)
 - **앱 전용 네이티브 코드 수정**
 

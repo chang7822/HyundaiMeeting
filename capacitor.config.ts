@@ -21,6 +21,9 @@ const config: CapacitorConfig = {
     // iOS 전용 설정
   },
   plugins: {
+    SystemBars: {
+      insetsHandling: 'disable',
+    },
     AdMob: {
       appId: 'ca-app-pub-1352765336263182~2662629184', // Android
       iosAppId: 'ca-app-pub-1352765336263182~9266276922', // iOS
