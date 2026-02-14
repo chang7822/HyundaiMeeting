@@ -1179,9 +1179,9 @@ const RpsArenaPage: React.FC<{
   return (
     <Container $sidebarOpen={sidebarOpen} $isNativeApp={isNativeApp} data-rps-page>
       <Card>
-        <Header $rightAlign={isNativeApp}>
-          <HeaderRow $rightAlign={isNativeApp}>
-            <span>✂️ 🗿 📄 가위바위보 아레나</span>
+        <Header>
+          <HeaderRow>
+            <span>✂️ 🗿 📄 가위바위보 멸망전</span>
             <StatsFloatingBtn
               type="button"
               onClick={openStatsModal}
