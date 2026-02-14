@@ -1,31 +1,32 @@
 :root {
-  /* 기본값: Safe Area 없음 (Android, Web) */
+  /* 기본값: Safe Area 없음 (웹) */
   --safe-area-inset-top: 0px;
   --safe-area-inset-bottom: 0px;
   --safe-area-inset-left: 0px;
   --safe-area-inset-right: 0px;
 }
 
-/* iOS에서만 Safe Area 적용 */
+/* iOS: env() 정상. Android: 네이티브 주입 우선, env() 폴백 (Chromium 140+ env 동작, < 140 env=0) */
 body.platform-ios {
   --safe-area-inset-top: env(safe-area-inset-top, 0px);
   --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
   --safe-area-inset-left: env(safe-area-inset-left, 0px);
   --safe-area-inset-right: env(safe-area-inset-right, 0px);
 }
-
-/* Android 15+ (targetSdk 36): setOverlaysWebView(false) 무시 → edge-to-edge 강제.
-   Android WebView는 env(safe-area-inset-*)가 0px로 나오는 경우가 많음(Chrome/Android 문서 참고).
-   권장: (1) 네이티브에서 WebView 컨테이너에 WindowInsets padding 적용하거나
-   (2) 네이티브에서 WindowInsets를 dp로 변환 후 JS로 --safe-area-inset-* 주입.
-   아래 vh fallback은 그 전까지의 임시책(기기마다 실제 inset은 다름). */
 body.platform-android {
-  --safe-area-inset-top: env(safe-area-inset-top, 3.5vh);
-  --safe-area-inset-bottom: env(safe-area-inset-bottom, 6vh);
-  --safe-area-inset-left: env(safe-area-inset-left, 0px);
-  --safe-area-inset-right: env(safe-area-inset-right, 0px);
-  /* Android에서 사이드바 내부 컨텐츠 상단 여백 조정 */
-  --sidebar-top-offset: -40px;
+  --safe-area-inset-top: var(--native-safe-area-inset-top, env(safe-area-inset-top, 24px));
+  --safe-area-inset-bottom: var(--native-safe-area-inset-bottom, env(safe-area-inset-bottom, 48px));
+  --safe-area-inset-left: var(--native-safe-area-inset-left, env(safe-area-inset-left, 0px));
+  --safe-area-inset-right: var(--native-safe-area-inset-right, env(safe-area-inset-right, 0px));
+}
+
+body.platform-android {
+  --sidebar-top-offset: 0px;
+  /* setDecorFitsSystemWindows(true) 사용 시 viewport가 이미 상태바·네비바 사이 */
+  --safe-viewport-height: 100vh;
+}
+body.platform-ios {
+  --safe-viewport-height: 100vh;
 }
 
 body.platform-ios {
@@ -36,34 +37,34 @@ body:not(.platform-android):not(.platform-ios) {
   --sidebar-top-offset: 0px;
 }
 
+/* 상단 헤더(플로팅 버튼·알림종 40px) 높이 + 여유. 모든 페이지 콘텐츠가 헤더 아래서 출발하도록 통일 */
 @media (max-width: 768px) {
+  html.platform-android,
   body.platform-android {
-    /* Android에서 모바일 상단 여백을 줄이기 위한 변수 */
-    --mobile-top-padding: 40px;
+    --mobile-top-padding: 72px;
   }
   
   body.platform-ios {
-    /* iOS는 기존 80px 유지 + safe-area */
-    --mobile-top-padding: 80px;
+    --mobile-top-padding: 72px;
   }
   
-  /* 기본값 (웹) */
   body:not(.platform-android):not(.platform-ios) {
-    --mobile-top-padding: 80px;
+    --mobile-top-padding: 72px;
   }
 }
 
 @media (max-width: 480px) {
+  html.platform-android,
   body.platform-android {
-    --mobile-top-padding: 30px;
+    --mobile-top-padding: 72px;
   }
   
   body.platform-ios {
-    --mobile-top-padding: 70px;
+    --mobile-top-padding: 72px;
   }
   
   body:not(.platform-android):not(.platform-ios) {
-    --mobile-top-padding: 70px;
+    --mobile-top-padding: 72px;
   }
 }
 
@@ -93,19 +94,45 @@ html, body {
   background-attachment: fixed;
 }
 
-/* Android: 상단바 아래로, 하단 네비바에 가리지 않도록 전역 여백 */
-body.platform-android {
-  padding-top: var(--safe-area-inset-top);
-  padding-bottom: var(--safe-area-inset-bottom);
+/* ========== 네이티브: setDecorFitsSystemWindows(true)로 WebView가 상태바·네비바 사이에만 그려짐 ========== */
+/* body 패딩 불필요 — viewport가 이미 safe area. data-safe-area-*는 웹/기타 폴백용 */
+
+/* 키보드 노출 시 하단 여백 제거 */
+body.platform-android.keyboard-visible .app-layout > *:last-child,
+body.platform-ios.keyboard-visible .app-layout > *:last-child {
+  padding-bottom: 0 !important;
 }
-/* Android: position:fixed; bottom:0 인 요소를 네비바 위로 (해당 요소에 data-safe-area-bottom 부여) */
-body.platform-android [data-safe-area-bottom] {
-  bottom: var(--safe-area-inset-bottom) !important;
+body.platform-android.keyboard-visible .app-layout:has([data-safe-area-bottom]) > *:last-child,
+body.platform-ios.keyboard-visible .app-layout:has([data-safe-area-bottom]) > *:last-child {
+  padding-bottom: 0 !important;
 }
-/* Android: 사이드바 옆 메인 영역(페이지) 상단/하단 — 상단바·네비바에 가리지 않도록 (전역) */
-body.platform-android .app-layout > *:last-child {
-  padding-top: var(--mobile-top-padding) !important;
-  padding-bottom: calc(1.5rem + var(--safe-area-inset-bottom)) !important;
+/* app-layout 메인 영역: 모바일에서 헤더(플로팅 버튼·알림 40px) 아래 콘텐츠 출발 */
+@media (max-width: 768px) {
+  body.platform-ios .app-layout > *:last-child,
+  body.platform-android .app-layout > *:last-child,
+  body.platform-web .app-layout > *:last-child,
+  body .app-layout > *:last-child {
+    padding-top: var(--mobile-top-padding, 72px) !important;
+    padding-bottom: 1.5rem !important;
+  }
+}
+/* 하단 고정 배너/요소 있는 페이지: safe-area 중복 방지. 가위바위보 제외(배너 오버레이) */
+body.platform-ios .app-layout:has([data-safe-area-bottom]):not(:has([data-rps-page])) > *:last-child,
+body.platform-android .app-layout:has([data-safe-area-bottom]):not(:has([data-rps-page])) > *:last-child {
+  padding-bottom: 4.5rem !important; /* 배너 높이(~50px) + 여유만, 네비바 inset 제외 */
+}
+/* 가위바위보: 배너 오버레이. 하단 패딩은 좌우와 동일하게 */
+body .app-layout:has([data-rps-page]) > *:last-child,
+body.platform-android .app-layout:has([data-rps-page]) > *:last-child,
+body.platform-ios .app-layout:has([data-rps-page]) > *:last-child {
+  padding-bottom: clamp(0.5rem, 1.5vw, 1rem) !important;
+}
+@media (max-width: 768px) {
+  body .app-layout:has([data-rps-page]) > *:last-child,
+  body.platform-android .app-layout:has([data-rps-page]) > *:last-child,
+  body.platform-ios .app-layout:has([data-rps-page]) > *:last-child {
+    padding-bottom: 0.75rem !important;
+  }
 }
 
 body.modal-open {
@@ -115,6 +142,29 @@ body.modal-open {
 #root {
   height: 100%;
   background: transparent;
+}
+
+/* 네이티브: 상단/하단 시스템바 영역 침범 방지 — 전역 한 방 적용 */
+body.platform-android .app-safe-area-wrap,
+body.platform-ios .app-safe-area-wrap {
+  min-height: var(--safe-viewport-height, 100vh) !important;
+  max-height: var(--safe-viewport-height, 100vh) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+body.platform-android .app-layout,
+body.platform-ios .app-layout {
+  min-height: var(--safe-viewport-height, 100vh) !important;
+  max-height: var(--safe-viewport-height, 100vh) !important;
+}
+/* 가위바위보 페이지: 스크롤 없이 뷰포트 100% 차지 */
+body .app-safe-area-wrap:has([data-rps-page]),
+body.platform-android .app-safe-area-wrap:has([data-rps-page]),
+body.platform-ios .app-safe-area-wrap:has([data-rps-page]) {
+  overflow: hidden !important;
+  min-height: 100dvh !important;
+  max-height: 100dvh !important;
 }
 
 /* 모바일 터치 이벤트 최적화 */
@@ -136,23 +186,9 @@ input, textarea, [contenteditable] {
   user-select: text;
 }
 
-/* 토스트 컨테이너 터치 최적화 + iOS Safe Area */
+/* 토스트 컨테이너 — setDecorFitsSystemWindows(true)로 viewport가 상태바 아래이므로 기본 top: 1em으로 충분 */
 .Toastify__toast-container {
   touch-action: manipulation;
-}
-
-.Toastify__toast-container--top-right {
-  top: calc(1em + var(--safe-area-inset-top));
-  right: calc(1em + var(--safe-area-inset-right));
-}
-
-.Toastify__toast-container--top-left {
-  top: calc(1em + var(--safe-area-inset-top));
-  left: calc(1em + var(--safe-area-inset-left));
-}
-
-.Toastify__toast-container--top-center {
-  top: calc(1em + var(--safe-area-inset-top));
 }
 
 .Toastify__toast {
@@ -165,4 +201,24 @@ input, textarea, [contenteditable] {
 /* 스크롤 영역 터치 최적화 */
 .scrollable-content {
   -webkit-overflow-scrolling: touch;
+}
+
+/* 메인 알림종: 모바일에서만 fixed 상단 고정 (데스크톱은 플로우 유지) */
+@media (max-width: 768px) {
+  .main-notification-bell-fixed {
+    position: fixed !important;
+    top: 16px !important;
+    right: 20px !important;
+    z-index: 1000 !important;
+  }
+}
+@media (min-width: 769px) {
+  .main-notification-bell-fixed {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+  }
+  .main-notification-bell-spacer {
+    display: none !important;
+  }
 } 

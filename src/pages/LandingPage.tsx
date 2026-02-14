@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
+import { Capacitor } from '@capacitor/core';
 import { companyApi, systemApi } from '../services/api.ts';
 import type { Company } from '../types/index.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
@@ -16,13 +17,13 @@ const LandingContainer = styled.div`
   color: white;
   text-align: center;
   padding: 20px;
-  padding-top: calc(60px + var(--safe-area-inset-top));
+  padding-top: calc(60px + var(--safe-area-inset-top, 0px));
   @media (max-width: 768px) {
-    padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
+    padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top, 0px));
     padding-bottom: 40px;
   }
   @media (max-width: 480px) {
-    padding-top: calc(var(--mobile-top-padding, 100px) + var(--safe-area-inset-top));
+    padding-top: calc(var(--mobile-top-padding, 100px) + var(--safe-area-inset-top, 0px));
     padding-bottom: 30px;
   }
 `;
@@ -172,7 +173,7 @@ const FeatureCard = styled.div`
 
 const IntroButton = styled.button`
   position: fixed;
-  top: 18px;
+  top: calc(18px + var(--safe-area-inset-top, 0px));
   right: 18px;
   z-index: 100;
   padding: 8px 14px;
@@ -202,7 +203,7 @@ const IntroButton = styled.button`
   }
 
   @media (max-width: 768px) {
-    top: 18px;
+    top: calc(18px + var(--safe-area-inset-top, 0px));
     right: 12px;
     padding: 6px 12px;
     font-size: 0.8rem;
@@ -210,14 +211,14 @@ const IntroButton = styled.button`
 `;
 
 const CompanyButton = styled(IntroButton)`
-  top: 18px;
+  top: calc(18px + var(--safe-area-inset-top, 0px));
   left: 18px;
   right: auto;
   font-size: 0.85rem;
   padding: 6px 12px;
 
   @media (max-width: 768px) {
-    top: 18px;
+    top: calc(18px + var(--safe-area-inset-top, 0px));
     left: 12px;
     right: auto;
   }
@@ -520,6 +521,15 @@ const LandingPage = () => {
   const [showCompanyGuideTooltip, setShowCompanyGuideTooltip] = useState(false);
   const [androidStoreUrl, setAndroidStoreUrl] = useState<string | null>(null);
   const [iosStoreUrl, setIosStoreUrl] = useState<string | null>(null);
+
+  // 랜딩페이지 마운트 시 로딩 중 표시된 전역 배너 숨김
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (window.globalBannerAd && window.globalBannerShowing) {
+      window.globalBannerShowing = false;
+      window.globalBannerAd.hide?.().catch(() => {});
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

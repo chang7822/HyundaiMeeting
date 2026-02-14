@@ -13,7 +13,7 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1.25rem;
-    padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
+    padding-top: var(--mobile-top-padding, 80px);
   }
 `;
 

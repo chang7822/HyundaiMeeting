@@ -78,38 +78,36 @@ function createEntities(eachPerType: number): Entity[] {
   return list;
 }
 
-const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean; $hideBanner?: boolean }>`
+/* 광고/앱다운 배너는 하단에 오버레이로 덮음. 패딩 고정으로 배너 등장 시 화면 눌림 방지 */
+const Container = styled.div<{ $sidebarOpen: boolean; $isNativeApp?: boolean }>`
   flex: 1;
   margin-left: ${(p) => (p.$sidebarOpen ? '280px' : '0')};
-  padding: clamp(0.75rem, 2vw, 2rem);
-  padding-bottom: 7rem;
-  height: 100vh;
-  min-height: 100vh;
-  max-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: clamp(0.5rem, 1.5vw, 1rem);
+  padding-bottom: clamp(0.5rem, 1.5vw, 1rem);
   transition: margin-left 0.3s;
   overflow: hidden;
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100dvh;
 
   @media (max-width: 768px) {
     margin-left: 0;
-    padding: 1rem;
-    padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
-    padding-bottom: 7rem;
+    padding: 0.5rem 0.75rem;
+    padding-top: var(--mobile-top-padding, 72px);
+    padding-bottom: 0.75rem;
   }
 
   ${(p) =>
     p.$isNativeApp
       ? `
     overflow: hidden;
-    height: 100vh;
-    padding-top: calc(8px + var(--safe-area-inset-top, 0px));
-    padding-bottom: ${p.$hideBanner ? '1rem' : 'calc(50px + 12px + env(safe-area-inset-bottom, 0px))'};
+    padding-top: var(--mobile-top-padding, 72px);
     @media (max-width: 768px) {
-      padding-top: calc(8px + var(--safe-area-inset-top, 0px));
-      padding-bottom: ${p.$hideBanner ? '1rem' : 'calc(50px + 12px + env(safe-area-inset-bottom, 0px))'};
+      padding-top: var(--mobile-top-padding, 72px);
     }
   `
       : ''}
@@ -133,7 +131,7 @@ const AppDownloadBannerWrap = styled.div`
   z-index: 10;
   background: linear-gradient(180deg, rgba(102, 126, 234, 0.95) 0%, rgba(118, 75, 162, 0.95) 100%);
   padding: 12px 16px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -164,6 +162,10 @@ const StoreBadgeLink = styled.a`
 `;
 
 const Card = styled.div`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: white;
   border-radius: 16px;
   box-shadow: 0 12px 24px rgba(0,0,0,0.1);
@@ -172,13 +174,20 @@ const Card = styled.div`
   margin: 0 auto;
   overflow: hidden;
   box-sizing: border-box;
+  @media (min-width: 768px) {
+    max-width: min(90vw, 720px);
+  }
+  @media (min-width: 1024px) {
+    max-width: min(85vw, 800px);
+  }
 `;
 
 const Header = styled.div<{ $rightAlign?: boolean }>`
-  padding: clamp(0.75rem, 2vw, 1.25rem) clamp(1rem, 3vw, 1.5rem);
+  flex-shrink: 0;
+  padding: clamp(0.5rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  font-size: clamp(1rem, 4vw, 1.25rem);
+  font-size: clamp(0.9rem, 3vw, 1.1rem);
   font-weight: 700;
   box-sizing: border-box;
   text-align: ${(p) => (p.$rightAlign ? 'right' : 'left')};
@@ -196,7 +205,7 @@ const HeaderRow = styled.div<{ $rightAlign?: boolean }>`
   }
 `;
 
-const StatsFloatingBtn = styled.button`
+const StatsFloatingBtn = styled.button<{ $hidden?: boolean }>`
   flex-shrink: 0;
   padding: 0.4rem 0.75rem;
   border-radius: 10px;
@@ -207,6 +216,8 @@ const StatsFloatingBtn = styled.button`
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
+  visibility: ${(p) => (p.$hidden ? 'hidden' : 'visible')};
+  pointer-events: ${(p) => (p.$hidden ? 'none' : 'auto')};
   &:hover { background: rgba(255,255,255,0.35); }
 `;
 
@@ -320,21 +331,192 @@ const NicknameLink = styled.button`
 `;
 
 const Body = styled.div`
-  padding: clamp(0.75rem, 3vw, 1.5rem);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(0.5rem, 2vw, 1rem);
   box-sizing: border-box;
+  overflow: hidden;
 `;
 
+/** 캔버스 최대폭. 7할 확장, 폭부족시 최대폭까지만 */
+const CANVAS_MAX = ARENA;
+const CANVAS_MAX_TABLET = 560;
+const CANVAS_MAX_DESKTOP = 640;
+const CANVAS_WIDTH = `min(100cqw, 100cqh, ${CANVAS_MAX}px)`;
+const CANVAS_WIDTH_TABLET = `min(100cqw, 100cqh, ${CANVAS_MAX_TABLET}px)`;
+const CANVAS_WIDTH_DESKTOP = `min(100cqw, 100cqh, ${CANVAS_MAX_DESKTOP}px)`;
+
+/** 게임 영역. 예측 문구 밑으로 2:1:7 비율 (선택창:버튼:캔버스) */
+const GameArea = styled.div`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  container-type: size;
+  container-name: game;
+`;
+/** 상단: 내별·배팅 행 */
+const TopFixed = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+/** TopFixed 내용. 캔버스와 동일 폭, 내별·예측문구 왼쪽/가운데 정렬 */
+const TOP_FIXED_WIDTH = `min(100cqw, 70cqh, ${CANVAS_MAX}px)`;
+const TOP_FIXED_WIDTH_T = `min(100cqw, 70cqh, ${CANVAS_MAX_TABLET}px)`;
+const TOP_FIXED_WIDTH_D = `min(100cqw, 70cqh, ${CANVAS_MAX_DESKTOP}px)`;
+const TopFixedInner = styled.div`
+  width: ${TOP_FIXED_WIDTH};
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  @media (min-width: 768px) {
+    width: ${TOP_FIXED_WIDTH_T};
+  }
+  @media (min-width: 1024px) {
+    width: ${TOP_FIXED_WIDTH_D};
+  }
+`;
+/** 예측/남은판수 문구. 상단행·선택창 사이 수직 가운데 */
+const GuessTitleSection = styled.div`
+  flex-shrink: 0;
+  height: 2.25rem;
+  padding-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`;
+/** 규칙: ①캔버스 7할 ②선택(정사각형만큼 높이) ③버튼(나머지) */
+const RatioSection = styled.div`
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  container-type: size;
+  container-name: ratio;
+`;
+/** 선택·버튼·캔버스를 캔버스 폭으로 맞춤 (폭 정렬) */
+const GAP = '0.5rem';
+const SQUARE_SIZE = `calc((min(100cqw, 70cqh, ${CANVAS_MAX}px) - 2 * ${GAP}) / 3)`;
+const SQUARE_SIZE_T = `calc((min(100cqw, 70cqh, ${CANVAS_MAX_TABLET}px) - 2 * ${GAP}) / 3)`;
+const SQUARE_SIZE_D = `calc((min(100cqw, 70cqh, ${CANVAS_MAX_DESKTOP}px) - 2 * ${GAP}) / 3)`;
+const ARENA_HEIGHT = `min(70cqh, 100cqw, ${CANVAS_MAX}px)`;
+const ARENA_HEIGHT_T = `min(70cqh, 100cqw, ${CANVAS_MAX_TABLET}px)`;
+const ARENA_HEIGHT_D = `min(70cqh, 100cqw, ${CANVAS_MAX_DESKTOP}px)`;
+const GameColumn = styled.div`
+  width: min(100cqw, 70cqh, ${CANVAS_MAX}px);
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: ${GAP};
+  @media (min-width: 768px) {
+    width: min(100cqw, 70cqh, ${CANVAS_MAX_TABLET}px);
+  }
+  @media (min-width: 1024px) {
+    width: min(100cqw, 70cqh, ${CANVAS_MAX_DESKTOP}px);
+  }
+`;
+/** 선택창. 가로 넓을 땐 2할, 세로 길 땐 정사각형 높이만. 짧은 화면에선 축소 허용 */
+const SelectionArea = styled.div`
+  flex: 2 1 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  @container ratio (max-aspect-ratio: 1) {
+    flex: 0 0 auto;
+    min-height: ${SQUARE_SIZE};
+  }
+  @media (min-width: 768px) {
+    @container ratio (max-aspect-ratio: 1) {
+      min-height: ${SQUARE_SIZE_T};
+    }
+  }
+  @media (min-width: 1024px) {
+    @container ratio (max-aspect-ratio: 1) {
+      min-height: ${SQUARE_SIZE_D};
+    }
+  }
+  @media (max-height: 780px) {
+    @container ratio (max-aspect-ratio: 1) {
+      flex: 2 1 0;
+      min-height: 0;
+    }
+  }
+`;
+/** 시작버튼. 최대높이=선택창 높이(SQUARE_SIZE) */
+const ButtonArea = styled.div`
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: ${SQUARE_SIZE};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  @media (min-width: 768px) {
+    max-height: ${SQUARE_SIZE_T};
+  }
+  @media (min-width: 1024px) {
+    max-height: ${SQUARE_SIZE_D};
+  }
+`;
+/** 캔버스. 가로 넓을 땐 7할, 세로 길 땐 고정 높이. 짧은 화면(≤780px)에선 축소 허용 */
+const ArenaParent = styled.div`
+  flex: 7 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  container-type: size;
+  @container ratio (max-aspect-ratio: 1) {
+    flex: 0 0 auto;
+    height: ${ARENA_HEIGHT};
+  }
+  @media (min-width: 768px) {
+    @container ratio (max-aspect-ratio: 1) {
+      height: ${ARENA_HEIGHT_T};
+    }
+  }
+  @media (min-width: 1024px) {
+    @container ratio (max-aspect-ratio: 1) {
+      height: ${ARENA_HEIGHT_D};
+    }
+  }
+  /* 짧은 화면: 고정 높이 대신 flex로 축소 가능 → 버튼·캔버스 겹침 방지 */
+  @media (max-height: 780px) {
+    @container ratio (max-aspect-ratio: 1) {
+      flex: 7 1 0;
+      height: auto;
+      max-height: ${ARENA_HEIGHT};
+    }
+  }
+`;
 const ArenaWrap = styled.div`
+  flex: 0 0 auto;
   position: relative;
-  width: 100%;
-  max-width: ${ARENA}px;
+  width: ${CANVAS_WIDTH};
   aspect-ratio: 1;
-  margin: 0 auto 1rem;
   border: 3px solid #334155;
   border-radius: 12px;
   background: #ede9fe;
   overflow: hidden;
   box-sizing: border-box;
+  @media (min-width: 768px) {
+    width: ${CANVAS_WIDTH_TABLET};
+  }
+  @media (min-width: 1024px) {
+    width: ${CANVAS_WIDTH_DESKTOP};
+  }
   canvas {
     display: block;
     width: 100%;
@@ -342,63 +524,6 @@ const ArenaWrap = styled.div`
     vertical-align: top;
     object-fit: contain;
   }
-`;
-
-const VictoryOverlay = styled.div<{ $correct?: boolean }>`
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 9px;
-  animation: fadeIn 0.3s ease;
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-`;
-
-const VictoryCard = styled.div<{ $correct?: boolean }>`
-  text-align: center;
-  padding: 1.5rem 2rem;
-  border-radius: 16px;
-  background: white;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  border: 2px solid ${(p) => (p.$correct ? '#22c55e' : '#ef4444')};
-`;
-
-const VictoryEmoji = styled.div`
-  font-size: 4rem;
-  line-height: 1;
-  margin-bottom: 0.5rem;
-`;
-
-const VictoryTitle = styled.div`
-  font-size: 1rem;
-  font-weight: 600;
-  color: #64748b;
-  margin-bottom: 0.25rem;
-`;
-
-const VictoryWinner = styled.div`
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 0.5rem;
-`;
-
-const VictoryResult = styled.div<{ $correct?: boolean }>`
-  font-size: 1rem;
-  font-weight: 700;
-  color: ${(p) => (p.$correct ? '#16a34a' : '#dc2626')};
-`;
-
-const VictoryContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1rem;
 `;
 
 const ReplayBtnInRow = styled.button`
@@ -414,95 +539,98 @@ const ReplayBtnInRow = styled.button`
   &:hover { background: #0f766e; }
 `;
 
-/** 게임 종료 시 상단에 크게 보이는 다시하기 버튼 (시작 버튼과 동일 배경, 캔버스와 동일 폭) */
+/** 게임 종료 시 다시하기 */
 const ReplayBtnBig = styled.button`
+  min-height: 3rem;
   width: 100%;
-  max-width: ${ARENA}px;
-  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 1.875rem 1.5rem;
-  min-height: 4rem;
+  padding: clamp(1rem, 2.5vh, 1.75rem) 1.5rem;
   border-radius: 16px;
   border: none;
   font-weight: 700;
   font-size: 1.25rem;
   cursor: pointer;
-  background: #4f46e5;
+  background: linear-gradient(180deg, #7c7ef7 0%, #6366f1 30%, #5b4fd6 100%);
   color: white;
-  transition: transform 0.2s, background 0.2s;
+  border-bottom: 4px solid rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 3px 0 rgba(0, 0, 0, 0.15),
+    0 6px 12px rgba(0, 0, 0, 0.15),
+    0 8px 24px rgba(99, 102, 241, 0.25);
+  transition: transform 0.2s, box-shadow 0.2s, filter 0.2s, border-width 0.2s;
   &:hover {
-    background: #4338ca;
-    transform: translateY(-2px);
+    filter: brightness(1.05);
+    box-shadow:
+      0 3px 0 rgba(0, 0, 0, 0.12),
+      0 8px 16px rgba(0, 0, 0, 0.18),
+      0 12px 28px rgba(99, 102, 241, 0.35);
+    transform: translateY(-3px);
+  }
+  &:active {
+    transform: translateY(2px);
+    box-shadow:
+      0 0 0 rgba(0, 0, 0, 0.15),
+      0 2px 6px rgba(0, 0, 0, 0.2);
+    border-bottom-width: 1px;
   }
 `;
 
-/** 상단 영역 고정 높이 (두 상태에서 동일 → 캔버스 위치·화면 흔들림 방지) */
-const TOP_SECTION_HEIGHT = 280;
-
-/** 게임 종료 시 내 별 + 다시하기 버튼 래퍼 (고정 높이 안에서 수직 가운데) */
-const ReplaySectionWrap = styled.div`
+/** 게임 결과 멘트. 선택창 위치에 가운데 표시 */
+const ResultMessage = styled.div<{ $correct?: boolean }>`
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: ${TOP_SECTION_HEIGHT}px;
-  width: 100%;
-  gap: 1rem;
-`;
-
-/** 게임 종료 시 내 별·남은판수 한 묶음 (캔버스 폭, 왼쪽 정렬, 글자 키움) */
-const ReplayInfoBlock = styled.div`
-  width: 100%;
-  max-width: ${ARENA}px;
-  text-align: left;
+  text-align: center;
+  gap: 0.25rem;
   font-weight: 700;
-  color: #1e293b;
-  font-size: clamp(1rem, 3vw, 1.15rem);
-  line-height: 1.5;
-`;
-
-/** 배팅/선택 또는 다시하기 영역 래퍼 (고정 높이 → 전환 시 화면 흔들림 없음) */
-const TopSectionWrap = styled.div`
-  min-height: ${TOP_SECTION_HEIGHT}px;
-  margin-bottom: 0.25rem;
-`;
-
-const Controls = styled.div`
-  margin-bottom: 1rem;
-  min-height: ${TOP_SECTION_HEIGHT}px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-`;
-
-const PaletteControls = styled.div`
-  width: 100%;
-  max-width: ${ARENA}px;
-  margin: 0 auto 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
+  color: ${(p) => (p.$correct ? '#16a34a' : '#dc2626')};
+  font-size: clamp(0.95rem, 2.5vw, 1.15rem);
+  padding: 0.5rem;
+  border-radius: clamp(8px, 1.5vw, 14px);
+  border: 2px solid ${(p) => (p.$correct ? '#22c55e' : '#ef4444')};
+  background: ${(p) => (p.$correct ? '#dcfce7' : '#fee2e2')};
   box-sizing: border-box;
 `;
 
-const StartBtnRow = styled.div`
-  display: flex;
-  justify-content: center;
+/** 선택창. GameColumn 100% 폭 */
+const PaletteControls = styled.div`
   width: 100%;
-  > button {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+`;
+
+/** 시작버튼. GameColumn 100% 폭 = 캔버스와 동일 (가로 패딩 제거로 폭 일치) */
+const StartBtnRow = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  box-sizing: border-box;
+  > button, > span {
     width: 100%;
-    padding: 1.25rem 1.5rem;
-    font-size: 1.1rem;
+    min-height: 2.75rem;
+    padding: 0.75rem 1.25rem;
+    font-size: clamp(0.95rem, 2vw, 1.1rem);
     font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 `;
 
 const GameInProgressNotice = styled.div`
   width: 100%;
+  height: 100%;
   padding: 0.75rem 1rem;
   border-radius: 10px;
   background: #f1f5f9;
@@ -511,32 +639,44 @@ const GameInProgressNotice = styled.div`
   color: #64748b;
   text-align: center;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 `;
 
-const GuessSection = styled.div`
-  margin: 0.25rem 0 1rem;
-  text-align: center;
-`;
 const GuessTitle = styled.span`
   display: block;
   font-size: 0.875rem;
   font-weight: 600;
   color: #475569;
-  margin-bottom: 0.5rem;
+  text-align: center;
 `;
+/** 선택창 세개 한 행, 정사각형 */
 const GuessOptions = styled.div`
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  width: 100%;
+  height: 100%;
+  gap: ${GAP};
+  flex-wrap: nowrap;
   justify-content: center;
+  align-items: center;
 `;
 const GuessOption = styled.label<{ $selected: boolean }>`
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 100%;
+  aspect-ratio: 1;
+  max-width: calc((100% - 2 * ${GAP}) / 3);
+  overflow: hidden;
+  container-type: size;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.75rem 1.25rem;
-  border-radius: 12px;
+  justify-content: center;
+  gap: 0.5em;
+  padding: 0.35em;
+  border-radius: clamp(8px, 1.5vw, 14px);
+  box-sizing: border-box;
   border: 2px solid ${(p) => (p.$selected ? '#4f46e5' : '#e2e8f0')};
   background: ${(p) => (p.$selected ? '#eef2ff' : '#f8fafc')};
   cursor: pointer;
@@ -547,9 +687,12 @@ const GuessOption = styled.label<{ $selected: boolean }>`
   }
   input { display: none; }
 `;
-const GuessEmoji = styled.span` font-size: 2rem; line-height: 1; `;
+const GuessEmoji = styled.span`
+  font-size: clamp(1.5rem, 48cqi, 12rem);
+  line-height: 1;
+`;
 const GuessLabel = styled.span`
-  font-size: 0.8125rem;
+  font-size: clamp(0.75rem, 14cqi, 1.75rem);
   font-weight: 600;
   color: #334155;
 `;
@@ -560,19 +703,40 @@ const Btn = styled.button`
   border: none;
   font-weight: 600;
   cursor: pointer;
-  background: #4f46e5;
+  background: linear-gradient(180deg, #7c7ef7 0%, #6366f1 30%, #5b4fd6 100%);
   color: white;
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
-  &:hover:not(:disabled) { background: #4338ca; }
+  border-bottom: 3px solid rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.15),
+    0 4px 8px rgba(0, 0, 0, 0.15),
+    0 6px 16px rgba(99, 102, 241, 0.25);
+  transition: transform 0.2s, box-shadow 0.2s, filter 0.2s, border-color 0.2s;
+  &:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; border-bottom-color: transparent; }
+  &:hover:not(:disabled) {
+    filter: brightness(1.05);
+    box-shadow:
+      0 2px 0 rgba(0, 0, 0, 0.12),
+      0 6px 12px rgba(0, 0, 0, 0.18),
+      0 8px 22px rgba(99, 102, 241, 0.35);
+    transform: translateY(-2px);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow:
+      0 0 0 rgba(0, 0, 0, 0.15),
+      0 2px 4px rgba(0, 0, 0, 0.2);
+    border-bottom-width: 1px;
+  }
 `;
 
 const StarBetRow = styled.div`
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
-  margin-bottom: 0.75rem;
+  min-height: 44px;
   font-weight: 700;
   color: #1e293b;
   font-size: clamp(0.875rem, 2.5vw, 1rem);
@@ -584,6 +748,13 @@ const BetRow = styled.div`
   display: flex;
   align-items: center;
   gap: 0.25rem;
+`;
+/** 배팅 영역. 게임 종료 시 visibility로 숨김 → 레이아웃 유지, 내별 위치 그대로 */
+const BetSection = styled.span<{ $hide?: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem 1rem;
+  visibility: ${(p) => (p.$hide ? 'hidden' : 'visible')};
 `;
 const BetOption = styled.label<{ $selected: boolean; $disabled?: boolean }>`
   display: inline-flex;
@@ -686,10 +857,10 @@ const RpsArenaPage: React.FC<{
     return () => { cancelled = true; };
   }, [running, winner]);
 
-  // 앱 배너: 게임 중이 아닐 때만 표시, 게임 중이면 숨김
+  // 앱 배너: 게임 중이거나 사이드바 열림 시 숨김, 그 외에는 표시
   useEffect(() => {
     if (!preloadedBanner || !Capacitor.isNativePlatform()) return;
-    if (running) {
+    if (running || sidebarOpen) {
       preloadedBanner.hide?.().catch(() => {});
     } else {
       preloadedBanner.show?.().catch(() => {});
@@ -697,7 +868,7 @@ const RpsArenaPage: React.FC<{
     return () => {
       preloadedBanner.hide?.().catch(() => {});
     };
-  }, [preloadedBanner, running]);
+  }, [preloadedBanner, running, sidebarOpen]);
 
   useEffect(() => {
     if (Capacitor.isNativePlatform()) return;
@@ -1004,146 +1175,164 @@ const RpsArenaPage: React.FC<{
     setProfileModalUser(null);
   }, []);
 
+  const hideBanner = isNativeApp && (running || sidebarOpen);
   return (
-    <Container $sidebarOpen={sidebarOpen} $isNativeApp={isNativeApp} $hideBanner={isNativeApp && running}>
+    <Container $sidebarOpen={sidebarOpen} $isNativeApp={isNativeApp} data-rps-page>
       <Card>
         <Header $rightAlign={isNativeApp}>
           <HeaderRow $rightAlign={isNativeApp}>
             <span>✂️ 🗿 📄 가위바위보 아레나</span>
-            {showStatsButton && (
-              <StatsFloatingBtn type="button" onClick={openStatsModal} title="RPS 통계">
-                📊
-              </StatsFloatingBtn>
-            )}
+            <StatsFloatingBtn
+              type="button"
+              onClick={openStatsModal}
+              title="RPS 통계"
+              $hidden={!showStatsButton}
+            >
+              📊
+            </StatsFloatingBtn>
           </HeaderRow>
         </Header>
         <Body>
-          <TopSectionWrap>
-          {winner !== null ? (
-            <ReplaySectionWrap>
-              <ReplayInfoBlock>
-                <div> ⭐ 내 별 {starBalance === null ? '…' : `${starBalance}개`}</div>
-                <div style={{ fontWeight: 600, color: '#475569', marginTop: '0.25rem' }}>
-                   오늘 남은판수 : {playsRemaining}회
-                </div>
-              </ReplayInfoBlock>
-              <ReplayBtnBig onClick={replay}>다시하기</ReplayBtnBig>
-            </ReplaySectionWrap>
-          ) : (
-          <Controls>
-            <PaletteControls>
+          <GameArea>
+          <TopFixed>
+            <TopFixedInner>
               <StarBetRow>
                 <span>⭐ 내 별 {starBalance === null ? '…' : `${starBalance}개`}</span>
-                <span style={{ color: '#cbd5e1', fontWeight: 400 }}>·</span>
-                <span style={{ fontWeight: 600, color: '#475569' }}>배팅</span>
-                <BetRow>
-                  {[1, 2, 3].map((n) => (
-                    <BetOption
-                      key={n}
-                      $selected={betAmount === n}
-                      $disabled={maxBet < n}
-                    >
-                      <input
-                        type="radio"
-                        name="bet"
-                        checked={betAmount === n}
-                        onChange={() => setBetAmount(n)}
-                        disabled={running || maxBet < n}
-                      />
-                      {n}
-                    </BetOption>
-                  ))}
-                </BetRow>
+                <BetSection $hide={winner !== null}>
+                  <span style={{ color: '#cbd5e1', fontWeight: 400 }}>·</span>
+                  <span style={{ fontWeight: 600, color: '#475569' }}>배팅</span>
+                  <BetRow>
+                    {[1, 2, 3].map((n) => (
+                      <BetOption key={n} $selected={betAmount === n} $disabled={maxBet < n}>
+                        <input
+                          type="radio"
+                          name="bet"
+                          checked={betAmount === n}
+                          onChange={() => setBetAmount(n)}
+                          disabled={running || maxBet < n}
+                        />
+                        {n}
+                      </BetOption>
+                    ))}
+                  </BetRow>
+                </BetSection>
               </StarBetRow>
-              <GuessSection>
-                <GuessTitle>예측에 성공하면 ⭐을 두배로 드립니다</GuessTitle>
-                <GuessOptions>
-                  {TYPES.map((t) => (
-                    <GuessOption key={t} $selected={guess === t}>
-                      <input
-                        type="radio"
-                        name="guess"
-                        checked={guess === t}
-                        onChange={() => setGuess(t)}
-                        disabled={running}
-                      />
-                      <GuessEmoji>{EMOJI[t]}</GuessEmoji>
-                      <GuessLabel>{LABELS[t]}</GuessLabel>
-                    </GuessOption>
-                  ))}
-                </GuessOptions>
-              </GuessSection>
-              <StartBtnRow>
-                {!running ? (
-                  isNativeApp ? (
-                    playsRemaining <= 0 ? (
-                      <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
-                        {adLoading ? '광고 로딩…' : '광고 보고 3판 더 + ⭐3개 환급'}
-                      </ExtraPlayBtn>
-                    ) : (
-                      <Btn
-                        onClick={start}
-                        disabled={
-                          startingGame ||
-                          guess === null ||
-                          betAmount === null ||
-                          starBalance === null ||
-                          starBalance < (betAmount ?? 0)
-                        }
-                      >
-                        {startingGame ? '시작 중…' : `시작 (오늘 ${playsRemaining}판 남음)`}
-                      </Btn>
-                    )
-                  ) : (
-                    playsRemaining <= 0 ? (
-                      <span style={{ fontSize: '0.8125rem', color: '#64748b', display: 'block', width: '100%', textAlign: 'center' }}>
-                        오늘 횟수를 모두 사용했어요. 한 판 더 하려면 앱을 이용해주세요.
-                      </span>
-                    ) : (
-                      <Btn
-                        onClick={start}
-                        disabled={
-                          startingGame ||
-                          guess === null ||
-                          betAmount === null ||
-                          starBalance === null ||
-                          starBalance < (betAmount ?? 0) ||
-                          playsRemaining <= 0
-                        }
-                      >
-                        {startingGame ? '시작 중…' : `시작 (오늘 ${playsRemaining}판 남음)`}
-                      </Btn>
-                    )
-                  )
-                ) : (
-                  <GameInProgressNotice>게임 중 이탈 시 배팅한 별이 사라집니다</GameInProgressNotice>
-                )}
-              </StartBtnRow>
-            </PaletteControls>
-          </Controls>
-          )}
-          </TopSectionWrap>
-          <ArenaWrap>
-            <canvas ref={canvasRef} width={ARENA} height={ARENA} />
-            {winner !== null && (
-              <VictoryOverlay $correct={guess === winner}>
-                <VictoryContent>
-                  <VictoryCard $correct={guess === winner}>
-                    <VictoryEmoji>{EMOJI[winner]}</VictoryEmoji>
-                    <VictoryTitle>최종 승자</VictoryTitle>
-                    <VictoryWinner>{LABELS[winner]}</VictoryWinner>
-                    <VictoryResult $correct={guess === winner}>
+            </TopFixedInner>
+          </TopFixed>
+          <GuessTitleSection>
+            <GuessTitle>
+              {winner !== null
+                ? `오늘 남은 판수: ${playsRemaining}회`
+                : '예측에 성공하면 ⭐을 두배로 드립니다'}
+            </GuessTitle>
+          </GuessTitleSection>
+          <RatioSection>
+          {winner !== null ? (
+            <GameColumn>
+              <SelectionArea>
+                <PaletteControls>
+                  <ResultMessage $correct={guess === winner}>
+                    <span style={{ fontSize: '2rem', lineHeight: 1 }}>{EMOJI[winner]}</span>
+                    <span>최종 승자: {LABELS[winner]}</span>
+                    <span>
                       {guess !== null
                         ? guess === winner
                           ? `🎉 맞춤! ⭐ ${(currentBetRef.current || 0) * 2}개 지급`
                           : '틀렸어요'
                         : ''}
-                    </VictoryResult>
-                  </VictoryCard>
-                </VictoryContent>
-              </VictoryOverlay>
-            )}
-          </ArenaWrap>
+                    </span>
+                  </ResultMessage>
+                </PaletteControls>
+              </SelectionArea>
+              <ButtonArea>
+                <StartBtnRow>
+                  <ReplayBtnBig onClick={replay}>다시하기</ReplayBtnBig>
+                </StartBtnRow>
+              </ButtonArea>
+              <ArenaParent>
+                <ArenaWrap>
+                  <canvas ref={canvasRef} width={ARENA} height={ARENA} />
+                </ArenaWrap>
+              </ArenaParent>
+            </GameColumn>
+          ) : (
+            <GameColumn>
+              <SelectionArea>
+                <PaletteControls>
+                  <GuessOptions>
+                    {TYPES.map((t) => (
+                      <GuessOption key={t} $selected={guess === t}>
+                        <input
+                          type="radio"
+                          name="guess"
+                          checked={guess === t}
+                          onChange={() => setGuess(t)}
+                          disabled={running}
+                        />
+                        <GuessEmoji>{EMOJI[t]}</GuessEmoji>
+                        <GuessLabel>{LABELS[t]}</GuessLabel>
+                      </GuessOption>
+                    ))}
+                  </GuessOptions>
+                </PaletteControls>
+              </SelectionArea>
+              <ButtonArea>
+                <StartBtnRow>
+                  {!running ? (
+                    isNativeApp ? (
+                      playsRemaining <= 0 ? (
+                        <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
+                          {adLoading ? '광고 로딩…' : '광고 보고 3판 더 + ⭐3개 환급'}
+                        </ExtraPlayBtn>
+                      ) : (
+                        <Btn
+                          onClick={start}
+                          disabled={
+                            startingGame ||
+                            guess === null ||
+                            betAmount === null ||
+                            starBalance === null ||
+                            starBalance < (betAmount ?? 0)
+                          }
+                        >
+                          {startingGame ? '시작 중…' : `시작 (오늘 ${playsRemaining}판 남음)`}
+                        </Btn>
+                      )
+                    ) : (
+                      playsRemaining <= 0 ? (
+                        <span style={{ fontSize: '0.8125rem', color: '#64748b', display: 'block', width: '100%', textAlign: 'center' }}>
+                          오늘 횟수를 모두 사용했어요. 한 판 더 하려면 앱을 이용해주세요.
+                        </span>
+                      ) : (
+                        <Btn
+                          onClick={start}
+                          disabled={
+                            startingGame ||
+                            guess === null ||
+                            betAmount === null ||
+                            starBalance === null ||
+                            starBalance < (betAmount ?? 0) ||
+                            playsRemaining <= 0
+                          }
+                        >
+                          {startingGame ? '시작 중…' : `시작 (오늘 ${playsRemaining}판 남음)`}
+                        </Btn>
+                      )
+                    )
+                  ) : (
+                    <GameInProgressNotice>게임 중 이탈 시 배팅한 별이 사라집니다</GameInProgressNotice>
+                  )}
+                </StartBtnRow>
+              </ButtonArea>
+              <ArenaParent>
+                <ArenaWrap>
+                  <canvas ref={canvasRef} width={ARENA} height={ARENA} />
+                </ArenaWrap>
+              </ArenaParent>
+            </GameColumn>
+          )}
+          </RatioSection>
+          </GameArea>
         </Body>
       </Card>
       {profileModalOpen && profileModalLoading && (
@@ -1243,9 +1432,9 @@ const RpsArenaPage: React.FC<{
           </StatsModalBox>
         </StatsModalOverlay>
       )}
-      {isNativeApp && !running ? (
+      {isNativeApp && !running && !sidebarOpen ? (
         <BannerSlot id="rps-banner-slot" data-safe-area-bottom />
-      ) : !isNativeApp ? (
+      ) : !isNativeApp && !running ? (
         <AppDownloadBannerWrap data-safe-area-bottom>
           <AppDownloadTitle>
             <span style={{ fontSize: '1.1rem' }}>↓</span>

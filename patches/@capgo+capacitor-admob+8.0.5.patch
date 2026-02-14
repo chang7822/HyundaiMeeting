@@ -1,0 +1,69 @@
+diff --git a/node_modules/@capgo/capacitor-admob/android/src/main/kotlin/admob/plus/capacitor/ads/Banner.kt b/node_modules/@capgo/capacitor-admob/android/src/main/kotlin/admob/plus/capacitor/ads/Banner.kt
+index 26d1b41..a1b2c3d4 100644
+--- a/node_modules/@capgo/capacitor-admob/android/src/main/kotlin/admob/plus/capacitor/ads/Banner.kt
++++ b/node_modules/@capgo/capacitor-admob/android/src/main/kotlin/admob/plus/capacitor/ads/Banner.kt
+@@ -12,7 +12,7 @@ import android.view.Gravity
+ import android.view.View
+ import android.view.ViewGroup
+ import android.webkit.WebView
+-import android.widget.LinearLayout
++import android.widget.FrameLayout
+ import com.google.android.gms.ads.AdListener
+ import com.google.android.gms.ads.AdSize
+ import com.google.android.gms.ads.AdView
+@@ -104,26 +104,32 @@ class Banner(ctx: ExecuteContext) : AdBase(ctx), GenericAd {
+     private fun addBannerView(plugin: AdMobPlusPlugin?, adView: AdView?) {
+         val webView = plugin!!.bridge.webView
+         val wvParentView = webView.parent as ViewGroup
+         if (parentView == null) {
+-            parentView = LinearLayout(webView.context)
++            parentView = FrameLayout(webView.context)
+         }
+         if (wvParentView != null && wvParentView !== parentView) {
+             if (getParentView(parentView) != null) {
+                 parentView!!.removeAllViews()
+                 removeFromParentView(parentView)
+             }
+             wvParentView.removeView(webView)
+-            val content = parentView as LinearLayout?
+-            content!!.orientation = LinearLayout.VERTICAL
++            val content = parentView as FrameLayout?
+             content!!.setLayoutParams(
+-                LinearLayout.LayoutParams(
++                FrameLayout.LayoutParams(
+                     ViewGroup.LayoutParams.MATCH_PARENT,
+-                    ViewGroup.LayoutParams.MATCH_PARENT,
+-                    0.0f
++                    ViewGroup.LayoutParams.MATCH_PARENT
+                 )
+             )
+-            webView.layoutParams = LinearLayout.LayoutParams(
++            webView.layoutParams = FrameLayout.LayoutParams(
+                 ViewGroup.LayoutParams.MATCH_PARENT,
+-                ViewGroup.LayoutParams.MATCH_PARENT,
+-                1.0f
++                ViewGroup.LayoutParams.MATCH_PARENT
+             )
+             content.addView(webView)
+             wvParentView.addView(parentView)
+         }
++        /* 오버레이: 배너가 WebView 위에 덮이도록 FrameLayout 사용. 콘텐츠 높이 축소 방지 */
+         if (gravity == Gravity.TOP) {
+-            parentView!!.addView(adView, 0)
++            val params = FrameLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT,
++                Gravity.TOP
++            )
++            parentView!!.addView(adView, 0, params)
+         } else {
+-            parentView!!.addView(adView)
++            val params = FrameLayout.LayoutParams(
++                ViewGroup.LayoutParams.MATCH_PARENT,
++                ViewGroup.LayoutParams.WRAP_CONTENT,
++                Gravity.BOTTOM
++            ).apply { bottomMargin = 0 }
++            parentView!!.addView(adView, params)
+         }
+         parentView!!.bringToFront()
+         parentView!!.requestLayout()

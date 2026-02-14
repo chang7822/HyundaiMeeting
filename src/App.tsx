@@ -288,6 +288,110 @@ const AppInner: React.FC = () => {
     };
   }, []);
 
+  // 키보드 노출 시 keyboard-visible 클래스 — focus + visualViewport 이중 감지로 간격 제거
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let blurTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastFullHeight = window.visualViewport?.height ?? window.innerHeight;
+    const THRESHOLD = 150;
+
+    const addKeyboardVisible = () => document.body.classList.add('keyboard-visible');
+    const removeKeyboardVisible = () => document.body.classList.remove('keyboard-visible');
+
+    const onFocusIn = (e: FocusEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        if (blurTimer) clearTimeout(blurTimer);
+        addKeyboardVisible();
+      }
+    };
+    const onFocusOut = () => {
+      blurTimer = setTimeout(removeKeyboardVisible, 200);
+    };
+
+    const onViewportResize = () => {
+      const vh = window.visualViewport?.height ?? window.innerHeight;
+      if (vh > lastFullHeight) lastFullHeight = vh;
+      if (vh < lastFullHeight - THRESHOLD) addKeyboardVisible();
+      else removeKeyboardVisible();
+    };
+
+    document.addEventListener('focusin', onFocusIn);
+    document.addEventListener('focusout', onFocusOut);
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener('resize', onViewportResize);
+      vv.addEventListener('scroll', onViewportResize);
+    }
+    window.addEventListener('resize', onViewportResize);
+
+    return () => {
+      document.removeEventListener('focusin', onFocusIn);
+      document.removeEventListener('focusout', onFocusOut);
+      if (vv) {
+        vv.removeEventListener('resize', onViewportResize);
+        vv.removeEventListener('scroll', onViewportResize);
+      }
+      window.removeEventListener('resize', onViewportResize);
+      if (blurTimer) clearTimeout(blurTimer);
+    };
+  }, []);
+
+  // [Safe Area 디버그] chrome://inspect 콘솔에서 확인용 (Android 앱에서만)
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android') return;
+
+    const logSafeArea = (label: string) => {
+      const doc = document.documentElement;
+      const body = document.body;
+      const bodyStyle = window.getComputedStyle(body);
+      const rootStyle = window.getComputedStyle(doc);
+
+      const nativeTop = doc.style.getPropertyValue('--native-safe-area-inset-top') || rootStyle.getPropertyValue('--native-safe-area-inset-top');
+      const nativeBottom = doc.style.getPropertyValue('--native-safe-area-inset-bottom') || rootStyle.getPropertyValue('--native-safe-area-inset-bottom');
+      const safeTop = bodyStyle.getPropertyValue('--safe-area-inset-top');
+      const safeBottom = bodyStyle.getPropertyValue('--safe-area-inset-bottom');
+      const bodyPaddingTop = bodyStyle.paddingTop;
+      const bodyPaddingBottom = bodyStyle.paddingBottom;
+      const wrap = document.querySelector('.app-safe-area-wrap');
+      const wrapStyle = wrap ? window.getComputedStyle(wrap) : null;
+
+      console.log(`[SafeArea ${label}]`, {
+        platform: Capacitor.getPlatform(),
+        bodyClass: body.className,
+        'documentElement.inline --native-top': doc.style.getPropertyValue('--native-safe-area-inset-top') || '(없음)',
+        'documentElement.inline --native-bottom': doc.style.getPropertyValue('--native-safe-area-inset-bottom') || '(없음)',
+        'computed --native-safe-area-inset-top': nativeTop || '(없음)',
+        'computed --native-safe-area-inset-bottom': nativeBottom || '(없음)',
+        'computed --safe-area-inset-top (body)': safeTop || '(없음)',
+        'computed --safe-area-inset-bottom (body)': safeBottom || '(없음)',
+        'body.paddingTop': bodyPaddingTop,
+        'body.paddingBottom': bodyPaddingBottom,
+        'app-safe-area-wrap.paddingTop': wrapStyle?.paddingTop ?? '(없음)',
+        'app-safe-area-wrap.paddingBottom': wrapStyle?.paddingBottom ?? '(없음)',
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+      });
+    };
+
+    logSafeArea('mount');
+    const t1 = setTimeout(() => logSafeArea('+1.5s'), 1500);
+    const t2 = setTimeout(() => logSafeArea('+3s'), 3000);
+    const t3 = setTimeout(() => logSafeArea('+5s'), 5000);
+
+    (window as any).__safeAreaDebug = () => {
+      logSafeArea('수동호출');
+      return '콘솔 위 [SafeArea 수동호출] 로그 확인';
+    };
+    console.log('[SafeArea] 디버그: 콘솔에서 __safeAreaDebug() 입력 시 현재 값 다시 출력');
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+      delete (window as any).__safeAreaDebug;
+    };
+  }, []);
+
   // 웹 포어그라운드 푸시 알림 처리 (백그라운드에서만 표시)
   useEffect(() => {
     if (isNativeApp()) return; // 네이티브 앱은 firebase.ts에서 처리
@@ -621,18 +725,23 @@ const AppInner: React.FC = () => {
 
   if (showMaintenance) {
     return (
-      <MaintenanceScreen
-        onLogout={() => {
-          logout();
-          window.location.href = '/';
-        }}
-        message={maintenance?.message}
-      />
+      <div className="App">
+        <div className="app-safe-area-wrap">
+          <MaintenanceScreen
+            onLogout={() => {
+              logout();
+              window.location.href = '/';
+            }}
+            message={maintenance?.message}
+          />
+        </div>
+      </div>
     );
   }
 
   return (
     <div className="App">
+      <div className="app-safe-area-wrap">
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={
@@ -989,6 +1098,7 @@ const AppInner: React.FC = () => {
         </>
       )}
 
+      </div>
     </div>
   );
 

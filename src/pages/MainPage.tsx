@@ -85,16 +85,14 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1.5rem;
-    padding-top: calc(var(--mobile-top-padding, 80px) + var(--safe-area-inset-top));
-    padding-bottom: calc(1.5rem + var(--safe-area-inset-bottom));
-    body.platform-android & { padding-bottom: 0; }
+    padding-top: var(--mobile-top-padding, 80px);
+    padding-bottom: 1.5rem;
   }
   
   @media (max-width: 480px) {
     padding: 1rem;
-    padding-top: calc(var(--mobile-top-padding, 70px) + var(--safe-area-inset-top));
-    padding-bottom: calc(1rem + var(--safe-area-inset-bottom));
-    body.platform-android & { padding-bottom: 0; }
+    padding-top: var(--mobile-top-padding, 70px);
+    padding-bottom: 1rem;
   }
 `;
 
@@ -2683,54 +2681,33 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 </NicknameSpan>
                 님!
               </TopWelcomeTitle>
-              {/* 알림 종 아이콘 버튼 (오른쪽 상단) */}
-              <div style={{ position: 'relative', flexShrink: 0 }}>
+              {/* 알림 종: 모바일에서 fixed로 상단 고정 (사이드바 버튼과 같은 줄). 데스크톱에서는 스페이서 숨김 */}
+              <div className="main-notification-bell-spacer" style={{ width: 40, height: 40, flexShrink: 0 }} aria-hidden="true" />
+              <div className="main-notification-bell-fixed" style={{
+                position: 'fixed', top: 16, right: 20, zIndex: 1000,
+              }}>
                 <button
                   type="button"
-                  onClick={() => {
-                    navigate('/notifications');
-                  }}
+                  onClick={() => { navigate('/notifications'); }}
                   style={{
-                    border: 'none',
-                    background: 'rgba(15,23,42,0.4)',
-                    borderRadius: '999px',
-                    width: 40,
-                    height: 40,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    color: '#e5e7eb',
-                    boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
-                    padding: 0,
-                    position: 'relative',
+                    border: 'none', background: 'rgba(15,23,42,0.4)', borderRadius: '999px',
+                    width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', color: '#e5e7eb', boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
+                    padding: 0, position: 'relative',
                   }}
                 >
                   <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
                 </button>
-                {/* 새 알림 뱃지 (상단 우측 빨간 동그라미) */}
                 {notificationUnreadCount > 0 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: -4,
-                      right: -4,
-                      background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-                      color: 'white',
-                      borderRadius: '50%',
-                      minWidth: 22,
-                      height: 22,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.75rem',
-                      fontWeight: 700,
-                      boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)',
-                      border: '2px solid rgba(15,23,42,1)',
-                      zIndex: 10,
-                      padding: '0 4px',
-                    }}
-                  >
+                  <div style={{
+                    position: 'absolute', top: -4, right: -4,
+                    background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', color: 'white',
+                    borderRadius: '50%', minWidth: 22, height: 22,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.75rem', fontWeight: 700,
+                    boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)', border: '2px solid rgba(15,23,42,1)',
+                    zIndex: 10, padding: '0 4px',
+                  }}>
                     {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
                   </div>
                 )}
@@ -3067,55 +3044,33 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
               </NicknameSpan>
               님!
             </TopWelcomeTitle>
-            {/* 알림 종 아이콘 버튼 (오른쪽 상단) */}
-            <div style={{ position: 'relative', flexShrink: 0 }}>
+            {/* 알림 종: 모바일에서 fixed로 상단 고정 (사이드바 버튼과 같은 줄) */}
+            <div style={{ width: 40, height: 40, flexShrink: 0 }} aria-hidden="true" />
+            <div className="main-notification-bell-fixed" style={{
+              position: 'fixed', top: 16, right: 20, zIndex: 1000,
+            }}>
               <button
                 type="button"
-                onClick={() => {
-                  // console.log('[MainPage] 알림 아이콘 클릭, 현재 미읽음:', notificationUnreadCount);
-                  navigate('/notifications');
-                }}
+                onClick={() => { navigate('/notifications'); }}
                 style={{
-                  border: 'none',
-                  background: 'rgba(15,23,42,0.4)',
-                  borderRadius: '999px',
-                  width: 40,
-                  height: 40,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#e5e7eb',
-                  boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
-                  padding: 0,
-                  position: 'relative',
+                  border: 'none', background: 'rgba(15,23,42,0.4)', borderRadius: '999px',
+                  width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', color: '#e5e7eb', boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
+                  padding: 0, position: 'relative',
                 }}
               >
                 <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
               </button>
-              {/* 새 알림 뱃지 (상단 우측 빨간 동그라미) */}
               {notificationUnreadCount > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -4,
-                    background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-                    color: 'white',
-                    borderRadius: '50%',
-                    minWidth: 22,
-                    height: 22,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                    fontWeight: 700,
-                    boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)',
-                    border: '2px solid rgba(15,23,42,1)',
-                    zIndex: 10,
-                    padding: '0 4px',
-                  }}
-                >
+                <div style={{
+                  position: 'absolute', top: -4, right: -4,
+                  background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', color: 'white',
+                  borderRadius: '50%', minWidth: 22, height: 22,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.75rem', fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)', border: '2px solid rgba(15,23,42,1)',
+                  zIndex: 10, padding: '0 4px',
+                }}>
                   {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
                 </div>
               )}

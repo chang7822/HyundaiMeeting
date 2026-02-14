@@ -507,7 +507,7 @@ const ChatPage: React.FC = () => {
           </LoadingOverlay>
         )}
         {/* 헤더 고정 */}
-        <ChatHeaderWrapper>
+        <ChatHeaderWrapper data-safe-area-top>
         <ChatHeader
           partner={{
             nickname: partnerProfile?.nickname || '상대방',

@@ -44,9 +44,9 @@ const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   @media (max-width: 768px) {
     width: 100%;
     max-width: 280px;
-    /* 모바일: 하단 네비바에 가리지 않도록 높이 제한 */
-    height: calc(100dvh - var(--safe-area-inset-bottom));
-    min-height: calc(100dvh - var(--safe-area-inset-bottom));
+    /* setDecorFitsSystemWindows(true) 사용 시 viewport가 이미 safe area */
+    height: 100dvh;
+    min-height: 100dvh;
   }
 `;
 
@@ -69,15 +69,15 @@ const MobileOverlay = styled.div<{ $isOpen: boolean }>`
 
 const SidebarCloseButton = styled.button`
   position: absolute;
-  top: calc(18px + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px));
+  top: calc(18px + var(--sidebar-top-offset, 0px));
   right: 18px;
   z-index: 1100;
   background: transparent;
   color: #fff;
   border: none;
   border-radius: 50%;
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -91,7 +91,7 @@ const SidebarCloseButton = styled.button`
 
 const SidebarHeader = styled.div`
   padding: 2rem 1.5rem 1rem;
-  padding-top: calc(2rem + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px));
+  padding-top: calc(2rem + var(--sidebar-top-offset, 0px));
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   flex-shrink: 0;
 `;
@@ -1250,11 +1250,8 @@ const Sidebar: React.FC<{
     }, 0);
   };
 
-  // 플랫폼별 플로팅 버튼 위치 조정 (Android는 iOS보다 위쪽 공간 줄이기)
-  const platform = Capacitor.getPlatform();
-  const floatingButtonTop = platform === 'android'
-    ? `calc(20px + var(--safe-area-inset-top) + var(--sidebar-top-offset, 0px) + 10px)`
-    : `calc(20px + var(--safe-area-inset-top))`;
+  // 플로팅 버튼·알림종 상단 고정 (콘텐츠 패딩과 무관하게 위쪽에 유지)
+  const floatingButtonTop = '16px';
 
   return (
     <>
@@ -1274,7 +1271,7 @@ const Sidebar: React.FC<{
         </SidebarCloseButton>
       )}
       <MobileOverlay $isOpen={isOpen} onClick={onToggle} />
-      <SidebarContainer $isOpen={isOpen}>
+      <SidebarContainer $isOpen={isOpen} data-safe-area-top>
         {isOpen && (
           <SidebarCloseButton onClick={onToggle}>
             <FaChevronLeft />

@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#ffffff" />
     <meta
       name="description"
       content="직장인 솔로 공모 - 직장인을 위한 맞춤 소개팅/만남 서비스"
@@ -15,7 +15,20 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>직장인 솔로 공모</title>
   </head>
-  <body style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0; padding: 0;">
+  <body style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin: 0;">
+    <script>
+      (function(){
+        if (!/android/i.test(navigator.userAgent)) return;
+        document.documentElement.classList.add('platform-android');
+        var d = document.documentElement.style;
+        d.setProperty('--native-safe-area-inset-top', '24px');
+        d.setProperty('--native-safe-area-inset-bottom', '48px');
+        d.setProperty('--native-safe-area-inset-left', '0px');
+        d.setProperty('--native-safe-area-inset-right', '0px');
+        if (document.body) document.body.classList.add('platform-android');
+        else document.addEventListener('DOMContentLoaded', function(){ document.body.classList.add('platform-android'); });
+      })();
+    </script>
     <noscript>You need to enable JavaScript to run this app.</noscript>
     <div id="root"></div>
   </body>

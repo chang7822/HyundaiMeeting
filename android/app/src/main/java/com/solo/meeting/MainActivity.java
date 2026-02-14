@@ -3,16 +3,20 @@ package com.solo.meeting;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.graphics.Color;
+import android.os.Build;
 import android.view.View;
-import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.webkit.WebView;
-import androidx.coordinatorlayout.widget.CoordinatorLayout;
+import androidx.activity.EdgeToEdge;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-import androidx.activity.EdgeToEdge;
+import androidx.core.view.WindowInsetsCompat.Type;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Bridge;
+import com.getcapacitor.WebViewListener;
 import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.initialization.InitializationStatus;
 import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
@@ -25,13 +29,25 @@ public class MainActivity extends BridgeActivity {
         WebView.setWebContentsDebuggingEnabled(true);
         android.util.Log.d("MainActivity", "WebView 디버깅 활성화됨");
 
-        // 네이티브 플러그인 등록 (설정 화면 열기 등)
         registerPlugin(AppSettingsPlugin.class);
-        
-        super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this); // @capacitor-community/safe-area: Edge-to-Edge + Safe Area
 
-        // AdMob SDK 초기화는 onStart()에서 WebView가 완전히 로드된 후에 수행
+        bridgeBuilder.addWebViewListener(new WebViewListener() {
+            @Override
+            public void onPageLoaded(android.webkit.WebView webView) {
+                injectSafeAreaInsets(webView);
+            }
+        });
+
+        EdgeToEdge.enable(this);
+        super.onCreate(savedInstanceState);
+
+        // 상태바·네비바 흰색 (SafeArea 플러그인 initialViewportFitCover: false로 구간 분리)
+        applyWhiteSystemBars();
+        getWindow().getDecorView().post(() -> applyWhiteSystemBars());
+        getWindow().getDecorView().postDelayed(() -> applyWhiteSystemBars(), 100);
+        getWindow().getDecorView().postDelayed(() -> applyWhiteSystemBars(), 300);
+        getWindow().getDecorView().postDelayed(() -> applyWhiteSystemBars(), 800);
+
         android.util.Log.d("MainActivity", "MainActivity onCreate 완료");
     }
     
@@ -56,44 +72,76 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onResume() {
         super.onResume();
-        
-        // WebView가 완전히 로드된 후 JavaScript 인터페이스 명시적 활성화
-        new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    Bridge bridge = getBridge();
-                    if (bridge != null) {
-                        WebView webView = bridge.getWebView();
-                        if (webView != null) {
-                            android.util.Log.d("MainActivity", "WebView 인스턴스 확인됨 (onResume)");
-                            
-                            // WebView JavaScript 인터페이스 명시적 활성화
-                            android.webkit.WebSettings webSettings = webView.getSettings();
-                            if (webSettings != null) {
-                                webSettings.setJavaScriptEnabled(true);
-                                webSettings.setDomStorageEnabled(true);
-                                webSettings.setDatabaseEnabled(true);
-                                android.util.Log.d("MainActivity", "WebView JavaScript 및 스토리지 활성화 완료");
-                            }
-                            
-                            // WebView가 완전히 로드되었는지 확인
-                            if (webView.getUrl() != null && !webView.getUrl().isEmpty()) {
-                                android.util.Log.d("MainActivity", "WebView URL: " + webView.getUrl());
-                                android.util.Log.d("MainActivity", "WebView 준비 완료 - AdMob 플러그인 사용 가능");
-                            } else {
-                                android.util.Log.w("MainActivity", "WebView URL이 아직 설정되지 않음");
-                            }
-                        } else {
-                            android.util.Log.w("MainActivity", "WebView 인스턴스를 가져올 수 없음 (onResume)");
+        applyWhiteSystemBars();
+        getWindow().getDecorView().post(() -> applyWhiteSystemBars());
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            try {
+                Bridge bridge = getBridge();
+                if (bridge != null) {
+                    WebView webView = bridge.getWebView();
+                    if (webView != null) {
+                        injectSafeAreaInsets(webView);
+                        android.webkit.WebSettings webSettings = webView.getSettings();
+                        if (webSettings != null) {
+                            webSettings.setJavaScriptEnabled(true);
+                            webSettings.setDomStorageEnabled(true);
+                            webSettings.setDatabaseEnabled(true);
                         }
-                    } else {
-                        android.util.Log.w("MainActivity", "Bridge 인스턴스를 가져올 수 없음 (onResume)");
                     }
-                } catch (Exception e) {
-                    android.util.Log.e("MainActivity", "WebView 확인 중 오류 (onResume)", e);
                 }
+            } catch (Exception e) {
+                android.util.Log.e("MainActivity", "WebView 확인 중 오류 (onResume)", e);
             }
-        }, 1000); // 1초 후 WebView 확인
+        }, 0);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) applyWhiteSystemBars();
+    }
+
+    private void applyWhiteSystemBars() {
+        Window w = getWindow();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+            w.setStatusBarColor(Color.WHITE);
+            w.setNavigationBarColor(Color.WHITE);
+        }
+    }
+
+    private void injectSafeAreaInsets(WebView webView) {
+        injectSafeAreaInsets(webView, 0);
+    }
+
+    private void injectSafeAreaInsets(WebView webView, int retry) {
+        if (webView == null) return;
+        View decorView = getWindow().getDecorView();
+        float density = getResources().getDisplayMetrics().density;
+
+        WindowInsetsCompat insets = ViewCompat.getRootWindowInsets(decorView);
+        int top = 0, bottom = 0, left = 0, right = 0;
+        if (insets != null) {
+            Insets systemBars = insets.getInsets(Type.systemBars() | Type.displayCutout());
+            top = (int) (systemBars.top / density);
+            bottom = (int) (systemBars.bottom / density);
+            left = (int) (systemBars.left / density);
+            right = (int) (systemBars.right / density);
+        } else {
+            top = (int) (decorView.getPaddingTop() / density);
+            bottom = (int) (decorView.getPaddingBottom() / density);
+        }
+        if (top == 0 && bottom == 0 && retry < 5) {
+            new Handler(Looper.getMainLooper()).postDelayed(() -> injectSafeAreaInsets(webView, retry + 1), 250);
+            return;
+        }
+        if (top > 80) top = 24;
+        if (bottom > 96) bottom = 48;
+
+        String js = "document.documentElement.style.setProperty('--native-safe-area-inset-top','" + top + "px');"
+                + "document.documentElement.style.setProperty('--native-safe-area-inset-bottom','" + bottom + "px');"
+                + "document.documentElement.style.setProperty('--native-safe-area-inset-left','" + left + "px');"
+                + "document.documentElement.style.setProperty('--native-safe-area-inset-right','" + right + "px');";
+        webView.evaluateJavascript(js, null);
     }
 }

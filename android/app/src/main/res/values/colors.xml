@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 앱 메인 그라데이션 시작색 (스플래시 제거 후 초기 배경용) -->
+    <color name="app_primary">#667eea</color>
+    <!-- styles.xml AppTheme 참조용 (상태바/네비바는 styles에서 @android:color/white 사용) -->
+    <color name="colorPrimary">#667eea</color>
+    <color name="colorPrimaryDark">#5a67d8</color>
+    <color name="colorAccent">#764ba2</color>
+</resources>
