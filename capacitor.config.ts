@@ -9,10 +9,10 @@ const config: CapacitorConfig = {
   // 원격 서버 모드: 앱이 Render 서버에서 웹 파일을 로드
   // main 브랜치 변경 시 자동으로 앱에 반영됨
   // server 주석처리시 로컬 번들 사용(실기기 테스트용)
-  // server: {
-  //   url: 'https://automatchingway.com',
-  //   cleartext: false, // HTTPS 사용
-  // },
+  server: {
+    url: 'https://automatchingway.com',
+    cleartext: false, // HTTPS 사용
+  },
 
   android: {
     allowMixedContent: true, // WebView Mixed Content 허용
