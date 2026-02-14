@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevronDown, FaChevronUp, FaBan, FaSyncAlt } from 'react-icons/fa';
+import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevronDown, FaChevronUp, FaBan, FaSyncAlt, FaUserSlash } from 'react-icons/fa';
 import { communityApi, matchingApi, adminApi } from '../services/api.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import InlineSpinner from '../components/InlineSpinner.tsx';
@@ -817,6 +817,30 @@ const DeletedPostCard = styled.div`
   }
 `;
 
+/** 차단된 사용자 글/댓글 전체 음영 */
+const BlockedCardWrapper = styled.div`
+  position: relative;
+  opacity: 0.72;
+  background: #e5e7eb;
+  border-radius: 12px;
+  padding: 2px;
+  border: 1px solid #d1d5db;
+
+  @media (max-width: 768px) {
+    border-radius: 10px;
+  }
+`;
+
+const BlockedCommentWrapper = styled.div`
+  position: relative;
+  opacity: 0.72;
+  background: #e5e7eb;
+  border-radius: 8px;
+  padding: 2px;
+  border: 1px solid #d1d5db;
+  margin-bottom: 0.5rem;
+`;
+
 const LoadMoreButton = styled.button`
   width: 100%;
   padding: 1rem;
@@ -1068,7 +1092,9 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [reportCategory, setReportCategory] = useState<string>('욕설');
   const [reportDetail, setReportDetail] = useState<string>('');
   const [reportedItems, setReportedItems] = useState<Set<string>>(new Set()); // 'post:123' 또는 'comment:456' 형식
-  
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockTarget, setBlockTarget] = useState<{ periodId: number; anonymousNumber: number; postId?: number } | null>(null);
+
   // [관리자 전용] 익명 ID 관리
   const [adminIdentities, setAdminIdentities] = useState<Array<{ anonymousNumber: number; colorCode: string; tag: string; fixedDisplayTag?: string }>>([]);
   const [selectedAnonymousNumber, setSelectedAnonymousNumber] = useState<number | null>(null);
@@ -1666,6 +1692,45 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     }
   };
 
+  // 차단 확인 모달 열기
+  const requestBlockUser = (periodId: number, anonymousNumber: number, postId?: number) => {
+    setBlockTarget({ periodId, anonymousNumber, postId });
+    setShowBlockModal(true);
+  };
+
+  // 익명 사용자 차단 실행 (모달에서 확인 시)
+  const confirmBlockUser = async () => {
+    if (!blockTarget) return;
+    try {
+      await communityApi.blockUser(blockTarget.periodId, blockTarget.anonymousNumber);
+      toast.success('차단되었습니다.');
+      setShowBlockModal(false);
+      setBlockTarget(null);
+      loadData();
+      if (blockTarget.postId != null) {
+        const { comments: fetchedComments } = await communityApi.getComments(blockTarget.postId);
+        setComments(prev => ({ ...prev, [blockTarget.postId!]: fetchedComments }));
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || '차단에 실패했습니다.');
+    }
+  };
+
+  // 차단 해제
+  const handleUnblockUser = async (periodId: number, anonymousNumber: number, postId?: number) => {
+    try {
+      await communityApi.unblockUser(periodId, anonymousNumber);
+      toast.success('차단이 해제되었습니다.');
+      loadData();
+      if (postId != null) {
+        const { comments: fetchedComments } = await communityApi.getComments(postId);
+        setComments(prev => ({ ...prev, [postId]: fetchedComments }));
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || '차단 해제에 실패했습니다.');
+    }
+  };
+
   // 신고 요청
   const requestReport = (targetType: 'post' | 'comment', targetId: number) => {
     const reportKey = `${targetType}:${targetId}`;
@@ -1941,6 +2006,28 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         </div>
       </Modal>
 
+      {/* 차단 확인 모달 */}
+      <Modal
+        show={showBlockModal}
+        onClose={() => {
+          setShowBlockModal(false);
+          setBlockTarget(null);
+        }}
+        onConfirm={confirmBlockUser}
+        title="사용자 차단"
+        confirmText="차단"
+        cancelText="취소"
+      >
+        <p>
+          {blockTarget && (
+            <>익명{blockTarget.anonymousNumber}님을(를) 차단하시겠습니까?</>
+          )}
+        </p>
+        <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.9rem' }}>
+          해당 사용자의 글과 댓글이 <strong>차단된 사용자</strong>로 음영 처리되어 표시됩니다.
+        </p>
+      </Modal>
+
       {/* [관리자 전용] 익명 ON이면 익명 ID 박스 표시 */}
       {user?.isAdmin && !postAsAdmin && (
             <AdminIdentitySection>
@@ -2173,7 +2260,28 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
             const lineBreaks = (post.content.match(/\n/g) || []).length;
             const needsExpand = lineBreaks > 2 || post.content.length > 90;
 
-            return (
+            // 차단된 글: 내용 숨기고 "차단된 사용자의 글 입니다" + 차단 해제 버튼만 표시
+            if (post.blocked_by_me) {
+              return (
+                <BlockedCardWrapper
+                  key={post.id}
+                  ref={(el) => { postRefs.current[post.id] = el; }}
+                >
+                  <div style={{ padding: '1rem 1.25rem' }}>
+                    {!isMyPost && !post.is_admin_post && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                        <IconButton onClick={() => handleUnblockUser(post.period_id, post.anonymous_number)} title="차단 해제">
+                          <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 600 }}>차단 해제</span>
+                        </IconButton>
+                      </div>
+                    )}
+                    <span style={{ color: '#6b7280', fontSize: '0.95rem' }}>차단된 사용자의 글 입니다.</span>
+                  </div>
+                </BlockedCardWrapper>
+              );
+            }
+
+            const cardContent = (
               <PostCard 
                 key={post.id}
                 ref={(el) => {
@@ -2200,6 +2308,11 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                         style={{ color: '#dc2626' }}
                       >
                         <FaBan />
+                      </IconButton>
+                    )}
+                    {!isMyPost && !post.is_admin_post && (
+                      <IconButton onClick={() => requestBlockUser(post.period_id, post.anonymous_number)} title="이 사용자 차단">
+                        <FaUserSlash style={{ color: '#6b7280' }} />
                       </IconButton>
                     )}
                     {!isMyPost && (
@@ -2291,7 +2404,25 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                       const commentLineBreaks = (comment.content.match(/\n/g) || []).length;
                       const commentNeedsExpand = commentLineBreaks > 2 || comment.content.length > 70;
 
-                      return (
+                      // 차단된 댓글: 내용 숨기고 "차단된 사용자의 댓글 입니다" + 차단 해제 버튼만 표시
+                      if (comment.blocked_by_me) {
+                        return (
+                          <BlockedCommentWrapper key={comment.id}>
+                            <div style={{ padding: '0.75rem' }}>
+                              {!isMyComment && !comment.is_admin_post && (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem' }}>
+                                  <IconButton onClick={() => handleUnblockUser(post.period_id, comment.anonymous_number, post.id)} title="차단 해제">
+                                    <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>차단 해제</span>
+                                  </IconButton>
+                                </div>
+                              )}
+                              <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>차단된 사용자의 댓글 입니다.</span>
+                            </div>
+                          </BlockedCommentWrapper>
+                        );
+                      }
+
+                      const commentContent = (
                         <CommentItem key={comment.id}>
                           <CommentHeader>
                             <PostAuthor>
@@ -2313,6 +2444,11 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                                   style={{ color: '#dc2626' }}
                                 >
                                   <FaBan size={12} />
+                                </IconButton>
+                              )}
+                              {!isMyComment && !comment.is_admin_post && (
+                                <IconButton onClick={() => requestBlockUser(post.period_id, comment.anonymous_number, post.id)} title="이 사용자 차단">
+                                  <FaUserSlash size={12} style={{ color: '#6b7280' }} />
                                 </IconButton>
                               )}
                               {!isMyComment && (
@@ -2364,6 +2500,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                           )}
                         </CommentItem>
                       );
+                      return commentContent;
                     })}
 
                     <div style={{ marginTop: '1rem' }}>
@@ -2456,6 +2593,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                 )}
               </PostCard>
             );
+            return cardContent;
           })}
           {hasMore && (
             <LoadMoreButton onClick={loadMore} disabled={loadingMore}>

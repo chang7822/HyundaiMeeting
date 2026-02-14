@@ -11,6 +11,17 @@ const COLOR_POOL = [
   '#EC4899', '#8B5CF6', '#14B8A6', '#F97316', '#06B6D4'
 ];
 
+/** 해당 회차에서 내가 차단한 익명 번호 집합 (Set<number>) */
+async function getBlockedAnonymousSet(blockerUserId, periodId) {
+  const { data: rows } = await supabase
+    .from('community_blocks')
+    .select('blocked_anonymous_number')
+    .eq('blocker_user_id', blockerUserId)
+    .eq('period_id', periodId);
+  if (!rows || rows.length === 0) return new Set();
+  return new Set(rows.map(r => r.blocked_anonymous_number));
+}
+
 /**
  * [관리자 전용] 모든 익명 ID 조회
  * GET /api/community/admin/identities/:periodId
@@ -312,6 +323,90 @@ router.get('/my-identity/:periodId', authenticate, async (req, res) => {
 });
 
 /**
+ * [차단] 해당 회차에서 내가 차단한 익명 번호 목록
+ * GET /api/community/blocked-list/:periodId
+ */
+router.get('/blocked-list/:periodId', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const periodId = parseInt(req.params.periodId);
+    if (!periodId || isNaN(periodId)) {
+      return res.status(400).json({ error: 'period_id가 필요합니다.' });
+    }
+    const { data: rows } = await supabase
+      .from('community_blocks')
+      .select('blocked_anonymous_number')
+      .eq('blocker_user_id', userId)
+      .eq('period_id', periodId)
+      .order('blocked_anonymous_number', { ascending: true });
+    res.json({ blockedAnonymousNumbers: (rows || []).map(r => r.blocked_anonymous_number) });
+  } catch (error) {
+    console.error('[community] 차단 목록 조회 예외:', error);
+    res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+/**
+ * [차단] 익명 사용자 차단
+ * POST /api/community/block
+ * Body: { period_id, anonymous_number }
+ */
+router.post('/block', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { period_id, anonymous_number } = req.body;
+    const periodId = parseInt(period_id);
+    const anum = parseInt(anonymous_number);
+    if (!periodId || isNaN(periodId) || !anum || isNaN(anum)) {
+      return res.status(400).json({ error: 'period_id와 anonymous_number가 필요합니다.' });
+    }
+    const { error } = await supabase
+      .from('community_blocks')
+      .upsert(
+        { blocker_user_id: userId, period_id: periodId, blocked_anonymous_number: anum },
+        { onConflict: ['blocker_user_id', 'period_id', 'blocked_anonymous_number'] }
+      );
+    if (error) {
+      console.error('[community] 차단 추가 오류:', error);
+      return res.status(500).json({ error: '차단에 실패했습니다.' });
+    }
+    res.json({ success: true, message: '차단되었습니다.' });
+  } catch (error) {
+    console.error('[community] 차단 예외:', error);
+    res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+/**
+ * [차단] 익명 사용자 차단 해제
+ * DELETE /api/community/block/:periodId/:anonymousNumber
+ */
+router.delete('/block/:periodId/:anonymousNumber', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const periodId = parseInt(req.params.periodId);
+    const anum = parseInt(req.params.anonymousNumber);
+    if (!periodId || isNaN(periodId) || !anum || isNaN(anum)) {
+      return res.status(400).json({ error: 'period_id와 anonymous_number가 필요합니다.' });
+    }
+    const { error } = await supabase
+      .from('community_blocks')
+      .delete()
+      .eq('blocker_user_id', userId)
+      .eq('period_id', periodId)
+      .eq('blocked_anonymous_number', anum);
+    if (error) {
+      console.error('[community] 차단 해제 오류:', error);
+      return res.status(500).json({ error: '차단 해제에 실패했습니다.' });
+    }
+    res.json({ success: true, message: '차단이 해제되었습니다.' });
+  } catch (error) {
+    console.error('[community] 차단 해제 예외:', error);
+    res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+/**
  * 매칭 상태에 따른 태그 결정
  * - 진행중 (신청 기간): "매칭신청X" 또는 "매칭신청완료"
  * - 발표완료 (매칭 진행 중): "매칭성공" (성공한 사람만)
@@ -479,6 +574,9 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
     }
     // 'latest'는 이미 created_at DESC로 정렬됨
 
+    // 차단 목록 조회 (숨기지 않고 blocked_by_me 플래그로 표시)
+    const blockedSet = await getBlockedAnonymousSet(userId, periodId);
+
     // 페이지네이션 적용
     const paginatedPosts = sortedPosts.slice(offset, offset + limit);
     const totalCount = sortedPosts.length;
@@ -567,7 +665,8 @@ router.get('/posts/:periodId', authenticate, async (req, res) => {
       return {
         ...post,
         color_code: colorCode,
-        tag
+        tag,
+        blocked_by_me: blockedSet.has(post.anonymous_number)
       };
     });
 
@@ -1093,6 +1192,7 @@ router.delete('/posts/:postId', authenticate, async (req, res) => {
  */
 router.get('/posts/:postId/comments', authenticate, async (req, res) => {
   try {
+    const userId = req.user.userId;
     const postId = parseInt(req.params.postId);
 
     if (!postId || isNaN(postId)) {
@@ -1111,7 +1211,7 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
     }
 
     // 모든 댓글 조회 (삭제된 것도 포함, 프론트엔드에서 "신고 누적으로 삭제된 댓글입니다" 표시)
-    const { data: comments, error } = await supabase
+    let { data: comments, error } = await supabase
       .from('community_comments')
       .select('*')
       .eq('post_id', postId)
@@ -1121,6 +1221,9 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
       console.error('[community] 댓글 목록 조회 오류:', error);
       return res.status(500).json({ error: '댓글 목록 조회 실패' });
     }
+
+    // 차단 목록 조회 (숨기지 않고 blocked_by_me 플래그로 표시)
+    const blockedSet = await getBlockedAnonymousSet(userId, post.period_id);
 
     // 배치 쿼리로 성능 최적화
     // 1. 회차 정보 한 번만 조회
@@ -1199,7 +1302,8 @@ router.get('/posts/:postId/comments', authenticate, async (req, res) => {
       return {
         ...comment,
         color_code: colorCode,
-        tag
+        tag,
+        blocked_by_me: blockedSet.has(comment.anonymous_number)
       };
     });
 

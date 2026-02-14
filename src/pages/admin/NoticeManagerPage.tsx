@@ -24,6 +24,9 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   transition: margin-left 0.3s;
+  max-width: 100vw;
+  box-sizing: border-box;
+  overflow-x: hidden;
   @media (max-width: 768px) {
     margin-left: 0;
     padding: 1rem;
@@ -38,16 +41,10 @@ const ContentWrapper = styled.div`
   overflow: hidden;
   min-height: calc(100vh - 4rem);
   width: 100%;
-  max-width: 95vw;
+  max-width: 1040px;
   margin: 0 auto;
-  @media (min-width: 600px) {
-    max-width: 600px;
-  }
-  @media (min-width: 900px) {
-    max-width: 800px;
-  }
-  @media (min-width: 1200px) {
-    max-width: 1000px;
+  @media (max-width: 768px) {
+    margin: 0 auto;
   }
 `;
 
@@ -55,42 +52,80 @@ const Header = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2rem;
+  padding: 0.5rem 1.8rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  @media (max-width: 768px) {
+    padding: 0.5rem 1rem;
+  }
 `;
 
 const Title = styled.h1`
-  font-size: 1.8rem;
+  font-size: 1.5rem;
   font-weight: 700;
   margin: 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  @media (max-width: 768px) {
+    font-size: 1.3rem;
+  }
+`;
+
+const HeaderButtons = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
 `;
 
 const AddButton = styled.button`
   background: rgba(255, 255, 255, 0.2);
   border: none;
   border-radius: 12px;
-  padding: 0.75rem 1.5rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: white;
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 600;
-  white-space: nowrap;
-  
+  font-size: 1.2rem;
   &:hover {
     background: rgba(255, 255, 255, 0.3);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+`;
+
+const CloseButton = styled.button`
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 `;
 
 const NoticeList = styled.div`
-  padding: 2rem;
+  padding: 1.5rem 1.25rem 2rem;
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
 `;
 
 const NoticeItem = styled.div`
@@ -100,11 +135,13 @@ const NoticeItem = styled.div`
   padding: 1.5rem;
   margin-bottom: 1rem;
   transition: all 0.3s ease;
-  
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
     border-color: #667eea;
+  }
+  @media (max-width: 768px) {
+    padding: 0.9rem 0.85rem;
   }
 `;
 
@@ -114,6 +151,7 @@ const NoticeHeader = styled.div`
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
 `;
 
 const NoticeTitle = styled.h3`
@@ -123,12 +161,17 @@ const NoticeTitle = styled.h3`
   margin: 0;
   flex: 1;
   line-height: 1.4;
+  min-width: 0;
+  word-break: break-word;
+  @media (max-width: 768px) {
+    font-size: 0.95rem;
+  }
 `;
 
 const ImportantBadge = styled.span`
   background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
   color: white;
-  padding: 0.25rem 0.75rem;
+  padding: 0.25rem 0.5rem;
   border-radius: 20px;
   font-size: 0.75rem;
   font-weight: 600;
@@ -136,6 +179,7 @@ const ImportantBadge = styled.span`
   align-items: center;
   gap: 0.25rem;
   white-space: nowrap;
+  flex-shrink: 0;
 `;
 
 const NoticeMeta = styled.div`
@@ -145,12 +189,18 @@ const NoticeMeta = styled.div`
   color: #718096;
   font-size: 0.875rem;
   margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+  @media (max-width: 768px) {
+    gap: 1rem;
+    font-size: 0.8rem;
+  }
 `;
 
 const MetaItem = styled.div`
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  white-space: nowrap;
 `;
 
 const NoticeContent = styled.p`
@@ -167,6 +217,10 @@ const ActionButtons = styled.div`
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  @media (max-width: 768px) {
+    gap: 0.5rem;
+  }
 `;
 
 const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger' }>`
@@ -189,7 +243,11 @@ const ActionButton = styled.button<{ variant?: 'primary' | 'secondary' | 'danger
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  
+  min-height: 44px;
+  @media (max-width: 768px) {
+    padding: 0.6rem 0.85rem;
+    font-size: 0.8rem;
+  }
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
@@ -207,27 +265,43 @@ const Modal = styled.div<{ $isOpen: boolean }>`
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  padding: 2rem;
+  padding: 1rem;
+  overflow-y: auto;
+  @media (min-width: 600px) {
+    padding: 2rem;
+  }
 `;
 
 const ModalContent = styled.div`
   background: white;
   border-radius: 20px;
-  padding: 2rem;
+  padding: 1rem;
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  margin: auto;
+  @media (min-width: 600px) {
+    padding: 2rem;
+  }
+  @media (max-width: 768px) {
+    max-height: 85vh;
+    border-radius: 16px;
+  }
 `;
 
 const ModalHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   padding-bottom: 1rem;
   border-bottom: 2px solid #f7fafc;
+  gap: 0.75rem;
+  @media (max-width: 768px) {
+    margin-bottom: 1rem;
+  }
 `;
 
 const ModalTitle = styled.h2`
@@ -235,9 +309,15 @@ const ModalTitle = styled.h2`
   font-weight: 700;
   color: #2d3748;
   margin: 0;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  @media (max-width: 768px) {
+    font-size: 1.2rem;
+  }
 `;
 
-const CloseButton = styled.button`
+const ModalCloseButton = styled.button`
   background: none;
   border: none;
   color: #a0aec0;
@@ -245,7 +325,7 @@ const CloseButton = styled.button`
   padding: 0.5rem;
   border-radius: 8px;
   transition: all 0.3s ease;
-  
+  flex-shrink: 0;
   &:hover {
     background: #f7fafc;
     color: #4a5568;
@@ -256,6 +336,9 @@ const Form = styled.form`
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  @media (max-width: 768px) {
+    gap: 1rem;
+  }
 `;
 
 const FormGroup = styled.div`
@@ -276,10 +359,14 @@ const Input = styled.input`
   border-radius: 12px;
   font-size: 1rem;
   transition: border-color 0.3s ease;
-  
+  min-height: 44px;
+  box-sizing: border-box;
   &:focus {
     outline: none;
     border-color: #667eea;
+  }
+  @media (max-width: 768px) {
+    font-size: 16px;
   }
 `;
 
@@ -291,10 +378,13 @@ const TextArea = styled.textarea`
   min-height: 120px;
   resize: vertical;
   transition: border-color 0.3s ease;
-  
+  box-sizing: border-box;
   &:focus {
     outline: none;
     border-color: #667eea;
+  }
+  @media (max-width: 768px) {
+    font-size: 16px;
   }
 `;
 
@@ -320,9 +410,15 @@ const ModalActions = styled.div`
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
-  margin-top: 2rem;
+  margin-top: 1.5rem;
   padding-top: 1.5rem;
   border-top: 2px solid #f7fafc;
+  flex-wrap: wrap;
+  @media (max-width: 768px) {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    gap: 0.75rem;
+  }
 `;
 
 const EmptyState = styled.div`
@@ -487,15 +583,14 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
             <FaBullhorn />
             공지사항 관리
           </Title>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-            <AddButton onClick={handleAdd}>
+          <HeaderButtons>
+            <AddButton onClick={handleAdd} title="새 공지 등록">
               <FaPlus />
-              
             </AddButton>
             <CloseButton onClick={() => navigate('/main')}>
               <FaTimes />
             </CloseButton>
-          </div>
+          </HeaderButtons>
         </Header>
         
         <NoticeList>
@@ -546,9 +641,9 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
             <ModalTitle>
               {editingNotice ? '공지사항 수정' : '새 공지사항 등록'}
             </ModalTitle>
-            <CloseButton onClick={handleClose}>
+            <ModalCloseButton onClick={handleClose}>
               <FaTimes />
-            </CloseButton>
+            </ModalCloseButton>
           </ModalHeader>
           
           <Form onSubmit={handleSubmit}>

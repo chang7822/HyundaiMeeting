@@ -349,7 +349,7 @@ AI·개발자가 기능 수정/추가 시 참고할, **회원가입 / 매칭 / �
 - **채팅**: `GET/POST /api/chat/*`, Socket.io 로 실시간. `ChatPage` 는 `partnerUserId` 로 상대와의 채팅만 표시.
 - **푸시**: FCM 토큰은 `pushApi.registerToken` → `POST /api/push/register`. 발송은 `pushService.js` + 스케줄러/관리자 등에서 `sendPushToUsers` 호출.
 - **공지/FAQ**: `noticeApi`, `faqApi` → `GET /api/notice`, `GET /api/faq`. 관리자 CRUD는 `adminApi` + `routes/admin.js`.
-- **추가 매칭**: `extra-matching.js` + `ExtraMatchingPage` / `ExtraMatchingAdminPage`. 회차가 **발표완료**인 동안만 “추가 매칭 도전” 가능 (status 분기 동일).
+- **추가 매칭 도전**: 상세는 **§10.6** 참고.
 
 ---
 
@@ -406,10 +406,84 @@ AI·개발자가 기능 수정/추가 시 참고할, **회원가입 / 매칭 / �
   - 댓글: `getComments`, `createComment`, `deleteComment`; 관리자 강제 삭제 `adminDeleteComment`.  
   - 좋아요: `toggleLike`, `getMyLikes`.  
   - 신고: `reportContent` (post/comment).  
-- **프론트:** `src/pages/CommunityPage.tsx`. 회차 선택, 게시글 목록/상세/댓글, 작성/삭제/좋아요/신고. **관리자일 때만** 주의사항 버튼 아래 익명 ON/OFF 토글 플로팅, 익명 ON이면 익명 ID 선택 박스(한 줄·우측 접기 화살표)와 "새 익명 ID 생성"/"다중 생성" 노출. 관리자 배지 **👑 관리자**. `communityApi` (`src/services/api.ts`) 사용.
+  - 차단: `GET /api/community/blocked-list/:periodId`, `POST /api/community/block` (body: `period_id`, `anonymous_number`), `DELETE /api/community/block/:periodId/:anonymousNumber`.  
+- **프론트:** `src/pages/CommunityPage.tsx`. 회차 선택, 게시글 목록/상세/댓글, 작성/삭제/좋아요/신고/차단. **관리자일 때만** 주의사항 버튼 아래 익명 ON/OFF 토글 플로팅, 익명 ON이면 익명 ID 선택 박스(한 줄·우측 접기 화살표)와 "새 익명 ID 생성"/"다중 생성" 노출. 관리자 배지 **👑 관리자**. `communityApi` (`src/services/api.ts`) 사용.
+
+**UGC 안전 (Guideline 1.2 대응)**  
+- **차단(익명 사용자):**  
+  - 회원이 익명 사용자(회차별 익명 번호)를 차단할 수 있음.  
+  - **DB:** `community_blocks` 테이블 (마이그레이션: `supabase/migrations/20250214000000_community_blocks.sql`).  
+  - **동작:** 게시글/댓글 목록 조회 시 차단한 익명 번호에 대해 `blocked_by_me: true` 를 붙여 반환. 프론트에서는 차단된 글/댓글은 **내용을 숨기고** "차단된 사용자의 글 입니다." / "차단된 사용자의 댓글 입니다." 문구만 음영 박스로 표시하며, **차단 해제** 버튼을 그 위에 둠.  
+  - 차단 확인은 **모달**로만 진행 (alert 미사용).  
+- **스케줄러 연동:** `backend/scheduler.js` 에서 회차별 커뮤니티 초기화(매칭 종료·발표·신청 시작) 시 `community_posts`, `community_user_identities` 와 함께 **`community_blocks` 도 해당 회차 기준으로 삭제**하여, 회차 갱신 시 익명 차단도 함께 초기화됨.  
+- **피드에서 제거:** 작성자는 본인 게시글/댓글을 즉시 삭제 가능.  
+- **신고·24시간 조치:** 신고 접수 후 24시간 이내 검토·삭제 및 위반 유저 조치를 운영 정책으로 수행. 관리자 신고 관리(`/admin/report-management`)에서 처리.
 
 **정리:** 일반 회원은 회차당 익명 1개로 활동한다. 관리자는 상단 **익명 ON/OFF 토글**으로 익명 모드(익명 ID 박스 사용)와 관리자 모드(👑 관리자로 공식 작성)를 바꾸며, 익명 모드일 때는 회차별로 익명 ID를 여러 개 만든 뒤 그중 하나를 골라 “그 페르소나”로 글/댓글/좋아요/신고를 할 수 있다.
 
 ---
 
-**AI 참고**: 이 프로젝트에 처음 접할 때는 위 **§1~§9**로 구조를 파악한 뒤, **§10**에서 회원가입·매칭·메인 분기·커뮤니티 등 수정 대상 플로우의 프론트/백엔드 파일을 확인하면 된다. 라우트·API·상태값은 이 문서의 표와 경로를 우선 참고하고, 세부 로직은 해당 파일에서 검색하면 된다. 커뮤니티는 **§10.5**에서 회차별 익명 ID와 관리자 익명 ID 생성·사용 구조를 참고하면 된다.
+### 10.6 추가 매칭 도전 (패자부활전)
+
+**역할:** 정규 매칭에서 인연을 못 찾은 회원이 **한 번 더** 상대를 만날 수 있도록, 회차 **발표완료** 구간에서만 열리는 추가 기회. "저를 추천해 주세요" **엔트리 등록**과 이성 엔트리에게 **호감 보내기**로 진행하며, 수락 시 매칭 성사·채팅 가능.
+
+**가능 기간·기능 on/off**
+
+- **가능 기간:** `matching_log.status === '발표완료'` 인 동안 (매칭 공지 시점 ~ 회차 종료). `isInExtraMatchingWindow(period)` 로 판단.
+- **기능 on/off:** `app_settings` 테이블 `key='extra_matching_enabled'`, `value.enabled`. 관리자 설정 페이지에서 토글.
+
+**엔트리 노출 대상 (이성만)**
+
+- **맞음.** 상대 **이성에게만** 엔트리가 보입니다. `GET /api/extra-matching/entries` 에서 로그인 사용자의 `user_profiles.gender` 를 조회한 뒤, **반대 성별**(oppositeGender) 엔트리만 필터하여 반환합니다. 동성 엔트리는 목록에 나오지 않습니다.
+
+**참여 조건**
+
+| 구분 | 조건 |
+|------|------|
+| **엔트리 등록** | 이번 회차에서 매칭 **성공자가 아님**. 가능 기간 내. 이번 회차에 이미 엔트리 없음. 이번 회차에 호감 보내기를 이미 한 경우, 상대가 거절해 종료되기 전에는 등록 불가. |
+| **호감 보내기** | 위와 동일(성공자 제외, 기간 내). 단, **이번 회차에 엔트리에 등록한 사람은 호감 보내기 불가** (한 회차에서 "등록" vs "호감 보내기" 중 하나만 선택). 동일 엔트리에 중복 신청 불가. |
+| **매칭 성공자** | 추가 매칭 참여 불가. 페이지에서는 다른 회원 엔트리 **구경만** 가능. |
+
+**재화(별)**
+
+| 행동 | 별 |
+|------|-----|
+| 추가 매칭 도전 등록 | 10개 차감 |
+| 호감 보내기 | 10개 차감 |
+| 엔트리 취소 | 환불 없음 (호감이 **한 번도 오기 전**에만 취소 가능) |
+| 호감 거절 | 신청자에게 5개 환불 |
+| 호감 수락 시 그 외 대기 호감 | 각 5개 환불(자동 거절) |
+| 기간 종료 후 정산 | 호감을 **한 번도 받지 못한** 엔트리만 5개 환불 (관리용 settle API) |
+
+**데이터·연동**
+
+- **extra_matching_entries:** `period_id`, `user_id`, `profile_snapshot`, `gender`, `status`(open / sold_out / closed / closed_no_likes).
+- **extra_matching_applies:** `entry_id`, `sender_user_id`, `status`(pending / accepted / rejected), `used_star_amount`, `refunded_star_amount`.
+- **matching_applications** (type='extra') 스냅샷, **matching_history** (type='extra'), **users** (is_matched 등) 와 연동. 수락 시 채팅은 기존 채팅 시스템과 동일(period_id + 상대 user_id).
+
+**백엔드 API** (`backend/routes/extra-matching.js` → `/api/extra-matching/*`)
+
+| 메서드 | 경로 | 역할 |
+|--------|------|------|
+| GET | `/status` | 기능 활성화, 현재 회차, 가능 기간, 내 엔트리, 받은 호감 수, 별 잔액, 사용 상태 |
+| POST | `/entries` | 엔트리 등록 (별 10개 차감) |
+| POST | `/entries/:entryId/cancel` | 엔트리 취소 (호감 0건일 때만) |
+| POST | `/entries/:entryId/extra-appeal` | 추가 어필 문구 저장 |
+| GET | `/entries` | **이성** 추가 매칭 엔트리 목록 (반대 성별만, 과거 매칭 이력 제외) |
+| POST | `/entries/:entryId/apply` | 호감 보내기 (별 10개 차감, 알림·푸시) |
+| GET | `/my-received-applies` | 내 엔트리로 온 호감 목록 |
+| POST | `/applies/:applyId/accept` | 호감 수락 (매칭 성사, 나머지 자동 거절+5개 환불) |
+| POST | `/applies/:applyId/reject` | 호감 거절 (5개 환불) |
+| POST | `/settle/:periodId` | (관리용) 회차 정산, 호감 0건 엔트리 5개 환불 |
+
+**프론트**
+
+- **ExtraMatchingPage** (`/extra-matching`): 등록/취소, 이성 엔트리 목록, 호감 보내기, 받은 호감 수락/거절. `extraMatchingApi` 사용.
+- **ExtraMatchingAdminPage** (`/admin/extra-matching-status`): 회차별 요약, 엔트리 목록, 엔트리별 호감 목록. `adminApi.getExtraMatchingPeriods`, `getExtraMatchingEntriesByPeriod`, `getExtraMatchingAppliesByEntry`.
+- **Sidebar:** "추가 매칭 도전" 메뉴 (이메일 인증 완료 시 활성). **MainPage:** 발표완료 시 배너 → `/extra-matching` 이동.
+
+**정리:** 발표완료 구간에만 열리며, **엔트리는 상대 이성에게만** 노출된다. 한 회차에서 "등록" 또는 "호감 보내기" 중 하나만 가능하고, 등록 시 별 10개·호감 보내기 시 별 10개, 거절/정산 시 일부 환불 규칙이 적용된다.
+
+---
+
+**AI 참고**: 이 프로젝트에 처음 접할 때는 위 **§1~§9**로 구조를 파악한 뒤, **§10**에서 회원가입·매칭·메인 분기·커뮤니티 등 수정 대상 플로우의 프론트/백엔드 파일을 확인하면 된다. 라우트·API·상태값은 이 문서의 표와 경로를 우선 참고하고, 세부 로직은 해당 파일에서 검색하면 된다. 커뮤니티는 **§10.5**, 추가 매칭 도전은 **§10.6**에서 참고하면 된다.

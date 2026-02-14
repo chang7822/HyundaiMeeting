@@ -229,12 +229,18 @@ const Button = styled.button<{ $variant?: 'primary' | 'secondary' }>`
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   
   ${props => props.$variant === 'primary' ? `
     background: #4F46E5;
     color: white;
     
     &:hover {
+      background: #3730A3;
+    }
+    
+    &:active {
       background: #3730A3;
     }
     
@@ -456,13 +462,18 @@ const TermsAgreementModal: React.FC<TermsAgreementModalProps> = ({ isOpen, onClo
         </TermsSection>
 
         <ButtonGroup>
-          <Button onClick={onClose}>
+          <Button type="button" onClick={onClose}>
             취소
           </Button>
-          <Button 
-            $variant="primary" 
-            onClick={handleAgree} 
-            disabled={!agreements.privacy || !agreements.terms || !agreements.email}
+          <Button
+            type="button"
+            $variant="primary"
+            onClick={handleAgree}
+            aria-disabled={!agreements.privacy || !agreements.terms || !agreements.email}
+            style={{
+              minHeight: 44,
+              opacity: agreements.privacy && agreements.terms && agreements.email ? 1 : 0.85,
+            }}
           >
             동의하고 계속하기
           </Button>

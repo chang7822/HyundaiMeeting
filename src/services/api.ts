@@ -1360,6 +1360,24 @@ export const communityApi = {
     });
     return response.data;
   },
+
+  // [차단] 익명 사용자 차단 (회차 + 익명 번호)
+  blockUser: async (periodId: number, anonymousNumber: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post('/community/block', { period_id: periodId, anonymous_number: anonymousNumber });
+    return response.data;
+  },
+
+  // [차단] 차단 해제
+  unblockUser: async (periodId: number, anonymousNumber: number): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/community/block/${periodId}/${anonymousNumber}`);
+    return response.data;
+  },
+
+  // [차단] 해당 회차에서 내가 차단한 익명 번호 목록
+  getBlockedList: async (periodId: number): Promise<{ blockedAnonymousNumbers: number[] }> => {
+    const response = await api.get(`/community/blocked-list/${periodId}`);
+    return response.data;
+  },
 };
 
 export default api;
