@@ -601,6 +601,11 @@ export const adminApi = {
     extraMatching?: { enabled: boolean };
     community?: { enabled: boolean };
     rpsStatsExcluded?: { nicknames: string[] };
+    versionPolicy?: {
+      ios?: { minimumVersion?: string; latestVersion?: string; storeUrl?: string };
+      android?: { minimumVersion?: string; latestVersion?: string; storeUrl?: string };
+      messages?: { forceUpdate?: string; optionalUpdate?: string };
+    };
   }> => {
     const response = await api.get('/admin/system-settings');
     return response.data;
@@ -648,7 +653,7 @@ export const adminApi = {
   },
 
   // 전체 회원 공지 메일 발송
-  sendBroadcastEmail: async (payload: { subject: string; content: string; targets?: string[] }): Promise<any> => {
+  sendBroadcastEmail: async (payload: { subject: string; content: string; is_html?: boolean; targets?: string[] }): Promise<any> => {
     const response = await api.post('/admin/broadcast-email', payload);
     return response.data;
   },
@@ -865,12 +870,12 @@ export const noticeApi = {
   },
 
   // 관리자용 API
-  createNotice: async (data: { title: string; content: string; author?: string; is_important?: boolean }): Promise<any> => {
+  createNotice: async (data: { title: string; content: string; author?: string; is_important?: boolean; is_html?: boolean }): Promise<any> => {
     const response = await api.post('/notice', data);
     return response.data;
   },
 
-  updateNotice: async (id: number, data: { title: string; content: string; author?: string; is_important?: boolean }): Promise<any> => {
+  updateNotice: async (id: number, data: { title: string; content: string; author?: string; is_important?: boolean; is_html?: boolean }): Promise<any> => {
     const response = await api.put(`/notice/${id}`, data);
     return response.data;
   },

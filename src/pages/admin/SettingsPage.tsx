@@ -228,7 +228,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         
         // 버전 정책 로드
         if (res?.versionPolicy) {
-          setVersionPolicy(res.versionPolicy);
+          setVersionPolicy(res.versionPolicy as typeof versionPolicy);
         }
         // 가위바위보 통계 제외 닉네임
         if (Array.isArray(res?.rpsStatsExcluded?.nicknames)) {
@@ -893,7 +893,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
           </Section>
 
           <Section>
-            <SectionTitle>알림 보내기</SectionTitle>
+            <SectionTitle>푸시알림 보내기</SectionTitle>
             <SectionDescription>
               특정 회원에게 관리자가 직접 푸시 알림을 전송할 수 있습니다.
               {'\n'}푸시 토큰이 등록된 사용자에게만 알림이 전송됩니다.

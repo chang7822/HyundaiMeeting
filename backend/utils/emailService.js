@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const sanitizeHtml = require('sanitize-html');
 
 // 이메일 설정
 const transporter = nodemailer.createTransport({
@@ -179,14 +180,19 @@ async function sendAdminNotificationEmail(subject, content) {
 }
 
 // 관리자 전체 공지 메일 발송용 공통 템플릿
-function buildAdminBroadcastEmailHtml(content) {
-  const safeContent = (content || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/(?:\r\n|\r|\n)/g, '<br/>');
+function buildAdminBroadcastEmailHtml(content, isHtml = false) {
+  const safeContent = isHtml
+    ? sanitizeHtml(content || '', {
+        allowedTags: ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'a', 'h2', 'h3', 'h4', 'span', 'div', 'blockquote', 'article', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+        allowedAttributes: { a: ['href', 'target', 'rel'] }
+      })
+    : (content || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/(?:\r\n|\r|\n)/g, '<br/>');
 
   return `
     <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px; background-color: #f3f4f6;">
@@ -219,14 +225,14 @@ function buildAdminBroadcastEmailHtml(content) {
 }
 
 // 관리자 개별/전체 공지 메일 발송 함수
-async function sendAdminBroadcastEmail(toEmail, subject, content) {
+async function sendAdminBroadcastEmail(toEmail, subject, content, isHtml = false) {
   if (!toEmail) return false;
 
   const finalSubject = subject && subject.startsWith('[직장인 솔로 공모]')
     ? subject
     : `[직장인 솔로 공모] ${subject || '공지 메일'}`;
 
-  const htmlContent = buildAdminBroadcastEmailHtml(content || '');
+  const htmlContent = buildAdminBroadcastEmailHtml(content || '', isHtml);
 
   const mailOptions = {
     from: process.env.EMAIL_USER,

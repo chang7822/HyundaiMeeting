@@ -63,7 +63,7 @@ router.get('/:id', async (req, res) => {
 // 관리자용 공지사항 생성
 router.post('/', authenticate, async (req, res) => {
   try {
-    const { title, content, author, is_important } = req.body;
+    const { title, content, author, is_important, is_html } = req.body;
     
     if (!title || !content) {
       return res.status(400).json({ message: '제목과 내용은 필수입니다.' });
@@ -76,6 +76,7 @@ router.post('/', authenticate, async (req, res) => {
         content,
         author: author || '관리자',
         is_important: is_important || false,
+        is_html: is_html === true,
         view_count: 0
       }])
       .select()
@@ -83,7 +84,11 @@ router.post('/', authenticate, async (req, res) => {
 
     if (error) {
       console.error('공지사항 생성 오류:', error);
-      return res.status(500).json({ message: '공지사항 생성에 실패했습니다.' });
+      return res.status(500).json({
+        message: '공지사항 생성에 실패했습니다.',
+        detail: error.message,
+        code: error.code
+      });
     }
 
     // 🔔 알림: 활성 사용자들에게 새 공지 알림 발송
@@ -134,7 +139,10 @@ router.post('/', authenticate, async (req, res) => {
     res.status(201).json(data);
   } catch (error) {
     console.error('공지사항 생성 오류:', error);
-    res.status(500).json({ message: '서버 오류가 발생했습니다.' });
+    res.status(500).json({
+      message: '공지사항 생성에 실패했습니다.',
+      detail: error?.message || String(error)
+    });
   }
 });
 
@@ -142,7 +150,7 @@ router.post('/', authenticate, async (req, res) => {
 router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
-    const { title, content, author, is_important } = req.body;
+    const { title, content, author, is_important, is_html } = req.body;
     
     if (!title || !content) {
       return res.status(400).json({ message: '제목과 내용은 필수입니다.' });
@@ -155,6 +163,7 @@ router.put('/:id', authenticate, async (req, res) => {
         content,
         author: author || '관리자',
         is_important: is_important || false,
+        is_html: is_html === true,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
@@ -163,7 +172,11 @@ router.put('/:id', authenticate, async (req, res) => {
 
     if (error) {
       console.error('공지사항 수정 오류:', error);
-      return res.status(500).json({ message: '공지사항 수정에 실패했습니다.' });
+      return res.status(500).json({
+        message: '공지사항 수정에 실패했습니다.',
+        detail: error.message,
+        code: error.code
+      });
     }
 
     res.json(data);

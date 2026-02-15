@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
+import DOMPurify from 'dompurify';
 import { noticeApi } from '../../services/api.ts';
 import { 
   FaPlus, 
@@ -442,12 +443,124 @@ const LoadingSpinner = styled.div`
   font-size: 1.2rem;
 `;
 
+/** 미리보기: NoticePage 상세 화면과 동일한 레이아웃·스타일 */
+const PreviewDetailContainer = styled.div`
+  padding: 2rem;
+  background: white;
+  @media (max-width: 768px) {
+    padding: 1rem;
+  }
+`;
+
+const PreviewDetailHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #f7fafc;
+  gap: 1rem;
+  @media (max-width: 768px) {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    gap: 0.75rem;
+  }
+`;
+
+const PreviewDetailTitle = styled.h1`
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #2d3748;
+  margin: 0;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  flex: 1;
+  min-width: 0;
+  @media (max-width: 768px) {
+    font-size: 1.1rem;
+    gap: 0.5rem;
+    line-height: 1.5;
+  }
+`;
+
+const PreviewDetailMeta = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  color: #718096;
+  font-size: 0.875rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+  @media (max-width: 768px) {
+    gap: 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.8rem;
+  }
+`;
+
+const PreviewMetaItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+`;
+
+const PreviewDetailContentHtml = styled.div`
+  color: #4a5568;
+  line-height: 1.8;
+  font-size: 1rem;
+  background: #f7fafc;
+  padding: 2rem;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+  word-break: break-word;
+  @media (max-width: 768px) {
+    padding: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    border-radius: 8px;
+  }
+  p { margin: 0 0 0.75rem 0; }
+  p:last-child { margin-bottom: 0; }
+  a { color: #667eea; text-decoration: underline; }
+  strong { font-weight: 700; }
+  ul, ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+  article { margin: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
+  th { background: #f7fafc; font-weight: 600; color: #2d3748; }
+`;
+
+const PreviewCloseButton = styled.button`
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  font-size: 1.2rem;
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  }
+`;
+
 interface Notice {
   id: number;
   title: string;
   content: string;
   author: string;
   is_important: boolean;
+  is_html?: boolean;
   view_count: number;
   created_at: string;
   updated_at: string;
@@ -458,6 +571,7 @@ interface NoticeFormData {
   content: string;
   author: string;
   is_important: boolean;
+  is_html: boolean;
 }
 
 const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = true }) => {
@@ -468,10 +582,17 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
     title: '',
     content: '',
     author: '관리자',
-    is_important: false
+    is_important: false,
+    is_html: false
   });
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const sanitizeHtml = (html: string) => DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'a', 'h2', 'h3', 'h4', 'span', 'div', 'blockquote', 'article', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+    ALLOWED_ATTR: ['href', 'target', 'rel']
+  });
 
   useEffect(() => {
     loadNotices();
@@ -496,7 +617,8 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
       title: '',
       content: '',
       author: '관리자',
-      is_important: false
+      is_important: false,
+      is_html: false
     });
     setIsModalOpen(true);
   };
@@ -507,7 +629,8 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
       title: notice.title,
       content: notice.content,
       author: notice.author,
-      is_important: notice.is_important
+      is_important: notice.is_important,
+      is_html: notice.is_html ?? false
     });
     setIsModalOpen(true);
   };
@@ -544,9 +667,12 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
       
       setIsModalOpen(false);
       loadNotices();
-    } catch (error) {
+    } catch (error: any) {
       console.error('공지사항 저장 오류:', error);
-      toast.error('공지사항 저장에 실패했습니다.');
+      const res = error?.response?.data;
+      const detail = res?.detail || res?.message;
+      if (res) console.error('서버 응답:', res);
+      toast.error(detail ? `공지사항 저장 실패: ${detail}` : '공지사항 저장에 실패했습니다.');
     }
   };
 
@@ -663,10 +789,23 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
               <TextArea
                 value={formData.content}
                 onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                placeholder="공지사항 내용을 입력하세요"
+                placeholder={formData.is_html ? 'HTML 태그를 입력하세요 (예: <p>내용</p>, <strong>강조</strong>)' : '공지사항 내용을 입력하세요'}
                 required
+                style={{ minHeight: formData.is_html ? 180 : 120, fontFamily: formData.is_html ? 'monospace' : 'inherit' }}
               />
             </FormGroup>
+            
+            <CheckboxGroup>
+              <Checkbox
+                type="checkbox"
+                id="is_html"
+                checked={formData.is_html}
+                onChange={(e) => setFormData({ ...formData, is_html: e.target.checked })}
+              />
+              <CheckboxLabel htmlFor="is_html">
+                HTML로 작성
+              </CheckboxLabel>
+            </CheckboxGroup>
             
             <FormGroup>
               <Label>작성자</Label>
@@ -692,6 +831,10 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
             </CheckboxGroup>
             
             <ModalActions>
+              <ActionButton type="button" variant="secondary" onClick={() => setShowPreviewModal(true)}>
+                <FaEye />
+                미리보기
+              </ActionButton>
               <ActionButton type="button" variant="secondary" onClick={handleClose}>
                 <FaTimes />
                 취소
@@ -702,6 +845,49 @@ const NoticeManagerPage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = 
               </ActionButton>
             </ModalActions>
           </Form>
+        </ModalContent>
+      </Modal>
+
+      {/* 미리보기 모달 - NoticePage 상세와 동일한 레이아웃 */}
+      <Modal $isOpen={showPreviewModal}>
+        <ModalContent style={{ maxWidth: 700, maxHeight: '90vh', display: 'flex', flexDirection: 'column', padding: 0 }}>
+          <ModalHeader style={{ padding: '1rem 1.5rem', flexShrink: 0 }}>
+            <ModalTitle>미리보기</ModalTitle>
+            <ModalCloseButton onClick={() => setShowPreviewModal(false)}>
+              <FaTimes />
+            </ModalCloseButton>
+          </ModalHeader>
+          <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+            <PreviewDetailContainer>
+              <PreviewDetailHeader>
+                <PreviewDetailTitle>
+                  {formData.is_important && (
+                    <ImportantBadge>
+                      <FaStar />
+                      중요
+                    </ImportantBadge>
+                  )}
+                  {formData.title || '(제목 없음)'}
+                </PreviewDetailTitle>
+                <PreviewCloseButton type="button" onClick={() => setShowPreviewModal(false)} title="닫기">
+                  <FaTimes />
+                </PreviewCloseButton>
+              </PreviewDetailHeader>
+              <PreviewDetailMeta>
+                <PreviewMetaItem>
+                  <FaCalendar />
+                  {new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })} (미리보기)
+                </PreviewMetaItem>
+              </PreviewDetailMeta>
+              <PreviewDetailContentHtml
+                dangerouslySetInnerHTML={{
+                  __html: formData.is_html && formData.content
+                    ? sanitizeHtml(formData.content)
+                    : `<p style="white-space: pre-wrap; margin:0;">${(formData.content || '(내용 없음)').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`
+                }}
+              />
+            </PreviewDetailContainer>
+          </div>
         </ModalContent>
       </Modal>
     </MainContainer>

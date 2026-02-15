@@ -2103,7 +2103,7 @@ router.post('/broadcast-email', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;
 
-    const { subject, content, targets } = req.body || {};
+    const { subject, content, is_html, targets } = req.body || {};
 
     if (!subject || !content) {
       return res.status(400).json({
@@ -2160,7 +2160,7 @@ router.post('/broadcast-email', authenticate, async (req, res) => {
     let failCount = 0;
 
     for (const user of targetUsers) {
-      const ok = await sendAdminBroadcastEmail(user.email, subject, content);
+      const ok = await sendAdminBroadcastEmail(user.email, subject, content, is_html === true);
       if (ok) successCount++;
       else failCount++;
     }

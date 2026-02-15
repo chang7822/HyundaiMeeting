@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
+import DOMPurify from 'dompurify';
 import { adminApi, adminMatchingApi } from '../../services/api.ts';
 import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
 
@@ -212,6 +213,18 @@ const SmallButton = styled.button`
   }
 `;
 
+const CheckboxRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+`;
+const CheckboxLabel = styled.label`
+  font-size: 14px;
+  color: #4b5563;
+  cursor: pointer;
+`;
+
 const ForceEnableButton = styled.button<{ $active?: boolean }>`
   padding: 6px 10px;
   border-radius: 999px;
@@ -333,6 +346,7 @@ interface BroadcastEmailPageProps {
 const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = true }) => {
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
+  const [isHtml, setIsHtml] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [showRecipientModal, setShowRecipientModal] = useState(false);
@@ -411,34 +425,24 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
       const announce = formatKST(latest.matching_announce);
       const finish = formatKST(latest.finish);
 
-      const bodyLines = [
-        '안녕하세요. 직쏠공 회원여러분',
-        '오래 기다려주셔서 감사합니다!',
-        '',
-        `제 ${round}회차 신규 매칭 신청이 시작되었습니다.`,
-        '아래 일정 잘 참고하셔서 기간 내에 꼭 한번 신청 해주세요.',
-        '',
-        '━━━━━━━━━━━━━━━━━━━━━━',
-        '📅 <매칭 일정>',
-        `• 매칭 신청 기간 : ${applicationStart} ~ ${applicationEnd}`,
-        `• 매칭 결과 발표 : ${announce}`,
-        `• 매칭 종료 : ${finish}`,
-        '※ 매칭 종료 후에는 매칭된 상대방과의 채팅방이 비활성화됩니다.',
-        '━━━━━━━━━━━━━━━━━━━━━━',
-        '',
-        '✨ 매칭 성공률을 높일 수 있는 꿀팁 ✨',
-        '선호 스타일을 너무 타이트하게 설정하시면 매칭 확률이 많이 줄어들 수 있어요.',
-        '마음을 조금만 더 여시고, 스타일 기준을 완화해보시는 건 어떨까요?',
-        '생각보다 훨씬 괜찮은 분을 만날 수도 있답니다 :)',
-        '',
-        '',
-        '더 자세한 내용은 서비스 내 공지사항과 FAQ를 참고해주세요.',
-        '주변의 좋은 솔로분들이 많이 유입될 수 있도록 많은 홍보 부탁드립니다!',
-      ];
+      const htmlContent = `<p>안녕하세요. 직쏠공 회원여러분</p>
+<p>오래 기다려주셔서 감사합니다!</p>
+<p>제 ${round}회차 신규 매칭 신청이 시작되었습니다.<br/>아래 일정 잘 참고하셔서 기간 내에 꼭 한번 신청 해주세요.</p>
+<p><strong>📅 매칭 일정</strong></p>
+<ul>
+<li>매칭 신청 기간 : ${applicationStart} ~ ${applicationEnd}</li>
+<li>매칭 결과 발표 : ${announce}</li>
+<li>매칭 종료 : ${finish}</li>
+</ul>
+<p>※ 매칭 종료 후에는 매칭된 상대방과의 채팅방이 비활성화됩니다.</p>
+<p><strong>✨ 매칭 성공률을 높일 수 있는 꿀팁 ✨</strong></p>
+<p>선호 스타일을 너무 타이트하게 설정하시면 매칭 확률이 많이 줄어들 수 있어요.<br/>마음을 조금만 더 여시고, 스타일 기준을 완화해보시는 건 어떨까요?<br/>생각보다 훨씬 괜찮은 분을 만날 수도 있답니다 :)</p>
+<p>더 자세한 내용은 서비스 내 공지사항과 FAQ를 참고해주세요.<br/>주변의 좋은 솔로분들이 많이 유입될 수 있도록 많은 홍보 부탁드립니다!</p>`;
 
-      setContent(bodyLines.join('\n'));
+      setIsHtml(true);
+      setContent(htmlContent);
       setShowPreview(false);
-      toast.info('최신 회차 일정으로 메일 내용이 자동 작성되었습니다.');
+      toast.info('최신 회차 일정으로 HTML 메일 내용이 자동 작성되었습니다.');
     } catch (error: any) {
       console.error('[BroadcastEmailPage] 최신 회차 자동 작성 오류:', error);
       const msg =
@@ -451,13 +455,18 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
   };
 
   const renderPreviewHtml = () => {
-    const safeContent = (content || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/(?:\r\n|\r|\n)/g, '<br/>');
+    const safeContent = isHtml
+      ? DOMPurify.sanitize(content || '', {
+          ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'a', 'h2', 'h3', 'h4', 'span', 'div', 'blockquote', 'article', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+          ALLOWED_ATTR: ['href', 'target', 'rel']
+        })
+      : (content || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;')
+          .replace(/(?:\r\n|\r|\n)/g, '<br/>');
 
     const html = `
       <div style="font-family: Arial, sans-serif; width: 100%; max-width: 100%; margin: 0; padding: 20px; background-color: #f3f4f6;">
@@ -526,8 +535,18 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
             <Textarea
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder={'회원들에게 전달하고 싶은 내용을 자유롭게 작성해주세요.\n줄바꿈은 메일에서 그대로 반영됩니다.'}
+              placeholder={isHtml ? 'HTML 태그를 입력하세요 (예: <p>내용</p>, <strong>강조</strong>)' : '회원들에게 전달하고 싶은 내용을 자유롭게 작성해주세요.\n줄바꿈은 메일에서 그대로 반영됩니다.'}
+              style={{ minHeight: isHtml ? 180 : 220, fontFamily: isHtml ? 'monospace' : 'inherit' }}
             />
+            <CheckboxRow>
+              <input
+                type="checkbox"
+                id="broadcast-is-html"
+                checked={isHtml}
+                onChange={e => setIsHtml(e.target.checked)}
+              />
+              <CheckboxLabel htmlFor="broadcast-is-html">HTML로 작성</CheckboxLabel>
+            </CheckboxRow>
           </div>
 
           <ButtonRow>
@@ -735,6 +754,7 @@ const BroadcastEmailPage: React.FC<BroadcastEmailPageProps> = ({ sidebarOpen = t
                       const res = await adminApi.sendBroadcastEmail({
                         subject,
                         content,
+                        is_html: isHtml,
                         targets: selectedIds,
                       });
                       clearInterval(progressTimer);

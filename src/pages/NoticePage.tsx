@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
+import DOMPurify from 'dompurify';
 import { noticeApi } from '../services/api.ts';
 import { 
   FaArrowLeft, 
@@ -252,6 +253,34 @@ const DetailContent = styled.div`
   }
 `;
 
+const DetailContentHtml = styled.div`
+  color: #4a5568;
+  line-height: 1.8;
+  font-size: 1rem;
+  background: #f7fafc;
+  padding: 2rem;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+  word-break: break-word;
+  
+  @media (max-width: 768px) {
+    padding: 1rem;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    border-radius: 8px;
+  }
+  
+  p { margin: 0 0 0.75rem 0; }
+  p:last-child { margin-bottom: 0; }
+  a { color: #667eea; text-decoration: underline; }
+  strong { font-weight: 700; }
+  ul, ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+  article { margin: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; }
+  th, td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; text-align: left; }
+  th { background: #f7fafc; font-weight: 600; color: #2d3748; }
+`;
+
 const DetailBackButton = styled.button`
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border: none;
@@ -303,6 +332,7 @@ interface Notice {
   content: string;
   author: string;
   is_important: boolean;
+  is_html?: boolean;
   view_count: number;
   created_at: string;
   updated_at: string;
@@ -421,9 +451,20 @@ const NoticePage: React.FC<{ sidebarOpen?: boolean }> = ({ sidebarOpen = true })
               </MetaItem>
             </DetailMeta>
             
-            <DetailContent>
-              {selectedNotice.content}
-            </DetailContent>
+            {selectedNotice.is_html ? (
+              <DetailContentHtml
+                dangerouslySetInnerHTML={{
+                  __html: DOMPurify.sanitize(selectedNotice.content, {
+                    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'ul', 'ol', 'li', 'a', 'h2', 'h3', 'h4', 'span', 'div', 'blockquote', 'article', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+                    ALLOWED_ATTR: ['href', 'target', 'rel']
+                  })
+                }}
+              />
+            ) : (
+              <DetailContent>
+                {selectedNotice.content}
+              </DetailContent>
+            )}
           </DetailContainer>
         </ContentWrapper>
       </MainContainer>
