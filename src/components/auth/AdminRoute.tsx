@@ -7,9 +7,9 @@ interface AdminRouteProps {
 }
 
 const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user, isLoading, isAuthenticated, isInitialLoading } = useAuth();
   
-  if (isLoading) return null;
+  if (isLoading || isInitialLoading) return null;
   
   // 인증되지 않은 경우 랜딩페이지로 리다이렉트
   if (!isAuthenticated) {

@@ -3762,9 +3762,9 @@ router.post('/companies/apply-prefer-company', authenticate, async (req, res) =>
     }
 
     if (updates.length === 0) {
-      return res.json({
-        success: true,
-        message: '변경된 항목이 없습니다. 이미 모든 회원의 선호 회사에 선택한 회사가 포함되어 있습니다.',
+    return res.json({
+      success: true,
+      message: '변경된 항목이 없습니다. 이미 모든 회원의 선호 회사에 선택한 회사가 포함되어 있습니다.',
         targetCount: profiles ? profiles.length : 0,
         updatedCount: 0,
       });
@@ -3788,6 +3788,157 @@ router.post('/companies/apply-prefer-company', authenticate, async (req, res) =>
   } catch (error) {
     console.error('[admin][companies][apply-prefer-company] 예외:', error);
     return res.status(500).json({ success: false, message: '선호 회사 일괄 적용 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+// ==============================
+// 신규 회사 추가 요청(company_requests) 관리 API
+// ==============================
+
+// 요청 목록 조회
+router.get('/company-requests', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { status } = req.query; // pending, accepted, rejected 또는 미지정(전체)
+
+    let query = supabase
+      .from('company_requests')
+      .select('id, company_name, email_domain, reply_email, message, status, created_at, resolved_at, company_id')
+      .order('created_at', { ascending: false });
+
+    if (status && ['pending', 'accepted', 'rejected'].includes(String(status))) {
+      query = query.eq('status', status);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('[admin][company-requests] 목록 조회 오류:', error);
+      return res.status(500).json({ success: false, message: '요청 목록을 불러오지 못했습니다.' });
+    }
+
+    const list = (data || []).map((r) => ({
+      id: r.id,
+      companyName: r.company_name,
+      emailDomain: r.email_domain,
+      replyEmail: r.reply_email,
+      message: r.message,
+      status: r.status,
+      createdAt: r.created_at,
+      resolvedAt: r.resolved_at,
+      companyId: r.company_id,
+    }));
+
+    return res.json({ success: true, data: list });
+  } catch (error) {
+    console.error('[admin][company-requests] 목록 조회 예외:', error);
+    return res.status(500).json({ success: false, message: '요청 목록 조회 중 오류가 발생했습니다.' });
+  }
+});
+
+// 요청 수락 처리 (회사 추가 + 승인 메일) - 프론트에서 회사 생성 후 status 업데이트만 함
+router.patch('/company-requests/:id', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { id } = req.params;
+    const { status, companyId } = req.body || {};
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: '요청 ID가 필요합니다.' });
+    }
+
+    const updates = {};
+    if (status === 'accepted' && companyId != null) {
+      updates.status = 'accepted';
+      updates.company_id = Number(companyId);
+      updates.resolved_at = new Date().toISOString();
+      updates.resolved_by = req.user.userId;
+    } else if (status === 'rejected') {
+      updates.status = 'rejected';
+      updates.resolved_at = new Date().toISOString();
+      updates.resolved_by = req.user.userId;
+    } else {
+      return res.status(400).json({ success: false, message: '유효한 status와 companyId(수락 시)를 전달해주세요.' });
+    }
+
+    const { error } = await supabase.from('company_requests').update(updates).eq('id', id);
+
+    if (error) {
+      console.error('[admin][company-requests] 상태 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '요청 상태를 업데이트하지 못했습니다.' });
+    }
+
+    return res.json({ success: true, message: '요청이 처리되었습니다.' });
+  } catch (error) {
+    console.error('[admin][company-requests] 업데이트 예외:', error);
+    return res.status(500).json({ success: false, message: '요청 처리 중 오류가 발생했습니다.' });
+  }
+});
+
+// 요청 거절 + 거절 메일 발송
+router.post('/company-requests/:id/reject', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const { id } = req.params;
+    const { rejectSubject, rejectBody } = req.body || {};
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: '요청 ID가 필요합니다.' });
+    }
+
+    const { data: requestRow, error: fetchError } = await supabase
+      .from('company_requests')
+      .select('id, reply_email, company_name, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !requestRow) {
+      return res.status(404).json({ success: false, message: '해당 요청을 찾을 수 없습니다.' });
+    }
+
+    if (requestRow.status !== 'pending') {
+      return res.status(400).json({ success: false, message: '이미 처리된 요청입니다.' });
+    }
+
+    const toEmail = requestRow.reply_email;
+    const subject = (rejectSubject || '회사 추가 검토 결과 안내').trim();
+    const body = (rejectBody || '').trim();
+
+    if (!body) {
+      return res.status(400).json({ success: false, message: '거절 메일 내용을 입력해주세요.' });
+    }
+
+    // 거절 메일 발송
+    const emailResult = await sendNewCompanyNotificationEmail(
+      toEmail,
+      requestRow.company_name,
+      [requestRow.company_name],
+      subject,
+      body,
+    );
+
+    if (!emailResult?.success) {
+      console.error('[admin][company-requests] 거절 메일 발송 실패:', toEmail);
+      return res.status(500).json({ success: false, message: '거절 메일 발송에 실패했습니다.' });
+    }
+
+    // 요청 상태 업데이트
+    await supabase
+      .from('company_requests')
+      .update({
+        status: 'rejected',
+        resolved_at: new Date().toISOString(),
+        resolved_by: req.user.userId,
+      })
+      .eq('id', id);
+
+    return res.json({ success: true, message: '거절 메일이 발송되었습니다.' });
+  } catch (error) {
+    console.error('[admin][company-requests] 거절 처리 예외:', error);
+    return res.status(500).json({ success: false, message: '거절 처리 중 오류가 발생했습니다.' });
   }
 });
 

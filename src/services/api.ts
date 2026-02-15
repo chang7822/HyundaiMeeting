@@ -282,7 +282,7 @@ export const companyApi = {
   },
 
   // 랜딩 페이지에서 관리자에게 회사 추가 요청 보내기
-  requestNewCompany: async (payload: { companyName: string; emailDomain: string; message?: string }) => {
+  requestNewCompany: async (payload: { companyName: string; emailDomain: string; replyEmail: string; message?: string }) => {
     const response = await api.post('/companies/request', payload);
     return response.data;
   },
@@ -853,6 +853,38 @@ export const adminCompanyApi = {
   // 선택한 회사들을 모든 회원의 선호 회사(prefer_company)에 일괄 추가
   applyPreferredToAllUsers: async (companyIds: number[]): Promise<any> => {
     const res = await api.post('/admin/companies/apply-prefer-company', { companyIds });
+    return res.data;
+  },
+
+  // 신규 회사 추가 요청 목록 조회
+  getCompanyRequests: async (status?: 'pending' | 'accepted' | 'rejected'): Promise<{
+    success: boolean;
+    data: {
+      id: string;
+      companyName: string;
+      emailDomain: string;
+      replyEmail: string;
+      message: string | null;
+      status: string;
+      createdAt: string;
+      resolvedAt: string | null;
+      companyId: number | null;
+    }[];
+  }> => {
+    const params = status ? { status } : {};
+    const res = await api.get('/admin/company-requests', { params });
+    return res.data;
+  },
+
+  // 요청 상태 업데이트 (수락 시 회사 생성 후 호출)
+  patchCompanyRequest: async (id: string, payload: { status: 'accepted'; companyId: number } | { status: 'rejected' }): Promise<any> => {
+    const res = await api.patch(`/admin/company-requests/${id}`, payload);
+    return res.data;
+  },
+
+  // 요청 거절 + 거절 메일 발송
+  rejectCompanyRequest: async (id: string, payload: { rejectSubject: string; rejectBody: string }): Promise<any> => {
+    const res = await api.post(`/admin/company-requests/${id}/reject`, payload);
     return res.data;
   },
 };

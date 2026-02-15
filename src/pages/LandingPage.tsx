@@ -516,6 +516,7 @@ const LandingPage = () => {
   const [showAddCompanyModal, setShowAddCompanyModal] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newCompanyDomain, setNewCompanyDomain] = useState('');
+  const [newCompanyReplyEmail, setNewCompanyReplyEmail] = useState('');
   const [newCompanyMessage, setNewCompanyMessage] = useState('');
   const [isSubmittingCompanyRequest, setIsSubmittingCompanyRequest] = useState(false);
   const [showCompanyGuideTooltip, setShowCompanyGuideTooltip] = useState(false);
@@ -589,10 +590,17 @@ const LandingPage = () => {
 
     const name = newCompanyName.trim();
     const domain = newCompanyDomain.trim();
+    const replyEmail = newCompanyReplyEmail.trim();
     const message = newCompanyMessage.trim();
 
-    if (!name || !domain) {
-      toast.error('회사명과 이메일 도메인 주소를 입력해주세요.');
+    if (!name || !domain || !replyEmail) {
+      toast.error('회사명, 이메일 도메인 주소, 회신받을 이메일 주소를 입력해주세요.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(replyEmail)) {
+      toast.error('회신받을 이메일 주소 형식이 올바르지 않습니다.');
       return;
     }
 
@@ -601,12 +609,14 @@ const LandingPage = () => {
       await companyApi.requestNewCompany({
         companyName: name,
         emailDomain: domain,
+        replyEmail,
         message,
       });
       toast.success('관리자에게 요청이 전송되었습니다.');
       setShowAddCompanyModal(false);
       setNewCompanyName('');
       setNewCompanyDomain('');
+      setNewCompanyReplyEmail('');
       setNewCompanyMessage('');
     } catch (error: any) {
       const msg =
@@ -1050,13 +1060,22 @@ const LandingPage = () => {
                   />
                 </FormField>
                 <FormField>
+                  <FormLabel>확정 여부를 회신받을 이메일 주소 (필수)</FormLabel>
+                  <FormInput
+                    type="email"
+                    value={newCompanyReplyEmail}
+                    onChange={(e) => setNewCompanyReplyEmail(e.target.value)}
+                    placeholder="예: user@example.com"
+                    disabled={isSubmittingCompanyRequest}
+                  />
+                </FormField>
+                <FormField>
                   <FormLabel>기타 요청사항 (선택)</FormLabel>
                   <FormTextarea
                     value={newCompanyMessage}
                     onChange={(e) => setNewCompanyMessage(e.target.value)}
                     placeholder={
-                      '예 : 기존 메일주소가 잘못됐어요, 다른 도메인주소가 더 필요해요 등\n' +
-                      '회사 추가 여부에 대한 회신을 받고 싶으시면 연락 받을 이메일 주소도 함께 남겨주세요.'
+                      '예: 기존 메일주소가 잘못됐어요, 다른 도메인주소가 더 필요해요 등'
                     }
                     disabled={isSubmittingCompanyRequest}
                   />
