@@ -17,9 +17,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     return <Navigate to="/" replace />;
   }
 
-  // 로딩 중이면 대기 (App.tsx에서 LoadingSpinner 표시)
+  // 로딩 중이면 LoadingSpinner 페이지로 표시
   if (isLoading || isInitialLoading) {
-    return null; // 아무것도 렌더링하지 않음
+    return <LoadingSpinner />;
   }
 
   // 로딩이 완료되었는데 필수 데이터가 없으면 로그아웃

@@ -1843,7 +1843,12 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   if (loading) {
     return (
       <Container $sidebarOpen={sidebarOpen}>
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem 0' }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 4rem)',
+        }}>
           <InlineSpinner text="커뮤니티를 불러오는 중..." />
         </div>
       </Container>
