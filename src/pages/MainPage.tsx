@@ -3884,7 +3884,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 추 후 신청 마감 전 신청 취소 시 다시 환불됩니다.<br/>
                 {isNativeApp() && (
                   <>
-                    확인을 누르시면 짧은 광고 시청 후 매칭 신청이 완료됩니다.<br/>
+                    <br/><span style={{ color: '#666' }}>확인을 누르시면 짧은 광고 시청 후<br/>매칭 신청이 완료됩니다.</span><br/>
                   </>
                 )}
                 매칭을 신청하시겠습니까?
