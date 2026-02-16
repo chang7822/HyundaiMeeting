@@ -4052,6 +4052,91 @@ router.post('/restore-period-users', authenticate, async (req, res) => {
   }
 });
 
+// 관리자 본인의 matching_history 및 chat_messages 건수 조회 (삭제 전 미리보기)
+router.get('/clear-admin-matching-data-preview', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const adminId = req.user.userId;
+    if (!adminId) {
+      return res.status(400).json({ success: false, message: '인증 정보를 확인할 수 없습니다.' });
+    }
+
+    const [historyRes, messagesRes] = await Promise.all([
+      supabase
+        .from('matching_history')
+        .select('id', { count: 'exact', head: true })
+        .or(`male_user_id.eq.${adminId},female_user_id.eq.${adminId}`),
+      supabase
+        .from('chat_messages')
+        .select('id', { count: 'exact', head: true })
+        .or(`sender_id.eq.${adminId},receiver_id.eq.${adminId}`)
+    ]);
+
+    const historyCount = historyRes.count ?? 0;
+    const messagesCount = messagesRes.count ?? 0;
+
+    res.json({
+      success: true,
+      historyCount,
+      messagesCount
+    });
+  } catch (error) {
+    console.error('[admin] clear-admin-matching-data-preview 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
+// 관리자 본인의 matching_history 및 관련 chat_messages 일괄 삭제
+router.post('/clear-admin-matching-data', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+
+    const adminId = req.user.userId;
+    if (!adminId) {
+      return res.status(400).json({ success: false, message: '인증 정보를 확인할 수 없습니다.' });
+    }
+
+    // 1. matching_history 삭제 (관리자가 male 또는 female로 포함된 행)
+    const { data: deletedHistory, error: histError } = await supabase
+      .from('matching_history')
+      .delete()
+      .or(`male_user_id.eq.${adminId},female_user_id.eq.${adminId}`)
+      .select('id');
+
+    if (histError) {
+      console.error('[admin] 관리자 matching_history 삭제 오류:', histError);
+      return res.status(500).json({ success: false, message: 'matching_history 삭제 실패' });
+    }
+
+    const historyDeleted = Array.isArray(deletedHistory) ? deletedHistory.length : 0;
+
+    // 2. chat_messages 삭제 (관리자가 sender 또는 receiver인 메시지)
+    const { data: deletedMessages, error: msgError } = await supabase
+      .from('chat_messages')
+      .delete()
+      .or(`sender_id.eq.${adminId},receiver_id.eq.${adminId}`)
+      .select('id');
+
+    if (msgError) {
+      console.error('[admin] 관리자 chat_messages 삭제 오류:', msgError);
+      return res.status(500).json({ success: false, message: 'chat_messages 삭제 실패' });
+    }
+
+    const messagesDeleted = Array.isArray(deletedMessages) ? deletedMessages.length : 0;
+
+    res.json({
+      success: true,
+      historyDeleted,
+      messagesDeleted,
+      message: `관리자 매칭 이력 ${historyDeleted}건, 채팅 메시지 ${messagesDeleted}건이 삭제되었습니다.`
+    });
+  } catch (error) {
+    console.error('[admin] clear-admin-matching-data 오류:', error);
+    res.status(500).json({ success: false, message: '서버 오류가 발생했습니다.' });
+  }
+});
+
 // 관리자용 채팅 내역 조회 (두 사용자 간)
 router.get('/chat-messages/:user1Id/:user2Id', authenticate, async (req, res) => {
   try {

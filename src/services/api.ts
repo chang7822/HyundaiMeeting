@@ -652,6 +652,16 @@ export const adminApi = {
     return response.data;
   },
 
+  clearAdminMatchingDataPreview: async (): Promise<{ historyCount: number; messagesCount: number }> => {
+    const response = await api.get('/admin/clear-admin-matching-data-preview');
+    return response.data;
+  },
+
+  clearAdminMatchingData: async (): Promise<{ historyDeleted: number; messagesDeleted: number; message: string }> => {
+    const response = await api.post('/admin/clear-admin-matching-data');
+    return response.data;
+  },
+
   // 전체 회원 공지 메일 발송
   sendBroadcastEmail: async (payload: { subject: string; content: string; is_html?: boolean; targets?: string[] }): Promise<any> => {
     const response = await api.post('/admin/broadcast-email', payload);

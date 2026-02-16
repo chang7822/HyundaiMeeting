@@ -203,6 +203,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [restorePeriodId, setRestorePeriodId] = useState<number>(0);
   const [restoring, setRestoring] = useState(false);
 
+  // 관리자 매칭/채팅 데이터 삭제
+  const [clearingAdminData, setClearingAdminData] = useState(false);
+
   // 버전 정책 관련 상태
   const [versionPolicy, setVersionPolicy] = useState({
     ios: { minimumVersion: '0.1.0', latestVersion: '0.1.0', storeUrl: '' },
@@ -255,6 +258,28 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
     };
     fetchUsers();
   }, []);
+
+  // 관리자 매칭 이력 및 채팅 메시지 삭제
+  const handleClearAdminMatchingData = async () => {
+    setClearingAdminData(true);
+    try {
+      const preview = await adminApi.clearAdminMatchingDataPreview();
+      const { historyCount = 0, messagesCount = 0 } = preview;
+
+      const msg = `다음 데이터가 삭제됩니다.\n\n• 매칭 이력: ${historyCount}건\n• 채팅 메시지: ${messagesCount}건\n\n이 작업은 되돌릴 수 없습니다. 계속하시겠습니까?`;
+      if (!window.confirm(msg)) {
+        return;
+      }
+
+      const res = await adminApi.clearAdminMatchingData();
+      toast.success(res.message || `매칭 이력 ${res.historyDeleted}건, 채팅 메시지 ${res.messagesDeleted}건 삭제됨`);
+    } catch (e: any) {
+      console.error('[SettingsPage] 관리자 데이터 삭제 오류:', e);
+      toast.error(e.response?.data?.message || '조회 또는 삭제 중 오류가 발생했습니다.');
+    } finally {
+      setClearingAdminData(false);
+    }
+  };
 
   // 회차 초기화 복구 핸들러
   const handleRestorePeriod = async () => {
@@ -994,6 +1019,32 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 {pushSending ? '전송 중...' : '푸시 알림 전송'}
               </button>
             </div>
+          </Section>
+
+          <Section>
+            <SectionTitle>관리자 매칭/채팅 데이터 삭제</SectionTitle>
+            <SectionDescription>
+              로그인한 관리자 본인의 matching_history와 관련 chat_messages를 모두 삭제합니다.
+              {'\n'}테스트용 매칭 이력·채팅 정리가 필요할 때 사용하세요. 되돌릴 수 없습니다.
+            </SectionDescription>
+
+            <button
+              onClick={handleClearAdminMatchingData}
+              disabled={clearingAdminData}
+              style={{
+                padding: '0.75rem 1.5rem',
+                borderRadius: 8,
+                border: 'none',
+                background: clearingAdminData ? '#cbd5e0' : 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
+                color: 'white',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                cursor: clearingAdminData ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              {clearingAdminData ? '삭제 중...' : '관리자 매칭·채팅 데이터 삭제'}
+            </button>
           </Section>
 
           <Section>
