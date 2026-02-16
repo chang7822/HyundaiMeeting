@@ -1190,7 +1190,7 @@ const Sidebar: React.FC<{
       text: '추가 매칭 도전',
       disabled: extraMatchingInWindow === false || user?.is_verified !== true,
     },
-    { path: '/rps-arena', icon: <span role="img" aria-label="가위바위보">🗿</span>, text: '가위바위보 아레나' },
+    { path: '/rps-arena', icon: <span role="img" aria-label="가위바위보">🗿</span>, text: '가위바위보 멸망전' },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
     {
       path: '/community',
