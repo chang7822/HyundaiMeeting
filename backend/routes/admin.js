@@ -4097,33 +4097,59 @@ router.post('/clear-admin-matching-data', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: '인증 정보를 확인할 수 없습니다.' });
     }
 
+    // 삭제 전 건수 조회 (응답용)
+    const [historyCountRes, messagesCountRes] = await Promise.all([
+      supabase
+        .from('matching_history')
+        .select('id', { count: 'exact', head: true })
+        .or(`male_user_id.eq.${adminId},female_user_id.eq.${adminId}`),
+      supabase
+        .from('chat_messages')
+        .select('id', { count: 'exact', head: true })
+        .or(`sender_id.eq.${adminId},receiver_id.eq.${adminId}`)
+    ]);
+    const historyDeleted = historyCountRes.count ?? 0;
+    const messagesDeleted = messagesCountRes.count ?? 0;
+
     // 1. matching_history 삭제 (관리자가 male 또는 female로 포함된 행)
-    const { data: deletedHistory, error: histError } = await supabase
+    // .or()와 delete 조합이 실패할 수 있으므로, male/female 각각 별도 delete 수행
+    const { error: histMaleError } = await supabase
       .from('matching_history')
       .delete()
-      .or(`male_user_id.eq.${adminId},female_user_id.eq.${adminId}`)
-      .select('id');
-
-    if (histError) {
-      console.error('[admin] 관리자 matching_history 삭제 오류:', histError);
+      .eq('male_user_id', adminId);
+    if (histMaleError) {
+      console.error('[admin] 관리자 matching_history(male) 삭제 오류:', histMaleError);
       return res.status(500).json({ success: false, message: 'matching_history 삭제 실패' });
     }
 
-    const historyDeleted = Array.isArray(deletedHistory) ? deletedHistory.length : 0;
+    const { error: histFemaleError } = await supabase
+      .from('matching_history')
+      .delete()
+      .eq('female_user_id', adminId);
+    if (histFemaleError) {
+      console.error('[admin] 관리자 matching_history(female) 삭제 오류:', histFemaleError);
+      return res.status(500).json({ success: false, message: 'matching_history 삭제 실패' });
+    }
 
     // 2. chat_messages 삭제 (관리자가 sender 또는 receiver인 메시지)
-    const { data: deletedMessages, error: msgError } = await supabase
+    // users.js 회원탈퇴와 동일하게 sender/receiver 각각 별도 delete 수행
+    const { error: msgSenderError } = await supabase
       .from('chat_messages')
       .delete()
-      .or(`sender_id.eq.${adminId},receiver_id.eq.${adminId}`)
-      .select('id');
-
-    if (msgError) {
-      console.error('[admin] 관리자 chat_messages 삭제 오류:', msgError);
+      .eq('sender_id', adminId);
+    if (msgSenderError) {
+      console.error('[admin] 관리자 chat_messages(sender) 삭제 오류:', msgSenderError);
       return res.status(500).json({ success: false, message: 'chat_messages 삭제 실패' });
     }
 
-    const messagesDeleted = Array.isArray(deletedMessages) ? deletedMessages.length : 0;
+    const { error: msgReceiverError } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('receiver_id', adminId);
+    if (msgReceiverError) {
+      console.error('[admin] 관리자 chat_messages(receiver) 삭제 오류:', msgReceiverError);
+      return res.status(500).json({ success: false, message: 'chat_messages 삭제 실패' });
+    }
 
     res.json({
       success: true,
