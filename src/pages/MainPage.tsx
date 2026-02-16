@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell } from 'react-icons/fa';
+import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell, FaCalendarAlt } from 'react-icons/fa';
 import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi, starApi, adminApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
@@ -883,7 +883,50 @@ const ModalContent = styled.div`
   }
 `;
 
+const ScheduleModalContent = styled.div`
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px 28px 28px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  width: 90vw;
+  max-width: 380px;
+  border: 1px solid rgba(102, 126, 234, 0.15);
+`;
 
+const ScheduleModalTitle = styled.div`
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`;
+
+const ScheduleRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  border-left: 4px solid #667eea;
+  &:last-of-type { margin-bottom: 0; }
+`;
+
+const ScheduleRowLabel = styled.span`
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #667eea;
+`;
+
+const ScheduleRowValue = styled.span`
+  font-size: 1rem;
+  font-weight: 500;
+  color: #333;
+  line-height: 1.4;
+`;
 
 const cancelTime = 1;
 const MAIN_MATCH_STAR_COST = 5;
@@ -925,6 +968,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
   const [showMatchingStarConfirmModal, setShowMatchingStarConfirmModal] = useState(false);
   const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [countdown, setCountdown] = useState<string>('');
   const [unreadCount, setUnreadCount] = useState<number>(0);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
@@ -1722,6 +1766,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     const isAnyModalOpen =
       showProfileModal ||
       showPartnerModal ||
+      showScheduleModal ||
       showMatchingConfirmModal ||
       showMatchingStarConfirmModal ||
       showCancelConfirmModal;
@@ -1731,7 +1776,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       document.body.classList.remove('modal-open');
     }
     return () => { document.body.classList.remove('modal-open'); };
-  }, [showProfileModal, showPartnerModal, showMatchingConfirmModal, showMatchingStarConfirmModal, showCancelConfirmModal]);
+  }, [showProfileModal, showPartnerModal, showScheduleModal, showMatchingConfirmModal, showMatchingStarConfirmModal, showCancelConfirmModal]);
 
   // 모든 useState, useEffect 선언 이후
   // useEffect는 항상 최상단에서 호출
@@ -1926,6 +1971,19 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     return `${yyyy}-${mm}-${dd} ${hh}시 ${min}분`;
   };
 
+  // 신청기간 표시용 (연도 제외, M/D (요일) HH:mm)
+  const formatPeriodShort = (dateStr: string | null) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const hh = d.getHours().toString().padStart(2, '0');
+    const min = d.getMinutes().toString().padStart(2, '0');
+    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
+    const w = weekdays[d.getDay()];
+    return `${m}/${day} (${w}) ${hh}:${min}`;
+  };
+
   // [리팩터링] 매칭 상태 분기 함수
   const getUserMatchingState = () => {
     // 🔧 성공/실패 여부(isMatched)는 **항상 서버에서 내려준 matchingStatus만** 신뢰하고,
@@ -1991,7 +2049,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (nowTime < start.getTime()) {
       return {
         status: '신청 기간이 아닙니다.',
-        period: `신청기간 : ${formatKST(period.application_start)}\n~ ${formatKST(period.application_end)}`,
+        period: `신청기간 :\n${formatPeriodShort(period.application_start)} ~ ${formatPeriodShort(period.application_end)}`,
         color: '#888',
       };
     }
@@ -2000,13 +2058,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       if (!isApplied || isCancelled) {
         return {
           status: '매칭 미신청',
-          period: `신청기간 : ${formatKST(period.application_start)}\n~ ${formatKST(period.application_end)}`,
+          period: `신청기간 :\n${formatPeriodShort(period.application_start)} ~ ${formatPeriodShort(period.application_end)}`,
           color: '#1976d2',
         };
       } else {
         return {
           status: '신청 완료',
-          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatKST(period.matching_announce) : '-'}`,
+          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatPeriodShort(period.matching_announce) : '-'}`,
           color: '#7C3AED',
         };
       }
@@ -2016,13 +2074,13 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       if (isApplied && !isCancelled) {
         return {
           status: '신청 완료',
-          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatKST(period.matching_announce) : '-'}`,
+          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatPeriodShort(period.matching_announce) : '-'}`,
           color: '#7C3AED',
         };
       } else {
         return {
           status: '신청 마감',
-          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatKST(period.matching_announce) : '-'}`,
+          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatPeriodShort(period.matching_announce) : '-'}`,
           color: '#888',
         };
       }
@@ -2051,7 +2109,7 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         };
       }
       if (isMatched === false) {
-        const finishLabel = period.finish ? formatKST(period.finish) : '-';
+        const finishLabel = period.finish ? formatPeriodShort(period.finish) : '-';
         return {
           status: '매칭 실패',
           period: `아쉽지만 다음기회를 기약할게요.\n매칭 종료 : ${finishLabel}`,
@@ -2189,18 +2247,24 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     if (isAfterAnnounce && isBeforeFinish) {
       // 현재 회차: 발표완료~마감 전 구간 → NEXT 회차 예고
       const nextStart = nextPeriod.application_start
-        ? formatKST(nextPeriod.application_start)
+        ? formatPeriodShort(nextPeriod.application_start)
         : '-';
       const nextEnd = nextPeriod.application_end
-        ? formatKST(nextPeriod.application_end)
+        ? formatPeriodShort(nextPeriod.application_end)
         : '-';
-      // "YYYY-MM-DD HH시 mm분 ~ YYYY-MM-DD HH시 mm분" 형식만 담아두고,
-      // 문구는 렌더링 쪽에서 조합
-      nextPeriodLabel = `${nextStart} ~`;
+      nextPeriodLabel = `${nextStart} ~ ${nextEnd}`;
     }
   }
 
-
+  // 일정 모달에 표시할 회차 (현재 종료+다음회차 있음 → 다음회차, 현재 진행중 → 현재회차, 종료+다음없음 → 비활성화)
+  const schedulePeriod = (() => {
+    if (!period?.application_start) return null;
+    const isCurrentFinished = period.finish && new Date(period.finish) < now;
+    if (isCurrentFinished && nextPeriod?.application_start) return nextPeriod;
+    if (isCurrentFinished) return null; // 종료됐고 다음회차 없음 → 일정 아이콘 비활성화
+    return period;
+  })();
+  const hasScheduleData = !!schedulePeriod?.application_start;
 
   const quickActions: QuickAction[] = [
     {
@@ -3388,7 +3452,26 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             {actionLoading ? '처리 중...' : '신청 취소하기'}
           </MatchingButton>
         )}
-        <div style={{ textAlign: 'center', marginTop: 8, color: '#888', whiteSpace: 'pre-line' }}>{periodLabel}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 }}>
+          <div style={{ textAlign: periodLabel.startsWith('신청기간 :') ? 'left' : 'center', marginLeft: periodLabel.startsWith('신청기간 :') ? 12 : 0, color: '#888', whiteSpace: 'pre-line', flex: 1 }}>{periodLabel}</div>
+          {hasScheduleData && (
+            <button
+              type="button"
+              onClick={() => setShowScheduleModal(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: 6,
+                cursor: 'pointer',
+                color: '#999',
+                opacity: 0.8,
+              }}
+              title="일정 보기"
+            >
+              <FaCalendarAlt size={18} />
+            </button>
+          )}
+        </div>
         {reapplyMessage && (
           <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
         )}
@@ -3916,6 +3999,42 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
           </ModalContent>
         </ModalOverlay>
       )}
+      {showScheduleModal && schedulePeriod && (
+        <ModalOverlay onClick={() => setShowScheduleModal(false)}>
+          <ScheduleModalContent onClick={(e) => e.stopPropagation()}>
+            <ScheduleModalTitle>
+              <FaCalendarAlt style={{ color: '#667eea' }} />
+              {schedulePeriod.periodNumber ? `${schedulePeriod.periodNumber}회차 매칭 일정` : '매칭 일정'}
+            </ScheduleModalTitle>
+            <ScheduleRow>
+              <ScheduleRowLabel>매칭 신청기간</ScheduleRowLabel>
+              <ScheduleRowValue>
+                {formatPeriodShort(schedulePeriod.application_start)} ~ {formatPeriodShort(schedulePeriod.application_end)}
+              </ScheduleRowValue>
+            </ScheduleRow>
+            <ScheduleRow>
+              <ScheduleRowLabel>매칭 결과 발표일</ScheduleRowLabel>
+              <ScheduleRowValue>
+                {schedulePeriod.matching_announce ? formatPeriodShort(schedulePeriod.matching_announce) : '-'}
+              </ScheduleRowValue>
+            </ScheduleRow>
+            <ScheduleRow>
+              <ScheduleRowLabel>매칭 종료일</ScheduleRowLabel>
+              <ScheduleRowValue>
+                {schedulePeriod.finish ? formatPeriodShort(schedulePeriod.finish) : '-'}
+              </ScheduleRowValue>
+            </ScheduleRow>
+            <div style={{ marginTop: 20, textAlign: 'center' }}>
+              <button
+                onClick={() => setShowScheduleModal(false)}
+                style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', fontWeight: 600, fontSize: '0.95rem', cursor: 'pointer' }}
+              >
+                닫기
+              </button>
+            </div>
+          </ScheduleModalContent>
+        </ModalOverlay>
+      )}
       </WelcomeSection>
       
       {/* 주요 기능 카드들 */}
@@ -4026,6 +4145,10 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                             boxShadow: '0 4px 12px rgba(102,126,234,0.08)',
                             letterSpacing: '-0.01em',
                             border: '1px solid rgba(102,126,234,0.1)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: (period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? 'center' : undefined,
+                            minHeight: (period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? 56 : undefined,
                           }}
                         >
                           <div
@@ -4033,25 +4156,55 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                               fontWeight: 700,
                               fontSize: '1.2rem',
                               color,
-                              marginBottom: period ? 8 : 0,
+                              marginBottom: (period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? 0 : (period ? 8 : 0),
                               lineHeight: 1.3,
                               textAlign: 'center',
                             }}
                           >
                             {status}
                           </div>
-                          {period && (
+                          {(period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? null : (period || hasScheduleData) && (
                             <div
                               style={{
-                                fontSize: '0.95rem',
-                                color: '#555',
-                                fontWeight: 500,
-                                whiteSpace: 'pre-line',
-                                lineHeight: 1.4,
-                                textAlign: 'center',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 8,
                               }}
                             >
-                              {period}
+                              <div
+                                style={{
+                                  fontSize: '0.95rem',
+                                  color: '#555',
+                                  fontWeight: 500,
+                                  whiteSpace: 'pre-line',
+                                  lineHeight: 1.4,
+                                  textAlign: 'center',
+                                  flex: 1,
+                                }}
+                              >
+                                {period}
+                              </div>
+                              {hasScheduleData && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowScheduleModal(true);
+                                  }}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: 6,
+                                    cursor: 'pointer',
+                                    color: '#999',
+                                    opacity: 0.8,
+                                  }}
+                                  title="일정 보기"
+                                >
+                                  <FaCalendarAlt size={18} />
+                                </button>
+                              )}
                             </div>
                           )}
 

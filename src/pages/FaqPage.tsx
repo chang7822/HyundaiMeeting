@@ -164,8 +164,9 @@ const ToggleButton = styled.button`
 
 const FaqContent = styled.div<{ $isOpen: boolean }>`
   max-height: ${props => props.$isOpen ? '500px' : '0'};
-  overflow: hidden;
-  transition: all 0.3s ease;
+  overflow-y: ${props => props.$isOpen ? 'auto' : 'hidden'};
+  overflow-x: hidden;
+  transition: max-height 0.3s ease;
   background: #f7fafc;
 `;
 
