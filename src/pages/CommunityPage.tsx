@@ -6,6 +6,8 @@ import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevr
 import { communityApi, matchingApi, adminApi, starApi } from '../services/api.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import InlineSpinner from '../components/InlineSpinner.tsx';
+import ProfileCard from '../components/ProfileCard.tsx';
+import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 
 interface CommunityPageProps {
   sidebarOpen: boolean;
@@ -176,7 +178,7 @@ const StarGaugeHeaderRow = styled.div`
 const StarGaugeCaption = styled.p`
   color: rgba(255, 255, 255, 0.95);
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 500;
   margin: 0;
   line-height: 1.3;
   flex: 1;
@@ -1259,6 +1261,32 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [reportedItems, setReportedItems] = useState<Set<string>>(new Set()); // 'post:123' 또는 'comment:456' 형식
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [blockTarget, setBlockTarget] = useState<{ periodId: number; anonymousNumber: number; postId?: number } | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileModalData, setProfileModalData] = useState<{
+    anonymousNumber: number;
+    email: string;
+    profile: {
+      nickname?: string;
+      birth_year?: number;
+      gender?: string;
+      education?: string;
+      company?: string;
+      custom_company_name?: string;
+      mbti?: string;
+      marital_status?: string;
+      appeal?: string;
+      interests?: string;
+      appearance?: string;
+      personality?: string;
+      height?: number;
+      body_type?: string;
+      residence?: string;
+      drinking?: string;
+      smoking?: string;
+      religion?: string;
+    };
+  } | null>(null);
+  const [profileModalLoading, setProfileModalLoading] = useState(false);
 
   // [관리자 전용] 익명 ID 관리
   const [adminIdentities, setAdminIdentities] = useState<Array<{ anonymousNumber: number; colorCode: string; tag: string; fixedDisplayTag?: string }>>([]);
@@ -1923,6 +1951,26 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     setShowBlockModal(true);
   };
 
+  const handleAdminViewProfile = async (periodId: number, anonymousNumber: number) => {
+    if (!user?.isAdmin || !currentPeriodId) return;
+    setProfileModalLoading(true);
+    setShowProfileModal(true);
+    setProfileModalData(null);
+    try {
+      const data = await communityApi.getUserByAnonymous(periodId, anonymousNumber);
+      setProfileModalData({
+        anonymousNumber,
+        email: data.email,
+        profile: data.profile || {}
+      });
+    } catch (err) {
+      toast.error('프로필을 불러오는데 실패했습니다.');
+      setShowProfileModal(false);
+    } finally {
+      setProfileModalLoading(false);
+    }
+  };
+
   // 익명 사용자 차단 실행 (모달에서 확인 시)
   const confirmBlockUser = async () => {
     if (!blockTarget) return;
@@ -2151,7 +2199,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         {/* 별조각 게이지 (2+3+5=10, 회차당 최대 3개) */}
         <StarGaugeSection>
           <StarGaugeHeaderRow>
-            <StarGaugeCaption>별조각✨을 모아 ⭐을 만들어보세요 !!</StarGaugeCaption>
+            <StarGaugeCaption>별조각을 모아⭐을 만들어보세요</StarGaugeCaption>
             <StarCountBadge style={{ flexShrink: 0 }}>
               <StarCountLabel>⭐  :  </StarCountLabel> {starGauge?.starsEarned ?? 0} / 3
             </StarCountBadge>
@@ -2185,7 +2233,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       >
         <div style={{ color: '#374151', lineHeight: 1.7, textAlign: 'center' }}>
           <p style={{ margin: 0, fontWeight: 600, fontSize: '1.1rem' }}>
-            별조각✨을 모아 ⭐을 만들었습니다!
+            별조각을 모아 ⭐을 만들었습니다!
           </p>
         </div>
       </Modal>
@@ -2331,6 +2379,48 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.9rem' }}>
           해당 사용자의 글과 댓글이 <strong>차단된 사용자</strong>로 음영 처리되어 표시됩니다.
         </p>
+      </Modal>
+
+      {/* [관리자 전용] 익명 사용자 프로필 모달 */}
+      <Modal
+        show={showProfileModal}
+        onClose={() => {
+          setShowProfileModal(false);
+          setProfileModalData(null);
+        }}
+        title={profileModalData ? `익명${profileModalData.anonymousNumber} 프로필` : '프로필'}
+        cancelText="닫기"
+      >
+        <div style={{ minHeight: '80px', color: '#374151' }}>
+          {profileModalLoading ? (
+            <p style={{ textAlign: 'center', color: '#6b7280' }}>불러오는 중...</p>
+          ) : profileModalData ? (
+            <div>
+              <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f3f4f6', borderRadius: 8, fontSize: '0.9rem' }}>
+                <strong>이메일</strong>: {profileModalData.email}
+              </div>
+              <ProfileCard
+                nickname={profileModalData.profile?.nickname || '-'}
+                birthYear={profileModalData.profile?.birth_year || 0}
+                gender={profileModalData.profile?.gender === 'male' ? '남성' : profileModalData.profile?.gender === 'female' ? '여성' : '-'}
+                job={profileModalData.profile?.education || '-'}
+                company={getDisplayCompanyName(profileModalData.profile?.company, profileModalData.profile?.custom_company_name)}
+                mbti={profileModalData.profile?.mbti}
+                maritalStatus={profileModalData.profile?.marital_status}
+                appeal={profileModalData.profile?.appeal}
+                interests={profileModalData.profile?.interests}
+                appearance={profileModalData.profile?.appearance}
+                personality={profileModalData.profile?.personality}
+                height={profileModalData.profile?.height}
+                body_type={profileModalData.profile?.body_type}
+                residence={profileModalData.profile?.residence}
+                drinking={profileModalData.profile?.drinking}
+                smoking={profileModalData.profile?.smoking}
+                religion={profileModalData.profile?.religion}
+              />
+            </div>
+          ) : null}
+        </div>
       </Modal>
 
       {/* [관리자 전용] 익명 ON이면 익명 ID 박스 표시 */}
@@ -2598,9 +2688,18 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                     {post.is_admin_post ? (
                       <AdminBadge>👑 관리자</AdminBadge>
                     ) : (
-                      <AnonymousName $color={post.color_code}>
-                        익명{post.anonymous_number}
-                      </AnonymousName>
+                      user?.isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => handleAdminViewProfile(post.period_id, post.anonymous_number)}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                          title="프로필 보기"
+                        >
+                          <AnonymousName $color={post.color_code}>익명{post.anonymous_number}</AnonymousName>
+                        </button>
+                      ) : (
+                        <AnonymousName $color={post.color_code}>익명{post.anonymous_number}</AnonymousName>
+                      )
                     )}
                     {post.tag && !post.is_admin_post && <StatusTag $type={post.tag}>{post.tag}</StatusTag>}
                     <TimeStamp>{getRelativeTime(post.created_at)}</TimeStamp>
@@ -2734,9 +2833,18 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
                               {comment.is_admin_post ? (
                                 <AdminBadge style={{ fontSize: '0.75rem' }}>👑 관리자</AdminBadge>
                               ) : (
-                                <AnonymousName $color={comment.color_code} style={{ fontSize: '0.9rem' }}>
-                                  익명{comment.anonymous_number}
-                                </AnonymousName>
+                                user?.isAdmin ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdminViewProfile(post.period_id, comment.anonymous_number)}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', fontSize: 'inherit' }}
+                                    title="프로필 보기"
+                                  >
+                                    <AnonymousName $color={comment.color_code} style={{ fontSize: '0.9rem' }}>익명{comment.anonymous_number}</AnonymousName>
+                                  </button>
+                                ) : (
+                                  <AnonymousName $color={comment.color_code} style={{ fontSize: '0.9rem' }}>익명{comment.anonymous_number}</AnonymousName>
+                                )
                               )}
                               {comment.tag && !comment.is_admin_post && <StatusTag $type={comment.tag}>{comment.tag}</StatusTag>}
                               <TimeStamp style={{ fontSize: '0.75rem' }}>{getRelativeTime(comment.created_at)}</TimeStamp>

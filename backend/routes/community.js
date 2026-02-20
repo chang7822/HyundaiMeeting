@@ -335,6 +335,71 @@ router.post('/admin/identities/bulk', authenticate, async (req, res) => {
 });
 
 /**
+ * [관리자 전용] 익명 번호로 사용자 프로필 조회
+ * GET /api/community/admin/user-by-anonymous?period_id=1&anonymous_number=3
+ */
+router.get('/admin/user-by-anonymous', authenticate, async (req, res) => {
+  try {
+    const isAdmin = req.user.isAdmin;
+    if (!isAdmin) {
+      return res.status(403).json({ error: '관리자만 접근 가능합니다.' });
+    }
+    const periodId = parseInt(req.query.period_id);
+    const anonymousNumber = parseInt(req.query.anonymous_number);
+    if (!periodId || isNaN(periodId) || !anonymousNumber || isNaN(anonymousNumber)) {
+      return res.status(400).json({ error: 'period_id와 anonymous_number가 필요합니다.' });
+    }
+
+    const { data: identity } = await supabase
+      .from('community_user_identities')
+      .select('user_id')
+      .eq('period_id', periodId)
+      .eq('anonymous_number', anonymousNumber)
+      .maybeSingle();
+
+    if (!identity?.user_id) {
+      return res.status(404).json({ error: '해당 익명 사용자를 찾을 수 없습니다.' });
+    }
+
+    const [userRes, profileRes] = await Promise.all([
+      supabase.from('users').select('id, email, created_at').eq('id', identity.user_id).single(),
+      supabase.from('user_profiles').select('*').eq('user_id', identity.user_id).maybeSingle()
+    ]);
+
+    const user = userRes?.data;
+    const profile = profileRes?.data || {};
+
+    res.json({
+      user_id: identity.user_id,
+      email: user?.email || '-',
+      profile: {
+        nickname: profile.nickname,
+        birth_year: profile.birth_year,
+        gender: profile.gender,
+        education: profile.education,
+        company: profile.company,
+        custom_company_name: profile.custom_company_name,
+        mbti: profile.mbti,
+        marital_status: profile.marital_status,
+        appeal: profile.appeal,
+        interests: profile.interests,
+        appearance: profile.appearance,
+        personality: profile.personality,
+        height: profile.height,
+        body_type: profile.body_type,
+        residence: profile.residence,
+        drinking: profile.drinking,
+        smoking: profile.smoking,
+        religion: profile.religion
+      }
+    });
+  } catch (error) {
+    console.error('[community] 익명 사용자 프로필 조회 예외:', error);
+    res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+/**
  * 내 익명 ID 조회 (없으면 자동 생성)
  * GET /api/community/my-identity/:periodId
  * 여러 개가 있으면 가장 작은 번호(첫 번째) 반환
@@ -1737,7 +1802,7 @@ router.post('/comments', authenticate, async (req, res) => {
 
     // 알림용 댓글 미리보기 (30자 제한)
     const contentPreview = content.length > 30 ? content.slice(0, 30) + '…' : content;
-    const contentSuffix = contentPreview ? ` "${contentPreview}"` : '';
+    const contentSuffix = contentPreview ? `\n\n"${contentPreview}"` : '';
 
     // 알림 전송
     if (notificationUserIds.size > 0) {

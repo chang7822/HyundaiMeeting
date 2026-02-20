@@ -1333,6 +1333,35 @@ export const communityApi = {
     return response.data;
   },
 
+  // [관리자 전용] 익명 번호로 사용자 프로필 조회
+  getUserByAnonymous: async (periodId: number, anonymousNumber: number): Promise<{
+    user_id: string;
+    email: string;
+    profile: {
+      nickname?: string;
+      birth_year?: number;
+      gender?: string;
+      education?: string;
+      company?: string;
+      custom_company_name?: string;
+      mbti?: string;
+      marital_status?: string;
+      appeal?: string;
+      interests?: string;
+      appearance?: string;
+      personality?: string;
+      height?: number;
+      body_type?: string;
+      residence?: string;
+      drinking?: string;
+      smoking?: string;
+      religion?: string;
+    };
+  }> => {
+    const response = await api.get('/community/admin/user-by-anonymous', { params: { period_id: periodId, anonymous_number: anonymousNumber } });
+    return response.data;
+  },
+
   // 별조각 게이지 조회 (글 2개/댓글 1개, 별당 2+3+5)
   getStarGauge: async (periodId: number): Promise<{ fragmentCount?: number; gaugeProgress: number; gaugeMax?: number; starsEarned: number; segmentCount?: number; starMaxPerPeriod?: number }> => {
     const response = await api.get(`/community/star-gauge/${periodId}`);
