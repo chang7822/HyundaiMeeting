@@ -6,6 +6,7 @@ const nodemailer = require('nodemailer');
 const { supabase } = require('../database');
 const { sendAdminNotificationEmail } = require('../utils/emailService');
 const { sendPushToAdmin } = require('../pushService');
+const { computeMatchingCountsForUser } = require('../utils/matchingCompatibility');
 const router = express.Router();
 const authenticate = require('../middleware/authenticate');
 const notificationsRouter = require('./notifications');
@@ -1204,9 +1205,27 @@ router.post('/register', async (req, res) => {
         `선호 지역: ${Array.isArray(profileDataToInsert.prefer_region) && profileDataToInsert.prefer_region.length > 0 
           ? profileDataToInsert.prefer_region.join(', ') 
           : '-'}`,
-      ].filter(line => line !== ''); // 빈 줄 제거
-      
-      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+      ];
+
+      // 현재 프로필 기준 매칭 통계 (회원매칭조회 내가/나를 로직과 동일)
+      try {
+        const counts = await computeMatchingCountsForUser(user.id);
+        if (counts) {
+          adminBodyLines.push(
+            '',
+            '=== 현재 프로필 기준 매칭 가능 인원 ===',
+            `내가 맘에 드는 사람 : ${counts.iPreferCount}명`,
+            `나를 맘에들어 하는 사람 : ${counts.preferMeCount}명`,
+            `매칭 가능한 사람 : ${counts.mutualCount}명`
+          );
+        }
+      } catch (countErr) {
+        console.error('[회원가입] 매칭 통계 조회 오류:', countErr);
+      }
+
+      const finalBody = adminBodyLines.filter(line => line !== '').join('\n');
+
+      sendAdminNotificationEmail(adminSubject, finalBody).catch(err => {
         console.error('[회원가입] 관리자 알림 메일 발송 실패:', err);
       });
 

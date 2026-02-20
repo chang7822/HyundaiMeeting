@@ -8,6 +8,17 @@ import { apiUrl, adminMatchingApi, adminChatApi } from '../../services/api.ts';
 import InlineSpinner from '../../components/InlineSpinner.tsx';
 import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
 
+// read_at은 DB에서 timestamp without time zone으로 저장되어 'Z' 없이 반환됨 → UTC로 해석하도록 보정
+function parseAsUtc(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  const s = String(dateStr).trim();
+  if (!s) return null;
+  if (/Z$|[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+  return new Date(s + 'Z');
+}
+
+const KST_OPTS: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Seoul' };
+
 const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin: 40px auto;
   background: #fff;
@@ -827,22 +838,15 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
                       )}
                     </MessageContentRow>
                     <MessageTime $isSender={isSender}>
-                      {new Date(msg.timestamp).toLocaleString('ko-KR', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                      {msg.is_read && msg.read_at && (
-                        <span style={{ marginLeft: '8px', color: '#10b981' }}>
-                          (읽음: {new Date(msg.read_at).toLocaleString('ko-KR', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })})
-                        </span>
-                      )}
+                      {new Date(msg.timestamp).toLocaleString('ko-KR', KST_OPTS)}
+                      {msg.is_read && msg.read_at && (() => {
+                        const readDate = parseAsUtc(msg.read_at);
+                        return readDate ? (
+                          <span style={{ marginLeft: '8px', color: '#10b981' }}>
+                            (읽음: {readDate.toLocaleString('ko-KR', KST_OPTS)})
+                          </span>
+                        ) : null;
+                      })()}
                     </MessageTime>
                   </MessageBubble>
                 );

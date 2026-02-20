@@ -123,10 +123,11 @@ cron.schedule(scheduleInterval, async () => {
         // 매칭 종료된 회차의 커뮤니티 데이터 초기화
         for (const period of finishedPeriods) {
           try {
-            // 게시글, 댓글, 좋아요, 신고, 익명 ID, 차단 목록 모두 삭제
+            // 게시글, 댓글, 좋아요, 신고, 익명 ID, 차단 목록, 별조각 지급 이력 모두 삭제
             await supabase.from('community_posts').delete().eq('period_id', period.id);
             await supabase.from('community_user_identities').delete().eq('period_id', period.id);
             await supabase.from('community_blocks').delete().eq('period_id', period.id);
+            await supabase.from('community_star_grants').delete().eq('period_id', period.id);
             console.log(`[스케줄러] 회차 ${period.id} 매칭종료 - 커뮤니티 초기화 완료`);
 
             // 관리자에게 푸시 알림 발송
@@ -182,10 +183,11 @@ cron.schedule(scheduleInterval, async () => {
         // 매칭 결과 발표된 회차의 커뮤니티 데이터 초기화
         for (const period of announcedPeriods) {
           try {
-            // 게시글, 댓글, 좋아요, 신고, 익명 ID, 차단 목록 모두 삭제
+            // 게시글, 댓글, 좋아요, 신고, 익명 ID, 차단 목록, 별조각 지급 이력 모두 삭제
             await supabase.from('community_posts').delete().eq('period_id', period.id);
             await supabase.from('community_user_identities').delete().eq('period_id', period.id);
             await supabase.from('community_blocks').delete().eq('period_id', period.id);
+            await supabase.from('community_star_grants').delete().eq('period_id', period.id);
             console.log(`[스케줄러] 회차 ${period.id} 매칭발표 - 커뮤니티 초기화 완료`);
 
             // 관리자에게 푸시 알림 발송
@@ -241,10 +243,11 @@ cron.schedule(scheduleInterval, async () => {
         // 매칭 신청 시작된 회차의 커뮤니티 데이터 초기화
         for (const period of runningPeriods) {
           try {
-            // 게시글, 댓글, 좋아요, 신고, 익명 ID, 차단 목록 모두 삭제
+            // 게시글, 댓글, 좋아요, 신고, 익명 ID, 차단 목록, 별조각 지급 이력 모두 삭제
             await supabase.from('community_posts').delete().eq('period_id', period.id);
             await supabase.from('community_user_identities').delete().eq('period_id', period.id);
             await supabase.from('community_blocks').delete().eq('period_id', period.id);
+            await supabase.from('community_star_grants').delete().eq('period_id', period.id);
             console.log(`[스케줄러] 회차 ${period.id} 매칭신청시작 - 커뮤니티 초기화 완료`);
 
             // 관리자에게 푸시 알림 발송

@@ -2,8 +2,8 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevronDown, FaChevronUp, FaBan, FaSyncAlt, FaUserSlash } from 'react-icons/fa';
-import { communityApi, matchingApi, adminApi } from '../services/api.ts';
+import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevronDown, FaChevronUp, FaBan, FaSyncAlt, FaUserSlash, FaQuestion, FaInfoCircle } from 'react-icons/fa';
+import { communityApi, matchingApi, adminApi, starApi } from '../services/api.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import InlineSpinner from '../components/InlineSpinner.tsx';
 
@@ -96,9 +96,14 @@ const HeaderTitle = styled.h1`
   }
 `;
 
-const RefreshButton = styled.button`
-  background: rgba(255, 255, 255, 0.2);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+/** 플로팅 새로고침 버튼 (우측 상단, 사이드바 버튼과 대칭) */
+const FloatingRefreshButton = styled.button`
+  position: fixed;
+  right: 20px;
+  top: 16px;
+  z-index: 900;
+  background: #667eea;
+  border: none;
   color: white;
   padding: 0.5rem;
   border-radius: 50%;
@@ -109,38 +114,194 @@ const RefreshButton = styled.button`
   justify-content: center;
   width: 40px;
   height: 40px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: #5b21b6;
     transform: rotate(180deg);
   }
 
   @media (max-width: 768px) {
     width: 36px;
     height: 36px;
+    right: 16px;
+    top: 16px;
   }
 `;
 
-const WarningButton = styled.button`
-  background: rgba(255, 255, 255, 0.2);
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
+const HelpButton = styled.button`
+  background: rgba(255, 255, 255, 0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
   color: white;
-  padding: 0.4rem 0.75rem;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.85rem;
+  padding: 0.25rem;
+  border-radius: 50%;
   cursor: pointer;
   transition: all 0.2s;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 0.75rem;
+  font-weight: 700;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.3);
-    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.35);
+  }
+`;
+
+const StarGaugeSection = styled.div`
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(55, 48, 163, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0.6rem 0.9rem;
+  }
+`;
+
+const StarGaugeHeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  width: 100%;
+`;
+
+const StarGaugeCaption = styled.p`
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+  }
+`;
+
+const StarGaugeTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+`;
+
+const StarCountBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fef3c7;
+  white-space: pre-wrap;
+`;
+
+const StarCountLabel = styled.span`
+  color: #ffffff;
+  font-weight: 700;
+`;
+
+const StarGaugeLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
+const StarGaugeBar = styled.div`
+  flex: 1 1 0%;
+  min-width: 100px;
+  height: 15px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+`;
+
+const StarGaugeFill = styled.div<{ $progress: number; $max: number }>`
+  height: 100%;
+  width: ${props => Math.min(100, (props.$progress / props.$max) * 100)}%;
+  background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+  border-radius: 10px;
+  transition: width 0.3s ease;
+  position: relative;
+  z-index: 0;
+`;
+
+const StarGaugeSegmentDivider = styled.div<{ $position: number }>`
+  position: absolute;
+  left: ${props => props.$position}%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1;
+  pointer-events: none;
+`;
+
+const StarGaugeText = styled.span`
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 3.2rem;
+  text-align: center;
+`;
+
+const StarGaugeInfoBtn = styled.button`
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #ffffff;
+  }
+`;
+
+const WarningIconButton = styled.button`
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  line-height: 1;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+
+  &:hover {
+    transform: scale(1.15);
   }
 
   @media (max-width: 768px) {
-    padding: 0.35rem 0.65rem;
-    font-size: 0.8rem;
+    font-size: 1.35rem;
   }
 `;
 
@@ -1085,6 +1246,10 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showWarningModal, setShowWarningModal] = useState(false);
+  const [showIntroModal, setShowIntroModal] = useState(false);
+  const [starGauge, setStarGauge] = useState<{ fragmentCount?: number; gaugeProgress: number; gaugeMax?: number; starsEarned: number; segmentCount?: number; starMaxPerPeriod?: number } | null>(null);
+  const [showStarGaugeModal, setShowStarGaugeModal] = useState(false);
+  const [showStarEarnedModal, setShowStarEarnedModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{type: 'post' | 'comment', id: number, postId?: number} | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -1231,10 +1396,11 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       // 병렬로 API 호출하여 성능 개선
       const anonymousNum = user?.isAdmin && selectedAnonymousNumber ? selectedAnonymousNumber : undefined;
       
-      const [identity, postsResult, likesResult] = await Promise.all([
+      const [identity, postsResult, likesResult, gaugeResult] = await Promise.all([
         communityApi.getMyIdentity(currentPeriodId),
         communityApi.getPosts(currentPeriodId, 20, 0, sortOrder, filter),
-        communityApi.getMyLikes(currentPeriodId, anonymousNum)
+        communityApi.getMyLikes(currentPeriodId, anonymousNum),
+        communityApi.getStarGauge(currentPeriodId).catch(() => ({ gaugeProgress: 0, gaugeMax: 2, starsEarned: 0, segmentCount: 2, starMaxPerPeriod: 3 }))
       ]);
 
       setMyIdentity(identity);
@@ -1242,6 +1408,12 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       setOffset(20); // 다음 로드는 20부터
       setHasMore(postsResult.hasMore);
       setLikedPostIds(likesResult.likedPostIds);
+      setStarGauge(gaugeResult);
+
+      starApi.getMyStars().then((data) => {
+        const balance = typeof data?.balance === 'number' ? data.balance : 0;
+        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+      }).catch(() => {});
     } catch (error) {
       toast.error('데이터를 불러오는데 실패했습니다.');
     } finally {
@@ -1490,8 +1662,8 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       toast.warn('내용을 입력해주세요.');
       return;
     }
-    if (newPostContent.length > 500) {
-      toast.warn('게시글은 500자 이내로 작성해주세요.');
+    if (newPostContent.length < 12) {
+      toast.warn('게시글은 12자 이상 작성해주세요.');
       return;
     }
     const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
@@ -1509,9 +1681,29 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         ? (fixedPostTag ?? selectedPostDisplayTag)
         : undefined;
       await communityApi.createPost(currentPeriodId, newPostContent, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
-      toast.success('게시글이 작성되었습니다.');
       setNewPostContent('');
       setPostCooldown(30); // 30초 쿨다운 시작
+      const prevStars = starGauge?.starsEarned ?? 0;
+      const prevFragments = starGauge?.fragmentCount ?? 0;
+      communityApi.getStarGauge(currentPeriodId).then((newGauge) => {
+        setStarGauge(newGauge);
+        const earned = (newGauge?.starsEarned ?? 0) - prevStars;
+        const earnedFragments = (newGauge?.fragmentCount ?? 0) - prevFragments;
+        toast.success(
+          earnedFragments > 0 ? (
+            <>게시글이 작성되었습니다.<br />별조각✨을 {earnedFragments}개 획득하였습니다.</>
+          ) : '게시글이 작성되었습니다.'
+        );
+        if (earned > 0) {
+          setShowStarEarnedModal(true);
+          starApi.getMyStars().then((data) => {
+            const balance = typeof data?.balance === 'number' ? data.balance : 0;
+            window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+          }).catch(() => {});
+        }
+      }).catch(() => {
+        toast.success('게시글이 작성되었습니다.');
+      });
       loadData();
       if (user?.isAdmin) {
         loadAdminIdentities(); // 관리자 익명 ID 목록 갱신
@@ -1607,9 +1799,33 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         ? (fixedCommentTag ?? selectedCommentDisplayTag)
         : undefined;
       await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
-      toast.success('댓글이 작성되었습니다.');
       setCommentInputs(prev => ({ ...prev, [postId]: '' }));
       setCommentCooldowns(prev => ({ ...prev, [postId]: 10 })); // 10초 쿨다운 시작
+      if (currentPeriodId) {
+        const prevStars = starGauge?.starsEarned ?? 0;
+        const prevFragments = starGauge?.fragmentCount ?? 0;
+        communityApi.getStarGauge(currentPeriodId).then((newGauge) => {
+          setStarGauge(newGauge);
+          const earned = (newGauge?.starsEarned ?? 0) - prevStars;
+          const earnedFragments = (newGauge?.fragmentCount ?? 0) - prevFragments;
+          toast.success(
+            earnedFragments > 0 ? (
+              <>댓글이 작성되었습니다.<br />별조각✨을 {earnedFragments}개 획득하였습니다.</>
+            ) : '댓글이 작성되었습니다.'
+          );
+          if (earned > 0) {
+            setShowStarEarnedModal(true);
+            starApi.getMyStars().then((data) => {
+              const balance = typeof data?.balance === 'number' ? data.balance : 0;
+              window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+            }).catch(() => {});
+          }
+        }).catch(() => {
+          toast.success('댓글이 작성되었습니다.');
+        });
+      } else {
+        toast.success('댓글이 작성되었습니다.');
+      }
 
       // 댓글 목록 갱신
       const { comments: fetchedComments } = await communityApi.getComments(postId);
@@ -1683,6 +1899,15 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
           }
           return post;
         }));
+      }
+      if (currentPeriodId) {
+        communityApi.getStarGauge(currentPeriodId).then((newGauge) => {
+          setStarGauge(newGauge);
+          starApi.getMyStars().then((data) => {
+            const balance = typeof data?.balance === 'number' ? data.balance : 0;
+            window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+          }).catch(() => {});
+        }).catch(() => {});
       }
     } catch (error) {
       toast.error('삭제에 실패했습니다.');
@@ -1862,14 +2087,17 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
           <HeaderTitleRow>
             <LeftGroup>
               <HeaderTitle>💬 커뮤니티</HeaderTitle>
-              <RefreshButton onClick={handleRefresh} title="새로고침">
-                <FaSyncAlt size={18} />
-              </RefreshButton>
+              <HelpButton onClick={() => setShowIntroModal(true)} title="커뮤니티 소개">
+                <FaQuestion size={12} />
+              </HelpButton>
             </LeftGroup>
-            <WarningButton onClick={() => setShowWarningModal(true)}>
-              ⚠️ 주의사항
-            </WarningButton>
+            <WarningIconButton onClick={() => setShowWarningModal(true)} title="주의사항">
+              ⚠️
+            </WarningIconButton>
           </HeaderTitleRow>
+          <FloatingRefreshButton onClick={handleRefresh} title="새로고침">
+            <FaSyncAlt size={18} />
+          </FloatingRefreshButton>
           
           <HeaderSubtitle>
             아직 커뮤니티를 사용할 수 있는 회차가 없습니다.<br/>
@@ -1886,14 +2114,17 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         <HeaderTitleRow>
           <LeftGroup>
             <HeaderTitle>💬 커뮤니티</HeaderTitle>
-            <RefreshButton onClick={handleRefresh} title="새로고침">
-              <FaSyncAlt size={18} />
-            </RefreshButton>
+            <HelpButton onClick={() => setShowIntroModal(true)} title="커뮤니티 소개">
+              <FaQuestion size={12} />
+            </HelpButton>
           </LeftGroup>
-          <WarningButton onClick={() => setShowWarningModal(true)}>
-            ⚠️ 주의사항
-          </WarningButton>
+          <WarningIconButton onClick={() => setShowWarningModal(true)} title="주의사항">
+          ⚠️
+        </WarningIconButton>
         </HeaderTitleRow>
+        <FloatingRefreshButton onClick={handleRefresh} title="새로고침">
+          <FaSyncAlt size={18} />
+        </FloatingRefreshButton>
         {user?.isAdmin && (
           <AdminToggleFloating>
             <AdminToggleLabel>익명</AdminToggleLabel>
@@ -1906,12 +2137,6 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
           </AdminToggleFloating>
         )}
         
-        <HeaderSubtitle>
-          익명으로 자유롭게 소통하세요<br/>
-          해당 페이지는 매칭 시작, 발표, 종료 시 자동 초기화됩니다.<br/>
-          커뮤니티를 통해 매칭 후기를 이야기하고, 다음 매칭을 위한 셀프 자기소개를 공유해보세요.
-        </HeaderSubtitle>
-        
         {currentPeriod && (
           <PeriodStatusWrapper>
             <PeriodStatusBadge $status={currentPeriod.status}>
@@ -1922,7 +2147,81 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
             </ResetInfo>
           </PeriodStatusWrapper>
         )}
+
+        {/* 별조각 게이지 (2+3+5=10, 회차당 최대 3개) */}
+        <StarGaugeSection>
+          <StarGaugeHeaderRow>
+            <StarGaugeCaption>별조각✨을 모아 ⭐을 만들어보세요 !!</StarGaugeCaption>
+            <StarCountBadge style={{ flexShrink: 0 }}>
+              <StarCountLabel>⭐  :  </StarCountLabel> {starGauge?.starsEarned ?? 0} / 3
+            </StarCountBadge>
+          </StarGaugeHeaderRow>
+          <StarGaugeTopRow>
+            <StarGaugeLabel>✨ 별조각</StarGaugeLabel>
+            <StarGaugeBar>
+              <StarGaugeFill $progress={starGauge?.gaugeProgress ?? 0} $max={starGauge?.gaugeMax ?? 2} />
+              {Array.from({ length: (starGauge?.segmentCount ?? 2) - 1 }, (_, i) => (
+                <StarGaugeSegmentDivider key={i} $position={((i + 1) / (starGauge?.segmentCount ?? 2)) * 100} />
+              ))}
+            </StarGaugeBar>
+            <StarGaugeText>
+              {starGauge && starGauge.starsEarned >= (starGauge.starMaxPerPeriod ?? 3)
+                ? <span style={{ color: '#22c55e' }}>✓</span>
+                : `${starGauge?.gaugeProgress ?? 0} / ${starGauge?.gaugeMax ?? 2}`}
+            </StarGaugeText>
+            <StarGaugeInfoBtn onClick={() => setShowStarGaugeModal(true)} title="별조각 설명">
+              <FaInfoCircle size={16} />
+            </StarGaugeInfoBtn>
+          </StarGaugeTopRow>
+        </StarGaugeSection>
       </HeaderSection>
+
+      {/* 별조각으로 별 획득 축하 모달 */}
+      <Modal
+        show={showStarEarnedModal}
+        onClose={() => setShowStarEarnedModal(false)}
+        title="축하합니다! ⭐"
+        cancelText="확인"
+      >
+        <div style={{ color: '#374151', lineHeight: 1.7, textAlign: 'center' }}>
+          <p style={{ margin: 0, fontWeight: 600, fontSize: '1.1rem' }}>
+            별조각✨을 모아 ⭐을 만들었습니다!
+          </p>
+        </div>
+      </Modal>
+
+      {/* 별조각 설명 모달 */}
+      <Modal
+        show={showStarGaugeModal}
+        onClose={() => setShowStarGaugeModal(false)}
+        title="✨ 별조각 안내"
+        cancelText="닫기"
+      >
+        <div style={{ color: '#374151', lineHeight: 1.6 }}>
+          <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>획득 방법</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 글 작성: 별조각 2개</p>
+          <p style={{ marginBottom: '0.75rem', marginLeft: '0.5rem' }}>• 댓글 작성: 별조각 1개 (타인 글에만, 같은 글당 1개)</p>
+          <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>⭐ 만들기</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 1번째 ⭐: 별조각 2개</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 2번째 ⭐: 별조각 3개 추가 (총 5개)</p>
+          <p style={{ marginBottom: '0.75rem', marginLeft: '0.5rem' }}>• 3번째 ⭐: 별조각 5개 추가 (총 10개)</p>
+          <p style={{ marginBottom: 0, fontWeight: 600, color: '#f59e0b' }}>• 회차당 최대 ⭐ 3개까지 획득 가능</p>
+        </div>
+      </Modal>
+
+      {/* 커뮤니티 소개 모달 (별조각 설명 없음) */}
+      <Modal
+        show={showIntroModal}
+        onClose={() => setShowIntroModal(false)}
+        title="💬 커뮤니티 소개"
+        cancelText="닫기"
+      >
+        <div style={{ color: '#374151', lineHeight: 1.6 }}>
+          <p style={{ marginBottom: '0.75rem' }}>익명으로 자유롭게 소통하세요.</p>
+          <p style={{ marginBottom: '0.75rem' }}>해당 페이지는 매칭 시작, 발표, 종료 시 자동 초기화됩니다.</p>
+          <p style={{ marginBottom: 0 }}>커뮤니티를 통해 매칭 후기를 이야기하고, 다음 매칭을 위한 셀프 자기소개를 공유해보세요.</p>
+        </div>
+      </Modal>
 
       {/* 주의사항 모달 */}
       <Modal
@@ -1932,7 +2231,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       >
         <div style={{ color: '#374151', lineHeight: '1.4' }}>
           <p style={{ marginBottom: '0.5rem', fontWeight: 600, color: '#7C3AED' }}>📝 작성 규칙</p>
-          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 게시글: <strong>500자 이내</strong>, 댓글: <strong>100자 이내</strong></p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 게시글: <strong>12자 이상</strong>, 댓글: <strong>100자 이내</strong></p>
           <p style={{ marginBottom: '0.5rem', marginLeft: '0.5rem' }}>• 게시글: <strong>1시간에 최대 5개</strong>까지 작성 가능</p>
           
           <p style={{ marginBottom: '0.5rem', marginTop: '0.75rem', fontWeight: 600, color: '#10b981' }}>⏱️ 도배 방지</p>
@@ -1967,6 +2266,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       >
         <p>{deleteTarget?.type === 'post' ? '게시글을 삭제하시겠습니까?' : '댓글을 삭제하시겠습니까?'}</p>
         <p style={{ color: '#ef4444', marginTop: '0.5rem', fontSize: '0.9rem' }}>삭제된 내용은 복구할 수 없습니다.</p>
+        <p style={{ color: '#ef4444', marginTop: 0, fontSize: '0.9rem' }}>획득한 별조각과 별이 사라집니다.</p>
       </Modal>
 
       {/* 신고 모달 */}
@@ -2189,7 +2489,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
           );
         })()}
         <WriteTextarea
-          placeholder="게시글을 입력하세요... (최대 500자)"
+          placeholder="게시글을 입력하세요... (최소 12자)"
           value={newPostContent}
           onChange={(e) => setNewPostContent(e.target.value)}
           rows={3}
@@ -2204,7 +2504,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
             disabled={
               submitting ||
               !newPostContent.trim() ||
-              newPostContent.length > 500 ||
+              newPostContent.length < 12 ||
               (postCooldown > 0 && !user?.isAdmin) ||
               (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedPostDisplayTag))
             }

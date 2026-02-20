@@ -11,6 +11,104 @@ const COLOR_POOL = [
   '#EC4899', '#8B5CF6', '#14B8A6', '#F97316', '#06B6D4'
 ];
 
+/** 별조각 산정: 글 2개, 댓글 1개(타인 글에만, 같은 글당 1개) */
+async function getCommunityFragmentCount(userId, periodId) {
+  const { data: myPosts } = await supabase
+    .from('community_posts')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('period_id', periodId)
+    .eq('is_deleted', false);
+  const postFragments = (myPosts?.length || 0) * 2;
+
+  const { data: allPosts } = await supabase
+    .from('community_posts')
+    .select('id, user_id')
+    .eq('period_id', periodId)
+    .eq('is_deleted', false);
+  const postOwnerMap = {};
+  (allPosts || []).forEach(p => { postOwnerMap[p.id] = p.user_id; });
+  const postIds = (allPosts || []).map(p => p.id);
+
+  let distinctCommentPosts = 0;
+  if (postIds.length > 0) {
+    const { data: myComments } = await supabase
+      .from('community_comments')
+      .select('post_id')
+      .eq('user_id', userId)
+      .eq('is_deleted', false)
+      .in('post_id', postIds);
+    const commented = new Set();
+    (myComments || []).forEach(c => {
+      if (postOwnerMap[c.post_id] !== userId) commented.add(c.post_id);
+    });
+    distinctCommentPosts = commented.size;
+  }
+  const commentFragments = distinctCommentPosts;
+  const total = postFragments + commentFragments;
+  return { postFragments, commentFragments, total, postCount: myPosts?.length || 0 };
+}
+
+/** 별별 필요 별조각: 2, 3, 5 (누적 2, 5, 10) */
+const COMMUNITY_STAR_THRESHOLDS = [2, 5, 10];
+const COMMUNITY_STAR_MAX_PER_PERIOD = 3;
+
+/** 별조각/별 상태를 테이블에 반영 (글·댓글 작성/삭제 시 호출) */
+async function upsertCommunityStarGrants(userId, periodId) {
+  try {
+    const { total } = await getCommunityFragmentCount(userId, periodId);
+    let shouldGrant = 0;
+    for (let i = COMMUNITY_STAR_THRESHOLDS.length - 1; i >= 0; i--) {
+      if (total >= COMMUNITY_STAR_THRESHOLDS[i]) {
+        shouldGrant = i + 1;
+        break;
+      }
+    }
+    if (shouldGrant > COMMUNITY_STAR_MAX_PER_PERIOD) shouldGrant = COMMUNITY_STAR_MAX_PER_PERIOD;
+    const { data: grantRow } = await supabase
+      .from('community_star_grants')
+      .select('stars_granted')
+      .eq('user_id', userId)
+      .eq('period_id', periodId)
+      .maybeSingle();
+    const currentGranted = grantRow?.stars_granted || 0;
+    const toGrant = shouldGrant - currentGranted;
+    if (toGrant > 0) {
+      const { data: user } = await supabase.from('users').select('star_balance').eq('id', userId).single();
+      const balance = typeof user?.star_balance === 'number' ? user.star_balance : 0;
+      await supabase.from('users').update({ star_balance: balance + toGrant }).eq('id', userId);
+      for (let i = 0; i < toGrant; i++) {
+        await supabase.from('star_transactions').insert({
+          user_id: userId,
+          amount: 1,
+          reason: 'community_star_piece',
+          meta: { period_id: periodId }
+        });
+      }
+    } else if (toGrant < 0) {
+      const toRevoke = -toGrant;
+      const { data: user } = await supabase.from('users').select('star_balance').eq('id', userId).single();
+      const balance = typeof user?.star_balance === 'number' ? user.star_balance : 0;
+      const newBalance = Math.max(0, balance - toRevoke);
+      await supabase.from('users').update({ star_balance: newBalance }).eq('id', userId);
+      await supabase.from('star_transactions').insert({
+        user_id: userId,
+        amount: -toRevoke,
+        reason: 'community_star_piece_revoke',
+        meta: { period_id: periodId }
+      });
+    }
+    await supabase
+      .from('community_star_grants')
+      .upsert(
+        { user_id: userId, period_id: periodId, fragment_count: total, stars_granted: shouldGrant, updated_at: new Date().toISOString() },
+        { onConflict: 'user_id,period_id' }
+      );
+  } catch (e) {
+    console.error('[community] 별조각 반영 오류:', e);
+  }
+}
+
 /** 해당 회차에서 내가 차단한 익명 번호 집합 (Set<number>) */
 async function getBlockedAnonymousSet(blockerUserId, periodId) {
   const { data: rows } = await supabase
@@ -318,6 +416,67 @@ router.get('/my-identity/:periodId', authenticate, async (req, res) => {
     });
   } catch (error) {
     console.error('[community] 내 익명 ID 조회 예외:', error);
+    res.status(500).json({ error: '서버 오류' });
+  }
+});
+
+/**
+ * 별조각 게이지 조회
+ * GET /api/community/star-gauge/:periodId
+ * 응답: { fragmentCount, gaugeProgress, gaugeMax, starsEarned, segments, starMaxPerPeriod }
+ * 별별 필요: 2, 3, 5 (누적 2, 5, 10), 회차당 최대 3개
+ */
+router.get('/star-gauge/:periodId', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const periodId = parseInt(req.params.periodId);
+    if (!periodId || isNaN(periodId)) {
+      return res.status(400).json({ error: 'period_id가 필요합니다.' });
+    }
+    let { data: grantRow } = await supabase
+      .from('community_star_grants')
+      .select('fragment_count, stars_granted')
+      .eq('user_id', userId)
+      .eq('period_id', periodId)
+      .maybeSingle();
+    if (!grantRow) {
+      await upsertCommunityStarGrants(userId, periodId);
+      const { data: updated } = await supabase
+        .from('community_star_grants')
+        .select('fragment_count, stars_granted')
+        .eq('user_id', userId)
+        .eq('period_id', periodId)
+        .maybeSingle();
+      grantRow = updated || { fragment_count: 0, stars_granted: 0 };
+    }
+    const total = grantRow.fragment_count ?? 0;
+    const starsEarned = grantRow.stars_granted ?? 0;
+    let gaugeMax = 2;
+    let gaugeProgress = total;
+    if (starsEarned >= COMMUNITY_STAR_MAX_PER_PERIOD) {
+      gaugeMax = 5;
+      gaugeProgress = 5;
+    } else if (starsEarned === 2) {
+      gaugeMax = 5;
+      gaugeProgress = Math.min(total - 5, 5);
+    } else if (starsEarned === 1) {
+      gaugeMax = 3;
+      gaugeProgress = Math.min(total - 2, 3);
+    } else {
+      gaugeMax = 2;
+      gaugeProgress = Math.min(total, 2);
+    }
+    const segmentCount = gaugeMax;
+    res.json({
+      fragmentCount: total,
+      gaugeProgress,
+      gaugeMax,
+      starsEarned,
+      segmentCount,
+      starMaxPerPeriod: COMMUNITY_STAR_MAX_PER_PERIOD
+    });
+  } catch (error) {
+    console.error('[community] 별조각 게이지 조회 예외:', error);
     res.status(500).json({ error: '서버 오류' });
   }
 });
@@ -734,8 +893,8 @@ router.post('/posts', authenticate, async (req, res) => {
 
     let resolvedDisplayTag = null;
 
-    if (content.length > 500) {
-      return res.status(400).json({ error: '게시글은 500자 이내로 작성해주세요.' });
+    if (content.length < 12) {
+      return res.status(400).json({ error: '게시글은 12자 이상 작성해주세요.' });
     }
 
     // 관리자가 아닌 경우 도배 방지 체크
@@ -906,6 +1065,7 @@ router.post('/posts', authenticate, async (req, res) => {
     }
 
     // 작성자 정보 조회 및 콘솔 로그
+    let authorNickname = '알 수 없음';
     try {
       const { data: authorProfile } = await supabase
         .from('user_profiles')
@@ -913,7 +1073,7 @@ router.post('/posts', authenticate, async (req, res) => {
         .eq('user_id', userId)
         .maybeSingle();
       
-      const authorNickname = authorProfile?.nickname || '알 수 없음';
+      authorNickname = authorProfile?.nickname || '알 수 없음';
       console.log(`[커뮤니티 게시글] ${authorNickname}(익명${anonymousNumber}) : ${content}`);
     } catch (logError) {
       console.error('[community] 작성자 정보 조회 오류:', logError);
@@ -922,6 +1082,8 @@ router.post('/posts', authenticate, async (req, res) => {
     // 관리자가 아닌 경우에만 관리자에게 알림 전송
     if (!isAdmin) {
       try {
+        const notifBody = `${authorNickname} : ${content}`;
+
         // 인앱 알림 메시지 생성 (관리자 이메일 기준)
         const adminEmail = 'hhggom@hyundai.com';
         const { data: adminUser } = await supabase
@@ -934,7 +1096,7 @@ router.post('/posts', authenticate, async (req, res) => {
           await notificationRoutes.createNotification(adminUser.id, {
             type: 'community_post',
             title: '📝 커뮤니티 신규 게시글',
-            body: '커뮤니티에 새로운 게시글이 작성되었습니다.',
+            body: notifBody,
             linkUrl: `/community?postId=${post.id}&openComments=true`,
             meta: { post_id: post.id, period_id }
           });
@@ -943,7 +1105,7 @@ router.post('/posts', authenticate, async (req, res) => {
         // 푸시 알림 전송
         await sendPushToAdmin(
           '📝 커뮤니티 신규 게시글',
-          '커뮤니티에 새로운 게시글이 작성되었습니다.',
+          notifBody,
           {
             linkUrl: `/community?postId=${post.id}&openComments=true`,
             postId: String(post.id),
@@ -959,6 +1121,8 @@ router.post('/posts', authenticate, async (req, res) => {
     }
 
     const tag = resolvedDisplayTag != null ? resolvedDisplayTag : await getUserMatchingTag(userId, period_id);
+
+    await upsertCommunityStarGrants(userId, period_id).catch(() => {});
 
     res.json({
       post: {
@@ -993,7 +1157,7 @@ router.post('/admin/delete-post/:postId', authenticate, async (req, res) => {
     // 게시글 정보 조회 (알림 전송용)
     const { data: postDetail } = await supabase
       .from('community_posts')
-      .select('user_id')
+      .select('user_id, period_id')
       .eq('id', postId)
       .single();
 
@@ -1034,6 +1198,9 @@ router.post('/admin/delete-post/:postId', authenticate, async (req, res) => {
         console.log(`[community] 관리자 삭제 알림 전송 완료: user_id=${postDetail.user_id}, post_id=${postId}`);
       } catch (notifError) {
         console.error('[community] 관리자 삭제 알림 전송 실패:', notifError);
+      }
+      if (postDetail.period_id) {
+        upsertCommunityStarGrants(postDetail.user_id, postDetail.period_id).catch(() => {});
       }
     }
 
@@ -1091,7 +1258,7 @@ router.post('/admin/delete-comment/:commentId', authenticate, async (req, res) =
     // 게시글의 comment_count 감소
     const { data: postData } = await supabase
       .from('community_posts')
-      .select('comment_count')
+      .select('comment_count, period_id')
       .eq('id', comment.post_id)
       .single();
 
@@ -1104,6 +1271,10 @@ router.post('/admin/delete-comment/:commentId', authenticate, async (req, res) =
       .eq('id', comment.post_id);
 
     // 작성자에게 알림 전송
+    if (comment?.user_id && postData?.period_id) {
+      upsertCommunityStarGrants(comment.user_id, postData.period_id).catch(() => {});
+    }
+
     if (comment?.user_id) {
       try {
         // 인앱 알림 메시지 생성
@@ -1178,6 +1349,8 @@ router.delete('/posts/:postId', authenticate, async (req, res) => {
       console.error('[community] 게시글 삭제 오류:', deleteError);
       return res.status(500).json({ error: '게시글 삭제 실패' });
     }
+
+    upsertCommunityStarGrants(userId, post.period_id).catch(() => {});
 
     res.json({ success: true });
   } catch (error) {
@@ -1562,6 +1735,10 @@ router.post('/comments', authenticate, async (req, res) => {
       // 조회 실패해도 게시글 작성자에게는 알림 전송
     }
 
+    // 알림용 댓글 미리보기 (30자 제한)
+    const contentPreview = content.length > 30 ? content.slice(0, 30) + '…' : content;
+    const contentSuffix = contentPreview ? ` "${contentPreview}"` : '';
+
     // 알림 전송
     if (notificationUserIds.size > 0) {
       const userIdsArray = Array.from(notificationUserIds);
@@ -1570,12 +1747,13 @@ router.post('/comments', authenticate, async (req, res) => {
         await Promise.all(
           userIdsArray.map(async (targetUserId) => {
             try {
+              const baseBody = targetUserId === post.user_id
+                ? '회원님의 게시글에 새 댓글이 달렸습니다.'
+                : '회원님이 댓글을 단 게시글에 새 댓글이 달렸습니다.';
               await notificationRoutes.createNotification(targetUserId, {
                 type: 'community_comment',
                 title: '💬 새 댓글이 달렸습니다',
-                body: targetUserId === post.user_id 
-                  ? `회원님의 게시글에 새 댓글이 달렸습니다.`
-                  : `회원님이 댓글을 단 게시글에 새 댓글이 달렸습니다.`,
+                body: baseBody + contentSuffix,
                 linkUrl: `/community?postId=${post_id}&openComments=true`,
                 meta: { post_id: post_id, comment_id: comment.id }
               });
@@ -1589,7 +1767,7 @@ router.post('/comments', authenticate, async (req, res) => {
         await sendPushToUsers(userIdsArray, {
           type: 'community_comment',
           title: '💬 새 댓글',
-          body: '게시글에 새 댓글이 달렸습니다.',
+          body: '게시글에 새 댓글이 달렸습니다.' + contentSuffix,
           linkUrl: `/community?postId=${post_id}&openComments=true`,
           postId: String(post_id)
         });
@@ -1609,6 +1787,8 @@ router.post('/comments', authenticate, async (req, res) => {
         // 알림 실패해도 댓글 작성은 정상 처리
       }
     }
+
+    await upsertCommunityStarGrants(userId, post.period_id).catch(() => {});
 
     res.json({
       comment: {
@@ -1680,6 +1860,11 @@ router.delete('/comments/:commentId', authenticate, async (req, res) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', comment.post_id);
+
+    const { data: postForPeriod } = await supabase.from('community_posts').select('period_id').eq('id', comment.post_id).single();
+    if (postForPeriod?.period_id) {
+      upsertCommunityStarGrants(userId, postForPeriod.period_id).catch(() => {});
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -2056,7 +2241,7 @@ router.post('/reports', authenticate, async (req, res) => {
       // 작성자 정보 조회 (알림 전송용)
       const { data: targetDetail } = await supabase
         .from(tableName)
-        .select('user_id')
+        .select(target_type === 'post' ? 'user_id, period_id' : 'user_id')
         .eq('id', target_id)
         .single();
       
@@ -2093,6 +2278,17 @@ router.post('/reports', authenticate, async (req, res) => {
           console.log(`[community] 신고 누적 삭제 알림 전송 완료: user_id=${targetDetail.user_id}, type=${target_type}`);
         } catch (notifError) {
           console.error('[community] 신고 누적 삭제 알림 전송 실패:', notifError);
+        }
+        let periodIdForGrant = targetDetail.period_id;
+        if (target_type === 'comment') {
+          const { data: commentData } = await supabase.from('community_comments').select('post_id').eq('id', target_id).single();
+          if (commentData) {
+            const { data: postForPeriod } = await supabase.from('community_posts').select('period_id').eq('id', commentData.post_id).single();
+            periodIdForGrant = postForPeriod?.period_id;
+          }
+        }
+        if (targetDetail.user_id && periodIdForGrant) {
+          upsertCommunityStarGrants(targetDetail.user_id, periodIdForGrant).catch(() => {});
         }
       }
 

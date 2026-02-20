@@ -1333,6 +1333,12 @@ export const communityApi = {
     return response.data;
   },
 
+  // 별조각 게이지 조회 (글 2개/댓글 1개, 별당 2+3+5)
+  getStarGauge: async (periodId: number): Promise<{ fragmentCount?: number; gaugeProgress: number; gaugeMax?: number; starsEarned: number; segmentCount?: number; starMaxPerPeriod?: number }> => {
+    const response = await api.get(`/community/star-gauge/${periodId}`);
+    return response.data;
+  },
+
   // 게시글 목록 조회
   getPosts: async (periodId: number, limit = 20, offset = 0, sortBy: 'latest' | 'popular' = 'latest', filter: 'all' | 'mine' = 'all'): Promise<{ posts: any[]; hasMore: boolean; totalCount: number }> => {
     const response = await api.get(`/community/posts/${periodId}`, { params: { limit, offset, sortBy, filter } });
