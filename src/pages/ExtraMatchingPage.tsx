@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { FaTimes } from 'react-icons/fa';
+import { FaTimes, FaClock, FaBan, FaBoxOpen } from 'react-icons/fa';
 import { extraMatchingApi } from '../services/api.ts';
 import { userApi } from '../services/api.ts';
 import { useNavigate } from 'react-router-dom';
@@ -162,11 +162,18 @@ const MatchedNotice = styled.div`
   font-weight: 600;
 `;
 
+const SectionTitleWrap = styled.div`
+  width: 100%;
+  padding-bottom: 0.2rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.6);
+`;
+
 const SectionTitle = styled.h2`
   font-size: 1.1rem;
   font-weight: 700;
-  color: #111827;
-  margin-bottom: 0.75rem;
+  color: #ffffff;
+  margin: 0;
 `;
 
 const Card = styled.div`
@@ -229,25 +236,104 @@ const EntryCard = styled(Card)`
   margin-bottom: 0;
   position: relative;
   overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  border-left: 4px solid #667eea;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 8px 16px rgba(0, 0, 0, 0.12),
+    0 16px 32px rgba(0, 0, 0, 0.08);
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+  cursor: pointer;
+
+  &:hover {
+    box-shadow:
+      0 4px 8px rgba(0, 0, 0, 0.1),
+      0 16px 32px rgba(0, 0, 0, 0.15),
+      0 24px 48px rgba(0, 0, 0, 0.12);
+    transform: translateY(-4px);
+  }
 `;
 
 const EntryHeader = styled.div`
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.5rem;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
 `;
 
 const EntryTitle = styled.div`
   font-weight: 600;
   color: #111827;
-  font-size: 0.95rem;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+`;
+
+const EntryGenderBadge = styled.span`
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #ffffff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 `;
 
 const EntryMeta = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   font-size: 0.8rem;
   color: #6b7280;
-  line-height: 1.4;
+  line-height: 1.5;
+`;
+
+const EntryCardOverlay = styled.div<{ $variant: 'pending' | 'rejected' | 'sold_out' }>`
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(203, 213, 225, 0.45);
+`;
+
+const EntryCardOverlayBadge = styled.div<{ $variant: 'pending' | 'rejected' | 'sold_out' }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: ${props =>
+    props.$variant === 'pending'
+      ? '#ffffff'
+      : props.$variant === 'sold_out'
+      ? '#475569'
+      : '#64748b'};
+  background: ${props =>
+    props.$variant === 'pending'
+      ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+      : props.$variant === 'sold_out'
+      ? 'rgba(148, 163, 184, 0.2)'
+      : 'rgba(203, 213, 225, 0.3)'};
+  border: 1px solid ${props =>
+    props.$variant === 'pending'
+      ? 'rgba(118, 75, 162, 0.5)'
+      : props.$variant === 'sold_out'
+      ? 'rgba(148, 163, 184, 0.35)'
+      : 'rgba(203, 213, 225, 0.5)'};
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+
+  ${props =>
+    props.$variant === 'pending' &&
+    `
+    animation: pulse-badge 2.5s ease-in-out infinite;
+    @keyframes pulse-badge {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.88; }
+    }
+  `}
 `;
 
 const EmptyState = styled.div`
@@ -270,11 +356,16 @@ const ModalOverlay = styled.div`
 const ModalContent = styled.div`
   background: #ffffff;
   border-radius: 16px;
-  padding: 18px 20px 16px;
+  overflow: hidden;
   width: 95vw;
   max-width: 420px;
   box-shadow: 0 18px 45px rgba(15, 23, 42, 0.4);
   box-sizing: border-box;
+  padding: 18px 20px 16px;
+
+  &[data-no-padding] {
+    padding: 0;
+  }
 `;
 
 const ModalTitle = styled.h2`
@@ -289,6 +380,82 @@ const ModalBody = styled.div`
   color: #374151;
   line-height: 1.5;
   margin-bottom: 14px;
+`;
+
+const ProfileModalHeader = styled.div`
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #ffffff;
+`;
+
+const ProfileModalHeaderTitle = styled.div`
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+`;
+
+const ProfileModalHeaderSub = styled.div`
+  font-size: 0.8rem;
+  opacity: 0.9;
+`;
+
+const ProfileModalSection = styled.div`
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #f3f4f6;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+`;
+
+const ProfileModalSectionTitle = styled.div`
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+`;
+
+const ProfileModalRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.5;
+
+  & + & {
+    margin-top: 0.35rem;
+  }
+`;
+
+const ProfileModalLabel = styled.span`
+  color: #6b7280;
+  flex-shrink: 0;
+  min-width: 3.5rem;
+`;
+
+const ProfileModalText = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #374151;
+  line-height: 1.6;
+  margin-top: 0.5rem;
+
+  &:first-of-type {
+    margin-top: 0;
+  }
+`;
+
+const ProfileModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 1rem 1.25rem;
+  background: #fafafa;
+  border-top: 1px solid #f3f4f6;
 `;
 
 const ModalActions = styled.div`
@@ -824,63 +991,70 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
               }
             }}
           >
-            <ModalContent onClick={(e) => e.stopPropagation()}>
-              <ModalTitle>상대 프로필 보기</ModalTitle>
-              <ModalBody>
-                <div style={{ fontSize: '0.9rem', color: '#111827', marginBottom: 6 }}>
-                  <strong>
-                    {selectedReceivedProfile.gender === 'male'
-                      ? '남성'
-                      : selectedReceivedProfile.gender === 'female'
-                      ? '여성'
-                      : '회원'}
-                    {selectedReceivedProfile.birth_year && ` · ${selectedReceivedProfile.birth_year}년생`}
-                  </strong>
-                </div>
-                <div style={{ fontSize: '0.86rem', color: '#4b5563', lineHeight: 1.5 }}>
-                  {getDisplayCompanyName(selectedReceivedProfile.company, selectedReceivedProfile.custom_company_name) && <div>회사: {getDisplayCompanyName(selectedReceivedProfile.company, selectedReceivedProfile.custom_company_name)}</div>}
-                  {selectedReceivedProfile.education && <div>학력: {selectedReceivedProfile.education}</div>}
-                  {selectedReceivedProfile.residence && <div>거주지: {selectedReceivedProfile.residence}</div>}
-                  {selectedReceivedProfile.mbti && <div>MBTI: {selectedReceivedProfile.mbti}</div>}
-                  {selectedReceivedProfile.height && <div>키: {selectedReceivedProfile.height}cm</div>}
-                  {selectedReceivedProfile.body_type && <div>체형: {selectedReceivedProfile.body_type}</div>}
-                  {selectedReceivedProfile.drinking && <div>음주: {selectedReceivedProfile.drinking}</div>}
-                  {selectedReceivedProfile.smoking && <div>흡연: {selectedReceivedProfile.smoking}</div>}
-                  {selectedReceivedProfile.religion && <div>종교: {selectedReceivedProfile.religion}</div>}
-                  {selectedReceivedProfile.marital_status && (
-                    <div>결혼 여부: {selectedReceivedProfile.marital_status}</div>
-                  )}
+            <ModalContent onClick={(e) => e.stopPropagation()} data-no-padding>
+              <ProfileModalHeader>
+                <ProfileModalHeaderTitle>
+                  {selectedReceivedProfile.gender === 'male'
+                    ? '남성'
+                    : selectedReceivedProfile.gender === 'female'
+                    ? '여성'
+                    : '회원'}
+                  {selectedReceivedProfile.birth_year && ` · ${selectedReceivedProfile.birth_year}년생`}
+                </ProfileModalHeaderTitle>
+                {(getDisplayCompanyName(selectedReceivedProfile.company, selectedReceivedProfile.custom_company_name) || selectedReceivedProfile.education || selectedReceivedProfile.residence) && (
+                  <ProfileModalHeaderSub>
+                    {[
+                      getDisplayCompanyName(selectedReceivedProfile.company, selectedReceivedProfile.custom_company_name),
+                      selectedReceivedProfile.education,
+                      selectedReceivedProfile.residence,
+                    ].filter(Boolean).join(' · ')}
+                  </ProfileModalHeaderSub>
+                )}
+              </ProfileModalHeader>
+              {(selectedReceivedProfile.mbti || selectedReceivedProfile.height || selectedReceivedProfile.body_type || selectedReceivedProfile.drinking || selectedReceivedProfile.smoking || selectedReceivedProfile.religion || selectedReceivedProfile.marital_status) && (
+                <ProfileModalSection>
+                  <ProfileModalSectionTitle>기본 정보</ProfileModalSectionTitle>
+                  <ProfileModalRow>
+                    {selectedReceivedProfile.mbti && <span><ProfileModalLabel>MBTI</ProfileModalLabel> {selectedReceivedProfile.mbti}</span>}
+                    {selectedReceivedProfile.height && <span><ProfileModalLabel>키</ProfileModalLabel> {selectedReceivedProfile.height}cm</span>}
+                    {selectedReceivedProfile.body_type && <span><ProfileModalLabel>체형</ProfileModalLabel> {selectedReceivedProfile.body_type}</span>}
+                    {selectedReceivedProfile.drinking && <span><ProfileModalLabel>음주</ProfileModalLabel> {selectedReceivedProfile.drinking}</span>}
+                    {selectedReceivedProfile.smoking && <span><ProfileModalLabel>흡연</ProfileModalLabel> {selectedReceivedProfile.smoking}</span>}
+                    {selectedReceivedProfile.religion && <span><ProfileModalLabel>종교</ProfileModalLabel> {selectedReceivedProfile.religion}</span>}
+                    {selectedReceivedProfile.marital_status && <span><ProfileModalLabel>결혼</ProfileModalLabel> {selectedReceivedProfile.marital_status}</span>}
+                  </ProfileModalRow>
+                </ProfileModalSection>
+              )}
+              {(selectedReceivedProfile.interests || selectedReceivedProfile.appearance || selectedReceivedProfile.personality || selectedReceivedProfile.appeal) && (
+                <ProfileModalSection>
+                  <ProfileModalSectionTitle>자기소개</ProfileModalSectionTitle>
                   {selectedReceivedProfile.interests && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>관심사</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>관심사</ProfileModalLabel>
                       <span>{selectedReceivedProfile.interests}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
                   {selectedReceivedProfile.appearance && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>외모 스타일</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>외모</ProfileModalLabel>
                       <span>{selectedReceivedProfile.appearance}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
                   {selectedReceivedProfile.personality && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>성격</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>성격</ProfileModalLabel>
                       <span>{selectedReceivedProfile.personality}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
                   {selectedReceivedProfile.appeal && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>자기소개 / 어필</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>어필</ProfileModalLabel>
                       <span>{selectedReceivedProfile.appeal}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
-                </div>
-              </ModalBody>
-              <ModalActions>
+                </ProfileModalSection>
+              )}
+              <ProfileModalActions>
                 <ModalPrimaryButton
                   type="button"
                   onClick={() => {
@@ -891,29 +1065,29 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 >
                   닫기
                 </ModalPrimaryButton>
-              </ModalActions>
+              </ProfileModalActions>
             </ModalContent>
           </ModalOverlay>
         )}
 
         {myEntry && (
           <TopActionInfo>
-            이번 회차에 등록된 추가 매칭 도전이 있습니다. 이성들이 회원님의 프로필을 보고 호감을 보낼 수 있어요.
+            추가 매칭 도전이 등록되어 있습니다. 이성들이 회원님의 프로필을 보고 호감을 보낼 수 있어요.
           </TopActionInfo>
         )}
-
+        <br/>
         {myEntry && (
           <Section>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '0.75rem',
-              }}
-            >
-              <SectionTitle style={{ marginBottom: 0 }}>나에게 온 호감</SectionTitle>
-              <button
+            <SectionTitleWrap>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <SectionTitle>나에게 온 호감</SectionTitle>
+                <button
                 type="button"
                 onClick={() => setShowDecisionConfirm(true)}
                 style={{
@@ -928,6 +1102,7 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 안내
               </button>
             </div>
+            </SectionTitleWrap>
             {loading ? (
               <Card>
                 <p style={{ margin: 0, color: '#6b7280' }}>신청 내역을 불러오는 중입니다...</p>
@@ -941,12 +1116,13 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 </EmptyState>
               </Card>
             ) : (
-              received.applies.map((apply) => {
+              <EntryList>
+              {received.applies.map((apply) => {
                 const isAccepted = apply.status === 'accepted';
                 const isRejected = apply.status === 'rejected';
 
                 return (
-                  <Card
+                  <EntryCard
                   key={apply.id}
                   onClick={() => {
                     if (apply.profile) {
@@ -956,47 +1132,35 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                   }}
                   style={{
                     cursor: apply.profile ? 'pointer' : 'default',
-                    position: 'relative',
-                    overflow: 'hidden',
-                    background: isAccepted ? '#ecfdf3' : '#ffffff',
-                    borderColor: isAccepted ? '#bbf7d0' : '#e5e7eb',
+                    borderLeftColor: isAccepted ? '#10b981' : undefined,
+                    background: isAccepted ? '#ecfdf3' : undefined,
+                    borderColor: isAccepted ? 'rgba(16, 185, 129, 0.4)' : undefined,
                   }}
                 >
-                  {/* 닉네임은 숨기고, 매칭 도전 리스트와 동일하게 성별 + 연령/키만 헤더로 표시 */}
-                  <div style={{ marginBottom: 6 }}>
-                    <strong>
+                  <EntryHeader>
+                    <EntryGenderBadge>
                       {apply.profile?.gender === 'male'
                         ? '남성'
                         : apply.profile?.gender === 'female'
                         ? '여성'
-                        : '회원'}{' '}
-                      ·{' '}
+                        : '회원'}
+                    </EntryGenderBadge>
+                    <EntryTitle>
                       {apply.profile?.birth_year
                         ? `${apply.profile.birth_year}년생`
                         : apply.profile?.height
                         ? `${apply.profile.height}cm`
                         : '연령/키 비공개'}
-                    </strong>
-                  </div>
-                  <div style={{ fontSize: '0.86rem', color: '#4b5563', marginBottom: 4 }}>
-                    {getDisplayCompanyName(apply.profile?.company, apply.profile?.custom_company_name) && (
-                      <span style={{ marginRight: 8 }}>회사: {getDisplayCompanyName(apply.profile?.company, apply.profile?.custom_company_name)}</span>
-                    )}
-                    {apply.profile?.education && (
-                      <span style={{ marginRight: 8 }}>학력: {apply.profile.education}</span>
-                    )}
-                    {apply.profile?.residence && (
-                      <>
-                        <br />
-                        <span style={{ marginRight: 8 }}>거주지: {apply.profile.residence}</span>
-                      </>
-                    )}
-                    {apply.profile?.mbti && (
-                      <span style={{ marginRight: 8 }}>MBTI: {apply.profile.mbti}</span>
-                    )}
-                  </div>
+                    </EntryTitle>
+                  </EntryHeader>
+                  <EntryMeta>
+                    {getDisplayCompanyName(apply.profile?.company, apply.profile?.custom_company_name) && <span>회사: {getDisplayCompanyName(apply.profile?.company, apply.profile?.custom_company_name)}</span>}
+                    {apply.profile?.education && <span>학력: {apply.profile.education}</span>}
+                    {apply.profile?.residence && <span>거주지: {apply.profile.residence}</span>}
+                    {apply.profile?.mbti && <span>MBTI: {apply.profile.mbti}</span>}
+                  </EntryMeta>
                   {apply.status === 'pending' && (
-                    <ButtonRow style={{ justifyContent: 'flex-end' }}>
+                    <ButtonRow style={{ justifyContent: 'flex-end', marginBottom: 0 }}>
                       <PrimaryButton
                         type="button"
                         onClick={(e) => {
@@ -1020,39 +1184,25 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     </ButtonRow>
                   )}
                   {isRejected && (
-                    <ButtonRow style={{ justifyContent: 'flex-end' }}>
-                      <SecondaryButton type="button" disabled>
+                    <EntryCardOverlay $variant="rejected">
+                      <EntryCardOverlayBadge $variant="rejected">
+                        <FaBan size={14} />
                         거절함
-                      </SecondaryButton>
-                    </ButtonRow>
+                      </EntryCardOverlayBadge>
+                    </EntryCardOverlay>
                   )}
-                  {isRejected && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: 'rgba(156, 163, 175, 0.55)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#111827',
-                        fontWeight: 700,
-                        fontSize: '0.9rem',
-                        textShadow: '0 1px 2px rgba(255,255,255,0.7)',
-                      }}
-                    >
-                      거절함
-                    </div>
-                  )}
-                </Card>
+                </EntryCard>
               );
-            })
+            })}
+            </EntryList>
             )}
           </Section>
         )}
 
         <Section>
-          <SectionTitle>이성들의 추가 매칭 도전</SectionTitle>
+          <SectionTitleWrap>
+            <SectionTitle>매칭 도전중인 상대 이성</SectionTitle>
+          </SectionTitleWrap>
           {loading ? (
             <Card>
               <p style={{ margin: 0, color: '#6b7280' }}>리스트를 불러오는 중입니다...</p>
@@ -1072,17 +1222,19 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 const isRejected = myApplyStatus === 'rejected';
                 const isPendingMine = myApplyStatus === 'pending';
 
-                const overlayBg = isPendingMine
-                  ? 'rgba(244, 114, 182, 0.45)' // 핑크톤 (호감 대기중)
-                  : 'rgba(156, 163, 175, 0.55)'; // 회색톤 (거절/품절)
+                const overlayVariant = isPendingMine
+                  ? ('pending' as const)
+                  : isSoldOut
+                  ? ('sold_out' as const)
+                  : ('rejected' as const);
 
-                const overlayText = isSoldOut
-                  ? '품절'
+                const overlayContent = isSoldOut
+                  ? { icon: <FaBoxOpen size={14} />, text: '품절' }
                   : isRejected
-                  ? '호감을 거절한 상대'
+                  ? { icon: <FaBan size={14} />, text: '호감을 거절한 상대' }
                   : isPendingMine
-                  ? '대답을 기다리는 중'
-                  : '';
+                  ? { icon: <FaClock size={14} />, text: '대답을 기다리는 중' }
+                  : null;
 
                 return (
                   <EntryCard
@@ -1092,18 +1244,18 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                       setShowEntryProfileModal(true);
                     }}
                     style={{
-                      cursor: 'pointer',
-                      opacity: isSoldOut || isRejected || isPendingMine ? 0.9 : 1,
+                      opacity: 1,
                     }}
                   >
                     <EntryHeader>
-                      <EntryTitle>
+                      <EntryGenderBadge>
                         {entry.gender === 'male'
                           ? '남성'
                           : entry.gender === 'female'
                           ? '여성'
-                          : '회원'}{' '}
-                        ·{' '}
+                          : '회원'}
+                      </EntryGenderBadge>
+                      <EntryTitle>
                         {entry.age
                           ? `${entry.age}년생`
                           : entry.height
@@ -1112,28 +1264,18 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                       </EntryTitle>
                     </EntryHeader>
                     <EntryMeta>
-                      {getDisplayCompanyName(entry.company, entry.custom_company_name) && <div>회사: {getDisplayCompanyName(entry.company, entry.custom_company_name)}</div>}
-                      {entry.education && <div>학력: {entry.education}</div>}
-                      {entry.residence && <div>거주지: {entry.residence}</div>}
-                      {entry.mbti && <div>MBTI: {entry.mbti}</div>}
+                      {getDisplayCompanyName(entry.company, entry.custom_company_name) && <span>회사: {getDisplayCompanyName(entry.company, entry.custom_company_name)}</span>}
+                      {entry.education && <span>학력: {entry.education}</span>}
+                      {entry.residence && <span>거주지: {entry.residence}</span>}
+                      {entry.mbti && <span>MBTI: {entry.mbti}</span>}
                     </EntryMeta>
-                    {(isSoldOut || isRejected || isPendingMine) && overlayText && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          inset: 0,
-                          background: overlayBg,
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#111827',
-                          fontWeight: 700,
-                          fontSize: '0.95rem',
-                          textShadow: '0 1px 2px rgba(255,255,255,0.7)',
-                        }}
-                      >
-                        {overlayText}
-                      </div>
+                    {(isSoldOut || isRejected || isPendingMine) && overlayContent && (
+                      <EntryCardOverlay $variant={overlayVariant}>
+                        <EntryCardOverlayBadge $variant={overlayVariant}>
+                          {overlayContent.icon}
+                          {overlayContent.text}
+                        </EntryCardOverlayBadge>
+                      </EntryCardOverlay>
                     )}
                   </EntryCard>
                 );
@@ -1479,71 +1621,74 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
               }
             }}
           >
-            <ModalContent onClick={(e) => e.stopPropagation()}>
-              <ModalTitle>추가 매칭 도전 프로필</ModalTitle>
-              <ModalBody>
-                
-                <div style={{ fontSize: '0.9rem', color: '#111827', marginBottom: 6 }}>
-                  <strong>
-                    {selectedEntry.gender === 'male'
-                      ? '남성'
-                      : selectedEntry.gender === 'female'
-                      ? '여성'
-                      : '회원'}
-                    {selectedEntry.age && ` · ${selectedEntry.age}년생`}
-                  </strong>
-                </div>
-                <div style={{ fontSize: '0.86rem', color: '#4b5563', lineHeight: 1.5 }}>
-                  {getDisplayCompanyName(selectedEntry.company, selectedEntry.custom_company_name) && <div>회사: {getDisplayCompanyName(selectedEntry.company, selectedEntry.custom_company_name)}</div>}
-                  {selectedEntry.education && <div>학력: {selectedEntry.education}</div>}
-                  {selectedEntry.residence && <div>거주지: {selectedEntry.residence}</div>}
-                  {selectedEntry.mbti && <div>MBTI: {selectedEntry.mbti}</div>}
-                  {selectedEntry.height && <div>키: {selectedEntry.height}cm</div>}
-                  {selectedEntry.profile?.body_type && <div>체형: {selectedEntry.profile.body_type}</div>}
-                  {selectedEntry.profile?.drinking && <div>음주: {selectedEntry.profile.drinking}</div>}
-                  {selectedEntry.profile?.smoking && <div>흡연: {selectedEntry.profile.smoking}</div>}
-                  {selectedEntry.profile?.religion && <div>종교: {selectedEntry.profile.religion}</div>}
-                  {selectedEntry.profile?.marital_status && (
-                    <div>결혼 여부: {selectedEntry.profile.marital_status}</div>
-                  )}
+            <ModalContent onClick={(e) => e.stopPropagation()} data-no-padding>
+              <ProfileModalHeader>
+                <ProfileModalHeaderTitle>
+                  {selectedEntry.gender === 'male'
+                    ? '남성'
+                    : selectedEntry.gender === 'female'
+                    ? '여성'
+                    : '회원'}
+                  {selectedEntry.age && ` · ${selectedEntry.age}년생`}
+                </ProfileModalHeaderTitle>
+                {(getDisplayCompanyName(selectedEntry.company, selectedEntry.custom_company_name) || selectedEntry.education || selectedEntry.residence) && (
+                  <ProfileModalHeaderSub>
+                    {[
+                      getDisplayCompanyName(selectedEntry.company, selectedEntry.custom_company_name),
+                      selectedEntry.education,
+                      selectedEntry.residence,
+                    ].filter(Boolean).join(' · ')}
+                  </ProfileModalHeaderSub>
+                )}
+              </ProfileModalHeader>
+              <ProfileModalSection>
+                <ProfileModalSectionTitle>기본 정보</ProfileModalSectionTitle>
+                <ProfileModalRow>
+                  {selectedEntry.mbti && <span><ProfileModalLabel>MBTI</ProfileModalLabel> {selectedEntry.mbti}</span>}
+                  {selectedEntry.height && <span><ProfileModalLabel>키</ProfileModalLabel> {selectedEntry.height}cm</span>}
+                  {selectedEntry.profile?.body_type && <span><ProfileModalLabel>체형</ProfileModalLabel> {selectedEntry.profile.body_type}</span>}
+                  {selectedEntry.profile?.drinking && <span><ProfileModalLabel>음주</ProfileModalLabel> {selectedEntry.profile.drinking}</span>}
+                  {selectedEntry.profile?.smoking && <span><ProfileModalLabel>흡연</ProfileModalLabel> {selectedEntry.profile.smoking}</span>}
+                  {selectedEntry.profile?.religion && <span><ProfileModalLabel>종교</ProfileModalLabel> {selectedEntry.profile.religion}</span>}
+                  {selectedEntry.profile?.marital_status && <span><ProfileModalLabel>결혼</ProfileModalLabel> {selectedEntry.profile.marital_status}</span>}
+                </ProfileModalRow>
+              </ProfileModalSection>
+              {(selectedEntry.profile?.interests || selectedEntry.profile?.appearance || selectedEntry.profile?.personality || selectedEntry.profile?.appeal || selectedEntry.profile?.extra_appeal_text) && (
+                <ProfileModalSection>
+                  <ProfileModalSectionTitle>자기소개</ProfileModalSectionTitle>
                   {selectedEntry.profile?.interests && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>관심사</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>관심사</ProfileModalLabel>
                       <span>{selectedEntry.profile.interests}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
                   {selectedEntry.profile?.appearance && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>외모 스타일</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>외모</ProfileModalLabel>
                       <span>{selectedEntry.profile.appearance}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
                   {selectedEntry.profile?.personality && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>성격</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>성격</ProfileModalLabel>
                       <span>{selectedEntry.profile.personality}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
                   {selectedEntry.profile?.appeal && (
-                    <div style={{ marginTop: 6 }}>
-                      <span style={{ fontWeight: 600 }}>자기소개 / 어필</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>어필</ProfileModalLabel>
                       <span>{selectedEntry.profile.appeal}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
                   {selectedEntry.profile?.extra_appeal_text && (
-                    <div style={{ marginTop: 8 }}>
-                      <span style={{ fontWeight: 600 }}>한 줄 어필</span>
-                      <br />
+                    <ProfileModalText>
+                      <ProfileModalLabel>한 줄</ProfileModalLabel>
                       <span>{selectedEntry.profile.extra_appeal_text}</span>
-                    </div>
+                    </ProfileModalText>
                   )}
-                </div>
-              </ModalBody>
-              <ModalActions>
+                </ProfileModalSection>
+              )}
+              <ProfileModalActions>
                 <ModalPrimaryButton
                   type="button"
                   disabled={
@@ -1582,33 +1727,28 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 >
                   닫기
                 </ModalSecondaryButton>
-              </ModalActions>
+              </ProfileModalActions>
               {(hasUsedApply ||
                 myEntry ||
                 selectedEntry.status === 'sold_out' ||
                 selectedEntry.my_apply_status === 'rejected' ||
                 selectedEntry.my_apply_status === 'accepted' ||
                 selectedEntry.my_apply_status === 'pending') && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: '0.8rem',
-                    color: '#6b7280',
-                    textAlign: 'right',
-                  }}
-                >
-                  {hasUsedApply
-                    ? '이번 회차에는 이미 호감을 보냈습니다.'
-                    : myEntry
-                    ? '추가 매칭 도전에 등록한 상태에서는 호감을 보낼 수 없습니다.'
-                    : selectedEntry.status === 'sold_out'
-                    ? '이미 다른 회원과 매칭이 완료되어 호감을 보낼 수 없습니다.'
-                    : selectedEntry.my_apply_status === 'rejected'
-                    ? '이 회원에게 보낸 호감을 이미 거절당했습니다.'
-                    : selectedEntry.my_apply_status === 'pending'
-                    ? '상대방의 대답을 기다리고 있습니다.'
-                    : '이 회원에게는 더 이상 호감을 보낼 수 없습니다.'}
-                </div>
+                <ProfileModalSection style={{ padding: '0.5rem 1.25rem 1rem', borderTop: 'none', background: '#fafafa' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>
+                    {hasUsedApply
+                      ? '이번 회차에는 이미 호감을 보냈습니다.'
+                      : myEntry
+                      ? '추가 매칭 도전에 등록한 상태에서는 호감을 보낼 수 없습니다.'
+                      : selectedEntry.status === 'sold_out'
+                      ? '이미 다른 회원과 매칭이 완료되어 호감을 보낼 수 없습니다.'
+                      : selectedEntry.my_apply_status === 'rejected'
+                      ? '이 회원에게 보낸 호감을 이미 거절당했습니다.'
+                      : selectedEntry.my_apply_status === 'pending'
+                      ? '상대방의 대답을 기다리고 있습니다.'
+                      : '이 회원에게는 더 이상 호감을 보낼 수 없습니다.'}
+                  </div>
+                </ProfileModalSection>
               )}
             </ModalContent>
           </ModalOverlay>
