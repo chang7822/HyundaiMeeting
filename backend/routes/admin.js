@@ -1949,78 +1949,81 @@ router.get('/matching-history', authenticate, async (req, res) => {
     if (periodId && periodId !== 'all') {
       query = query.eq('period_id', periodId);
     }
-    const { data, error } = await query;
+    const { data: historyRows, error } = await query;
     if (error) throw error;
-    // 2. 각 매칭에 대해 사용자 정보 조회 및 처리
-    const processedResult = await Promise.all((data || []).map(async (row) => {
-      // 남성 사용자 정보 조회
+
+    if (!historyRows || historyRows.length === 0) {
+      return res.json([]);
+    }
+
+    // 2. 필요한 user_id 수집 및 배치 조회 (N+1 방지)
+    const userIds = new Set();
+    historyRows.forEach(row => {
+      if (row.male_user_id) userIds.add(row.male_user_id);
+      if (row.female_user_id) userIds.add(row.female_user_id);
+    });
+    const userIdList = [...userIds];
+
+    const [usersRes, profilesRes] = await Promise.all([
+      userIdList.length > 0
+        ? supabase.from('users').select('id, email').in('id', userIdList)
+        : { data: [] },
+      userIdList.length > 0
+        ? supabase.from('user_profiles').select('*').in('user_id', userIdList)
+        : { data: [] }
+    ]);
+
+    const usersById = {};
+    (usersRes.data || []).forEach(u => { usersById[u.id] = u; });
+    const profilesByUserId = {};
+    (profilesRes.data || []).forEach(p => { profilesByUserId[p.user_id] = p; });
+
+    // 3. 메시지 개수 배치 조회 (쌍별 count)
+    const pairs = historyRows
+      .filter(r => r.male_user_id && r.female_user_id)
+      .flatMap(r => [
+        [r.male_user_id, r.female_user_id],
+        [r.female_user_id, r.male_user_id]
+      ]);
+
+    const countByPair = {};
+    if (pairs.length > 0) {
+      await Promise.all(pairs.map(async ([senderId, receiverId]) => {
+        const key = `${senderId}-${receiverId}`;
+        const { count } = await supabase
+          .from('chat_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('sender_id', senderId)
+          .eq('receiver_id', receiverId);
+        countByPair[key] = count || 0;
+      }));
+    }
+
+    // 4. 각 행에 정보 매핑 (동기 처리)
+    const processedResult = historyRows.map(row => {
       let maleInfo = null;
       if (row.male_user_id) {
-        const { data: maleUser } = await supabase
-          .from('users')
-          .select('id, email')
-          .eq('id', row.male_user_id)
-          .single();
-        
-        if (maleUser) {
-          const { data: maleProfile } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', row.male_user_id)
-            .single();
-          
-          maleInfo = {
-            ...maleProfile,
-            user: maleUser
-          };
+        const maleUser = usersById[row.male_user_id];
+        const maleProfile = profilesByUserId[row.male_user_id];
+        if (maleUser && maleProfile) {
+          maleInfo = { ...maleProfile, user: maleUser };
         }
       }
-
-      // 여성 사용자 정보 조회
       let femaleInfo = null;
       if (row.female_user_id) {
-        const { data: femaleUser } = await supabase
-          .from('users')
-          .select('id, email')
-          .eq('id', row.female_user_id)
-          .single();
-        
-        if (femaleUser) {
-          const { data: femaleProfile } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('user_id', row.female_user_id)
-            .single();
-          
-          femaleInfo = {
-            ...femaleProfile,
-            user: femaleUser
-          };
+        const femaleUser = usersById[row.female_user_id];
+        const femaleProfile = profilesByUserId[row.female_user_id];
+        if (femaleUser && femaleProfile) {
+          femaleInfo = { ...femaleProfile, user: femaleUser };
         }
       }
 
-      // 메시지 개수 조회
-      let maleMessageCount = 0;
-      let femaleMessageCount = 0;
-      
-      if (row.male_user_id && row.female_user_id) {
-        // 남성이 보낸 메시지 개수
-        const { count: maleCount } = await supabase
-          .from('chat_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('sender_id', row.male_user_id)
-          .eq('receiver_id', row.female_user_id);
-        
-        // 여성이 보낸 메시지 개수
-        const { count: femaleCount } = await supabase
-          .from('chat_messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('sender_id', row.female_user_id)
-          .eq('receiver_id', row.male_user_id);
-        
-        maleMessageCount = maleCount || 0;
-        femaleMessageCount = femaleCount || 0;
-      }
+      const maleKey = row.male_user_id && row.female_user_id
+        ? `${row.male_user_id}-${row.female_user_id}` : null;
+      const femaleKey = row.female_user_id && row.male_user_id
+        ? `${row.female_user_id}-${row.male_user_id}` : null;
+      const maleMessageCount = maleKey ? (countByPair[maleKey] || 0) : 0;
+      const femaleMessageCount = femaleKey ? (countByPair[femaleKey] || 0) : 0;
 
       return {
         ...row,
@@ -2041,9 +2044,9 @@ router.get('/matching-history', authenticate, async (req, res) => {
           message_count: 0
         }
       };
-    }));
+    });
 
-    // 3. 닉네임 필터링(남/여 중 하나라도 해당 닉네임 포함)
+    // 5. 닉네임 필터링(남/여 중 하나라도 해당 닉네임 포함)
     let result = processedResult;
     if (nickname && nickname.trim() !== '') {
       result = processedResult.filter(row =>

@@ -450,7 +450,9 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
   const [results, setResults] = useState<any[]>([]);
   const [periodId, setPeriodId] = useState<string>('all');
   const hasInitializedPeriod = useRef(false);
-  const [nickname, setNickname] = useState('');
+  const userHasInteractedWithPeriod = useRef(false);
+  const [nicknameInput, setNicknameInput] = useState('');
+  const [nicknameSearch, setNicknameSearch] = useState(''); // 디바운스된 검색어
   const [modalOpen, setModalOpen] = useState(false);
   const [modalUser, setModalUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -482,9 +484,9 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
     loadLogs();
   }, []);
 
-  // 진입 시 최초 1회만 가장 최근 회차로 기본 선택 (사용자가 "전체"를 선택하면 그대로 유지)
+  // 진입 시 최초 1회만 가장 최근 회차로 기본 선택 (사용자가 이미 회차를 변경했으면 덮어쓰지 않음)
   useEffect(() => {
-    if (logs.length > 0 && !hasInitializedPeriod.current) {
+    if (logs.length > 0 && !hasInitializedPeriod.current && !userHasInteractedWithPeriod.current) {
       const lastLog = logs[logs.length - 1];
       if (lastLog?.id != null) {
         setPeriodId(String(lastLog.id));
@@ -492,16 +494,18 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
       }
     }
   }, [logs]);
+  // 닉네임 입력 디바운스 (300ms) — 입력 멈춤 후에만 검색
+  useEffect(() => {
+    const t = setTimeout(() => setNicknameSearch(nicknameInput.trim()), 300);
+    return () => clearTimeout(t);
+  }, [nicknameInput]);
+
   // 매칭 결과 불러오기
   useEffect(() => {
     const loadResults = async () => {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        if (periodId && periodId !== 'all') params.append('periodId', periodId);
-        if (nickname) params.append('nickname', nickname);
-        
-        const response = await adminMatchingApi.getMatchingHistory(periodId, nickname);
+        const response = await adminMatchingApi.getMatchingHistory(periodId, nicknameSearch || undefined);
         setResults(Array.isArray(response) ? response : []);
       } catch (error) {
         console.error('매칭 결과 조회 오류:', error);
@@ -511,7 +515,7 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
       }
     };
     loadResults();
-  }, [periodId, nickname]);
+  }, [periodId, nicknameSearch]);
 
   // 회차 인덱스 → 연속 번호로 변환 함수
   const getPeriodDisplayNumber = (period_id: number|string) => {
@@ -583,14 +587,20 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
       
       <FilterRow>
         <span>회차:</span>
-        <StyledSelect value={periodId} onChange={e=>setPeriodId(e.target.value)}>
+        <StyledSelect
+          value={periodId}
+          onChange={e => {
+            userHasInteractedWithPeriod.current = true;
+            setPeriodId(e.target.value);
+          }}
+        >
           <option value="all">전체</option>
           {logs.map((log, idx) => (
             <option key={log.id} value={log.id}>{idx+1}회차</option>
           ))}
         </StyledSelect>
         <span>닉네임:</span>
-        <input value={nickname} onChange={e=>setNickname(e.target.value)} placeholder="닉네임 검색" style={{padding:'6px 10px',borderRadius:6,border:'1.5px solid #bbb',minWidth:120}}/>
+        <input value={nicknameInput} onChange={e=>setNicknameInput(e.target.value)} placeholder="닉네임 검색" style={{padding:'6px 10px',borderRadius:6,border:'1.5px solid #bbb',minWidth:120}}/>
       </FilterRow>
       
       <TableWrapper>
