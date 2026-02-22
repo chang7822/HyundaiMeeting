@@ -36,6 +36,25 @@ async function isExtraMatchingFeatureEnabled() {
   }
 }
 
+// 호감 응답 만료 시간(시간 단위). app_settings.extra_matching_apply_expire_hours 사용, 기본 24
+async function getApplyExpireHours() {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'extra_matching_apply_expire_hours')
+      .maybeSingle();
+
+    if (error || !data || !data.value) return 24;
+    const h = data.value.hours;
+    if (typeof h !== 'number' || h < 1 || h > 168) return 24; // 1~168시간(1주) 범위
+    return Math.floor(h);
+  } catch (e) {
+    console.error('[extra-matching] apply_expire_hours 조회 예외:', e);
+    return 24;
+  }
+}
+
 // matching_log에서 현재 회차(및 필요 시 다음 회차)를 계산하는 헬퍼
 function computeCurrentAndNextFromLogs(logs) {
   if (!logs || logs.length === 0) {
@@ -943,7 +962,7 @@ router.get('/entries', async (req, res) => {
 
       const { data: myApplies, error: myAppliesError } = await supabase
         .from('extra_matching_applies')
-        .select('entry_id, status')
+        .select('entry_id, status, created_at, rejected_reason')
         .eq('sender_user_id', userId)
         .in('entry_id', entryIds);
 
@@ -951,22 +970,36 @@ router.get('/entries', async (req, res) => {
         console.error('[extra-matching] /entries 내 호감 신청 조회 오류:', myAppliesError);
       } else if (myApplies && myApplies.length > 0) {
         myApplyStatusByEntryId = myApplies.reduce((acc, row) => {
-          // 동일 엔트리에 여러 줄이 있을 가능성은 없지만, 가장 최신 상태만 남도록 덮어씀
-          acc[row.entry_id] = row.status;
+          acc[row.entry_id] = row;
           return acc;
         }, {});
       }
     }
 
+    const expireHours = await getApplyExpireHours();
+    const expireMs = expireHours * 60 * 60 * 1000;
+
     // 클라이언트에 필요한 정보만 가공
     const mapped = filteredEntries.map((entry) => {
       const p = entry.profile_snapshot || {};
+      const myApply = myApplyStatusByEntryId[entry.id];
+      const my_apply_status = myApply ? myApply.status : null;
+      let expires_at = null;
+      let rejected_reason = null;
+      if (myApply) {
+        rejected_reason = myApply.rejected_reason || null;
+        if (myApply.status === 'pending' && myApply.created_at) {
+          expires_at = new Date(new Date(myApply.created_at).getTime() + expireMs).toISOString();
+        }
+      }
       return {
         id: entry.id,
         period_id: entry.period_id,
         gender: entry.gender,
         status: entry.status,
-        my_apply_status: myApplyStatusByEntryId[entry.id] || null,
+        my_apply_status,
+        expires_at,
+        rejected_reason,
         age: p.birth_year || null,
         education: p.education ?? p.job_type ?? null,
         company: p.company || null,
@@ -1249,7 +1282,7 @@ router.get('/my-received-applies', async (req, res) => {
     // 이 엔트리에 들어온 모든 apply 조회
     const { data: applies, error: appliesError } = await supabase
       .from('extra_matching_applies')
-      .select('id, sender_user_id, status, created_at')
+      .select('id, sender_user_id, status, created_at, rejected_reason')
       .eq('entry_id', entry.id)
       .order('created_at', { ascending: false });
 
@@ -1277,13 +1310,22 @@ router.get('/my-received-applies', async (req, res) => {
       }
     }
 
+    const expireHours = await getApplyExpireHours();
+    const expireMs = expireHours * 60 * 60 * 1000;
+
     const mappedApplies = (applies || []).map((a) => {
       const p = profilesByUserId[a.sender_user_id] || {};
+      let expires_at = null;
+      if (a.status === 'pending' && a.created_at) {
+        expires_at = new Date(new Date(a.created_at).getTime() + expireMs).toISOString();
+      }
       return {
         id: a.id,
         sender_user_id: a.sender_user_id,
         status: a.status,
         created_at: a.created_at,
+        expires_at,
+        rejected_reason: a.rejected_reason || null,
         profile: {
           nickname: p.nickname || null,
           birth_year: p.birth_year || null,
@@ -1325,7 +1367,7 @@ router.post('/applies/:applyId/accept', async (req, res) => {
     // apply + entry 함께 조회
     const { data: apply, error: applyError } = await supabase
       .from('extra_matching_applies')
-      .select('id, entry_id, sender_user_id, status, used_star_amount, refunded_star_amount')
+      .select('id, entry_id, sender_user_id, status, created_at, used_star_amount, refunded_star_amount')
       .eq('id', applyId)
       .single();
 
@@ -1336,6 +1378,14 @@ router.post('/applies/:applyId/accept', async (req, res) => {
 
     if (apply.status !== 'pending') {
       return res.status(400).json({ message: '이미 처리된 신청입니다.' });
+    }
+
+    if (apply.created_at) {
+      const hours = await getApplyExpireHours();
+      const expiresAt = new Date(apply.created_at).getTime() + hours * 60 * 60 * 1000;
+      if (Date.now() >= expiresAt) {
+        return res.status(400).json({ message: '이 호감은 이미 만료되었습니다.' });
+      }
     }
 
     const { data: entry, error: entryError } = await supabase
@@ -1386,11 +1436,11 @@ router.post('/applies/:applyId/accept', async (req, res) => {
       return res.status(500).json({ message: '엔트리 상태를 갱신하는 중 오류가 발생했습니다.' });
     }
 
-    // 같은 엔트리에 대기 중이던 다른 호감들은 자동 거절 + 별 5개 환불
+    // 같은 엔트리에 대기 중이던 다른 호감들은 other_accepted로 자동 거절 + 별 5개 환불
     try {
       const { data: otherPending, error: otherError } = await supabase
         .from('extra_matching_applies')
-        .select('*')
+        .select('id, sender_user_id')
         .eq('entry_id', entry.id)
         .eq('status', 'pending');
 
@@ -1404,21 +1454,34 @@ router.post('/applies/:applyId/accept', async (req, res) => {
               status: 'rejected',
               decided_at: nowIso,
               refunded_star_amount: 5,
+              rejected_reason: 'other_accepted',
             })
             .eq('id', other.id);
-
-          if (updErr) {
-            console.error('[extra-matching] /applies/:applyId/accept 자동 거절 업데이트 오류:', updErr);
-            continue;
-          }
-
-          try {
-            await awardStars(other.sender_user_id, 5, 'extra_match_auto_reject', {
-              entry_id: entry.id,
-              apply_id: other.id,
-            });
-          } catch (refundErr) {
-            console.error('[extra-matching] /applies/:applyId/accept 자동 거절 환불 오류:', refundErr);
+          if (!updErr) {
+            try {
+              await awardStars(other.sender_user_id, 5, 'extra_match_auto_reject', { entry_id: entry.id, apply_id: other.id });
+              // other_accepted: 직접 거절과 동일한 알림/푸시 (호감 보낸 사람에게)
+              try {
+                await notificationRoutes.createNotification(String(other.sender_user_id), {
+                  type: 'extra_match',
+                  title: '[추가매칭] 보낸 호감표시가 거절되었습니다',
+                  body:
+                    '상대가 회원님이 보낸 호감을 거절했습니다.\n' +
+                    '사용하신 별 10개 중 5개는 자동으로 환불되었으며, 다른 분께 다시 도전하실 수 있어요.',
+                  linkUrl: '/extra-matching',
+                  meta: { entry_id: entry.id, apply_id: other.id, result: 'rejected' },
+                });
+                await sendPushToUsers([String(other.sender_user_id)], {
+                  type: 'extra_match_reject',
+                  title: '[직쏠공]',
+                  body: '보낸 호감이 거절되었어요. 다른 분께 다시 도전해볼까요?',
+                });
+              } catch (notifErr) {
+                console.error('[extra-matching] other_accepted 알림/푸시 오류:', notifErr);
+              }
+            } catch (refundErr) {
+              console.error('[extra-matching] /applies/:applyId/accept 자동 거절 환불 오류:', refundErr);
+            }
           }
         }
       }
@@ -1546,7 +1609,7 @@ router.post('/applies/:applyId/accept', async (req, res) => {
         try {
           await notificationRoutes.createNotification(String(apply.sender_user_id), {
             type: 'extra_match',
-            title: '[추가매칭] 보낸 호감을 상대가 승낙했어요',
+            title: '[추가매칭] 보낸 호감표시를 상대가 승낙했어요',
             body:
               '상대가 회원님이 보낸 호감을 승낙했습니다.\n' +
               '이번 회차 추가 매칭을 통해 매칭이 성사되었으며, 메인 페이지에서 채팅방을 확인하실 수 있어요.',
@@ -1609,6 +1672,14 @@ router.post('/applies/:applyId/reject', async (req, res) => {
       return res.status(400).json({ message: '이미 처리된 신청입니다.' });
     }
 
+    if (apply.created_at) {
+      const hours = await getApplyExpireHours();
+      const expiresAt = new Date(apply.created_at).getTime() + hours * 60 * 60 * 1000;
+      if (Date.now() >= expiresAt) {
+        return res.status(400).json({ message: '이 호감은 이미 만료되었습니다.' });
+      }
+    }
+
     const { data: entry, error: entryError } = await supabase
       .from('extra_matching_entries')
       .select('*')
@@ -1633,6 +1704,7 @@ router.post('/applies/:applyId/reject', async (req, res) => {
         status: 'rejected',
         decided_at: nowIso,
         refunded_star_amount: 5,
+        rejected_reason: 'manual',
       })
       .eq('id', apply.id);
 
@@ -1656,7 +1728,7 @@ router.post('/applies/:applyId/reject', async (req, res) => {
     try {
       await notificationRoutes.createNotification(String(apply.sender_user_id), {
         type: 'extra_match',
-        title: '[추가매칭] 보낸 호감이 거절되었습니다',
+        title: '[추가매칭] 보낸 호감표시가 거절되었습니다',
         body:
           '상대가 회원님이 보낸 호감을 거절했습니다.\n' +
           '사용하신 별 10개 중 5개는 자동으로 환불되었으며, 다른 분께 다시 도전하실 수 있어요.',
@@ -1690,6 +1762,128 @@ router.post('/applies/:applyId/reject', async (req, res) => {
   }
 });
 
+// ---- 24시간 만료 자동 거절 (스케줄러용) ----
+async function processExpiredApplies() {
+  try {
+    // 기간 종료 여부와 무관하게 만료된 pending apply는 자동 거절 (기간이 먼저 끝나도 처리)
+    const hours = await getApplyExpireHours();
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const { data: expiredApplies, error: fetchError } = await supabase
+      .from('extra_matching_applies')
+      .select('id, entry_id, sender_user_id')
+      .eq('status', 'pending')
+      .lt('created_at', cutoff);
+    if (fetchError || !expiredApplies || expiredApplies.length === 0) return;
+    const nowIso = new Date().toISOString();
+    for (const apply of expiredApplies) {
+      try {
+        const { error: updateError } = await supabase
+          .from('extra_matching_applies')
+          .update({
+            status: 'rejected',
+            decided_at: nowIso,
+            refunded_star_amount: 5,
+            rejected_reason: 'timeout',
+          })
+          .eq('id', apply.id);
+        if (!updateError) {
+          await awardStars(apply.sender_user_id, 5, 'extra_match_refund_timeout', {
+            entry_id: apply.entry_id,
+            apply_id: apply.id,
+          });
+          // 대답 지연 자동 거절 알림 + 푸시
+          try {
+            await notificationRoutes.createNotification(String(apply.sender_user_id), {
+              type: 'extra_match',
+              title: '[추가매칭] 대답지연으로 인한 호감 자동거절',
+              body:
+                '상대방의 수락/거절 지연으로 자동으로 거절 처리되었습니다.\n' +
+                '별 5개가 환불되었으며, 다른 분께 다시 도전하실 수 있어요.',
+              linkUrl: '/extra-matching',
+              meta: { entry_id: apply.entry_id, apply_id: apply.id, result: 'rejected_timeout' },
+            });
+            await sendPushToUsers([String(apply.sender_user_id)], {
+              type: 'extra_match_reject_timeout',
+              title: '[직쏠공]',
+              body: '보낸 호감이 답변 없이 자동 거절되었어요. 별 5개 환불돼요.',
+            });
+          } catch (notifErr) {
+            console.error('[extra-matching] processExpiredApplies 알림/푸시 오류:', apply.id, notifErr);
+          }
+        }
+      } catch (e) {
+        console.error('[extra-matching] processExpiredApplies:', apply.id, e);
+      }
+    }
+  } catch (e) {
+    console.error('[extra-matching] processExpiredApplies:', e);
+  }
+}
+
+// 회차 종료 시 해당 회차의 모든 pending apply 자동 거절 + 별 5개 환불 (스케줄러용)
+// - 24시간과 무관하게 매칭 기간(finish)이 지나면 남은 pending은 전부 거절 처리
+async function processPeriodEndedPendingApplies(periodId) {
+  if (!periodId) return;
+  try {
+    const { data: entries, error: entriesError } = await supabase
+      .from('extra_matching_entries')
+      .select('id')
+      .eq('period_id', periodId);
+    if (entriesError || !entries || entries.length === 0) return;
+    const entryIds = entries.map((e) => e.id);
+    const { data: pendingApplies, error: fetchError } = await supabase
+      .from('extra_matching_applies')
+      .select('id, entry_id, sender_user_id')
+      .eq('status', 'pending')
+      .in('entry_id', entryIds);
+    if (fetchError || !pendingApplies || pendingApplies.length === 0) return;
+    const nowIso = new Date().toISOString();
+    for (const apply of pendingApplies) {
+      try {
+        const { error: updateError } = await supabase
+          .from('extra_matching_applies')
+          .update({
+            status: 'rejected',
+            decided_at: nowIso,
+            refunded_star_amount: 5,
+            rejected_reason: 'period_ended',
+          })
+          .eq('id', apply.id);
+        if (!updateError) {
+          await awardStars(apply.sender_user_id, 5, 'extra_match_refund_period_ended', {
+            entry_id: apply.entry_id,
+            apply_id: apply.id,
+            period_id: periodId,
+          });
+          // 매칭 종료 자동 거절 알림 + 푸시
+          try {
+            await notificationRoutes.createNotification(String(apply.sender_user_id), {
+              type: 'extra_match',
+              title: '[추가매칭] 추가매칭도전 기간종료로 인한 호감 자동거절',
+              body:
+                '추가 매칭 기간이 종료되어 대답받지 않은 호감표시가 자동으로 거절 처리되었습니다.\n' +
+                '별 5개가 환불되었으며, 다음 회차에서 다시 도전하실 수 있어요.',
+              linkUrl: '/extra-matching',
+              meta: { entry_id: apply.entry_id, apply_id: apply.id, period_id: periodId, result: 'rejected_period_ended' },
+            });
+            await sendPushToUsers([String(apply.sender_user_id)], {
+              type: 'extra_match_reject_period_ended',
+              title: '[직쏠공]',
+              body: '매칭 기간 종료로 보낸 호감이 자동 거절되었어요. 별 5개 환불돼요.',
+            });
+          } catch (notifErr) {
+            console.error('[extra-matching] processPeriodEndedPendingApplies 알림/푸시 오류:', apply.id, notifErr);
+          }
+        }
+      } catch (e) {
+        console.error('[extra-matching] processPeriodEndedPendingApplies:', apply.id, e);
+      }
+    }
+  } catch (e) {
+    console.error('[extra-matching] processPeriodEndedPendingApplies:', e);
+  }
+}
+
 // (관리용) 특정 회차의 추가 매칭 도전 정산 API
 // - 아직 open 상태인 엔트리만 대상으로, 호감이 한 번도 오지 않은 경우 별 5개 환불
 router.post('/settle/:periodId', async (req, res) => {
@@ -1700,6 +1894,8 @@ router.post('/settle/:periodId', async (req, res) => {
       return res.status(400).json({ message: '유효한 periodId가 필요합니다.' });
     }
 
+    // 먼저 기간 종료로 남은 pending 호감 자동 거절 + 별 5개 환불
+    await processPeriodEndedPendingApplies(numericId);
     const result = await settleExtraMatchingForPeriod(numericId);
     return res.json({
       success: true,
@@ -1712,6 +1908,8 @@ router.post('/settle/:periodId', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.processExpiredApplies = processExpiredApplies;
+module.exports.processPeriodEndedPendingApplies = processPeriodEndedPendingApplies;
 
 
 

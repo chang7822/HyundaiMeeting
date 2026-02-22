@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import { FaTimes, FaClock, FaBan, FaBoxOpen } from 'react-icons/fa';
 import { extraMatchingApi } from '../services/api.ts';
 import { userApi } from '../services/api.ts';
+import { formatRemainingTime, formatAutoRejectRemaining, isExpired } from '../utils/extraMatchingUtils.ts';
 import { useNavigate } from 'react-router-dom';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 import { useAuth } from '../contexts/AuthContext.tsx';
@@ -150,18 +151,6 @@ const ChipButtonRow = styled.div`
   }
 `;
 
-const MatchedNotice = styled.div`
-  margin-top: 0.5rem;
-  margin-bottom: 1.25rem;
-  padding: 0.9rem 1rem;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #fef3c7 0%, #ffedd5 100%);
-  border: 1px solid #facc15;
-  color: #92400e;
-  font-size: 0.86rem;
-  font-weight: 600;
-`;
-
 const SectionTitleWrap = styled.div`
   width: 100%;
   padding-bottom: 0.2rem;
@@ -288,16 +277,21 @@ const EntryMeta = styled.div`
   line-height: 1.5;
 `;
 
-const EntryCardOverlay = styled.div<{ $variant: 'pending' | 'rejected' | 'sold_out' }>`
+const EntryCardOverlay = styled.div<{ $variant: 'pending' | 'rejected' | 'sold_out' | 'success' }>`
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(203, 213, 225, 0.45);
+  background: ${props =>
+    props.$variant === 'rejected'
+      ? 'rgba(239, 68, 68, 0.15)'
+      : props.$variant === 'success'
+      ? 'rgba(16, 185, 129, 0.12)'
+      : 'rgba(203, 213, 225, 0.45)'};
 `;
 
-const EntryCardOverlayBadge = styled.div<{ $variant: 'pending' | 'rejected' | 'sold_out' }>`
+const EntryCardOverlayBadge = styled.div<{ $variant: 'pending' | 'rejected' | 'sold_out' | 'success' }>`
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -305,24 +299,31 @@ const EntryCardOverlayBadge = styled.div<{ $variant: 'pending' | 'rejected' | 's
   border-radius: 10px;
   font-size: 0.88rem;
   font-weight: 600;
+  white-space: pre-line;
   color: ${props =>
     props.$variant === 'pending'
       ? '#ffffff'
+      : props.$variant === 'success'
+      ? '#047857'
       : props.$variant === 'sold_out'
       ? '#475569'
-      : '#64748b'};
+      : '#b91c1c'};
   background: ${props =>
     props.$variant === 'pending'
       ? 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)'
+      : props.$variant === 'success'
+      ? 'rgba(16, 185, 129, 0.2)'
       : props.$variant === 'sold_out'
       ? 'rgba(148, 163, 184, 0.2)'
-      : 'rgba(203, 213, 225, 0.3)'};
+      : 'rgba(239, 68, 68, 0.15)'};
   border: 1px solid ${props =>
     props.$variant === 'pending'
       ? 'rgba(118, 75, 162, 0.5)'
+      : props.$variant === 'success'
+      ? 'rgba(16, 185, 129, 0.4)'
       : props.$variant === 'sold_out'
       ? 'rgba(148, 163, 184, 0.35)'
-      : 'rgba(203, 213, 225, 0.5)'};
+      : 'rgba(220, 38, 38, 0.4)'};
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 
   ${props =>
@@ -334,6 +335,20 @@ const EntryCardOverlayBadge = styled.div<{ $variant: 'pending' | 'rejected' | 's
       50% { opacity: 0.88; }
     }
   `}
+`;
+
+const SoldOutCornerBadge = styled.span`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+  background: rgba(148, 163, 184, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  z-index: 2;
 `;
 
 const EmptyState = styled.div`
@@ -586,6 +601,20 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
     }
   }, [user?.is_verified]);
 
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user?.is_verified === true) loadAll();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [user?.is_verified]);
+
+  const [timerTick, setTimerTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTimerTick((t) => t + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const handleCreateEntry = () => {
     setShowCreateConfirm(true);
   };
@@ -657,7 +686,11 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
     }
   };
 
-  const handleAccept = async (applyId: number) => {
+  const handleAccept = async (applyId: number, applyExpiresAt?: string) => {
+    if (applyExpiresAt && isExpired(applyExpiresAt)) {
+      toast.error('이 호감은 이미 만료되었습니다.');
+      return;
+    }
     setPendingDecision({ type: 'accept', applyId });
     setShowDecisionConfirm(true);
   };
@@ -683,7 +716,11 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
     }
   };
 
-  const handleReject = async (applyId: number) => {
+  const handleReject = async (applyId: number, applyExpiresAt?: string) => {
+    if (applyExpiresAt && isExpired(applyExpiresAt)) {
+      toast.error('이 호감은 이미 만료되었습니다.');
+      return;
+    }
     setPendingDecision({ type: 'reject', applyId });
     setShowDecisionConfirm(true);
   };
@@ -746,6 +783,12 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
     !!myEntry && myEntryStatus === 'open' && myReceivedApplyCount === 0;
 
   const [remainingText, setRemainingText] = useState<string>('');
+  const [minuteTick, setMinuteTick] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setMinuteTick((t) => t + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     if (!currentPeriod || !currentPeriod.finish) {
@@ -949,9 +992,8 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     <strong>재화 사용</strong> – 추가 매칭 도전 등록에는 <strong>별 10개</strong>가 사용되며,
                     이미 사용한 별은 <strong>취소해도 환불되지 않습니다.</strong>
                   </li>
-                  <li style={{ marginBottom: 4 }}>
-                    <strong>취소 규칙</strong> – 이성의 호감 표현이 <strong>도착하기 전까지만</strong> 직접 취소할 수 있고,
-                    취소 후에는 이번 회차에 다시 등록할 수 없습니다.
+                    <li style={{ marginBottom: 4 }}>
+                    <strong>취소 규칙</strong> – 이성의 호감 표현이 <strong>도착하기 전까지만</strong> 직접 취소할 수 있습니다.
                   </li>
                   <li style={{ marginBottom: 4 }}>
                     <strong>환불 규칙</strong> – 기간이 끝날 때까지 단 한 번도 호감을 받지 못한 경우에만
@@ -974,14 +1016,6 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
             </ModalContent>
           </ModalOverlay>
         )}
-        {isMatchedSuccess && (
-          <MatchedNotice>
-            해당 회차 <strong>매칭에 성공한 회원님</strong>은 추가 매칭 신청에 참여하실 수 없습니다.
-            <br />
-            이 페이지에서는 다른 회원들의 추가 매칭 도전을 <strong>구경만</strong> 하실 수 있어요.
-          </MatchedNotice>
-        )}
-
         {showReceivedProfileModal && selectedReceivedProfile && (
           <ModalOverlay
             onClick={() => {
@@ -1072,7 +1106,9 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
 
         {myEntry && (
           <TopActionInfo>
-            추가 매칭 도전이 등록되어 있습니다. 이성들이 회원님의 프로필을 보고 호감을 보낼 수 있어요.
+            {myEntryStatus === 'sold_out'
+              ? '회원님께서는 추가 매칭 도전을 통해 매칭에 성공하셨습니다. 메인 페이지에서 채팅을 이어가실 수 있어요.'
+              : '추가 매칭 도전이 등록되어 있습니다. 이성들이 회원님의 프로필을 보고 호감을 보낼 수 있어요.'}
           </TopActionInfo>
         )}
         <br/>
@@ -1116,8 +1152,18 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                 </EmptyState>
               </Card>
             ) : (
+              <>
+              {received.applies.some((a: any) => a.status === 'pending') && (() => {
+                const pendings = received.applies.filter((a: any) => a.status === 'pending' && a.expires_at);
+                const minExp = pendings.length ? pendings.reduce((m: string | null, a: any) => (!m || (a.expires_at && a.expires_at < m)) ? a.expires_at : m, null as string | null) : null;
+                return minExp ? (
+                  <div style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', padding: '0.6rem 1rem', borderRadius: 10, marginBottom: '0.75rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                    ⏱ 제한 시간 내에 답변해 주세요 {formatRemainingTime(minExp)}
+                  </div>
+                ) : null;
+              })()}
               <EntryList>
-              {received.applies.map((apply) => {
+              {received.applies.map((apply: any) => {
                 const isAccepted = apply.status === 'accepted';
                 const isRejected = apply.status === 'rejected';
 
@@ -1159,35 +1205,61 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
                     {apply.profile?.residence && <span>거주지: {apply.profile.residence}</span>}
                     {apply.profile?.mbti && <span>MBTI: {apply.profile.mbti}</span>}
                   </EntryMeta>
-                  {apply.status === 'pending' && (
-                    <ButtonRow style={{ justifyContent: 'flex-end', marginBottom: 0 }}>
-                      <PrimaryButton
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAccept(apply.id);
-                        }}
-                        disabled={actionLoading || isMatchedSuccess}
-                      >
-                        수락
-                      </PrimaryButton>
-                      <SecondaryButton
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleReject(apply.id);
-                        }}
-                        disabled={actionLoading || isMatchedSuccess}
-                      >
-                        거절
-                      </SecondaryButton>
-                    </ButtonRow>
+                  {isAccepted && (
+                    <EntryCardOverlay $variant="success">
+                      <EntryCardOverlayBadge $variant="success">
+                        <FaBoxOpen size={14} />
+                        매칭 성공
+                      </EntryCardOverlayBadge>
+                    </EntryCardOverlay>
                   )}
+                  {apply.status === 'pending' && (() => {
+                    const applyExpired = apply.expires_at && isExpired(apply.expires_at);
+                    return (
+                      <ButtonRow style={{ justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 0 }}>
+                        {apply.expires_at ? (
+                          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: applyExpired ? '#9ca3af' : '#6366f1' }}>
+                            {applyExpired ? '제한시간 만료됨(자동 거절)' : `${formatRemainingTime(apply.expires_at)} 후 자동거절`}
+                          </span>
+                        ) : (
+                          <span />
+                        )}
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <PrimaryButton
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleAccept(apply.id, apply.expires_at);
+                            }}
+                            disabled={actionLoading || isMatchedSuccess || !!applyExpired}
+                          >
+                            수락
+                          </PrimaryButton>
+                          <SecondaryButton
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReject(apply.id, apply.expires_at);
+                            }}
+                            disabled={actionLoading || isMatchedSuccess || !!applyExpired}
+                          >
+                            거절
+                          </SecondaryButton>
+                        </div>
+                      </ButtonRow>
+                    );
+                  })()}
                   {isRejected && (
                     <EntryCardOverlay $variant="rejected">
                       <EntryCardOverlayBadge $variant="rejected">
                         <FaBan size={14} />
-                        거절함
+                        {apply.rejected_reason === 'timeout'
+                          ? '자동 거절됨'
+                          : apply.rejected_reason === 'other_accepted'
+                          ? '거절함'
+                          : apply.rejected_reason === 'period_ended'
+                          ? '기간 종료로 자동 거절'
+                          : '거절함'}
                       </EntryCardOverlayBadge>
                     </EntryCardOverlay>
                   )}
@@ -1195,94 +1267,165 @@ const ExtraMatchingPage: React.FC<ExtraMatchingPageProps> = ({ sidebarOpen }) =>
               );
             })}
             </EntryList>
+              </>
             )}
           </Section>
         )}
 
-        <Section>
-          <SectionTitleWrap>
-            <SectionTitle>매칭 도전중인 상대 이성</SectionTitle>
-          </SectionTitleWrap>
-          {loading ? (
-            <Card>
-              <p style={{ margin: 0, color: '#6b7280' }}>리스트를 불러오는 중입니다...</p>
-            </Card>
-          ) : entries.length === 0 ? (
-            <Card>
-              <EmptyState>
-                아직 추가 매칭을 도전한 이성이 없습니다.
-                내가 먼저 용기내어 도전을 해보는 건 어떨까요?
-              </EmptyState>
-            </Card>
-          ) : (
-            <EntryList>
-              {entries.map((entry) => {
-                const isSoldOut = entry.status === 'sold_out';
-                const myApplyStatus = entry.my_apply_status as 'pending' | 'accepted' | 'rejected' | null;
-                const isRejected = myApplyStatus === 'rejected';
-                const isPendingMine = myApplyStatus === 'pending';
+        {(() => {
+          const entriesWithMyApply = entries.filter((e: any) => e.my_apply_status != null);
+          const entriesWithoutMyApply = entries.filter((e: any) => e.my_apply_status == null);
 
-                const overlayVariant = isPendingMine
-                  ? ('pending' as const)
-                  : isSoldOut
-                  ? ('sold_out' as const)
-                  : ('rejected' as const);
+          const renderEntryCard = (entry: any) => {
+            const isSoldOut = entry.status === 'sold_out';
+            const myApplyStatus = entry.my_apply_status as 'pending' | 'accepted' | 'rejected' | null;
+            const isRejected = myApplyStatus === 'rejected';
+            const isPendingMine = myApplyStatus === 'pending';
+            const isAcceptedMine = myApplyStatus === 'accepted';
+            const hasMyApply = myApplyStatus != null;
 
-                const overlayContent = isSoldOut
-                  ? { icon: <FaBoxOpen size={14} />, text: '품절' }
-                  : isRejected
-                  ? { icon: <FaBan size={14} />, text: '호감을 거절한 상대' }
-                  : isPendingMine
-                  ? { icon: <FaClock size={14} />, text: '대답을 기다리는 중' }
-                  : null;
+            const overlayVariant = isPendingMine
+              ? ('pending' as const)
+              : isAcceptedMine
+              ? ('success' as const)
+              : isRejected
+              ? ('rejected' as const)
+              : isSoldOut
+              ? ('sold_out' as const)
+              : null;
 
-                return (
-                  <EntryCard
-                    key={entry.id}
-                    onClick={() => {
-                      setSelectedEntry(entry);
-                      setShowEntryProfileModal(true);
-                    }}
+            const getRejectedContent = () => {
+              const r = (entry as any).rejected_reason;
+              if (r === 'timeout') return { line1: '매칭 실패', line2: '(시간 초과로 인한 자동 거절)' };
+              if (r === 'other_accepted') return { line1: '매칭 실패', line2: '(거절)' };
+              if (r === 'period_ended') return { line1: '매칭 기간 종료로 자동 거절', line2: null };
+              return { line1: '매칭 실패', line2: '(거절)' };
+            };
+
+            const overlayContent = isAcceptedMine
+              ? { icon: <FaBoxOpen size={14} />, text: '매칭 성공' }
+              : isRejected
+              ? { icon: <FaBan size={14} />, ...getRejectedContent() }
+              : isSoldOut && !hasMyApply
+              ? { icon: <FaBoxOpen size={14} />, text: '품절' }
+              : isPendingMine
+              ? (() => {
+                  const exp = (entry as any).expires_at;
+                  const expired = exp && isExpired(exp);
+                  if (expired) {
+                    return { icon: <FaClock size={14} />, text: '제한시간 만료됨(자동 거절)' };
+                  }
+                  if (exp) {
+                    return {
+                      icon: <FaClock size={14} />,
+                      line1: '대답을 기다리는 중',
+                      line2: formatAutoRejectRemaining(exp),
+                    };
+                  }
+                  return { icon: <FaClock size={14} />, text: '대답을 기다리는 중' };
+                })()
+              : null;
+
+            const showCornerSoldOut = hasMyApply && isRejected && isSoldOut;
+
+            return (
+              <EntryCard
+                key={entry.id}
+                onClick={() => {
+                  setSelectedEntry(entry);
+                  setShowEntryProfileModal(true);
+                }}
+                style={{ opacity: 1 }}
+              >
+                {showCornerSoldOut && <SoldOutCornerBadge>품절</SoldOutCornerBadge>}
+                <EntryHeader>
+                  <EntryGenderBadge>
+                    {entry.gender === 'male' ? '남성' : entry.gender === 'female' ? '여성' : '회원'}
+                  </EntryGenderBadge>
+                  <EntryTitle>
+                    {entry.age ? `${entry.age}년생` : entry.height ? `${entry.height}cm` : '연령/키 비공개'}
+                  </EntryTitle>
+                </EntryHeader>
+                <EntryMeta>
+                  {getDisplayCompanyName(entry.company, entry.custom_company_name) && <span>회사: {getDisplayCompanyName(entry.company, entry.custom_company_name)}</span>}
+                  {entry.education && <span>학력: {entry.education}</span>}
+                  {entry.residence && <span>거주지: {entry.residence}</span>}
+                  {entry.mbti && <span>MBTI: {entry.mbti}</span>}
+                </EntryMeta>
+                {overlayVariant && overlayContent && (
+                  <EntryCardOverlay $variant={overlayVariant}>
+                    <EntryCardOverlayBadge $variant={overlayVariant}>
+                      {overlayContent.icon}
+                      {'line2' in overlayContent && overlayContent.line2 != null ? (
+                        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                          <span>{overlayContent.line1}</span>
+                          <span style={{ fontSize: '0.75rem', opacity: 0.95 }}>{overlayContent.line2}</span>
+                        </span>
+                      ) : (
+                        ('text' in overlayContent ? overlayContent.text : (overlayContent as any).line1)
+                      )}
+                    </EntryCardOverlayBadge>
+                  </EntryCardOverlay>
+                )}
+              </EntryCard>
+            );
+          };
+
+          return (
+            <>
+              {entriesWithMyApply.length > 0 && (
+                <Section>
+                  <SectionTitleWrap>
+                    <SectionTitle>내가 호감을 보낸 이성</SectionTitle>
+                  </SectionTitleWrap>
+                  <EntryList>
+                    {entriesWithMyApply.map((entry: any) => renderEntryCard(entry))}
+                  </EntryList>
+                </Section>
+              )}
+              <Section>
+                <SectionTitleWrap>
+                  <div
                     style={{
-                      opacity: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
                     }}
                   >
-                    <EntryHeader>
-                      <EntryGenderBadge>
-                        {entry.gender === 'male'
-                          ? '남성'
-                          : entry.gender === 'female'
-                          ? '여성'
-                          : '회원'}
-                      </EntryGenderBadge>
-                      <EntryTitle>
-                        {entry.age
-                          ? `${entry.age}년생`
-                          : entry.height
-                          ? `${entry.height}cm`
-                          : '연령/키 비공개'}
-                      </EntryTitle>
-                    </EntryHeader>
-                    <EntryMeta>
-                      {getDisplayCompanyName(entry.company, entry.custom_company_name) && <span>회사: {getDisplayCompanyName(entry.company, entry.custom_company_name)}</span>}
-                      {entry.education && <span>학력: {entry.education}</span>}
-                      {entry.residence && <span>거주지: {entry.residence}</span>}
-                      {entry.mbti && <span>MBTI: {entry.mbti}</span>}
-                    </EntryMeta>
-                    {(isSoldOut || isRejected || isPendingMine) && overlayContent && (
-                      <EntryCardOverlay $variant={overlayVariant}>
-                        <EntryCardOverlayBadge $variant={overlayVariant}>
-                          {overlayContent.icon}
-                          {overlayContent.text}
-                        </EntryCardOverlayBadge>
-                      </EntryCardOverlay>
-                    )}
-                  </EntryCard>
-                );
-              })}
-            </EntryList>
-          )}
-        </Section>
+                    <SectionTitle>매칭 도전중인 상대 이성</SectionTitle>
+                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
+                      *동성 명단은 공개되지않음
+                    </span>
+                  </div>
+                </SectionTitleWrap>
+                {loading ? (
+                  <Card>
+                    <p style={{ margin: 0, color: '#6b7280' }}>리스트를 불러오는 중입니다...</p>
+                  </Card>
+                ) : entriesWithoutMyApply.length === 0 && entriesWithMyApply.length === 0 ? (
+                  <Card>
+                    <EmptyState>
+                      아직 추가 매칭을 도전한 이성이 없습니다.
+                      내가 먼저 용기내어 도전을 해보는 건 어떨까요?
+                    </EmptyState>
+                  </Card>
+                ) : entriesWithoutMyApply.length === 0 ? (
+                  <Card>
+                    <EmptyState>
+                      호감을 보낼 수 있는 이성이 없습니다.
+                      위에서 내가 보낸 호감의 대답을 기다려 주세요.
+                    </EmptyState>
+                  </Card>
+                ) : (
+                  <EntryList>
+                    {entriesWithoutMyApply.map((entry: any) => renderEntryCard(entry))}
+                  </EntryList>
+                )}
+              </Section>
+            </>
+          );
+        })()}
 
         {/* 모달들 */}
         {showCreateConfirm && myProfile && (

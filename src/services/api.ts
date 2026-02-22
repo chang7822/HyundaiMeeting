@@ -635,6 +635,12 @@ export const adminApi = {
     return response.data;
   },
 
+  // 호감 응답 만료 시간 (시간 단위, 1~168)
+  updateExtraMatchingApplyExpireHours: async (hours: number): Promise<{ success: boolean; extraMatchingApplyExpireHours: number }> => {
+    const response = await api.put('/admin/system-settings/extra-matching-expire-hours', { hours });
+    return response.data;
+  },
+
   updateCommunity: async (enabled: boolean): Promise<any> => {
     const response = await api.put('/admin/system-settings/community', { enabled });
     return response.data;

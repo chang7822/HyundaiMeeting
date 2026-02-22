@@ -453,12 +453,42 @@ AI·개발자가 기능 수정/추가 시 참고할, **회원가입 / 매칭 / �
 | 엔트리 취소 | 환불 없음 (호감이 **한 번도 오기 전**에만 취소 가능) |
 | 호감 거절 | 신청자에게 5개 환불 |
 | 호감 수락 시 그 외 대기 호감 | 각 5개 환불(자동 거절) |
+| 대답 지연 자동 거절 | 5개 환불 (24시간 내 답변 없음) |
+| 매칭 종료 자동 거절 | 5개 환불 (기간 종료 시 남은 pending) |
 | 기간 종료 후 정산 | 호감을 **한 번도 받지 못한** 엔트리만 5개 환불 (관리용 settle API) |
+
+**호감 결과별 분기 (호감 보낸 사람 기준)**
+
+| 분기 | rejected_reason | 비고 |
+|------|-----------------|------|
+| 수락 | — | 매칭 성사, 채팅 가능 |
+| 직접 거절 | `manual` | 받은 사람이 거절 버튼 선택 |
+| 대답 지연 자동 거절 | `timeout` | 24시간 내 답변 없음. `processExpiredApplies` 1분마다 실행 |
+| 다른 분 선택 | `other_accepted` | 받은 사람이 다른 호감 수락. 직접 거절과 동일 안내 |
+| 매칭 종료 자동 거절 | `period_ended` | 회차 finish 시점에 남은 pending 일괄 거절. `processPeriodEndedPendingApplies` |
+
+**24시간 응답 제한**
+
+- `app_settings.extra_matching_apply_expire_hours` (기본 24). 관리자 설정에서 변경 가능.
+- pending apply에 대해 `expires_at = created_at + N시간` 으로 계산해 API 응답·프론트 타이머에 사용.
+- `scheduler.js`: `processExpiredApplies` 1분마다 실행. `processPeriodEndedPendingApplies` 는 회차 종료 시 (`matching_log.finish` 지남) 호출.
+
+**알림·푸시 (호감 보낸 사람에게)**
+
+- 수락: 인앱 알림 + 푸시 (`보낸 호감표시가 승낙되었어요...`).
+- 직접 거절 / other_accepted: 인앱 알림 + 푸시 (`보낸 호감이 거절되었어요...`).
+- 대답 지연: 인앱 알림 + 푸시 (`보낸 호감이 답변 없이 자동 거절되었어요...`).
+- 매칭 종료: 인앱 알림 + 푸시 (`매칭 기간 종료로 보낸 호감이 자동 거절되었어요...`).
+
+**엔트리 취소 규칙**
+
+- 이성의 호감이 **도착하기 전**에만 취소 가능. 취소 시 별 환불 없음.
+- 취소 후 **같은 회차에 재등록 가능** (코드상 `hasEntryThisPeriod` 는 open/sold_out 만 포함, closed 제외).
 
 **데이터·연동**
 
 - **extra_matching_entries:** `period_id`, `user_id`, `profile_snapshot`, `gender`, `status`(open / sold_out / closed / closed_no_likes).
-- **extra_matching_applies:** `entry_id`, `sender_user_id`, `status`(pending / accepted / rejected), `used_star_amount`, `refunded_star_amount`.
+- **extra_matching_applies:** `entry_id`, `sender_user_id`, `status`(pending / accepted / rejected), `used_star_amount`, `refunded_star_amount`, `rejected_reason`(manual / timeout / other_accepted / period_ended). `expires_at` 은 API에서 `created_at + N시간` 으로 계산.
 - **matching_applications** (type='extra') 스냅샷, **matching_history** (type='extra'), **users** (is_matched 등) 와 연동. 수락 시 채팅은 기존 채팅 시스템과 동일(period_id + 상대 user_id).
 
 **백엔드 API** (`backend/routes/extra-matching.js` → `/api/extra-matching/*`)
@@ -474,11 +504,14 @@ AI·개발자가 기능 수정/추가 시 참고할, **회원가입 / 매칭 / �
 | GET | `/my-received-applies` | 내 엔트리로 온 호감 목록 |
 | POST | `/applies/:applyId/accept` | 호감 수락 (매칭 성사, 나머지 자동 거절+5개 환불) |
 | POST | `/applies/:applyId/reject` | 호감 거절 (5개 환불) |
-| POST | `/settle/:periodId` | (관리용) 회차 정산, 호감 0건 엔트리 5개 환불 |
+| POST | `/settle/:periodId` | (관리용) 회차 정산. 먼저 `processPeriodEndedPendingApplies` 로 pending 거절+환불, 이후 호감 0건 엔트리 5개 환불 |
 
 **프론트**
 
 - **ExtraMatchingPage** (`/extra-matching`): 등록/취소, 이성 엔트리 목록, 호감 보내기, 받은 호감 수락/거절. `extraMatchingApi` 사용.
+  - **나에게 온 호감**: 도전한 사람(엔트리 등록자) 전용. 받은 호감 카드(pending/accepted/rejected), 수락/거절 버튼, 제한시간 타이머.
+  - **내가 호감을 보낸 이성**: 호감 보낸 사람 전용. `my_apply_status` 가 있는 엔트리만 상단에 별도 섹션으로 표시. pending/accepted/rejected 배지, 거절 시 빨간색·품절 시 우측 상단 품절 배지.
+  - **매칭 도전중인 상대 이성**: 관망용. `my_apply_status` 가 null 인 엔트리(호감 미전송). open→호감 보내기 가능, sold_out→품절. *도전중인 동성 명단은 공개되지 않습니다* 안내.
 - **ExtraMatchingAdminPage** (`/admin/extra-matching-status`): 회차별 요약, 엔트리 목록, 엔트리별 호감 목록. `adminApi.getExtraMatchingPeriods`, `getExtraMatchingEntriesByPeriod`, `getExtraMatchingAppliesByEntry`.
 - **Sidebar:** "추가 매칭 도전" 메뉴 (이메일 인증 완료 시 활성). **MainPage:** 발표완료 시 배너 → `/extra-matching` 이동.
 

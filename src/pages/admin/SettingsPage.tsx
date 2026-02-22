@@ -189,6 +189,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [devSaving, setDevSaving] = useState(false);
   const [extraMatching, setExtraMatching] = useState(true);
   const [extraMatchingSaving, setExtraMatchingSaving] = useState(false);
+  const [extraMatchingApplyExpireHours, setExtraMatchingApplyExpireHours] = useState(24);
+  const [extraMatchingExpireSaving, setExtraMatchingExpireSaving] = useState(false);
   const [community, setCommunity] = useState(true);
   const [communitySaving, setCommunitySaving] = useState(false);
 
@@ -227,6 +229,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         setMaintenanceMessage(res?.maintenance?.message || '');
         setDevMode(!!res?.devMode?.enabled);
         setExtraMatching(res?.extraMatching?.enabled !== false);
+        setExtraMatchingApplyExpireHours(typeof (res?.extraMatching as any)?.applyExpireHours === 'number' ? (res.extraMatching as any).applyExpireHours : 24);
         setCommunity(res?.community?.enabled !== false);
         
         // 버전 정책 로드
@@ -568,6 +571,62 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 <SwitchSlider />
               </SwitchLabel>
             </ToggleRow>
+            <SectionDescription style={{ marginTop: '0.75rem' }}>
+              받은 호감에 대한 수락/거절 응답 만료 시간(시간 단위)입니다. 이 시간 내에 답변이 없으면 자동 거절됩니다.
+            </SectionDescription>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                type="number"
+                min={1}
+                max={168}
+                value={extraMatchingApplyExpireHours}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (!Number.isNaN(v)) setExtraMatchingApplyExpireHours(Math.max(1, Math.min(168, v)));
+                  else if (e.target.value === '') setExtraMatchingApplyExpireHours(24);
+                }}
+                style={{
+                  width: 70,
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: 8,
+                  border: '1px solid #e2e8f0',
+                  fontSize: '0.95rem',
+                }}
+                disabled={loading || extraMatchingExpireSaving}
+              />
+              <span style={{ color: '#4a5568', fontSize: '0.9rem' }}>시간</span>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (extraMatchingApplyExpireHours < 1 || extraMatchingApplyExpireHours > 168) {
+                    toast.error('1~168 시간 사이로 설정해주세요.');
+                    return;
+                  }
+                  setExtraMatchingExpireSaving(true);
+                  try {
+                    await adminApi.updateExtraMatchingApplyExpireHours(extraMatchingApplyExpireHours);
+                    toast.success(`호감 응답 만료 시간이 ${extraMatchingApplyExpireHours}시간으로 저장되었습니다.`);
+                  } catch (e: any) {
+                    toast.error(e?.response?.data?.message || '저장에 실패했습니다.');
+                  } finally {
+                    setExtraMatchingExpireSaving(false);
+                  }
+                }}
+                disabled={loading || extraMatchingExpireSaving}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#667eea',
+                  color: '#fff',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {extraMatchingExpireSaving ? '저장 중...' : '저장'}
+              </button>
+            </div>
           </Section>
 
           <Section>

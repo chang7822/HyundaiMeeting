@@ -212,6 +212,22 @@ router.get('/system-settings', authenticate, async (req, res) => {
       console.error('[admin][system-settings] extra_matching_enabled 조회 오류');
     }
 
+    let extraMatchingApplyExpireHours = 24;
+    try {
+      const { data: expireRow, error: expireError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'extra_matching_apply_expire_hours')
+        .maybeSingle();
+
+      if (!expireError && expireRow && expireRow.value && typeof expireRow.value.hours === 'number') {
+        const h = Math.floor(expireRow.value.hours);
+        if (h >= 1 && h <= 168) extraMatchingApplyExpireHours = h;
+      }
+    } catch (expireErr) {
+      console.error('[admin][system-settings] extra_matching_apply_expire_hours 조회 오류');
+    }
+
     let communityEnabled = true;
     try {
       const { data: communityRow, error: communityError } = await supabase
@@ -270,6 +286,7 @@ router.get('/system-settings', authenticate, async (req, res) => {
       },
       extraMatching: {
         enabled: extraMatchingEnabled,
+        applyExpireHours: extraMatchingApplyExpireHours,
       },
       community: {
         enabled: communityEnabled,
@@ -368,6 +385,46 @@ router.put('/system-settings/dev-mode', authenticate, async (req, res) => {
   } catch (error) {
     console.error('[admin][system-settings] Dev Mode 업데이트 오류');
     res.status(500).json({ success: false, message: 'Dev Mode 변경에 실패했습니다.' });
+  }
+});
+
+// 호감 응답 만료 시간 설정 (시간 단위)
+router.put('/system-settings/extra-matching-expire-hours', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { hours } = req.body || {};
+    const h = typeof hours === 'number' ? Math.floor(hours) : parseInt(hours, 10);
+    if (Number.isNaN(h) || h < 1 || h > 168) {
+      return res.status(400).json({ success: false, message: '1~168 사이의 시간(시간)을 입력해주세요.' });
+    }
+
+    const value = { hours: h };
+    const { data, error } = await supabase
+      .from('app_settings')
+      .upsert(
+        {
+          key: 'extra_matching_apply_expire_hours',
+          value,
+          updated_by: req.user.userId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      )
+      .select('value')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[admin][system-settings] extra_matching_apply_expire_hours 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '호감 만료 시간 설정 변경에 실패했습니다.' });
+    }
+
+    res.json({
+      success: true,
+      extraMatchingApplyExpireHours: data?.value?.hours ?? h,
+    });
+  } catch (error) {
+    console.error('[admin][system-settings] extra_matching_apply_expire_hours 업데이트 오류');
+    res.status(500).json({ success: false, message: '설정 변경에 실패했습니다.' });
   }
 });
 

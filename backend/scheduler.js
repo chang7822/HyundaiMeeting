@@ -130,6 +130,13 @@ cron.schedule(scheduleInterval, async () => {
             await supabase.from('community_star_grants').delete().eq('period_id', period.id);
             console.log(`[스케줄러] 회차 ${period.id} 매칭종료 - 커뮤니티 초기화 완료`);
 
+            // 추가 매칭: 기간 종료로 남은 pending 호감 자동 거절 + 별 5개 환불
+            try {
+              await processPeriodEndedPendingApplies(period.id);
+            } catch (extraErr) {
+              console.error(`[스케줄러] 회차 ${period.id} 추가매칭 종료 시 pending 거절 오류:`, extraErr);
+            }
+
             // 관리자에게 푸시 알림 발송
             try {
               await sendPushToAdmin(
@@ -866,5 +873,16 @@ cron.schedule(scheduleInterval, async () => {
   }
 });
 
+// 24시간 호감 만료 자동 거절: 1분마다
+const { processExpiredApplies, processPeriodEndedPendingApplies } = require('./routes/extra-matching');
+cron.schedule('0 * * * * *', async () => {
+  try {
+    await processExpiredApplies();
+  } catch (e) {
+    console.error('[스케줄러] 24시간 호감 만료:', e);
+  }
+});
+
 console.log('[스케줄러] 매칭 회차 스케줄러가 시작되었습니다.');
-console.log('[스케줄러] 정지 해제 스케줄러가 시작되었습니다. (10초마다)'); 
+console.log('[스케줄러] 정지 해제 스케줄러가 시작되었습니다. (10초마다)');
+console.log('[스케줄러] 24시간 호감 만료 스케줄러가 시작되었습니다. (1분마다)'); 
