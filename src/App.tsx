@@ -916,7 +916,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/matching-log" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MatchingLogAdminPage isSidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
             </div>
@@ -924,7 +924,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/category-manager" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <CategoryManagerPage sidebarOpen={sidebarOpen} />
             </div>
@@ -932,7 +932,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/company-manager" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <CompanyManagerPage sidebarOpen={sidebarOpen} />
             </div>
@@ -948,7 +948,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/matching-result" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <MatchingResultPage sidebarOpen={sidebarOpen} />
             </div>
@@ -964,7 +964,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/notice-manager" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <NoticeManagerPage sidebarOpen={sidebarOpen} />
             </div>
@@ -972,7 +972,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/faq-manager" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <FaqManagerPage sidebarOpen={sidebarOpen} />
             </div>
@@ -980,7 +980,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/settings" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <SettingsPage sidebarOpen={sidebarOpen} />
             </div>
@@ -988,7 +988,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/logs" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <LogsPage sidebarOpen={sidebarOpen} />
             </div>
@@ -996,7 +996,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/report-management" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <ReportManagementPage sidebarOpen={sidebarOpen} />
             </div>
@@ -1005,7 +1005,7 @@ const AppInner: React.FC = () => {
         {/* Admin Support Routes */}
         <Route path="/admin/support" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminSupportPage sidebarOpen={sidebarOpen} />
             </div>
@@ -1013,7 +1013,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/support/:id" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminSupportDetailPage sidebarOpen={sidebarOpen} />
             </div>
@@ -1021,7 +1021,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/broadcast-email" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <BroadcastEmailPage sidebarOpen={sidebarOpen} />
             </div>
@@ -1029,7 +1029,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/notifications" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminNotificationPage sidebarOpen={sidebarOpen} />
             </div>
@@ -1037,7 +1037,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/star-rewards" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <AdminStarRewardPage sidebarOpen={sidebarOpen} />
             </div>
@@ -1045,7 +1045,7 @@ const AppInner: React.FC = () => {
         } />
         <Route path="/admin/extra-matching-status" element={
           <AdminRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <ExtraMatchingAdminPage sidebarOpen={sidebarOpen} />
             </div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import Modal from 'react-modal';
 import { FaSyncAlt, FaComments, FaTimes, FaExclamationTriangle, FaInfoCircle } from 'react-icons/fa';
@@ -449,6 +449,7 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
   const [logs, setLogs] = useState<any[]>([]);
   const [results, setResults] = useState<any[]>([]);
   const [periodId, setPeriodId] = useState<string>('all');
+  const hasInitializedPeriod = useRef(false);
   const [nickname, setNickname] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [modalUser, setModalUser] = useState<any>(null);
@@ -481,16 +482,16 @@ const MatchingResultPage = ({ sidebarOpen = true }: { sidebarOpen?: boolean }) =
     loadLogs();
   }, []);
 
-  // 회차 목록이 로드되면 기본 선택값을 "전체"가 아니라
-  // 가장 마지막 인덱스(가장 최근 회차)의 id로 설정
+  // 진입 시 최초 1회만 가장 최근 회차로 기본 선택 (사용자가 "전체"를 선택하면 그대로 유지)
   useEffect(() => {
-    if (logs.length > 0 && periodId === 'all') {
+    if (logs.length > 0 && !hasInitializedPeriod.current) {
       const lastLog = logs[logs.length - 1];
       if (lastLog?.id != null) {
         setPeriodId(String(lastLog.id));
+        hasInitializedPeriod.current = true;
       }
     }
-  }, [logs, periodId]);
+  }, [logs]);
   // 매칭 결과 불러오기
   useEffect(() => {
     const loadResults = async () => {
