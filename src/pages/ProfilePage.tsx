@@ -257,6 +257,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [pw2, setPw2] = useState('');
   const [delPw, setDelPw] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [interestPopup, setInterestPopup] = useState(false);
   const [appearancePopup, setAppearancePopup] = useState(false);
@@ -447,7 +448,8 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
 
   const handleDelete = async () => {
     if (!delPw) return toast.error('비밀번호를 입력하세요.');
-    
+    if (isDeleting) return; // 중복 요청 방지
+    setIsDeleting(true);
     try {
       // 매칭 상태 확인을 위해 fetchUser 실행
       await fetchUser();
@@ -498,6 +500,8 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const errorMsg = error?.response?.data?.error || error?.message || '비밀번호가 올바르지 않거나 탈퇴 실패';
       toast.error(errorMsg);
       setDelPw('');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -821,7 +825,7 @@ const ProfilePage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             <h3 style={{textAlign:'center',marginBottom:16}}>회원 탈퇴</h3>
             <p style={{color:'#e74c3c',marginBottom:16}}>정말로 탈퇴하시려면 비밀번호를 입력하세요.</p>
             <Input type="password" value={delPw} onChange={e=>setDelPw(e.target.value)} placeholder="비밀번호" />
-            <DangerButton onClick={handleDelete}>탈퇴</DangerButton>
+            <DangerButton onClick={handleDelete} disabled={isDeleting}>{isDeleting ? '처리 중...' : '탈퇴'}</DangerButton>
             <Button type="button" style={{background:'#fff',color:'#764ba2',border:'2px solid #764ba2'}} onClick={()=>setDelPopup(false)}>취소</Button>
           </ModalCard>
         </ModalBg>

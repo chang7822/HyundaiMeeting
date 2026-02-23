@@ -599,6 +599,86 @@ router.delete('/me', authenticate, async (req, res) => {
     if (userData.is_banned || (userData.report_count && userData.report_count > 0)) {
       console.log(`[회원탈퇴] 정지/신고된 사용자 탈퇴: ${userEmail} (정지: ${userData.is_banned}, 신고횟수: ${userData.report_count})`);
     }
+
+    // 0-2. 관리자 알림 발송 (삭제 전에 실행 - 중복 요청 시 두 번째는 사용자 없음으로 실패하므로 알림 중복 방지)
+    try {
+      const adminSubject = '회원 탈퇴';
+      const parseJsonArray = (value) => {
+        if (!value) return null;
+        try {
+          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+          return Array.isArray(parsed) ? parsed.join(', ') : parsed;
+        } catch {
+          return value;
+        }
+      };
+      let preferCompanyNames = [];
+      if (profile && Array.isArray(profile.prefer_company) && profile.prefer_company.length > 0) {
+        try {
+          const { data: companies } = await supabase
+            .from('companies')
+            .select('id, name')
+            .in('id', profile.prefer_company);
+          if (companies && companies.length > 0) {
+            preferCompanyNames = companies.map(c => c.name).filter(Boolean);
+          }
+        } catch (e) {
+          console.error('[회원탈퇴] 선호 회사명 조회 오류:', e);
+        }
+      }
+      const adminBodyLines = [
+        '회원이 탈퇴했습니다.',
+        '',
+        '=== 기본 정보 ===',
+        `이메일: ${userEmail}`,
+        `닉네임: ${profile?.nickname || '-'}`,
+        `성별: ${profile?.gender || '-'}`,
+        `출생연도: ${profile?.birth_year || '-'}`,
+        `키: ${profile?.height ? `${profile.height}cm` : '-'}`,
+        `거주지: ${profile?.residence || '-'}`,
+        '',
+        '=== 회사 정보 ===',
+        `회사: ${profile?.company || '-'}`,
+        profile?.custom_company_name ? `사용자 입력 회사명: ${profile.custom_company_name}` : '',
+        `학력: ${profile?.education || '-'}`,
+        '',
+        '=== 프로필 정보 ===',
+        `자기소개: ${profile?.appeal || '-'}`,
+        `결혼상태: ${profile?.marital_status || '-'}`,
+        `종교: ${profile?.religion || '-'}`,
+        `흡연: ${profile?.smoking || '-'}`,
+        `음주: ${profile?.drinking || '-'}`,
+        `MBTI: ${profile?.mbti || '-'}`,
+        `체형: ${parseJsonArray(profile?.body_type) || '-'}`,
+        `관심사: ${parseJsonArray(profile?.interests) || '-'}`,
+        `외모: ${parseJsonArray(profile?.appearance) || '-'}`,
+        `성격: ${parseJsonArray(profile?.personality) || '-'}`,
+        '',
+        '=== 선호 스타일 ===',
+        `선호 연령: ${profile?.preferred_age_min || '-'}세 ~ ${profile?.preferred_age_max || '-'}세`,
+        `선호 키: ${profile?.preferred_height_min || '-'}cm ~ ${profile?.preferred_height_max || '-'}cm`,
+        `선호 체형: ${parseJsonArray(profile?.preferred_body_types) || '-'}`,
+        `선호 학력: ${parseJsonArray(profile?.preferred_educations) || '-'}`,
+        `선호 결혼상태: ${parseJsonArray(profile?.preferred_marital_statuses) || '-'}`,
+        `선호 회사: ${preferCompanyNames.length > 0 ? preferCompanyNames.join(', ') : '-'}`,
+        `선호 지역: ${Array.isArray(profile?.prefer_region) && profile.prefer_region.length > 0 ? profile.prefer_region.join(', ') : '-'}`,
+        '',
+        '=== 계정 정보 ===',
+        `정지 상태: ${userData.is_banned ? 'YES' : 'NO'}`,
+        `신고 횟수: ${userData.report_count || 0}회`,
+      ].filter(line => line !== '');
+      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
+        console.error('[회원탈퇴] 관리자 알림 메일 발송 실패:', err);
+      });
+      sendPushToAdmin(
+        '[직쏠공 관리자] 회원 탈퇴',
+        `${profile?.nickname || '회원'}(${userEmail})님이 탈퇴했습니다.`
+      ).catch(err => {
+        console.error('[회원탈퇴] 관리자 푸시 알림 발송 실패:', err);
+      });
+    } catch (e) {
+      console.error('[회원탈퇴] 관리자 알림 처리 중 오류:', e);
+    }
     
     // 1. 개인정보 관련 데이터 삭제
     // chat_messages 삭제 (개인 대화 내용)
@@ -673,98 +753,7 @@ router.delete('/me', authenticate, async (req, res) => {
     
     // 5. reports는 보존 (신고 이력 및 정지 관리용)
     // matching_log도 보존 (시스템 통계용)
-
-    // 6. 관리자 알림 메일 발송 (비동기)
-    try {
-      const adminSubject = '회원 탈퇴';
-      
-      // JSON 배열 파싱 헬퍼 함수
-      const parseJsonArray = (value) => {
-        if (!value) return null;
-        try {
-          const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-          return Array.isArray(parsed) ? parsed.join(', ') : parsed;
-        } catch {
-          return value;
-        }
-      };
-
-      // 선호 회사명 조회
-      let preferCompanyNames = [];
-      if (profile && Array.isArray(profile.prefer_company) && profile.prefer_company.length > 0) {
-        try {
-          const { data: companies } = await supabase
-            .from('companies')
-            .select('id, name')
-            .in('id', profile.prefer_company);
-          if (companies && companies.length > 0) {
-            preferCompanyNames = companies.map(c => c.name).filter(Boolean);
-          }
-        } catch (e) {
-          console.error('[회원탈퇴] 선호 회사명 조회 오류:', e);
-        }
-      }
-
-      const adminBodyLines = [
-        '회원이 탈퇴했습니다.',
-        '',
-        '=== 기본 정보 ===',
-        `이메일: ${userEmail}`,
-        `닉네임: ${profile?.nickname || '-'}`,
-        `성별: ${profile?.gender || '-'}`,
-        `출생연도: ${profile?.birth_year || '-'}`,
-        `키: ${profile?.height ? `${profile.height}cm` : '-'}`,
-        `거주지: ${profile?.residence || '-'}`,
-        '',
-        '=== 회사 정보 ===',
-        `회사: ${profile?.company || '-'}`,
-        profile?.custom_company_name 
-          ? `사용자 입력 회사명: ${profile.custom_company_name}`
-          : '',
-        `학력: ${profile?.education || '-'}`,
-        '',
-        '=== 프로필 정보 ===',
-        `자기소개: ${profile?.appeal || '-'}`,
-        `결혼상태: ${profile?.marital_status || '-'}`,
-        `종교: ${profile?.religion || '-'}`,
-        `흡연: ${profile?.smoking || '-'}`,
-        `음주: ${profile?.drinking || '-'}`,
-        `MBTI: ${profile?.mbti || '-'}`,
-        `체형: ${parseJsonArray(profile?.body_type) || '-'}`,
-        `관심사: ${parseJsonArray(profile?.interests) || '-'}`,
-        `외모: ${parseJsonArray(profile?.appearance) || '-'}`,
-        `성격: ${parseJsonArray(profile?.personality) || '-'}`,
-        '',
-        '=== 선호 스타일 ===',
-        `선호 연령: ${profile?.preferred_age_min || '-'}세 ~ ${profile?.preferred_age_max || '-'}세`,
-        `선호 키: ${profile?.preferred_height_min || '-'}cm ~ ${profile?.preferred_height_max || '-'}cm`,
-        `선호 체형: ${parseJsonArray(profile?.preferred_body_types) || '-'}`,
-        `선호 학력: ${parseJsonArray(profile?.preferred_educations) || '-'}`,
-        `선호 결혼상태: ${parseJsonArray(profile?.preferred_marital_statuses) || '-'}`,
-        `선호 회사: ${preferCompanyNames.length > 0 ? preferCompanyNames.join(', ') : '-'}`,
-        `선호 지역: ${Array.isArray(profile?.prefer_region) && profile.prefer_region.length > 0 
-          ? profile.prefer_region.join(', ') 
-          : '-'}`,
-        '',
-        '=== 계정 정보 ===',
-        `정지 상태: ${userData.is_banned ? 'YES' : 'NO'}`,
-        `신고 횟수: ${userData.report_count || 0}회`,
-      ].filter(line => line !== ''); // 빈 줄 제거
-      
-      sendAdminNotificationEmail(adminSubject, adminBodyLines.join('\n')).catch(err => {
-        console.error('[회원탈퇴] 관리자 알림 메일 발송 실패:', err);
-      });
-
-      // 관리자 푸시 알림 발송
-      sendPushToAdmin(
-        '[직쏠공 관리자] 회원 탈퇴',
-        `${profile?.nickname || '회원'}(${userEmail})님이 탈퇴했습니다.`
-      ).catch(err => {
-        console.error('[회원탈퇴] 관리자 푸시 알림 발송 실패:', err);
-      });
-    } catch (e) {
-      console.error('[회원탈퇴] 관리자 알림 메일 처리 중 오류:', e);
-    }
+    // (관리자 알림은 삭제 전 0-2 단계에서 이미 발송됨)
     
     res.json({ success: true });
   } catch (err) {
