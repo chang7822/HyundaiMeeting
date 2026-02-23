@@ -1239,6 +1239,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
   const [newPostContent, setNewPostContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [expandedPosts, setExpandedPosts] = useState<Set<number>>(new Set());
+  const [loadingComments, setLoadingComments] = useState<Set<number>>(new Set());
   const [comments, setComments] = useState<Record<number, any[]>>({});
   const [commentInputs, setCommentInputs] = useState<Record<number, string>>({});
   const [expandedPostContent, setExpandedPostContent] = useState<Set<number>>(new Set());
@@ -1415,15 +1416,17 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     fetchPeriod();
   }, []);
 
+  // selectedAnonymousNumber를 ref로 보관 (loadData 재실행 방지, 관리자 익명 ID 변경 시 likes만 갱신)
+  const selectedAnonymousNumberRef = useRef(selectedAnonymousNumber);
+  selectedAnonymousNumberRef.current = selectedAnonymousNumber;
+
   // 내 익명 ID 및 게시글 목록 조회 (첫 페이지)
   const loadData = useCallback(async () => {
     if (!currentPeriodId || !user) return;
 
     setLoading(true);
     try {
-      // 병렬로 API 호출하여 성능 개선
-      const anonymousNum = user?.isAdmin && selectedAnonymousNumber ? selectedAnonymousNumber : undefined;
-      
+      const anonymousNum = user?.isAdmin && selectedAnonymousNumberRef.current ? selectedAnonymousNumberRef.current : undefined;
       const [identity, postsResult, likesResult, gaugeResult] = await Promise.all([
         communityApi.getMyIdentity(currentPeriodId),
         communityApi.getPosts(currentPeriodId, 20, 0, sortOrder, filter),
@@ -1433,7 +1436,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
 
       setMyIdentity(identity);
       setPosts(postsResult.posts);
-      setOffset(20); // 다음 로드는 20부터
+      setOffset(20);
       setHasMore(postsResult.hasMore);
       setLikedPostIds(likesResult.likedPostIds);
       setStarGauge(gaugeResult);
@@ -1447,7 +1450,22 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     } finally {
       setLoading(false);
     }
-  }, [currentPeriodId, user, selectedAnonymousNumber, sortOrder, filter]);
+  }, [currentPeriodId, user, sortOrder, filter]);
+
+  // [관리자] 익명 ID 변경 시 좋아요 목록만 갱신 (전체 loadData 재실행 방지)
+  useEffect(() => {
+    if (!currentPeriodId || !user?.isAdmin) return;
+    const refreshLikes = async () => {
+      const anonymousNum = selectedAnonymousNumber ?? undefined;
+      try {
+        const likesResult = await communityApi.getMyLikes(currentPeriodId, anonymousNum);
+        setLikedPostIds(likesResult.likedPostIds);
+      } catch {
+        // 조용히 실패
+      }
+    };
+    refreshLikes();
+  }, [currentPeriodId, user?.isAdmin, selectedAnonymousNumber]);
 
   useEffect(() => {
     loadData();
@@ -1792,13 +1810,24 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         return newSet;
       });
     } else {
-      // 댓글 로드
+      // 이미 캐시된 댓글이 있으면 API 호출 없이 즉시 펼치기
+      if (comments[postId]) {
+        setExpandedPosts(prev => new Set(prev).add(postId));
+        return;
+      }
+      setLoadingComments(prev => new Set(prev).add(postId));
+      setExpandedPosts(prev => new Set(prev).add(postId)); // 즉시 펼쳐서 로딩 표시
       try {
         const { comments: fetchedComments } = await communityApi.getComments(postId);
         setComments(prev => ({ ...prev, [postId]: fetchedComments }));
-        setExpandedPosts(prev => new Set(prev).add(postId));
       } catch (error) {
         toast.error('댓글을 불러오는데 실패했습니다.');
+      } finally {
+        setLoadingComments(prev => {
+          const next = new Set(prev);
+          next.delete(postId);
+          return next;
+        });
       }
     }
   };
@@ -1826,7 +1855,7 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
       const displayTag = user?.isAdmin && !postAsAdmin && showTagSelector
         ? (fixedCommentTag ?? selectedCommentDisplayTag)
         : undefined;
-      await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
+      const { comment: newComment } = await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
       setCommentInputs(prev => ({ ...prev, [postId]: '' }));
       setCommentCooldowns(prev => ({ ...prev, [postId]: 10 })); // 10초 쿨다운 시작
       if (currentPeriodId) {
@@ -1855,9 +1884,17 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
         toast.success('댓글이 작성되었습니다.');
       }
 
-      // 댓글 목록 갱신
-      const { comments: fetchedComments } = await communityApi.getComments(postId);
-      setComments(prev => ({ ...prev, [postId]: fetchedComments }));
+      // createComment 응답으로 댓글 목록 갱신 (getComments 호출 제거)
+      const normalizedComment = {
+        ...newComment,
+        blocked_by_me: false,
+        report_count: newComment.report_count ?? 0,
+        is_deleted: false,
+      };
+      setComments(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] ?? []), normalizedComment],
+      }));
 
       // 게시글 comment_count 증가
       setPosts(prev => prev.map(post => {
@@ -2095,8 +2132,23 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
     }
   };
 
-  const handleRefresh = () => {
-    window.location.reload();
+  const handleRefresh = async () => {
+    if (!currentPeriodId) {
+      // 회차 없음 화면: 회차 정보만 재조회 (loadData는 useEffect에서 자동 실행)
+      try {
+        const data = await matchingApi.getMatchingPeriodForCommunity();
+        const period = data?.current || null;
+        if (period?.id) {
+          setCurrentPeriodId(period.id);
+          setCurrentPeriod(period);
+        }
+      } catch {
+        toast.error('회차 정보를 불러올 수 없습니다.');
+      }
+    } else {
+      // 게시글 목록 등만 다시 로드 (전체 페이지 새로고침 대신)
+      loadData();
+    }
   };
 
   const getPeriodStatusText = (status: string, periodNum: number) => {
@@ -2780,7 +2832,11 @@ const CommunityPage: React.FC<CommunityPageProps> = ({ sidebarOpen }) => {
 
                 {isExpanded && (
                   <CommentsSection>
-                    {comments[post.id]?.map(comment => {
+                    {loadingComments.has(post.id) ? (
+                      <div style={{ padding: '1rem', textAlign: 'center' }}>
+                        <InlineSpinner text="댓글 불러오는 중..." />
+                      </div>
+                    ) : (comments[post.id] ?? []).map(comment => {
                       if (comment.is_deleted) {
                         return (
                           <CommentItem 
