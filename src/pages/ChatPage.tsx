@@ -366,6 +366,44 @@ const ChatPage: React.FC = () => {
     };
   }, []);
 
+  // 웹(브라우저)에서 탭 전환 시 visibilitychange 감지 (네이티브가 아닐 때)
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) return;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setIsAppActive(true);
+      } else {
+        setIsAppActive(false);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
+  // 포어그라운드 복귀 시 메시지 갱신 (백그라운드에서 돌아올 때 메시지 새로고침)
+  // 채팅 앱 일반 패턴: 앱이 백그라운드에 있으면 Socket 연결이 끊기거나 메시지를 놓칠 수 있어서
+  // 포어그라운드 복귀 시 API로 메시지를 다시 불러옴
+  const prevIsAppActiveRef = useRef(true);
+  useEffect(() => {
+    if (!user?.id || !partnerUserId || !periodId) return;
+    // 백그라운드 → 포어그라운드 전환 시에만 갱신 (최초 마운트 시에는 이미 초기 로드가 있음)
+    if (prevIsAppActiveRef.current === false && isAppActive === true) {
+      chatApi
+        .getMessages(periodId, partnerUserId, user.id)
+        .then((msgs: any[]) => {
+          setMessages(
+            msgs.map(msg => ({
+              ...msg,
+              senderId: String(msg.senderId || msg.sender_id || ''),
+            }))
+          );
+          chatApi.markAsRead(periodId, partnerUserId, user.id).catch(() => {});
+        })
+        .catch(() => {});
+    }
+    prevIsAppActiveRef.current = isAppActive;
+  }, [isAppActive, user?.id, partnerUserId, periodId]);
+
   // 2-1. 실시간으로 새 메시지가 올 때마다 읽음 처리 (현재 채팅방 기준) + 읽음 이벤트 emit
   // 단, 앱이 포어그라운드 상태일 때만 읽음 처리
   useEffect(() => {

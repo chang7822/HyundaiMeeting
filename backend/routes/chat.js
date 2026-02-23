@@ -95,6 +95,7 @@ router.post('/:periodId/:partnerUserId/messages', async (req, res) => {
             senderId: String(msgRow.sender_id),
             title: '[직쏠공]',
             body: `${senderNickname}님으로부터 새로운 메시지가 도착했습니다.`,
+            linkUrl: `/chat/${msgRow.sender_id}`,
           });
           
           if (pushResult.success) {

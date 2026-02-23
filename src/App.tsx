@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from 'react-query';
 import { ToastContainer, toast } from 'react-toastify';
@@ -70,6 +70,7 @@ import RpsArenaPage from './pages/admin/RpsArenaPage.tsx';
 
 // Components
 import Sidebar from './components/layout/Sidebar.tsx';
+import { FaComments } from 'react-icons/fa';
 import ProtectedRoute from './components/auth/ProtectedRoute.tsx';
 import AdminRoute from './components/auth/AdminRoute.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
@@ -145,11 +146,16 @@ const AppInner: React.FC = () => {
   const [showExitModal, setShowExitModal] = useState(false);
   const [showPushPermissionModal, setShowPushPermissionModal] = useState(false);
   const preloadedAdsRef = useRef<any>({ banner: null, rewarded: null });
+  const pushListenersSetupRef = useRef(false);
 
   // 버전 체크 관련 state
   const [showForceUpdateModal, setShowForceUpdateModal] = useState(false);
   const [showOptionalUpdateModal, setShowOptionalUpdateModal] = useState(false);
   const [versionCheckResult, setVersionCheckResult] = useState<VersionCheckResult | null>(null);
+
+  // 포어그라운드 채팅 푸시: 토스트 + FAB 뱃지용
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [lastChatLinkUrl, setLastChatLinkUrl] = useState('/main');
 
   // 앱 초기화 및 광고 사전로드
   useEffect(() => {
@@ -413,10 +419,13 @@ const AppInner: React.FC = () => {
         const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
         const messaging = getMessaging(app);
 
-        // 포어그라운드에서 메시지 수신 시 (표시 안 함)
+        // 포어그라운드에서 메시지 수신 시: 토스트+뱃지용 이벤트 dispatch
         onMessage(messaging, (payload) => {
-          // notification 필드가 있는 알림은 백그라운드에서만 표시됨
-          // 포어그라운드에서는 아무것도 하지 않음
+          const notif = payload?.notification ?? {};
+          const data = (payload?.data ?? {}) as Record<string, string>;
+          window.dispatchEvent(new CustomEvent('foreground-push-received', {
+            detail: { notification: { ...notif, data }, data },
+          }));
         });
       } catch (error) {
         console.error('[Web] 포어그라운드 푸시 알림 설정 실패:', error);
@@ -425,6 +434,43 @@ const AppInner: React.FC = () => {
 
     setupWebForegroundPush();
   }, []);
+
+  // 포어그라운드 채팅 푸시 수신 시: 토스트 + 뱃지 갱신 (채팅 페이지에 있을 때는 표시 안 함)
+  const onForegroundChatNotification = useCallback((notification: any) => {
+    if (location.pathname.startsWith('/chat/')) return;
+    const data = (notification?.data ?? {}) as Record<string, string>;
+    if (data.type !== 'chat_unread') return;
+    const linkUrl = data.linkUrl || (data.senderId ? `/chat/${data.senderId}` : '/main');
+    const body = notification?.body || '새 메시지가 도착했습니다.';
+    setUnreadChatCount((c) => c + 1);
+    setLastChatLinkUrl(linkUrl);
+    toast.info(body, {
+      onClick: () => {
+        navigate(linkUrl);
+        setUnreadChatCount(0);
+      },
+    });
+  }, [navigate, location.pathname]);
+
+  // 채팅 페이지 진입 시 뱃지 초기화
+  useEffect(() => {
+    if (location.pathname.startsWith('/chat/')) {
+      setUnreadChatCount(0);
+    }
+  }, [location.pathname]);
+
+  // 웹 포어그라운드 푸시 수신 시 토스트+뱃지 (네이티브는 setupNativePushListeners에서 처리)
+  useEffect(() => {
+    if (isNativeApp()) return;
+    const handler = (e: Event) => {
+      const ev = e as CustomEvent<{ notification?: any; data?: Record<string, string> }>;
+      const data = ev.detail?.data ?? ev.detail?.notification?.data ?? {};
+      if (data.type !== 'chat_unread') return;
+      onForegroundChatNotification({ ...ev.detail?.notification, data });
+    };
+    window.addEventListener('foreground-push-received', handler);
+    return () => window.removeEventListener('foreground-push-received', handler);
+  }, [onForegroundChatNotification]);
 
   // 네이티브 앱에서 푸시 알림 권한 요청 및 토큰 등록
   useEffect(() => {
@@ -452,7 +498,11 @@ const AppInner: React.FC = () => {
           console.log('[푸시 설정] 실제 토큰 발급:', token ? '성공' : '실패');
 
           if (token) {
-            await setupNativePushListeners();
+            // 포어그라운드 수신 리스너는 세션당 1회만 설정 (중복 방지)
+            if (!pushListenersSetupRef.current) {
+              await setupNativePushListeners(onForegroundChatNotification);
+              pushListenersSetupRef.current = true;
+            }
 
             // 이전 토큰 확인
             const previousToken = localStorage.getItem('pushFcmToken');
@@ -590,7 +640,7 @@ const AppInner: React.FC = () => {
       clearTimeout(timer);
       if (cleanup) cleanup();
     };
-  }, [isAuthenticated, user?.id]);
+  }, [isAuthenticated, user?.id, onForegroundChatNotification]);
 
   // 모바일 진입 시 사이드바 자동 닫기
   useEffect(() => {
@@ -1068,6 +1118,57 @@ const AppInner: React.FC = () => {
           touchAction: 'manipulation'
         }}
       />
+
+      {/* 포어그라운드 채팅 푸시: 우측 하단 메시지 아이콘 + 뱃지 (채팅 페이지에서는 숨김) */}
+      {isAuthenticated && unreadChatCount > 0 && !location.pathname.startsWith('/chat/') && (
+        <button
+          type="button"
+          onClick={() => {
+            navigate(lastChatLinkUrl);
+            setUnreadChatCount(0);
+          }}
+          style={{
+            position: 'fixed',
+            bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+            right: 'calc(20px + env(safe-area-inset-right, 0px))',
+            zIndex: 9998,
+            width: 56,
+            height: 56,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)',
+            color: '#fff',
+            border: 'none',
+            boxShadow: '0 4px 12px rgba(124, 58, 237, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+          }}
+          aria-label="새 메시지 확인"
+        >
+          <FaComments style={{ fontSize: 24 }} />
+          <span
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              minWidth: 20,
+              height: 20,
+              borderRadius: 10,
+              background: '#ef4444',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 6px',
+            }}
+          >
+            {unreadChatCount > 99 ? '99+' : unreadChatCount}
+          </span>
+        </button>
+      )}
 
       {/* 앱 종료 확인 모달 (네이티브 광고 포함) */}
       <ExitConfirmModal
