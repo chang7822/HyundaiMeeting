@@ -9,6 +9,7 @@ import InlineSpinner from '../components/InlineSpinner.tsx';
 import ProfileCard from '../components/ProfileCard.tsx';
 import PushToggleRow from '../components/PushToggleRow.tsx';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import { Capacitor } from '@capacitor/core';
 
 interface MainPageProps {
   sidebarOpen: boolean;
@@ -1201,6 +1202,15 @@ const MainPage: React.FC<MainPageProps> = ({ sidebarOpen }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
+
+  // MainPage(커뮤니티) 마운트 시 하단 광고 배너 숨김
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    if (window.globalBannerAd && window.globalBannerShowing) {
+      window.globalBannerShowing = false;
+      window.globalBannerAd.hide?.().catch(() => {});
+    }
+  }, []);
   const postRefs = useRef<Record<number, HTMLDivElement | null>>({});
   const [currentPeriodId, setCurrentPeriodId] = useState<number | null>(null);
   const [myIdentity, setMyIdentity] = useState<any>(null);
