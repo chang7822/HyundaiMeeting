@@ -7,6 +7,7 @@ import { communityApi, matchingApi, adminApi, starApi, notificationApi, noticeAp
 import { useAuth } from '../contexts/AuthContext.tsx';
 import InlineSpinner from '../components/InlineSpinner.tsx';
 import ProfileCard from '../components/ProfileCard.tsx';
+import PushToggleRow from '../components/PushToggleRow.tsx';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
 
 interface MainPageProps {
@@ -2230,9 +2231,10 @@ const MainPage: React.FC<MainPageProps> = ({ sidebarOpen }) => {
                   </span>
                 )}
               </FloatingNotificationButton>
-          <p style={{ color: '#e5e7ff', fontSize: '1.05rem', margin: 0, marginBottom: '1.4rem', lineHeight: 1.5, textShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
+          <p style={{ color: '#e5e7ff', fontSize: '1.05rem', margin: 0, marginBottom: '0.5rem', lineHeight: 1.5, textShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
             직장인 커뮤니티에 오신 것을 환영합니다.
           </p>
+          <PushToggleRow />
           {/* 가위바위보, 매칭신청 디렉션 */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.4rem' }}>
             <div style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
@@ -2350,10 +2352,10 @@ const MainPage: React.FC<MainPageProps> = ({ sidebarOpen }) => {
             </span>
           )}
         </FloatingNotificationButton>
-        <p style={{ color: '#e5e7ff', fontSize: '0.85rem', margin: 0, marginBottom: '1.4rem', lineHeight: 1.5, textShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
+        <p style={{ color: '#e5e7ff', fontSize: '0.85rem', margin: 0, marginBottom: '0.5rem', lineHeight: 1.5, textShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
           직쏠공 커뮤니티에 오신 것을 환영합니다.
         </p>
-
+        <PushToggleRow />
         {/* 가위바위보, 매칭신청 디렉션 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.4rem' }}>
           <div style={{
