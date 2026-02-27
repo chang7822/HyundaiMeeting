@@ -448,24 +448,36 @@ const NotificationsPage: React.FC<{ sidebarOpen: boolean }> = ({ sidebarOpen }) 
     setModalOpen(true);
     try {
       if (!item.is_read) {
+        // 낙관적 업데이트: 모달 열자마자 카운트 즉시 -1
+        window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: { delta: -1 } }));
         await notificationApi.markAsRead(item.id);
         // 로컬 상태도 읽음으로 반영
         setItems(prev =>
           prev.map(n => (n.id === item.id ? { ...n, is_read: true } : n)),
         );
+        // 서버 값과 동기화
+        window.dispatchEvent(new CustomEvent('notification-count-changed'));
       }
     } catch (e) {
       console.error('[NotificationsPage] 알림 읽음 처리 오류:', e);
+      // 실패 시 원복
+      window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: { delta: 1 } }));
     }
   };
 
   const handleMarkAllRead = async () => {
+    const unreadCount = items.filter(n => !n.is_read).length;
+    if (unreadCount <= 0) return;
     setMarkingAll(true);
     try {
+      // 낙관적 업데이트: 버튼 누르자마자 카운트 즉시 0으로
+      window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: { delta: -unreadCount } }));
       await notificationApi.markAllAsRead();
       await loadNotifications();
+      window.dispatchEvent(new CustomEvent('notification-count-changed'));
     } catch (e) {
       console.error('[NotificationsPage] 모두 읽음 처리 오류:', e);
+      window.dispatchEvent(new CustomEvent('notification-count-changed', { detail: { delta: unreadCount } }));
     } finally {
       setMarkingAll(false);
     }

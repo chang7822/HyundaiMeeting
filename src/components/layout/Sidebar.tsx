@@ -831,6 +831,25 @@ const Sidebar: React.FC<{
     };
   }, [user?.id]);
 
+  // 알림함에서 읽음/모두읽음 시 즉시 갱신
+  useEffect(() => {
+    const handleNotificationCountChanged = (e: Event) => {
+      const ev = e as CustomEvent<{ delta?: number }>;
+      const delta = ev.detail?.delta;
+      // 낙관적 업데이트: delta가 있으면 즉시 반영
+      if (typeof delta === 'number') {
+        setNotificationUnreadCount(prev => Math.max(0, prev + delta));
+      }
+      // 서버에서 정확한 값 재조회
+      if (!user?.id) return;
+      notificationApi.getUnreadCount()
+        .then(res => setNotificationUnreadCount(res.unreadCount || 0))
+        .catch(() => {});
+    };
+    window.addEventListener('notification-count-changed', handleNotificationCountChanged);
+    return () => window.removeEventListener('notification-count-changed', handleNotificationCountChanged);
+  }, [user?.id]);
+
   // 추가 매칭 도전 가능 기간(inWindow) 여부 로드
   useEffect(() => {
     if (!user?.id) {
