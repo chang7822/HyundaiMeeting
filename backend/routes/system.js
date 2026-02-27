@@ -108,6 +108,26 @@ router.get('/version-policy', async (req, res) => {
   }
 });
 
+// 사이드바 메뉴 순서 조회 (공개 API, 로그인 전/후 모두 사용)
+router.get('/sidebar-menu-order', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'sidebar_menu_order')
+      .maybeSingle();
+
+    if (error || !data?.value?.order || !Array.isArray(data.value.order)) {
+      return res.json({ order: null });
+    }
+
+    res.json({ order: data.value.order });
+  } catch (err) {
+    console.error('[system][sidebar-menu-order] 조회 오류:', err);
+    return res.json({ order: null });
+  }
+});
+
 module.exports = router;
 
 

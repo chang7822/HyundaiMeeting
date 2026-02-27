@@ -1613,7 +1613,7 @@ router.post('/applies/:applyId/accept', async (req, res) => {
             body:
               '상대가 회원님이 보낸 호감을 승낙했습니다.\n' +
               '이번 회차 추가 매칭을 통해 매칭이 성사되었으며, 메인 페이지에서 채팅방을 확인하실 수 있어요.',
-            linkUrl: '/main',
+            linkUrl: '/extra-matching',
             meta: {
               period_id: entry.period_id,
               entry_id: entry.id,

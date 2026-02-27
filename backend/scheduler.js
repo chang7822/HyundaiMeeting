@@ -159,7 +159,7 @@ cron.schedule(scheduleInterval, async () => {
                         type: 'system',
                         title: '🔄 커뮤니티 초기화',
                         body: `회차 ${period.id} 매칭 종료로 커뮤니티가 초기화되었습니다.`,
-                        linkUrl: '/community',
+                        linkUrl: '/main',
                         meta: { period_id: period.id, reason: 'finish' }
                       })
                       .catch((e) => console.error('[스케줄러] 관리자 알림 생성 오류:', e))
@@ -219,7 +219,7 @@ cron.schedule(scheduleInterval, async () => {
                         type: 'system',
                         title: '🔄 커뮤니티 초기화',
                         body: `회차 ${period.id} 매칭 발표로 커뮤니티가 초기화되었습니다.`,
-                        linkUrl: '/community',
+                        linkUrl: '/main',
                         meta: { period_id: period.id, reason: 'announce' }
                       })
                       .catch((e) => console.error('[스케줄러] 관리자 알림 생성 오류:', e))
@@ -279,7 +279,7 @@ cron.schedule(scheduleInterval, async () => {
                         type: 'system',
                         title: '🔄 커뮤니티 초기화',
                         body: `회차 ${period.id} 매칭 신청 시작으로 커뮤니티가 초기화되었습니다.`,
-                        linkUrl: '/community',
+                        linkUrl: '/main',
                         meta: { period_id: period.id, reason: 'application_start' }
                       })
                       .catch((e) => console.error('[스케줄러] 관리자 알림 생성 오류:', e))
@@ -656,7 +656,7 @@ cron.schedule(scheduleInterval, async () => {
                         type: 'matching',
                         title: '[매칭시작] 새로운 매칭 신청이 시작되었습니다',
                         body: `새 회차의 매칭 신청이 시작되었어요.\n메인 페이지에서 매칭을 신청해 보세요!`,
-                        linkUrl: '/main',
+                        linkUrl: '/matching-apply',
                         meta: { period_id: current.id },
                       })
                       .catch((e) => console.error('[스케줄러] 매칭 신청 시작 알림 생성 오류:', e)),
@@ -756,8 +756,8 @@ cron.schedule(scheduleInterval, async () => {
                       await notificationRoutes.createNotification(String(app.user_id), {
                         type: 'match',
                         title: '[매칭결과] 매칭이 성사되었습니다',
-                        body: '이번 회차 매칭 결과, 회원님의 매칭이 성사되었습니다. 메인 페이지에서 상대방 프로필과 채팅방을 확인해 주세요.\n\n💡 상대방의 메시지 알림을 실시간으로 받으시려면 꼭 메인페이지에서 푸시 알림을 켜주세요!\n 매칭된 상대방이 기다릴 수 있어요 ㅠㅠ',
-                        linkUrl: '/main',
+                        body: '이번 회차 매칭 결과, 회원님의 매칭이 성사되었습니다. 매칭 신청 페이지에서 상대방 프로필과 채팅방을 확인해 주세요.\n\n💡 상대방의 메시지 알림을 실시간으로 받으시려면 꼭 푸시 알림을 켜주세요!\n 매칭된 상대방이 기다릴 수 있어요 ㅠㅠ',
+                        linkUrl: '/matching-apply',
                         meta: {
                           period_id: current.id,
                           result: 'success',
@@ -782,7 +782,7 @@ cron.schedule(scheduleInterval, async () => {
                           type: 'match',
                           title: '[매칭결과] 이번 회차 매칭에 실패했습니다',
                           body: '아쉽게도 이번 회차 매칭에서는 인연을 찾지 못했어요. 다음 회차에 다시 도전해 보세요.',
-                          linkUrl: '/main',
+                          linkUrl: '/matching-apply',
                           meta: {
                             period_id: current.id,
                             result: 'fail',

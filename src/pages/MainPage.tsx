@@ -1,79 +1,31 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import styled, { keyframes } from 'styled-components';
-import { useAuth } from '../contexts/AuthContext.tsx';
-import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell, FaCalendarAlt } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, notificationApi, extraMatchingApi, starApi, adminApi } from '../services/api.ts';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
-import { userApi } from '../services/api.ts';
-import { Company } from '../types/index.ts';
-import LoadingSpinner from '../components/LoadingSpinner.tsx';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase.ts';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevronDown, FaChevronUp, FaBan, FaUserSlash, FaQuestion, FaInfoCircle, FaBell, FaBullhorn, FaChevronRight } from 'react-icons/fa';
+import { communityApi, matchingApi, adminApi, starApi, notificationApi, noticeApi } from '../services/api.ts';
+import { useAuth } from '../contexts/AuthContext.tsx';
+import InlineSpinner from '../components/InlineSpinner.tsx';
+import ProfileCard from '../components/ProfileCard.tsx';
 import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
-import { Capacitor, registerPlugin } from '@capacitor/core';
 
-// 액션 타입 정의
-type ActionItem = {
-  icon: React.ReactNode;
+interface MainPageProps {
+  sidebarOpen: boolean;
+}
+
+interface ModalProps {
+  show: boolean;
+  onClose: () => void;
+  onConfirm?: () => void;
   title: string;
-  description: string;
-  action: () => void;
-  disabled: boolean;
-};
+  children: React.ReactNode;
+  confirmText?: string;
+  cancelText?: string;
+}
 
-type BaseQuickAction = {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  action: () => void;
-  disabled: boolean;
-  custom?: boolean;
-};
-
-type ProfilePreferenceAction = {
-  type: 'profile-preference';
-  profileAction: ActionItem;
-  preferenceAction: ActionItem;
-};
-
-type NoticeFaqAction = {
-  type: 'notice-faq';
-  noticeAction: ActionItem;
-  faqAction: ActionItem;
-};
-
-type QuickAction = BaseQuickAction | ProfilePreferenceAction | NoticeFaqAction;
-
-// Pulse animation for NEW badge
-const pulse = keyframes`
-  0%, 100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.9;
-  }
-`;
-
-const NewBadge = styled.span`
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  font-size: 0.55rem;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 4px;
-  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.4);
-  animation: ${pulse} 2s ease-in-out infinite;
-`;
-
-const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
+const Container = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;
-  margin-left: ${props => (props.$sidebarOpen ? '280px' : '0')};
+  margin-left: ${props => props.$sidebarOpen ? '280px' : '0'};
   padding: 2rem;
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -86,2684 +38,2186 @@ const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
     margin-left: 0;
     padding: 1.5rem;
     padding-top: var(--mobile-top-padding, 80px);
-    padding-bottom: 1.5rem;
   }
   
   @media (max-width: 480px) {
     padding: 1rem;
     padding-top: var(--mobile-top-padding, 70px);
-    padding-bottom: 1rem;
   }
 `;
 
-const WelcomeSection = styled.div`
-  background: white;
-  border-radius: 20px;
-  padding: 2.5rem;
+const HeaderSection = styled.div`
   margin-bottom: 2rem;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  
+
   @media (max-width: 768px) {
-    padding: 1.2rem;
     margin-bottom: 1.5rem;
-    border-radius: 16px;
   }
-  
+
   @media (max-width: 480px) {
-    padding: 0.9rem;
     margin-bottom: 1rem;
-    border-radius: 12px;
   }
 `;
 
-const WelcomeTitle = styled.h1`
-  color: #333;
-  margin-bottom: 0.8rem;
-  font-size: 2.2rem;
-  font-weight: 700;
-  line-height: 1.2;
-  
+const HeaderTitleRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  width: 100%;
+
   @media (max-width: 768px) {
-    font-size: 1.8rem;
-    margin-bottom: 0.6rem;
-  }
-  
-  @media (max-width: 480px) {
-    font-size: 1.6rem;
-    margin-bottom: 0.5rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 `;
 
-const TopWelcomeTitle = styled.h1`
+const LeftGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const HeaderTitle = styled.h1`
   color: #ffffff;
-  margin-bottom: 0.4rem;
-  font-size: 2.4rem;
-  font-weight: 800;
-  line-height: 1.3;
-  text-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+  margin: 0 10px;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.4;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 
   @media (max-width: 1024px) {
-    font-size: 2.1rem;
+    font-size: 1.85rem;
   }
 
   @media (max-width: 768px) {
-    font-size: 1.9rem;
-    margin-bottom: 0.35rem;
+    font-size: 1.5rem;
   }
   
   @media (max-width: 480px) {
-    font-size: 1.7rem;
-    margin-bottom: 0.3rem;
+    font-size: 1.2rem;
   }
 `;
 
-const TopWelcomeSubtitle = styled.p`
+/** 플로팅 알림 버튼 (사이드바 햄버거 버튼과 같은 높이 16px, 우측 20px에 고정) */
+const FloatingNotificationButton = styled.button`
+  position: fixed;
+  right: 20px;
+  top: 16px;
+  z-index: 901;
+  background: rgba(15, 23, 42, 0.4);
+  border: none;
+  color: #e5e7eb;
+  padding: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.5);
+
+  &:hover {
+    background: rgba(15, 23, 42, 0.6);
+  }
+
+  @media (max-width: 768px) {
+    width: 36px;
+    height: 36px;
+    right: 20px;
+    top: 16px;
+  }
+`;
+
+const HelpButton = styled.button`
+  background: rgba(255, 255, 255, 0.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  color: white;
+  padding: 0.2rem;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.6rem;
+  font-weight: 700;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.35);
+  }
+`;
+
+const StarGaugeSection = styled.div`
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(55, 48, 163, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  width: 100%;
+  box-sizing: border-box;
+
+  @media (max-width: 768px) {
+    padding: 0.6rem 0.9rem;
+  }
+`;
+
+const StarGaugeHeaderRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  width: 100%;
+`;
+
+const StarGaugeCaption = styled.p`
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.3;
+  flex: 1;
+  min-width: 0;
+
+  @media (max-width: 768px) {
+    font-size: 0.8rem;
+  }
+`;
+
+const StarGaugeTopRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+
+  @media (max-width: 768px) {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+`;
+
+const StarCountBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.7rem;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #fef3c7;
+  white-space: pre-wrap;
+`;
+
+const StarCountLabel = styled.span`
+  color: #ffffff;
+  font-weight: 700;
+`;
+
+const StarGaugeLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  white-space: nowrap;
+`;
+
+const StarGaugeBar = styled.div`
+  flex: 1 1 0%;
+  min-width: 100px;
+  height: 15px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+`;
+
+const StarGaugeFill = styled.div<{ $progress: number; $max: number }>`
+  height: 100%;
+  width: ${props => Math.min(100, (props.$progress / props.$max) * 100)}%;
+  background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+  border-radius: 10px;
+  transition: width 0.3s ease;
+  position: relative;
+  z-index: 0;
+`;
+
+const StarGaugeSegmentDivider = styled.div<{ $position: number }>`
+  position: absolute;
+  left: ${props => props.$position}%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1;
+  pointer-events: none;
+`;
+
+const StarGaugeText = styled.span`
+  color: #ffffff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 3.2rem;
+  text-align: center;
+`;
+
+const StarGaugeInfoBtn = styled.button`
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.9);
+  padding: 0.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #ffffff;
+  }
+`;
+
+const HeaderSubtitle = styled.p`
   color: #e5e7ff;
   font-size: 1.05rem;
-  margin-bottom: 1.4rem;
+  margin-bottom: 1rem;
   line-height: 1.5;
   text-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 
   @media (max-width: 768px) {
     font-size: 0.98rem;
-    margin-bottom: 1.2rem;
   }
 
   @media (max-width: 480px) {
     font-size: 0.92rem;
-    margin-bottom: 1rem;
   }
 `;
 
-const TopHeaderRow = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 0;
-`;
-
-const PushToggleBlock = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 12px;
-
-  @media (max-width: 768px) {
-    gap: 10px;
-  }
-
-  @media (max-width: 480px) {
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-`;
-
-const PushToggleLabel = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.9rem;
-  color: #e5e7ff;
-  font-weight: 500;
-`;
-
-
-
-const IosGuideButton = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: none;
-  background: transparent;
-  color: #c7d2fe;
-  font-size: 0.75rem;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-
-  &:hover {
-    color: #e5e7ff;
-  }
-`;
-
-const StatusChatWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: stretch;
-`;
-
-const WelcomeSubtitle = styled.p`
-  color: #666;
-  font-size: 1.15rem;
-  margin-bottom: 2.5rem;
-  line-height: 1.5;
-  
-  @media (max-width: 768px) {
-    font-size: 1.1rem;
-    margin-bottom: 2rem;
-  }
-  
-  @media (max-width: 480px) {
-    font-size: 1rem;
-    margin-bottom: 1.5rem;
-  }
-`;
-
-const LatestNoticeCard = styled.div`
-  background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+const InfoBox = styled.div`
+  background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
-  padding: 1.1rem 1.4rem;
-  margin-bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  border: 1px solid rgba(102, 126, 234, 0.18);
-  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.15);
-  transition: all 0.2s ease;
-  gap: 1rem;
-  overflow: hidden; /* 내부 내용이 카드 밖으로 나가도 전체 페이지에 스크롤이 생기지 않도록 */
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2);
-    border-color: rgba(102, 126, 234, 0.45);
-  }
+  padding: 1.25rem;
+  margin-top: 1rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 
   @media (max-width: 768px) {
-    padding: 0.75rem 1rem;
-    margin-bottom: 0;
+    padding: 1rem;
     border-radius: 12px;
   }
-
-  @media (max-width: 480px) {
-    padding: 0.6rem 0.9rem;
-    margin-bottom: 0;
-    border-radius: 10px;
-  }
 `;
 
-const LatestNoticeLeft = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
-  flex: 1; /* 제목 영역이 오른쪽 영역과 함께 줄어들 수 있게 함 */
-`;
-
-const LatestNoticeHeader = styled.div`
+const InfoTitle = styled.h3`
+  color: #7C3AED;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0 0 0.75rem 0;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-width: 0;
-`;
-
-const LatestNoticeTextGroup = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-  flex: 1; /* 내부 텍스트 그룹도 줄어들 수 있게 */
-`;
-
-const LatestNoticeLabel = styled.span`
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #6366f1;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  white-space: nowrap;
-
-  @media (max-width: 480px) {
-    font-size: 0.9rem;
-  }
-`;
-
-const LatestNoticeTitle = styled.span`
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #000000;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block; /* 블록 요소로 만들어 ellipsis 적용 보장 */
-  max-width: 100%;
-  flex: 1;
-  min-width: 0;
-  line-height: 1.2;
 
   @media (max-width: 768px) {
-    font-size: 0.73rem;
-  }
-
-  @media (max-width: 480px) {
-    font-size: 0.9rem;
-  }
-`;
-
-const LatestNoticeRight = styled.span`
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: #4f46e5;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  white-space: nowrap;
-
-  @media (max-width: 480px) {
-    font-size: 0.75rem;
-  }
-`;
-
-// 다음 회차 예정 배지용 래퍼: 데스크탑에서는 버튼/문구와 같은 row의 우측 끝, 모바일에서는 전체 폭
-const NextPeriodWrapper = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-  margin-left: auto; /* 데스크탑: 같은 row에서 오른쪽 끝으로 밀기 */
-
-  @media (max-width: 600px) {
-    width: 100%;
-    margin-left: 0;
-    justify-content: flex-start;
-  }
-`;
-
-// 다음 회차 예정 배지: 모바일에서는 좌우 전체 폭을 채우도록 설정
-const NextPeriodBadge = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.06) 0%, rgba(124, 58, 237, 0.08) 100%);
-  border: 1px solid rgba(79, 70, 229, 0.25);
-
-  @media (max-width: 600px) {
-    width: 100%;
-    justify-content: space-between;
-  }
-`;
-
-const QuickActions = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  margin-bottom: 2rem;
-  
-  @media (max-width: 768px) {
-    gap: 1.5rem;
-    margin-bottom: 1.5rem;
-  }
-  
-  @media (max-width: 480px) {
-    gap: 1rem;
-    margin-bottom: 1rem;
-  }
-`;
-
-const ProfilePreferenceCard = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.5rem;
-  
-  @media (max-width: 768px) {
-    grid-template-columns: 1fr 1fr;
-    gap: 1.2rem;
-  }
-  
-  @media (max-width: 480px) {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-`;
-
-const ActionCard = styled.div`
-  background: white;
-  border-radius: 18px;
-  padding: 1.5rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  
-  &:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-    border-color: rgba(102, 126, 234, 0.2);
-  }
-  
-  &:active {
-    transform: translateY(-2px);
-  }
-  
-  @media (max-width: 768px) {
-    padding: 1.3rem;
-    border-radius: 16px;
-  }
-  
-  @media (max-width: 480px) {
-    padding: 1.2rem;
-    border-radius: 14px;
-  }
-`;
-
-const ActionIcon = styled.div`
-  font-size: 2rem;
-  color: #667eea;
-  margin-right: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s ease;
-  
-  ${ActionCard}:hover & {
-    transform: scale(1.1);
-  }
-  
-  @media (max-width: 768px) {
-    font-size: 1.8rem;
-    margin-right: 0.8rem;
-  }
-`;
-
-const ActionTitle = styled.h3`
-  color: #333;
-  margin-bottom: 0.5rem;
-  font-size: 1.2rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  line-height: 1.3;
-  
-  @media (max-width: 768px) {
-    font-size: 1.1rem;
-    margin-bottom: 0.4rem;
-  }
-`;
-
-const ActionHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin-bottom: 1rem;
-  
-  @media (max-width: 768px) {
-    margin-bottom: 0.8rem;
-  }
-`;
-
-const ActionDescription = styled.p`
-  color: #666;
-  font-size: 1.05rem;
-  line-height: 1.5;
-  margin: 0;
-  
-  @media (max-width: 768px) {
-    font-size: 1rem;
-    line-height: 1.4;
-  }
-`;
-
-const HalfWidthCard = styled(ActionCard)`
-  min-width: 0;
-  padding: 1.2rem;
-  
-  @media (max-width: 768px) {
-    padding: 1rem;
-  }
-  
-  @media (max-width: 480px) {
-    padding: 0.9rem;
-  }
-`;
-
-// 새로운 컴팩트 카드 스타일 (가로 배치용)
-const CompactCard = styled.div`
-  background: white;
-  border-radius: 16px;
-  padding: 1.2rem;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  text-align: left;
-  min-height: 80px;
-  
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
-    border-color: rgba(102, 126, 234, 0.2);
-  }
-  
-  &:active {
-    transform: translateY(-2px);
-  }
-  
-  @media (max-width: 768px) {
-    padding: 1rem;
-    min-height: 70px;
-  }
-  
-  @media (max-width: 480px) {
-    padding: 0.9rem;
-    min-height: 65px;
-  }
-`;
-
-const CompactIcon = styled.div`
-  font-size: 1.8rem;
-  color: #667eea;
-  margin-right: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s ease;
-  min-width: 2.5rem;
-  
-  ${CompactCard}:hover & {
-    transform: scale(1.1);
-  }
-  
-  @media (max-width: 768px) {
-    font-size: 1.6rem;
-    margin-right: 0.8rem;
-    min-width: 2.2rem;
-  }
-  
-  @media (max-width: 480px) {
-    font-size: 1.5rem;
-    margin-right: 0.7rem;
-    min-width: 2rem;
-  }
-`;
-
-const CompactTitle = styled.h3`
-  color: #333;
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0;
-  line-height: 1.3;
-  
-  @media (max-width: 768px) {
-    font-size: 0.9rem;
-  }
-  
-  @media (max-width: 480px) {
-    font-size: 0.85rem;
-  }
-`;
-
-const CompactGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  margin-bottom: 2rem;
-  
-  /* 태블릿에서 2x2 그리드 */
-  @media (max-width: 768px) {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.8rem;
-    margin-bottom: 1.5rem;
-  }
-  
-  /* 모바일에서 2x2 그리드 유지 */
-  @media (max-width: 480px) {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 0.6rem;
-    margin-bottom: 1rem;
-  }
-`;
-
-const HalfWidthIcon = styled(ActionIcon)`
-  font-size: 1.8rem;
-  margin-right: 0.8rem;
-  
-  @media (max-width: 768px) {
-    font-size: 1.6rem;
-    margin-right: 0.7rem;
-  }
-  
-  @media (max-width: 480px) {
-    font-size: 1.5rem;
-    margin-right: 0.6rem;
-  }
-`;
-
-const HalfWidthTitle = styled(ActionTitle)`
-  font-size: 1.1rem;
-  margin-bottom: 0.4rem;
-  
-  @media (max-width: 768px) {
-    font-size: 1rem;
-    margin-bottom: 0.3rem;
-  }
-  
-  @media (max-width: 480px) {
     font-size: 0.95rem;
   }
 `;
 
-const HalfWidthHeader = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.8rem;
-  
-  @media (max-width: 768px) {
-    margin-bottom: 0.7rem;
-  }
-  
-  @media (max-width: 480px) {
-    margin-bottom: 0.6rem;
-  }
-`;
+const InfoText = styled.p`
+  color: #374151;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 0 0 0.5rem 0;
 
-const HalfWidthDescription = styled(ActionDescription)`
-  font-size: 0.95rem;
-  line-height: 1.4;
-  
-  @media (max-width: 768px) {
-    font-size: 0.9rem;
-    line-height: 1.3;
+  &:last-child {
+    margin-bottom: 0;
   }
-  
-  @media (max-width: 480px) {
+
+  @media (max-width: 768px) {
     font-size: 0.85rem;
   }
 `;
 
-
-
-const MatchingButton = styled.button`
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  padding: 16px 32px;
-  border-radius: 28px;
-  font-size: 1.15rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
+const WarningBox = styled.div`
+  background: rgba(252, 165, 165, 0.15);
+  border: 2px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
   margin-top: 1rem;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-  
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-  }
-  
-  &:active {
-    transform: translateY(-1px);
-  }
-  
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  }
-  
+
   @media (max-width: 768px) {
-    padding: 14px 28px;
-    font-size: 1.1rem;
-    border-radius: 25px;
-  }
-  
-  @media (max-width: 480px) {
-    padding: 12px 24px;
-    font-size: 1rem;
-    border-radius: 22px;
+    padding: 0.85rem;
   }
 `;
 
-const ButtonRow = styled.div`
+const WarningTitle = styled.h3`
+  color: #dc2626;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
   display: flex;
-  gap: 20px;
-  justify-content: flex-start;
   align-items: center;
-  margin-top: 2rem;
-  flex-wrap: wrap;
+  gap: 0.5rem;
 
   @media (max-width: 768px) {
-    gap: 16px;
-    margin-top: 1.5rem;
+    font-size: 0.9rem;
+  }
+`;
+
+const WarningText = styled.p`
+  color: #991b1b;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin: 0 0 0.4rem 0;
+
+  &:last-child {
+    margin-bottom: 0;
   }
 
-  @media (max-width: 600px) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    margin-top: 1.5rem;
-    > * {
-      width: 100%;
-      text-align: left !important;
+  @media (max-width: 768px) {
+    font-size: 0.8rem;
+  }
+`;
+
+const PeriodStatusWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0 1rem;
+
+  @media (max-width: 768px) {
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding: 0;
+  }
+`;
+
+const PeriodStatusBadge = styled.div<{ $status: string }>`
+  background: ${props => {
+    if (props.$status === '진행중') return 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)';
+    if (props.$status === '발표완료') return 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+    if (props.$status === '종료') return 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)';
+    return 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+  }};
+  color: white;
+  padding: 1rem 2rem;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: 1.15rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  letter-spacing: -0.01em;
+  transition: transform 0.2s, box-shadow 0.2s;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    
+    &:hover {
+      transform: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
   }
 `;
 
-const ExtraMatchingNoticeCard = styled.div`
-  margin-top: 1.5rem;
-  margin-bottom: 1.5rem;
-  border-radius: 18px;
-  padding: 16px 18px;
-  background:
-    radial-gradient(circle at top left, rgba(129, 140, 248, 0.12), transparent 55%),
-    radial-gradient(circle at bottom right, rgba(236, 72, 153, 0.12), transparent 55%),
-    #f9fafb;
-  border: 1px solid rgba(79, 70, 229, 0.35);
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+/** 초기화 안내 문구 (박스 없이 텍스트만) */
+const ResetInfoText = styled.span`
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+  }
+`;
+
+const UserIdentityBox = styled.div`
+  background: rgba(124, 58, 237, 0.1);
+  border: 2px solid rgba(124, 58, 237, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-top: 1rem;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  justify-content: space-between;
+  gap: 0.75rem;
+
+  @media (max-width: 768px) {
+    padding: 0.85rem;
+    gap: 0.5rem;
+  }
 `;
 
-const NicknameSpan = styled.span`
-  color: #4F46E5;
-  font-weight: 700;
+const AdminIdentitySection = styled.div`
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+  padding: 1rem 1.25rem;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1rem;
+  border: 2px solid rgba(124, 58, 237, 0.3);
+
+  @media (max-width: 768px) {
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.75rem;
+  }
+`;
+
+/** 주의사항 버튼 바로 아래 플로팅: 관리자용 익명 ON/OFF 작은 토글 */
+const AdminToggleFloating = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+`;
+
+const AdminToggleLabel = styled.span`
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+`;
+
+const AdminToggleSwitch = styled.button<{ $on: boolean }>`
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  border: 1px solid ${props => props.$on ? 'rgba(255,255,255,0.5)' : 'rgba(255,255,255,0.3)'};
+  background: ${props => props.$on ? 'rgba(124, 58, 237, 0.9)' : 'rgba(255,255,255,0.25)'};
   cursor: pointer;
-  text-decoration: underline;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    color: #7C3AED;
-    text-decoration: none;
-    transform: scale(1.05);
-  }
-  
-  &:active {
-    transform: scale(0.98);
+  padding: 0;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+
+  &::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: white;
+    top: 1px;
+    left: ${props => props.$on ? '17px' : '1px'};
+    transition: left 0.2s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
   }
 `;
 
-const SwitchLabel = styled.label`
-  position: relative;
-  display: inline-flex;
+/** 익명 ID 박스 한 줄 (드롭다운·버튼·화살표 우측) */
+const AnonymousIdBoxRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  width: 100%;
+`;
+
+const CollapseButton = styled.button`
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 18px;
-  flex-shrink: 0;
+  margin-left: auto;
+  padding: 0.4rem;
+  background: none;
+  border: none;
+  color: #7C3AED;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 0.2s, background 0.2s;
+
+  &:hover {
+    color: #5b21b6;
+    background: rgba(124, 58, 237, 0.1);
+  }
+
+  svg {
+    font-size: 1.1rem;
+  }
 `;
 
-const SwitchInput = styled.input`
-  opacity: 0;
-  width: 0;
-  height: 0;
+const WriteSection = styled.div`
+  background: white;
+  padding: 1.25rem;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.5rem;
 
-  &:checked + span {
-    background-color: #4F46E5;
+  @media (max-width: 768px) {
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+`;
+
+const WriteTextarea = styled.textarea`
+  width: 100%;
+  padding: 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  font-size: 1rem;
+  resize: none;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: #7C3AED;
   }
 
-  &:focus + span {
-    box-shadow: 0 0 1px #4F46E5;
+  &::placeholder {
+    color: #9ca3af;
+  }
+`;
+
+const WriteFooter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 0.5rem;
+`;
+
+const CharCount = styled.div<{ $over: boolean }>`
+  font-size: 0.85rem;
+  color: ${props => props.$over ? '#ef4444' : '#6b7280'};
+`;
+
+const WriteButton = styled.button`
+  padding: 0.5rem 1.25rem;
+  background: linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
   }
 
-  &:checked + span:before {
-    transform: translateX(16px);
-  }
-
-  &:disabled + span {
+  &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
   }
 `;
 
-const SwitchSlider = styled.span`
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #cbd5e0;
-  transition: 0.3s;
-  border-radius: 18px;
+const SortSection = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 0.75rem;
 
-  &:before {
-    position: absolute;
-    content: "";
-    height: 15px;
-    width: 15px;
-    left: 1.5px;
-    bottom: 1.5px;
-    background-color: white;
-    transition: 0.3s;
-    border-radius: 50%;
+  @media (max-width: 768px) {
+    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+  }
+`;
+
+const SortLabel = styled.span`
+  font-size: 0.9rem;
+  color: #6b7280;
+  font-weight: 500;
+`;
+
+const SortSelect = styled.select`
+  padding: 0.5rem 0.75rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #374151;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  outline: none;
+
+  &:hover {
+    border-color: #7C3AED;
   }
 
-  input:disabled ~ & {
+  &:focus {
+    border-color: #7C3AED;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.4rem 0.65rem;
+    font-size: 0.85rem;
+  }
+`;
+
+const PostsContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+`;
+
+const PostCard = styled.div`
+  background: white;
+  padding: 1.25rem;
+  border-radius: 12px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s;
+
+  &:hover {
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+    border-radius: 10px;
+  }
+`;
+
+const PostHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+`;
+
+const PostAuthor = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+`;
+
+const AnonymousName = styled.span<{ $color: string }>`
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: ${props => props.$color};
+`;
+
+const StatusTag = styled.span<{ $type: string }>`
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: ${props => {
+    if (props.$type === '매칭성공') return 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+    if (props.$type === '매칭신청완료') return 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)';
+    if (props.$type === '매칭대기중') return 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+    return 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)';
+  }};
+  color: white;
+`;
+
+/** 공식 관리자 글로 표시될 때 사용하는 배지 (누가 봐도 관리자 글임이 드러남) */
+const AdminBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.3);
+  letter-spacing: 0.02em;
+`;
+
+const TimeStamp = styled.span`
+  font-size: 0.8rem;
+  color: #9ca3af;
+  font-weight: 400;
+`;
+
+const PostActions = styled.div`
+  display: flex;
+  gap: 0.5rem;
+`;
+
+const IconButton = styled.button`
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.25rem;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #7C3AED;
+  }
+`;
+
+const PostContent = styled.div<{ $collapsed?: boolean }>`
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  ${props => props.$collapsed ? `
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  ` : ''}
+
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+`;
+
+const ShowMoreButton = styled.button`
+  background: none;
+  border: none;
+  color: #7C3AED;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+  transition: color 0.2s;
+
+  &:hover {
+    color: #5b21b6;
+  }
+
+  svg {
+    font-size: 0.7rem;
+  }
+`;
+
+const PostFooter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+
+  @media (max-width: 768px) {
+    gap: 0.5rem;
+  }
+`;
+
+const LikeButton = styled.button<{ $liked: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: ${props => props.$liked ? '#ef4444' : '#6b7280'};
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s;
+
+  &:hover {
+    background: ${props => props.$liked ? '#fee2e2' : '#f3f4f6'};
+  }
+
+  svg {
+    font-size: 1.2rem;
+  }
+`;
+
+const CommentButton = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.95rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s;
+
+  &:hover {
+    background: #f3f4f6;
+  }
+
+  svg {
+    font-size: 1.2rem;
+  }
+`;
+
+const CommentsSection = styled.div`
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e5e7eb;
+`;
+
+const CommentItem = styled.div`
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+
+  @media (max-width: 768px) {
+    padding: 0.65rem;
+  }
+`;
+
+const CommentHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+`;
+
+const CommentContent = styled.div<{ $collapsed?: boolean }>`
+  font-size: 0.88rem;
+  color: #374151;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  ${props => props.$collapsed ? `
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  ` : ''}
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+  }
+`;
+
+const CommentInput = styled.input`
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: #7C3AED;
+  }
+`;
+
+const CommentSubmitButton = styled.button`
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #7C3AED;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: #5b21b6;
+  }
+
+  &:disabled {
+    opacity: 0.5;
     cursor: not-allowed;
   }
 `;
 
-const ModalOverlay = styled.div`
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.3);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-`;
-
-const ModalContent = styled.div`
-  background: #fff;
+const DeletedPostCard = styled.div`
+  background: #e5e7eb;
+  padding: 0.75rem 1.25rem;
   border-radius: 12px;
-  padding: 64px 24px 48px 24px; /* 위쪽 padding을 더 넉넉하게 */
-  box-shadow: 0 4px 32px rgba(0,0,0,0.15);
-  width: 90vw;
-  height: 90vh;
-  min-width: 220px;
-  min-height: 220px;
-  max-width: 90vw;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  @media (min-width: 768px) {
-    max-width: 520px;
-    max-height: 90vh;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  text-align: center;
+  color: rgb(98, 109, 126);
+  font-style: italic;
+  font-weight: 600;
+
+  @media (max-width: 768px) {
+    padding: 0.65rem 1rem;
+    border-radius: 10px;
   }
 `;
 
-const ScheduleModalContent = styled.div`
-  background: #fff;
-  border-radius: 16px;
-  padding: 24px 28px 28px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-  width: 90vw;
-  max-width: 380px;
-  border: 1px solid rgba(102, 126, 234, 0.15);
+/** 차단된 사용자 글/댓글 전체 음영 */
+const BlockedCardWrapper = styled.div`
+  position: relative;
+  opacity: 0.72;
+  background: #e5e7eb;
+  border-radius: 12px;
+  padding: 2px;
+  border: 1px solid #d1d5db;
+
+  @media (max-width: 768px) {
+    border-radius: 10px;
+  }
 `;
 
-const ScheduleModalTitle = styled.div`
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #333;
-  margin-bottom: 20px;
-  display: flex;
+const BlockedCommentWrapper = styled.div`
+  position: relative;
+  opacity: 0.72;
+  background: #e5e7eb;
+  border-radius: 8px;
+  padding: 2px;
+  border: 1px solid #d1d5db;
+  margin-bottom: 0.5rem;
+`;
+
+const LoadMoreButton = styled.button`
+  width: 100%;
+  padding: 1rem;
+  margin-top: 1rem;
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  color: #7C3AED;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover:not(:disabled) {
+    background: #f9fafb;
+    border-color: #7C3AED;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.85rem;
+    font-size: 0.9rem;
+  }
+`;
+
+const ModalOverlay = styled.div<{ $show: boolean }>`
+  display: ${props => props.$show ? 'flex' : 'none'};
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
+  padding: 1rem;
 `;
 
-const ScheduleRow = styled.div`
+const ModalContent = styled.div`
+  background: white;
+  border-radius: 16px;
+  max-width: 500px;
+  width: 100%;
+  max-height: 80vh;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%);
-  border-radius: 10px;
-  margin-bottom: 10px;
-  border-left: 4px solid #667eea;
-  &:last-of-type { margin-bottom: 0; }
+
+  @media (max-width: 768px) {
+    max-width: 90vw;
+  }
 `;
 
-const ScheduleRowLabel = styled.span`
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #667eea;
-`;
-
-const ScheduleRowValue = styled.span`
-  font-size: 1rem;
-  font-weight: 500;
+const ModalTitle = styled.h2`
+  margin: 0;
+  padding: 2rem 2rem 1rem 2rem;
+  font-size: 1.5rem;
   color: #333;
-  line-height: 1.4;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    font-size: 1.3rem;
+    padding: 1.5rem 1.5rem 1rem 1.5rem;
+  }
 `;
 
-const cancelTime = 1;
-const MAIN_MATCH_STAR_COST = 5;
+const ModalBody = styled.div`
+  padding: 0 2rem;
+  color: #666;
+  line-height: 1.6;
+  font-size: 0.95rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 
-const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
+  @media (max-width: 768px) {
+    font-size: 0.9rem;
+    padding: 0 1.5rem;
+  }
+`;
+
+const ModalActions = styled.div`
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  padding: 1.5rem 2rem 2rem 2rem;
+  flex-shrink: 0;
+
+  @media (max-width: 768px) {
+    flex-direction: column-reverse;
+    padding: 1.5rem 1.5rem 1.5rem 1.5rem;
+  }
+`;
+
+const ModalButton = styled.button<{ $primary?: boolean }>`
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  
+  ${props => props.$primary ? `
+    background: linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%);
+    color: white;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(124, 58, 237, 0.4);
+    }
+  ` : `
+    background: #f3f4f6;
+    color: #374151;
+    
+    &:hover {
+      background: #e5e7eb;
+    }
+  `}
+
+  @media (max-width: 768px) {
+    padding: 0.65rem 1.25rem;
+    font-size: 0.9rem;
+  }
+`;
+
+// PeriodStatusBadge와 InfoButton은 위쪽에 새로  정의됨 (제거됨)
+
+const ReportCategoryGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+`;
+
+const CategoryButton = styled.button<{ $selected: boolean }>`
+  padding: 0.75rem;
+  border-radius: 10px;
+  border: 2px solid ${props => props.$selected ? '#7C3AED' : '#e5e7eb'};
+  background: ${props => props.$selected ? 'rgba(124, 58, 237, 0.1)' : 'white'};
+  color: ${props => props.$selected ? '#7C3AED' : '#6b7280'};
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: #7C3AED;
+    background: rgba(124, 58, 237, 0.05);
+  }
+
+  @media (max-width: 768px) {
+    padding: 0.65rem;
+    font-size: 0.85rem;
+  }
+`;
+
+const ReportTextarea = styled.textarea`
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  resize: vertical;
+  min-height: 80px;
+  outline: none;
+  transition: border-color 0.2s;
+
+  &:focus {
+    border-color: #7C3AED;
+  }
+
+  &::placeholder {
+    color: #9ca3af;
+  }
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+    min-height: 70px;
+  }
+`;
+
+const ReportLabel = styled.label`
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.9rem;
+
+  @media (max-width: 768px) {
+    font-size: 0.85rem;
+  }
+`;
+
+// Modal 컴포넌트
+const Modal: React.FC<ModalProps> = ({ show, onClose, onConfirm, title, children, confirmText = '확인', cancelText = '취소' }) => {
+  if (!show) return null;
+
+  return (
+    <ModalOverlay $show={show} onClick={onClose}>
+      <ModalContent onClick={(e) => e.stopPropagation()}>
+        <ModalTitle>{title}</ModalTitle>
+        <ModalBody>{children}</ModalBody>
+        <ModalActions>
+          <ModalButton onClick={onClose}>{cancelText}</ModalButton>
+          {onConfirm && <ModalButton $primary onClick={onConfirm}>{confirmText}</ModalButton>}
+        </ModalActions>
+      </ModalContent>
+    </ModalOverlay>
+  );
+};
+
+const MainPage: React.FC<MainPageProps> = ({ sidebarOpen }) => {
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const { user, profile, isLoading, isAuthenticated, fetchUser, setProfile } = useAuth() as any;
-  const [period, setPeriod] = useState<any>(null);        // 현재 회차
-  const [nextPeriod, setNextPeriod] = useState<any>(null); // NEXT 회차(예고용)
-  const [loadingPeriod, setLoadingPeriod] = useState(true);
-  const [now, setNow] = useState<Date>(new Date());
-  const [matchingStatus, setMatchingStatus] = useState<any>(null);
-  const [statusLoading, setStatusLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [loading, setLoading] = useState(true);
+  const postRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [currentPeriodId, setCurrentPeriodId] = useState<number | null>(null);
+  const [myIdentity, setMyIdentity] = useState<any>(null);
+  const [posts, setPosts] = useState<any[]>([]);
+  const [likedPostIds, setLikedPostIds] = useState<number[]>([]);
+  const [newPostContent, setNewPostContent] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [expandedPosts, setExpandedPosts] = useState<Set<number>>(new Set());
+  const [loadingComments, setLoadingComments] = useState<Set<number>>(new Set());
+  const [comments, setComments] = useState<Record<number, any[]>>({});
+  const [commentInputs, setCommentInputs] = useState<Record<number, string>>({});
+  const [expandedPostContent, setExpandedPostContent] = useState<Set<number>>(new Set());
+  const [expandedCommentContent, setExpandedCommentContent] = useState<Set<number>>(new Set());
+  const [currentPeriod, setCurrentPeriod] = useState<any>(null);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [showIntroModal, setShowIntroModal] = useState(false);
+  const [starGauge, setStarGauge] = useState<{ fragmentCount?: number; gaugeProgress: number; gaugeMax?: number; starsEarned: number; segmentCount?: number; starMaxPerPeriod?: number } | null>(null);
+  const [showStarGaugeModal, setShowStarGaugeModal] = useState(false);
+  const [showStarEarnedModal, setShowStarEarnedModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{type: 'post' | 'comment', id: number, postId?: number} | null>(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTarget, setReportTarget] = useState<{type: 'post' | 'comment', id: number} | null>(null);
+  const [reportCategory, setReportCategory] = useState<string>('욕설');
+  const [reportDetail, setReportDetail] = useState<string>('');
+  const [reportedItems, setReportedItems] = useState<Set<string>>(new Set()); // 'post:123' 또는 'comment:456' 형식
+  const [showBlockModal, setShowBlockModal] = useState(false);
+  const [blockTarget, setBlockTarget] = useState<{ periodId: number; anonymousNumber: number; postId?: number } | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-
-  // MainPage 마운트 시 LoadingSpinner의 전역 배너 즉시 숨김
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
-    
-    // 동기적으로 즉시 상태 업데이트 (깜빡임 방지)
-    if (window.globalBannerAd && window.globalBannerShowing) {
-      window.globalBannerShowing = false; // 상태 즉시 변경
-      
-      // 실제 hide는 비동기로 실행
-      window.globalBannerAd.hide()
-        .then(() => {
-          // console.log('[MainPage] 전역 배너 숨김 완료');
-        })
-        .catch((error: any) => {
-          console.error('[MainPage] 전역 배너 숨김 실패:', error);
-        });
-    }
-  }, []);
-  const [showPartnerModal, setShowPartnerModal] = useState(false);
-  const [partnerProfile, setPartnerProfile] = useState<any>(null);
-  const [partnerProfileError, setPartnerProfileError] = useState(false);
-  const [partnerProfileLoading, setPartnerProfileLoading] = useState(false);
-  const [showMatchingConfirmModal, setShowMatchingConfirmModal] = useState(false);
-  const [showMatchingStarConfirmModal, setShowMatchingStarConfirmModal] = useState(false);
-  const [showCancelConfirmModal, setShowCancelConfirmModal] = useState(false);
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
-  const [countdown, setCountdown] = useState<string>('');
-  const [unreadCount, setUnreadCount] = useState<number>(0);
-  const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [latestNotice, setLatestNotice] = useState<{ id: number; title: string } | null>(null);
-  const [isLoadingNotice, setIsLoadingNotice] = useState(false);
-  const [isPushEnabled, setIsPushEnabled] = useState<boolean>(false);
-  const [isPushBusy, setIsPushBusy] = useState(false);
-  const [pushPermissionStatus, setPushPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | null>(null);
-  const [showPushConfirmModal, setShowPushConfirmModal] = useState(false);
-  const [showIosGuideModal, setShowIosGuideModal] = useState(false);
-  const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
-  const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
-  const [communityEnabled, setCommunityEnabled] = useState<boolean>(true);
+  const [profileModalData, setProfileModalData] = useState<{
+    anonymousNumber: number;
+    email: string;
+    profile: {
+      nickname?: string;
+      birth_year?: number;
+      gender?: string;
+      education?: string;
+      company?: string;
+      custom_company_name?: string;
+      mbti?: string;
+      marital_status?: string;
+      appeal?: string;
+      interests?: string;
+      appearance?: string;
+      personality?: string;
+      height?: number;
+      body_type?: string;
+      residence?: string;
+      drinking?: string;
+      smoking?: string;
+      religion?: string;
+    };
+  } | null>(null);
+  const [profileModalLoading, setProfileModalLoading] = useState(false);
+
+  // [관리자 전용] 익명 ID 관리
+  const [adminIdentities, setAdminIdentities] = useState<Array<{ anonymousNumber: number; colorCode: string; tag: string; fixedDisplayTag?: string }>>([]);
+  const [selectedAnonymousNumber, setSelectedAnonymousNumber] = useState<number | null>(null);
+  const [creatingIdentity, setCreatingIdentity] = useState(false);
+  const [bulkCreateCount, setBulkCreateCount] = useState<string>('1');
+  const [creatingBulkIdentity, setCreatingBulkIdentity] = useState(false);
+  // [관리자 전용] false = 익명으로 작성(익명 ID 박스 표시), true = 관리자로 작성
+  const [postAsAdmin, setPostAsAdmin] = useState(true);
+  // [관리자 전용] 익명 ID 박스 접기/펼치기 (익명 모드일 때만 박스 표시)
+  const [anonymousIdBoxCollapsed, setAnonymousIdBoxCollapsed] = useState(false);
+  // [관리자 전용] 익명 작성 시 선택한 표시 태그 (회차 분기에 맞춤, 선택 필수)
+  const [selectedPostDisplayTag, setSelectedPostDisplayTag] = useState<string>('');
+  const [selectedCommentDisplayTag, setSelectedCommentDisplayTag] = useState<string>('');
+
+  // 정렬 옵션
+  const [sortOrder, setSortOrder] = useState<'latest' | 'popular'>('latest');
   
-  // 페이지 초기 로딩 완료 여부 (핵심 데이터 3개가 모두 로드되면 true)
-  const [isPageReady, setIsPageReady] = useState(false);
+  // 필터 옵션
+  const [filter, setFilter] = useState<'all' | 'mine'>('all');
 
-  // 사이드바 별 잔액 즉시 반영 (Sidebar.tsx가 stars-updated 이벤트를 구독)
-  const syncSidebarStarBalance = useCallback(async (nextBalance?: number) => {
-    try {
-      if (typeof nextBalance === 'number') {
-        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: nextBalance } }));
-        return;
-      }
-      const data = await starApi.getMyStars();
-      const balance = typeof data?.balance === 'number' ? data.balance : null;
-      if (typeof balance === 'number') {
-        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
-      }
-    } catch {
-      // ignore: 즉시 반영 실패 시 Sidebar의 재로딩/다른 갱신 로직에 맡김
-    }
-  }, []);
+  // 알림함 미읽음 개수
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
+  const displayName = profile?.nickname || (user?.email ? user.email.split('@')[0] : '') || '회원';
 
-  // 추가 매칭 도전 가능 기간 여부 (매칭 공지 ~ 종료 사이)
-  // 기능이 비활성화되어 있으면 false 반환
-  const isExtraMatchingWindow = useMemo(() => {
-    if (!extraMatchingFeatureEnabled) return false;
-    if (!period || !period.matching_announce || !period.finish) return false;
-    const announce = new Date(period.matching_announce);
-    const finish = new Date(period.finish);
-    if (Number.isNaN(announce.getTime()) || Number.isNaN(finish.getTime())) return false;
-    const nowTime = Date.now();
-    return nowTime >= announce.getTime() && nowTime <= finish.getTime();
-  }, [extraMatchingFeatureEnabled, period?.matching_announce, period?.finish]);
+  // 도배 방지 쿨다운
+  const [postCooldown, setPostCooldown] = useState(0);
+  const [commentCooldowns, setCommentCooldowns] = useState<Record<number, number>>({});
 
-  // user.id가 변경될 때마다 권한 상태와 토큰 등록 상태를 확인하여 토글 동기화
+  // 회차 상태에 따른 관리자 익명 작성 시 선택 가능 태그 (커뮤니티 태그 분기와 동일)
+  const allowedDisplayTags = currentPeriod?.status === '진행중'
+    ? ['매칭신청X', '매칭신청완료']
+    : currentPeriod?.status === '발표완료'
+      ? ['매칭실패', '매칭성공']
+      : [];
+  const showTagSelector = allowedDisplayTags.length > 0;
+  const tagRequiredForAnonymous = showTagSelector;
+
+  // 커뮤니티 기능 활성화 여부 확인
   useEffect(() => {
-    if (!user?.id) {
-      setIsPushEnabled(false);
-      setPushPermissionStatus(null);
-      return;
-    }
-    
-    if (typeof window === 'undefined') return;
-    
-    const checkPermissionAndTokenStatus = async () => {
-      const isNative = isNativeApp();
-      
-      if (isNative) {
-        // 네이티브 앱: 권한 상태와 토큰 등록 상태 확인 (firebase.ts)
-        try {
-          const permStatus = await getNativePushPermissionStatus();
-          const permission = permStatus ?? 'prompt';
-          setPushPermissionStatus(permission as 'granted' | 'denied' | 'prompt' | null);
-          
-          // 권한이 granted인 경우 서버에서 실제 토큰 존재 여부 확인
-          if (permission === 'granted') {
-            try {
-              const tokenResult = await pushApi.getTokens();
-              // 서버에 토큰이 있으면 ON, 없으면 OFF
-              setIsPushEnabled(tokenResult.hasToken || false);
-            } catch (tokenError) {
-              // 토큰 조회 실패 시 localStorage 확인 (폴백)
-              const storedToken = localStorage.getItem('pushFcmToken');
-              setIsPushEnabled(!!storedToken);
-            }
-          } else {
-            // 권한이 없으면 OFF
-            setIsPushEnabled(false);
-          }
-        } catch (error) {
-          console.error('[push] 권한 상태 확인 실패:', error);
-          setIsPushEnabled(false);
-          setPushPermissionStatus(null);
-        }
-      } else {
-        // 웹: localStorage 기반 (기존 로직 유지)
-        try {
-          const stored = localStorage.getItem(`pushEnabled_${user.id}`);
-          setIsPushEnabled(stored === 'true');
-          // 웹에서는 권한 상태를 확인할 수 없으므로 null
-          setPushPermissionStatus(null);
-        } catch {
-          setIsPushEnabled(false);
-          setPushPermissionStatus(null);
-        }
-      }
-    };
-    
-    checkPermissionAndTokenStatus();
-
-    // App.tsx(자동 권한/자동 등록)에서 푸시 상태 변경 이벤트를 쏘면 즉시 반영
-    const onPushStatusChanged = async () => {
-      try {
-        // DB 기준으로 다시 동기화
-        await checkPermissionAndTokenStatus();
-      } catch {
-        // ignore
-      }
-    };
-    window.addEventListener('push-status-changed', onPushStatusChanged as any);
-
-    return () => {
-      window.removeEventListener('push-status-changed', onPushStatusChanged as any);
-    };
-  }, [user?.id]);
-
-  const handleTogglePush = useCallback(async () => {
-    if (isPushBusy) {
-      toast.info('푸시 알림 설정을 처리 중입니다. 잠시만 기다려주세요.');
-      return;
-    }
-
-    if (!user?.id) {
-      toast.error('로그인이 필요합니다.');
-      return;
-    }
-
-    const isNative = isNativeApp();
-
-    const next = !isPushEnabled;
-
-    // OFF → ON
-    if (next) {
-      try {
-        setIsPushBusy(true);
-
-        let token: string | null = null;
-
-        // 네이티브 앱 환경 (firebase.ts)
-        if (isNative) {
-          const normalize = (p: string | null | undefined) => (p === 'prompt-with-rationale' ? 'prompt' : (p || 'prompt'));
-          const DENIED_BY_TOGGLE_KEY = `pushDeniedByToggle_v1_${user.id}`;
-
-          // 현재 권한 상태 확인 → granted가 아니면 "무조건" requestPermissions() 한번 시도
-          const currentPerm = await getNativePushPermissionStatus();
-          let perm = normalize(currentPerm ?? undefined);
-          const prePerm = perm; // requestPermissions() 호출 "전" 상태
-
-          if (perm !== 'granted') {
-            const permResult = await requestNativePushPermission();
-            perm = normalize(permResult);
-          }
-
-          setPushPermissionStatus(perm as any);
-
-          // 여전히 거부/미허용이면:
-          // - prePerm이 'prompt'였다면: "사용자가 방금 거부"한 케이스라 설정 모달은 과함 → 토스트만
-          // - prePerm이 'denied'였다면: OS가 더 이상 팝업을 띄우지 않는 상태일 가능성이 큼 → 설정 모달 안내
-          if (perm !== 'granted') {
-            toast.error('푸시 알림 권한을 허용해야 알림을 받을 수 있습니다.');
-
-            // Android에서는 'denied' 대신 'prompt-with-rationale'가 계속 내려오는 경우가 있어
-            // "토글에서 거부를 한 번이라도 한 이후"에는 다음 시도부터 설정 모달을 띄운다.
-            let deniedByToggle = false;
-            try {
-              deniedByToggle = localStorage.getItem(DENIED_BY_TOGGLE_KEY) === 'true';
-            } catch {
-              // ignore
-            }
-
-            const shouldShowSettingsModal = prePerm === 'denied' || deniedByToggle;
-            if (shouldShowSettingsModal) {
-              setShowPushSettingsModal(true);
-            } else {
-              // 방금(토글에서) 거부한 첫 케이스: 다음 시도부터는 설정 모달을 띄우기 위해 플래그 저장
-              try {
-                localStorage.setItem(DENIED_BY_TOGGLE_KEY, 'true');
-              } catch {
-                // ignore
-              }
-            }
-            setIsPushEnabled(false);
-            setIsPushBusy(false);
-            return;
-          }
-
-          // 권한이 허용된 경우
-          {
-            // 권한이 허용되면 "토글 거부 플래그"는 해제
-            try {
-              localStorage.removeItem(DENIED_BY_TOGGLE_KEY);
-            } catch {
-              // ignore
-            }
-
-            // localStorage에 이미 토큰이 있는지 확인
-            const existingToken = localStorage.getItem('pushFcmToken');
-            
-            if (existingToken) {
-              // 이미 토큰이 있으면 그것을 사용 (서버에 재등록만 시도)
-              token = existingToken;
-              // console.log('[push] 기존 토큰 사용:', token.substring(0, 20) + '...');
-            } else {
-              // 토큰이 없으면 새로 가져오기 (권한은 이미 확인했으므로 skipPermissionCheck=true)
-              token = await getNativePushToken(true);
-              
-              if (!token) {
-                toast.error('푸시 알림 토큰을 가져오는데 실패했습니다. 잠시 후 다시 시도해주세요.');
-                setIsPushBusy(false);
-                return;
-              }
-            }
-
-            // 네이티브 푸시 리스너 설정
-            await setupNativePushListeners();
-
-            // 이전 토큰 확인 및 정리
-            const previousToken = localStorage.getItem('pushFcmToken');
-            
-            // 토큰이 변경된 경우 (앱 재설치 등)
-            if (previousToken && previousToken !== token) {
-              try {
-                // 서버에서 이전 토큰 삭제
-                await pushApi.unregisterToken(previousToken);
-                // console.log('[push] 이전 토큰 삭제 완료');
-              } catch (unregisterError) {
-                // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
-                // console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
-              }
-            }
-
-            // 서버에 새 토큰 등록
-            try {
-              const registerResult = await pushApi.registerToken(token);
-              if (!registerResult || !registerResult.success) {
-                console.error('[push] 토큰 등록 실패:', registerResult);
-                toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
-                setIsPushBusy(false);
-                return;
-              }
-            } catch (registerError) {
-              console.error('[push] 토큰 등록 API 호출 실패:', registerError);
-              toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-              setIsPushBusy(false);
-              return;
-            }
-
-            try {
-              localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-              localStorage.setItem('pushFcmToken', token);
-            } catch {
-              // ignore
-            }
-
-            setIsPushEnabled(true);
-            toast.success('푸시 알림이 활성화되었습니다.');
-          }
-        } 
-        // 웹 브라우저 환경
-        else {
-          if (typeof window === 'undefined' || typeof Notification === 'undefined') {
-            toast.error('이 브라우저에서는 푸시 알림을 사용할 수 없습니다.');
-            setIsPushBusy(false);
-            return;
-          }
-
-          let permission = Notification.permission;
-          if (permission === 'default') {
-            permission = await Notification.requestPermission();
-          }
-
-          if (permission !== 'granted') {
-            // 이미 거부된 경우 브라우저 설정에서 직접 허용해야 함
-            if (permission === 'denied') {
-              toast.error('브라우저 설정에서 알림 권한을 직접 허용해주세요.');
-            } else {
-              toast.error('브라우저 알림 권한을 허용해야 푸시 알림을 받을 수 있습니다.');
-            }
-            setIsPushBusy(false);
-            return;
-          }
-
-          const messaging = await getFirebaseMessaging();
-          if (!messaging) {
-            console.error('[push] getFirebaseMessaging() 이 null을 반환했습니다.');
-            console.error('[push] Notification.permission:', Notification.permission);
-            console.error('[push] VAPID 키 존재 여부:', !!FIREBASE_VAPID_KEY);
-            toast.error('푸시 알림 초기화에 실패했습니다. 잠시 후 다시 시도해 주세요.');
-            setIsPushBusy(false);
-            return;
-          }
-
-          if (!FIREBASE_VAPID_KEY) {
-            // console.warn('[push] VAPID 키가 설정되지 않았습니다. .env에 REACT_APP_FIREBASE_VAPID_KEY를 추가해주세요.');
-          }
-
-          const { getToken } = await import('firebase/messaging');
-
-          // 서비스워커를 명시적으로 등록
-          let registration: ServiceWorkerRegistration | undefined;
-          try {
-            registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-          } catch (swErr) {
-            console.error('[push] service worker 등록 실패:', swErr);
-            toast.error('푸시 알림용 서비스워커 등록에 실패했습니다.');
-            setIsPushBusy(false);
-            return;
-          }
-
-          // register 직후에는 아직 active 상태가 아닐 수 있어 ready 를 기다린다
-          let readyRegistration: ServiceWorkerRegistration;
-          try {
-            readyRegistration = await navigator.serviceWorker.ready;
-          } catch (readyErr) {
-            console.error('[push] service worker ready 대기 중 오류:', readyErr);
-            toast.error('푸시 알림용 서비스워커 활성화에 실패했습니다.');
-            setIsPushBusy(false);
-            return;
-          }
-
-          token = await getToken(messaging, {
-            vapidKey: FIREBASE_VAPID_KEY || undefined,
-            serviceWorkerRegistration: readyRegistration,
-          });
-
-          if (!token) {
-            toast.error('푸시 토큰을 발급받지 못했습니다. 잠시 후 다시 시도해 주세요.');
-            setIsPushBusy(false);
-            return;
-          }
-
-          // 이전 토큰 확인 및 정리
-          const previousToken = localStorage.getItem('pushFcmToken');
-          
-          // 토큰이 변경된 경우 (앱 재설치 등)
-          if (previousToken && previousToken !== token) {
-            try {
-              // 서버에서 이전 토큰 삭제
-              await pushApi.unregisterToken(previousToken);
-              // console.log('[push] 이전 토큰 삭제 완료');
-            } catch (unregisterError) {
-              // 이전 토큰 삭제 실패는 무시 (이미 삭제되었을 수 있음)
-              // console.warn('[push] 이전 토큰 삭제 실패 (무시 가능):', unregisterError);
-            }
-          }
-
-          // 서버에 새 토큰 등록
-          try {
-            const registerResult = await pushApi.registerToken(token);
-            if (!registerResult || !registerResult.success) {
-              console.error('[push] 토큰 등록 실패:', registerResult);
-              toast.error('푸시 토큰 등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
-              setIsPushBusy(false);
-              return;
-            }
-          } catch (registerError) {
-            console.error('[push] 토큰 등록 API 호출 실패:', registerError);
-            toast.error('푸시 토큰 등록 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
-            setIsPushBusy(false);
-            return;
-          }
-
-          try {
-            localStorage.setItem(`pushEnabled_${user.id}`, 'true');
-            localStorage.setItem('pushFcmToken', token);
-          } catch {
-            // ignore
-          }
-
-          setIsPushEnabled(true);
-          toast.success('웹 푸시 알림이 활성화되었습니다.');
-        }
-      } catch (e) {
-        console.error('[push] 푸시 활성화 중 오류:', e);
-        toast.error('푸시 알림 설정 중 오류가 발생했습니다.');
-      } finally {
-        setIsPushBusy(false);
-      }
-      return;
-    }
-
-    // ON → OFF
-    try {
-      setIsPushBusy(true);
-      // ✅ 정책: 토글 OFF 시 같은 device_type 토큰을 전부 삭제 (서버가 UA로 device_type 판단)
-      await pushApi.unregisterToken();
-
-      try {
-        localStorage.setItem(`pushEnabled_${user.id}`, 'false');
-      } catch {
-        // ignore
-      }
-
-      setIsPushEnabled(false);
-      const msg = isNative ? '푸시 알림이 비활성화되었습니다.' : '웹 푸시 알림이 비활성화되었습니다.';
-      toast.success(msg);
-    } catch (e) {
-      console.error('[push] 푸시 비활성화 중 오류:', e);
-      toast.error('푸시 알림 해제 중 오류가 발생했습니다.');
-    } finally {
-      setIsPushBusy(false);
-    }
-  }, [isPushEnabled, isPushBusy, user?.id, pushPermissionStatus]);
-
-  const openNativeAppSettings = useCallback(async () => {
-    try {
-      if (!isNativeApp()) {
-        return;
-      }
-
-      const platform = Capacitor.getPlatform();
-      
-      if (platform === 'ios') {
-        // iOS: capacitor-native-settings 플러그인 사용
-        try {
-          // @ts-ignore - capacitor-native-settings 타입 선언
-          const { NativeSettings, IOSSettings } = await import('capacitor-native-settings');
-          
-          const result = await NativeSettings.openIOS({
-            option: IOSSettings.App,
-          });
-          
-          if (!result.success) {
-            toast.info('아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
-          }
-        } catch (error) {
-          toast.info('아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.');
-        }
-      } else {
-        // Android: AppSettings 플러그인 사용
-        const AppSettings = registerPlugin<{ open: () => Promise<void> }>('AppSettings');
-        await AppSettings.open();
-      }
-    } catch (e) {
-      console.error('[설정 열기] 예외 발생:', e);
-      const platform = Capacitor.getPlatform();
-      const msg = platform === 'ios' 
-        ? '아이폰 설정 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.'
-        : '설정 > 애플리케이션 > 직쏠공 > 알림에서 알림 권한을 허용해주세요.';
-      toast.info(msg);
-    }
-  }, []);
-  
-  // 이메일 인증 관련 상태
-  const [showEmailVerificationModal, setShowEmailVerificationModal] = useState(false);
-  const [emailVerificationStep, setEmailVerificationStep] = useState<'input'>('input');
-  const [verificationCode, setVerificationCode] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isResending, setIsResending] = useState(false);
-  const partnerUserId = useMemo(() => {
-    const id = (matchingStatus && matchingStatus.matched === true) ? (matchingStatus.partner_user_id || null) : null;
-    return id;
-  }, [matchingStatus]);
-
-  // [추가] 매칭 성공 상태라면 partnerProfile을 자동으로 fetch
-  useEffect(() => {
-    // 회차가 종료되었으면 파트너 프로필 조회하지 않음
-    const isCurrentPeriodFinished = period && period.finish && new Date(period.finish) < now;
-    
-    if (
-      !isCurrentPeriodFinished &&
-      matchingStatus &&
-      matchingStatus.matched === true &&
-      partnerUserId
-    ) {
-      // 이미 에러 상태이거나 로딩 중이거나 해당 사용자의 프로필이 있으면 호출하지 않음
-      if (!partnerProfileError && !partnerProfileLoading && (!partnerProfile || partnerProfile.user_id !== partnerUserId)) {
-        fetchPartnerProfile(partnerUserId);
-      }
-    } else {
-      // 매칭 상태가 아니거나 회차가 종료되었을 때 상태 초기화
-      setPartnerProfile(null);
-      setPartnerProfileError(false);
-      setPartnerProfileLoading(false);
-    }
-  }, [matchingStatus, partnerUserId, period, now]); // period, now 의존성 추가하고 상태 의존성 제거
-
-  // 페이지 초기 로딩: 3개의 핵심 데이터를 병렬로 로드
-  useEffect(() => {
-    const loadInitialData = async () => {
-      try {
-        // 병렬로 3개 API 호출 (가장 빠른 로딩)
-        const [periodData, noticeData] = await Promise.all([
-          matchingApi.getMatchingPeriod().catch(err => {
-            console.error('[MainPage] 매칭 기간 API 에러:', err);
-            return null;
-          }),
-          noticeApi.getNotices().catch(err => {
-            console.error('[MainPage] 최신 공지사항 조회 오류:', err);
-            return null;
-          })
-        ]);
-        
-        // 매칭 기간 설정
-        if (!periodData) {
-          setPeriod(null);
-          setNextPeriod(null);
-        } else if (periodData.current || periodData.next) {
-          setPeriod(periodData.current || null);
-          setNextPeriod(periodData.next || null);
-        } else {
-          setPeriod(periodData);
-          setNextPeriod(null);
-        }
-        
-        // 최신 공지사항 설정
-        if (Array.isArray(noticeData) && noticeData.length > 0) {
-          const first = noticeData[0];
-          if (first && typeof first.id === 'number' && typeof first.title === 'string') {
-            setLatestNotice({ id: first.id, title: first.title });
-          }
-        }
-        
-        // 모든 초기 데이터 로드 완료
-        setLoadingPeriod(false);
-        setIsLoadingNotice(false);
-        setIsPageReady(true);
-      } catch (error) {
-        console.error('[MainPage] 초기 데이터 로드 실패:', error);
-        // 에러 발생해도 페이지는 표시
-        setLoadingPeriod(false);
-        setIsLoadingNotice(false);
-        setIsPageReady(true);
-      }
-    };
-    
-    loadInitialData();
-    
-    // 1초마다 시간 갱신 타이머
-    const timer = window.setInterval(() => {
-      const newNow = new Date();
-      setNow(prev => {
-        if (!prev || Math.floor(newNow.getTime() / 1000) !== Math.floor(prev.getTime() / 1000)) {
-          return newNow;
-        }
-        return prev;
-      });
-    }, 1000);
-    
-    return () => window.clearInterval(timer);
-  }, []);
-
-  // 추가 매칭 도전 기능 활성화 여부 조회
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    let timerRef: number | null = null;
-    let shouldStop = false;
-    
-    const fetchExtraMatchingFeature = async () => {
-      if (shouldStop) return;
-      
-      const token = localStorage.getItem('token');
-      if (!token) {
-        shouldStop = true;
-        setExtraMatchingFeatureEnabled(false);
-        if (timerRef) {
-          window.clearInterval(timerRef);
-          timerRef = null;
-        }
-        return;
-      }
-      
-      try {
-        const res = await extraMatchingApi.getStatus();
-        setExtraMatchingFeatureEnabled(res?.featureEnabled !== false);
-      } catch (e: any) {
-        console.error('[MainPage] 추가 매칭 도전 기능 설정 조회 오류:', e);
-        setExtraMatchingFeatureEnabled(false); // 에러 시 기본값 false (안전하게)
-        
-        // 401 에러 발생 시 인터벌 중지
-        if (e?.response?.status === 401) {
-          shouldStop = true;
-          if (timerRef) {
-            window.clearInterval(timerRef);
-            timerRef = null;
-          }
-        }
-      }
-    };
-
-    fetchExtraMatchingFeature();
-    // 30초마다 갱신
-    timerRef = window.setInterval(fetchExtraMatchingFeature, 30000);
-    return () => {
-      shouldStop = true;
-      if (timerRef) {
-        window.clearInterval(timerRef);
-      }
-    };
-  }, [user?.id]);
-
-  // 커뮤니티 기능 활성화 여부 조회 (관리자만)
-  useEffect(() => {
-    // 관리자가 아닌 경우 기본값(true) 사용, API 호출 안 함
-    if (!user?.isAdmin) {
-      setCommunityEnabled(true);
-      return;
-    }
-
     let cancelled = false;
     
-    const fetchCommunitySettings = async () => {
+    const checkCommunityEnabled = async () => {
+      // 관리자가 아닌 경우 기본값(true) 사용, API 호출 안 함
+      if (!user?.isAdmin) {
+        return; // 접근 허용
+      }
+      
       try {
         const res = await adminApi.getSystemSettings();
         if (cancelled) return;
-        setCommunityEnabled(res?.community?.enabled !== false);
-      } catch (e) {
-        if (cancelled) return;
-        // 403 에러는 조용히 처리 (관리자가 아닌 경우)
-        if (e?.response?.status === 403) {
-          setCommunityEnabled(true); // 기본값 사용
-          return;
+        
+        if (res?.community?.enabled === false) {
+          toast.error('커뮤니티 기능이 현재 비활성화되어 있습니다.');
+          navigate('/matching-apply');
         }
-        console.error('[MainPage] 커뮤니티 설정 조회 오류:', e);
-        setCommunityEnabled(true); // 오류 시 기본값 true
+      } catch (err) {
+        console.error('[MainPage] 커뮤니티 설정 조회 오류:', err);
+        // 오류 시 접근 허용 (기본값 true)
       }
     };
     
-    fetchCommunitySettings();
+    checkCommunityEnabled();
     
     return () => {
       cancelled = true;
     };
-  }, [user?.isAdmin]);
+  }, [navigate, user?.isAdmin]);
 
-  // 선호 회사 이름 매핑용 회사 목록 로드
+  // 알림함 미읽음 개수 조회
   useEffect(() => {
-    companyApi
-      .getCompanies()
-      .then(setCompanies)
-      .catch(() => {
-        // 회사 목록 로드 실패 시에도 페이지는 계속 동작하게 둔다.
-      });
-  }, []);
-
-  // 안읽은 메시지 개수 조회
-  const fetchUnreadCount = useCallback(async () => {
-    if (!user?.id) return;
-    try {
-      const result = await chatApi.getUnreadCount(user.id);
-      setUnreadCount(result.unreadCount || 0);
-    } catch (error) {
-      console.error('안읽은 메시지 개수 조회 실패:', error);
-      setUnreadCount(0);
-    }
-  }, [user?.id]);
-
-  // 매칭 상태 조회 (로딩 상태 최소화)
-  const fetchMatchingStatus = useCallback(async (showLoading = false) => {
     if (!user?.id) {
-      setStatusLoading(false);
+      setNotificationUnreadCount(0);
       return;
     }
-    
-    if (showLoading) {
-      setStatusLoading(true);
-    }
-    
-    try {
-      const res = await matchingApi.getMatchingStatus(user.id);
-      
-      if (res && typeof res === 'object' && 'status' in res && res.status) {
-        const newStatus = {
-          ...res.status,
-          is_applied: res.status.is_applied ?? res.status.applied,
-          is_matched: res.status.is_matched ?? res.status.matched,
-          is_cancelled: res.status.is_cancelled ?? res.status.cancelled,
-        };
-        
-        // 상태가 실제로 변경된 경우에만 업데이트 (불필요한 리렌더링 방지)
-        setMatchingStatus(prev => {
-          // 핵심 상태값만 비교하여 깜빡임 방지
-          if (!prev || 
-              prev.is_applied !== newStatus.is_applied ||
-              prev.is_matched !== newStatus.is_matched ||
-              prev.is_cancelled !== newStatus.is_cancelled ||
-              prev.partner_user_id !== newStatus.partner_user_id) {
-            return newStatus;
-          }
-          return prev;
-        });
-      } else {
-        setMatchingStatus(null);
-      }
-    } catch (e) {
-      console.error('매칭 상태 조회 오류:', e);
-      setMatchingStatus(null);
-    } finally {
-      if (showLoading) {
-        setStatusLoading(false);
-      }
-    }
-  }, [user?.id]);
-
-  // 메인페이지 진입 시 사용자 정지 상태 확인 (로딩 스피너 없이)
-  const checkUserBanStatus = useCallback(async () => {
-    try {
-      const userData = await userApi.getMe();
-      
-      // 정지 상태가 변경되었다면 전체 사용자 정보 업데이트 (백그라운드)
-      if (userData.is_banned !== user?.is_banned || userData.banned_until !== user?.banned_until) {
-        await fetchUser(false);
-      }
-    } catch (error) {
-      console.error('[MainPage] 사용자 상태 확인 오류:', error);
-    }
-  }, [user?.is_banned, user?.banned_until, fetchUser]);
-
-  // MainPage 진입 시 정지 상태 확인 후 매칭 상태 로드 (초기 로딩에 포함)
-  useEffect(() => {
-    if (user?.id && isPageReady) {
-      checkUserBanStatus().then(() => {
-        fetchMatchingStatus(true); // 초기 로드시에만 로딩 표시
-        fetchUnreadCount();
-      });
-    }
-  }, [user?.id, isPageReady, checkUserBanStatus, fetchMatchingStatus, fetchUnreadCount]);
-
-  // 상대방 프로필 정보 fetch 함수
-  const fetchPartnerProfile = async (partnerUserId: string) => {
-    // 이미 에러 상태이거나 로딩 중이면 중복 호출 방지
-    if (partnerProfileError || partnerProfileLoading) {
-      return;
-    }
-    
-    setPartnerProfileLoading(true);
-    setPartnerProfileError(false);
-    try {
-      const res = await userApi.getUserProfile(partnerUserId);
-      setPartnerProfile(res);
-      setPartnerProfileError(false);
-    } catch (e) {
-      console.error('[MainPage][fetchPartnerProfile] API 실패:', e);
-      setPartnerProfileError(true);
-      setPartnerProfile(null);
-      // 탈퇴한 사용자에 대해서는 토스트 메시지를 표시하지 않음 (조용히 처리)
-    } finally {
-      setPartnerProfileLoading(false);
-    }
-  };
-
-  // 매칭/공지 타이밍에 의존하지 않고, 일정 주기로 상태를 갱신해서
-  // 새로고침 없이도 성공/실패, 신청 여부가 자동으로 반영되도록 폴링
-  useEffect(() => {
-    if (!user?.id) return;
-    
+    let cancelled = false;
     let intervalRef: number | null = null;
-    
-    const pollStatus = async () => {
-      try {
-        // 로딩 스피너 없이 조용히 상태만 갱신
-        await fetchMatchingStatus(false);
-        
-        // period 정보도 함께 업데이트 (추가 매칭 배너 등 실시간 반영)
-        const data = await matchingApi.getMatchingPeriod();
-        if (!data) {
-          setPeriod(null);
-          setNextPeriod(null);
-        } else if (data.current || data.next) {
-          setPeriod(data.current || null);
-          setNextPeriod(data.next || null);
-        } else {
-          setPeriod(data);
-          setNextPeriod(null);
-        }
-      } catch (err: any) {
-        console.error('[MainPage] 매칭 기간 자동 갱신 오류:', err);
-        
-        // 401 에러 발생 시 인터벌 중지
-        if (err?.response?.status === 401 && intervalRef) {
-          window.clearInterval(intervalRef);
-          intervalRef = null;
-        }
-      }
-    };
-    
-    intervalRef = window.setInterval(pollStatus, 5000); // 5초마다 최신 상태 확인
-    
-    return () => {
-      if (intervalRef) {
-        window.clearInterval(intervalRef);
-      }
-    };
-  }, [user?.id, fetchMatchingStatus]);
-
-
-  // 매칭 결과 폴링 제거 - 사용자가 직접 "매칭 결과 확인" 버튼으로 새로고침
-
-  // 모달이 열릴 때 body 스크롤 막기
-  useEffect(() => {
-    const isAnyModalOpen =
-      showProfileModal ||
-      showPartnerModal ||
-      showScheduleModal ||
-      showMatchingConfirmModal ||
-      showMatchingStarConfirmModal ||
-      showCancelConfirmModal;
-    if (isAnyModalOpen) {
-      document.body.classList.add('modal-open');
-    } else {
-      document.body.classList.remove('modal-open');
-    }
-    return () => { document.body.classList.remove('modal-open'); };
-  }, [showProfileModal, showPartnerModal, showScheduleModal, showMatchingConfirmModal, showMatchingStarConfirmModal, showCancelConfirmModal]);
-
-  // 모든 useState, useEffect 선언 이후
-  // useEffect는 항상 최상단에서 호출
-  useEffect(() => {
-    if (!isAuthenticated) {
-      navigate('/login');
-    }
-  }, [isAuthenticated, navigate]);
-
-
-
-  // 안읽은 메시지 개수 정기 업데이트 (5초마다, 최대한 실시간에 가깝게)
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    let intervalRef: number | null = null;
-    
-    const updateUnreadCount = async () => {
-      try {
-        const result = await chatApi.getUnreadCount(user.id);
-        const newCount = result.unreadCount || 0;
-        // 개수가 실제로 변경된 경우에만 업데이트
-        setUnreadCount(prev => prev !== newCount ? newCount : prev);
-      } catch (error: any) {
-        // 401 에러 발생 시 인터벌 중지
-        if (error?.response?.status === 401 && intervalRef) {
-          window.clearInterval(intervalRef);
-          intervalRef = null;
-        }
-        // 에러 시 조용히 무시 (깜빡임 방지)
-      }
-    };
-    
-    intervalRef = window.setInterval(updateUnreadCount, 5000); // 5초마다 업데이트
-
-    return () => {
-      if (intervalRef) {
-        window.clearInterval(intervalRef);
-      }
-    };
-  }, [user?.id]);
-
-  // 알림 미읽음 개수 조회 (5초마다)
-  useEffect(() => {
-    if (!user?.id) return;
-    
-    let intervalRef: number | null = null;
-    let shouldStop = false;
-    
-    const fetchNotificationUnreadCount = async () => {
-      if (shouldStop) return;
-      
+    const fetchCount = async () => {
+      if (cancelled) return;
       const token = localStorage.getItem('token');
       if (!token) {
-        shouldStop = true;
         setNotificationUnreadCount(0);
-        if (intervalRef) {
-          window.clearInterval(intervalRef);
-          intervalRef = null;
-        }
         return;
       }
-      
       try {
         const res = await notificationApi.getUnreadCount();
-        const count = res.unreadCount || 0;
-        setNotificationUnreadCount(count);
-      } catch (error: any) {
-        // console.error('[MainPage] 알림 개수 조회 실패:', error);
-        setNotificationUnreadCount(0);
-        
-        // 401 에러 발생 시 인터벌 중지
-        if (error?.response?.status === 401) {
-          shouldStop = true;
-          if (intervalRef) {
-            window.clearInterval(intervalRef);
-            intervalRef = null;
-          }
-        }
+        if (!cancelled) setNotificationUnreadCount(res.unreadCount || 0);
+      } catch (e: any) {
+        if (!cancelled) setNotificationUnreadCount(0);
+        if (e?.response?.status === 401) cancelled = true;
       }
     };
-
-    fetchNotificationUnreadCount(); // 초기 로드
-    intervalRef = window.setInterval(fetchNotificationUnreadCount, 5000);
-
+    fetchCount();
+    intervalRef = window.setInterval(fetchCount, 15000);
     return () => {
-      shouldStop = true;
-      if (intervalRef) {
-        window.clearInterval(intervalRef);
-      }
+      cancelled = true;
+      if (intervalRef) window.clearInterval(intervalRef);
     };
   }, [user?.id]);
 
-  // 카운트다운 계산 함수 (조건부 렌더링 이전에 선언)
-  const calculateCountdown = useCallback(() => {
-    if (!period || !user || !profile || loadingPeriod || statusLoading) return;
-    
-    let status = '';
-
-    if (period && !(period.finish && new Date(period.finish) < now)) {
-      const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-      const nowTime = now.getTime();
-
-      // 🔧 getUserMatchingState 와 동일하게, 매칭 결과는 matchingStatus만 신뢰
-      let isApplied = false;
-      let isMatched: boolean | null = null;
-
-      if (matchingStatus) {
-        isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
-
-        if (typeof matchingStatus.is_matched === 'boolean') {
-          isMatched = matchingStatus.is_matched;
-        } else if (typeof matchingStatus.matched === 'boolean') {
-          isMatched = matchingStatus.matched;
-        } else {
-          isMatched = null;
-        }
-      } else if (user) {
-        // matchingStatus가 아직 없으면, 신청 여부만 user에서 보완
-        isApplied = user.is_applied === true;
-        isMatched = null;
-      }
-
-      if (announce && nowTime >= announce.getTime() && isApplied && isMatched === true) {
-        status = '매칭 성공';
-      }
-    }
-    
-    const canChat = status === '매칭 성공' && partnerUserId;
-
-    if (!period?.finish || !canChat) {
-      setCountdown('');
-      return;
-    }
-
-    const finishTime = new Date(period.finish);
-    const nowTime = new Date();
-    const diff = finishTime.getTime() - nowTime.getTime();
-
-    if (diff <= 0) {
-      setCountdown('마감됨');
-      return;
-    }
-
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-    let countdownText = '';
-    if (days > 0) countdownText += `${days}일 `;
-    if (hours > 0) countdownText += `${hours}시간 `;
-    if (minutes > 0) countdownText += `${minutes}분 `;
-    countdownText += `${seconds}초`;
-
-    // 카운트다운이 실제로 변경된 경우에만 업데이트 (깜빡임 방지)
-    setCountdown(prev => prev !== countdownText ? countdownText : prev);
-  }, [period, user, profile, loadingPeriod, statusLoading, now, partnerUserId, matchingStatus]);
-
-  // 카운트다운 업데이트 (깜빡임 방지)
+  // 최신 공지사항 조회
   useEffect(() => {
-    calculateCountdown();
-    const interval = window.setInterval(() => {
-      // 카운트다운이 실제로 필요한 상황에서만 계산
-      if (period && user && profile && !loadingPeriod && !statusLoading) {
-        calculateCountdown();
-      }
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [calculateCountdown, period, user, profile, loadingPeriod, statusLoading]);
-
-  // 인증되지 않은 상태면 랜딩페이지로 리다이렉트
-  if (!isAuthenticated && !isLoading) {
-    navigate('/');
-    return null;
-  }
-  
-  // user/profile이 없으면 ProtectedRoute에서 이미 처리됨
-  // isPageReady는 부분 로딩으로 처리 (전체 스피너 표시 안 함 - 끔뻑거림 방지)
-
-
-
-  // 날짜/시간 포맷 함수 (KST 기준)
-  const formatKST = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    const yyyy = d.getFullYear();
-    const mm = (d.getMonth() + 1).toString().padStart(2, '0');
-    const dd = d.getDate().toString().padStart(2, '0');
-    const hh = d.getHours().toString().padStart(2, '0');
-    const min = d.getMinutes().toString().padStart(2, '0');
-    return `${yyyy}-${mm}-${dd} ${hh}시 ${min}분`;
-  };
-
-  // 신청기간 표시용 (연도 제외, M/D (요일) HH:mm)
-  const formatPeriodShort = (dateStr: string | null) => {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    const m = d.getMonth() + 1;
-    const day = d.getDate();
-    const hh = d.getHours().toString().padStart(2, '0');
-    const min = d.getMinutes().toString().padStart(2, '0');
-    const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-    const w = weekdays[d.getDay()];
-    return `${m}/${day} (${w}) ${hh}:${min}`;
-  };
-
-  // [리팩터링] 매칭 상태 분기 함수
-  const getUserMatchingState = () => {
-    // 🔧 성공/실패 여부(isMatched)는 **항상 서버에서 내려준 matchingStatus만** 신뢰하고,
-    // user 객체의 과거 is_matched 값(이전 회차 결과 등)은 사용하지 않는다.
-    // (모바일에서 과거 회차의 실패 값이 잠깐 섞여 "매칭 실패"로 보이는 문제 방지)
-
-    let isApplied = false;
-    let isMatched: boolean | null = null;
-    
-    if (matchingStatus) {
-      // 신청 여부는 matchingStatus를 우선 사용하되, 없으면 false
-      isApplied = matchingStatus.is_applied === true || matchingStatus.applied === true;
-
-      // 매칭 결과(boolean)가 명시된 경우에만 성공/실패로 사용
-      if (typeof matchingStatus.is_matched === 'boolean') {
-        isMatched = matchingStatus.is_matched;
-      } else if (typeof matchingStatus.matched === 'boolean') {
-        isMatched = matchingStatus.matched;
-      } else {
-        isMatched = null; // 아직 결과 미정 → "결과 준비중"
-    }
-    } else if (user) {
-      // matchingStatus가 아직 없으면, 신청 여부만 user에서 보완
-      isApplied = user.is_applied === true;
-      // isMatched는 과거 회차의 잔존값일 수 있으므로 **사용하지 않고 null로 둔다**
-      isMatched = null;
-    }
-    
-    // is_cancelled는 matchingStatus에서만 사용
-    const isCancelled = matchingStatus?.is_cancelled === true || matchingStatus?.cancelled === true;
-    
-    return { isApplied, isMatched, isCancelled };
-  };
-
-  // [리팩터링] 매칭 현황 안내문구 상태/기간 분리 및 색상 반환 (is_applied, is_matched 기준)
-  const getMatchingStatusDisplay = () => {
-    // 매칭 로그가 없는 경우 (관리자가 삭제했거나 아직 생성되지 않음)
-    if (!period) {
-      return {
-        status: '현재 진행 중인 매칭이 없습니다.',
-        period: '새로운 매칭 회차를 기다려주세요.',
-        color: '#888',
-      };
-    }
-    
-    // 회차가 종료된 경우
-    if (period.finish && new Date(period.finish) < now) {
-      return {
-        status: '이번 회차가 종료되었습니다.',
-        period: '',
-        color: '#888',
-      };
-    }
-    const start = new Date(period.application_start);
-    const end = new Date(period.application_end);
-    const finish = period.finish ? new Date(period.finish) : null;
-    const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-    const nowTime = now.getTime();
-    const { isApplied, isMatched, isCancelled } = getUserMatchingState();
-    
-    
-    // 신청 전
-    if (nowTime < start.getTime()) {
-      return {
-        status: '신청 기간이 아닙니다.',
-        period: `신청기간 :\n${formatPeriodShort(period.application_start)} ~ ${formatPeriodShort(period.application_end)}`,
-        color: '#888',
-      };
-    }
-    // 신청 기간
-    if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
-      if (!isApplied || isCancelled) {
-        return {
-          status: '매칭 미신청',
-          period: `신청기간 :\n${formatPeriodShort(period.application_start)} ~ ${formatPeriodShort(period.application_end)}`,
-          color: '#1976d2',
-        };
-      } else {
-        return {
-          status: '신청 완료',
-          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatPeriodShort(period.matching_announce) : '-'}`,
-          color: '#7C3AED',
-        };
-      }
-    }
-    // 신청 마감 후 ~ 매칭 공지 전
-    if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
-      if (isApplied && !isCancelled) {
-        return {
-          status: '신청 완료',
-          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatPeriodShort(period.matching_announce) : '-'}`,
-          color: '#7C3AED',
-        };
-      } else {
-        return {
-          status: '신청 마감',
-          period: `매칭 공지를 기다려주세요\n매칭일 : ${announce ? formatPeriodShort(period.matching_announce) : '-'}`,
-          color: '#888',
-        };
-      }
-    }
-    // 매칭 공지 이후(결과 발표)
-    if (announce && nowTime >= announce.getTime()) {
-      if (!isApplied || isCancelled) {
-        return {
-          status: '매칭 미신청',
-          period: '매칭 신청기간이 아닙니다.\n다음 회차에 이용해주세요.',
-          color: '#888',
-        };
-      }
-      if (typeof isMatched === 'undefined' || isMatched === null) {
-        return {
-          status: '결과 준비중',
-          period: '매칭 결과를 불러오는 중입니다.',
-          color: '#7C3AED',
-        };
-      }
-      if (isMatched === true) {
-        return {
-          status: '매칭 성공',
-          period: '상대방 프로필을 확인해보세요.',
-          color: '#27ae60',
-        };
-      }
-      if (isMatched === false) {
-        const finishLabel = period.finish ? formatPeriodShort(period.finish) : '-';
-        return {
-          status: '매칭 실패',
-          period: `아쉽지만 다음기회를 기약할게요.\n매칭 종료 : ${finishLabel}`,
-          color: '#e74c3c',
-        };
-      }
-    }
-    // 회차 종료(마감)
-    if ((finish && nowTime >= finish.getTime())) {
-      return {
-        status: '이번 회차가 종료되었습니다.',
-        period: '',
-        color: '#888',
-      };
-    }
-    return { status: '', period: '', color: '#888' };
-  };
-
-  // [리팩터링] 버튼 상태/표기 결정 (is_applied, is_matched 기준)
-  let buttonDisabled = true;
-  let buttonLabel = '매칭 신청하기 (⭐5)';
-  let periodLabel = '';
-  let showCancel = false;
-
-  const { period: periodText } = getMatchingStatusDisplay();
-  periodLabel = periodText;
-
-  // 매칭 성공 && 회차 마감 전일 때만 채팅 가능
-  const { status } = getMatchingStatusDisplay();
-  const canChat = status === '매칭 성공' && partnerUserId;
-
-  // 10분 재신청 제한 로직 (기존 유지)
-  let canReapply = true;
-  let reapplyMessage = '';
-  if (matchingStatus && matchingStatus.cancelled && matchingStatus.cancelled_at) {
-    const cancelledAt = new Date(matchingStatus.cancelled_at);
-    const nowTime = now.getTime();
-    const diff = nowTime - cancelledAt.getTime();
-    if (diff < cancelTime * 60 * 1000) {
-      canReapply = false;
-      const remain = cancelTime * 60 * 1000 - diff;
-      const min = Math.floor(remain / 60000);
-      const sec = Math.floor((remain % 60000) / 1000);
-      reapplyMessage = `신청가능까지\n남은 시간: ${min}분 ${sec}초`;
-    }
-  }
-
-    // [리팩터링] 버튼/문구 분기 (정지 상태 + is_applied, is_matched 기준)
-  if (period) {
-    // 정지 상태 체크 (최우선)
-    if (user?.is_banned) {
-      if (user.banned_until) {
-        const bannedUntil = new Date(user.banned_until);
-        const now = new Date();
-        if (bannedUntil > now) {
-          buttonDisabled = true;
-          buttonLabel = `정지 상태 (${bannedUntil.toLocaleDateString('ko-KR')}까지)`;
-          showCancel = false;
-        } else {
-          // 정지 기간이 만료된 경우 정상 처리
+    let cancelled = false;
+    noticeApi.getNotices()
+      .then((data) => {
+        if (cancelled || !Array.isArray(data) || data.length === 0) return;
+        const first = data[0];
+        if (first && typeof first.id === 'number' && typeof first.title === 'string') {
+          setLatestNotice({ id: first.id, title: first.title });
         }
-      } else {
-        buttonDisabled = true;
-        buttonLabel = '영구 정지 상태';
-        showCancel = false;
-      }
-    } else {
-      // 정지 상태가 아닌 경우에만 기존 로직 실행
-      const start = new Date(period.application_start);
-      const end = new Date(period.application_end);
-      const announce = period.matching_announce ? new Date(period.matching_announce) : null;
-      const finish = period.finish ? new Date(period.finish) : null;
-      const nowTime = now.getTime();
-      const { isApplied, isMatched, isCancelled } = getUserMatchingState();
-      
-      // 신청 전/회차 종료
-      if (nowTime < start.getTime() || (finish && nowTime >= finish.getTime())) {
-        buttonDisabled = true;
-        buttonLabel = '매칭 신청 불가';
-        showCancel = false;
-      } else if (nowTime >= start.getTime() && nowTime <= end.getTime()) {
-        if (!isApplied || isCancelled) {
-          buttonDisabled = !canReapply;
-          buttonLabel = '매칭 신청하기 (⭐5)';
-          showCancel = false;
-        } else {
-          buttonDisabled = true;
-          buttonLabel = '신청 완료';
-          showCancel = true;
-        }
-      } else if (nowTime > end.getTime() && (!announce || nowTime < announce.getTime())) {
-        buttonDisabled = true;
-        buttonLabel = isApplied && !isCancelled ? '신청 완료' : '매칭 신청 불가';
-        showCancel = false;
-      } else if (announce && nowTime >= announce.getTime()) {
-        if (!isApplied || isCancelled) {
-          buttonDisabled = true;
-          buttonLabel = '매칭 신청 불가';
-          showCancel = false;
-        } else if (typeof isMatched === 'undefined' || isMatched === null) {
-          // 🔧 아직 매칭 결과(boolean)가 결정되지 않은 상태에서는
-          // 실패로 취급하지 않고 "결과 준비중" 상태로만 표시한다.
-          // (모바일처럼 네트워크/렌더 타이밍이 느린 환경에서
-          // 잠깐이라도 "매칭 실패"로 보이는 현상 방지)
-          buttonDisabled = true;
-          buttonLabel = '결과 준비중';
-          showCancel = false;
-        } else if (isMatched === true) {
-          buttonDisabled = true;
-          buttonLabel = '매칭 성공';
-          showCancel = false;
-        } else if (isMatched === false) {
-          buttonDisabled = true;
-          buttonLabel = '매칭 실패';
-          showCancel = false;
-        }
-      } else {
-        buttonDisabled = true;
-        buttonLabel = '매칭 신청 불가';
-        showCancel = false;
-      }
-    }
-  }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
-  // NEXT 회차 예고 문구 (현재 회차가 발표완료 상태이고, NEXT 회차가 있을 때만 노출)
-  let nextPeriodLabel: string | null = null;
-  if (period && nextPeriod && period.matching_announce) {
-    const announceTime = new Date(period.matching_announce);
-    const finishTime = period.finish ? new Date(period.finish) : null;
-    const nowTime = now.getTime();
+  // 상대 시간 포맷 함수
+  const getRelativeTime = (dateString: string) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    const isAfterAnnounce = nowTime >= announceTime.getTime();
-    const isBeforeFinish = !finishTime || nowTime < finishTime.getTime();
-
-    if (isAfterAnnounce && isBeforeFinish) {
-      // 현재 회차: 발표완료~마감 전 구간 → NEXT 회차 예고
-      const nextStart = nextPeriod.application_start
-        ? formatPeriodShort(nextPeriod.application_start)
-        : '-';
-      const nextEnd = nextPeriod.application_end
-        ? formatPeriodShort(nextPeriod.application_end)
-        : '-';
-      nextPeriodLabel = `${nextStart} ~ ${nextEnd}`;
-    }
-  }
-
-  // 일정 모달에 표시할 회차 (현재 종료+다음회차 있음 → 다음회차, 현재 진행중 → 현재회차, 종료+다음없음 → 비활성화)
-  const schedulePeriod = (() => {
-    if (!period?.application_start) return null;
-    const isCurrentFinished = period.finish && new Date(period.finish) < now;
-    if (isCurrentFinished && nextPeriod?.application_start) return nextPeriod;
-    if (isCurrentFinished) return null; // 종료됐고 다음회차 없음 → 일정 아이콘 비활성화
-    return period;
-  })();
-  const hasScheduleData = !!schedulePeriod?.application_start;
-
-  const quickActions: QuickAction[] = [
-    {
-      icon: <FaRegClock />,
-      title: '매칭 현황',
-      description: '',
-      action: () => {},
-      disabled: false,
-    },
-  ];
-
-  // 컴팩트 카드용 액션들 (2x2 그리드)
-  const compactActions = [
-    {
-      icon: <FaExclamationTriangle />,
-      title: '공지사항',
-      action: () => navigate('/notice'),
-      disabled: false,
-    },
-    {
-      icon: <FaRegStar />,
-      title: 'FAQ',
-      action: () => navigate('/faq'),
-      disabled: false,
-    },
-    {
-      icon: <FaUser />,
-      title: '프로필',
-      action: () => navigate('/profile'),
-      disabled: false,
-    },
-    {
-      icon: <FaRegStar />,
-      title: '선호 스타일',
-      action: () => {
-        if (checkEmailVerification()) {
-          navigate('/preference');
-        }
-      },
-      disabled: false,
-    },
-  ];
-
-  // 이메일 인증이 필요한 기능인지 체크
-  const checkEmailVerification = () => {
-    if (user?.is_verified === false) {
-      setShowEmailVerificationModal(true);
-      return false;
-    }
-    if (user?.is_verified !== true) {
-      return false;
-    }
-    return true;
-  };
-
-  // 이메일 인증 처리
-  const handleEmailVerification = async () => {
-    if (!verificationCode) {
-      toast.error('인증번호를 입력해주세요.');
-      return;
-    }
-
-    const userEmail = user?.email;
-    if (!userEmail) {
-      toast.error('사용자 이메일 정보를 찾을 수 없습니다.');
-      return;
-    }
-
-    setIsVerifying(true);
-    try {
-      await authApi.confirmVerification(userEmail, verificationCode);
-      toast.success('이메일 인증이 완료되었습니다!');
-      setShowEmailVerificationModal(false);
-      setVerificationCode('');
-      // 사용자 정보 새로고침
-      await fetchUser(false);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || '인증번호가 올바르지 않습니다.');
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  // 이메일 재발송
-  const handleResendVerificationEmail = async () => {
-    const userEmail = user?.email;
-    if (!userEmail) {
-      toast.error('사용자 이메일 정보를 찾을 수 없습니다.');
-      return;
-    }
-
-    setIsResending(true);
-    try {
-      await authApi.resendVerificationEmail(userEmail);
-      toast.success('인증 메일이 재발송되었습니다.');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || '메일 발송에 실패했습니다. 다시 시도해주세요.');
-    } finally {
-      setIsResending(false);
-    }
-  };
-
-  // 매칭 신청
-  const handleMatchingRequest = async () => {
-    // 최신 프로필 정보를 서버에서 다시 조회 (기존 캐시/컨텍스트와 무관하게)
-    let bodyTypes: string[] = [];
-    let me: any = null;
-    try {
-      me = await userApi.getMe();
-      const val: any = me.body_type;
-      if (!val) {
-        bodyTypes = [];
-      } else if (Array.isArray(val)) {
-        bodyTypes = val as string[];
-      } else {
-        try {
-          const parsed = JSON.parse(val as any);
-          bodyTypes = Array.isArray(parsed) ? parsed : [String(val)];
-        } catch {
-          bodyTypes = [String(val)];
-        }
-      }
-    } catch (e) {
-      console.error('[MainPage] 프로필 조회 중 오류:', e);
-      bodyTypes = [];
-    }
-
-    // 모달에 보여줄 프로필도 최신 값으로 업데이트
-    if (me) {
-      try {
-        setProfile(me);
-      } catch (e) {
-        console.error('[MainPage] setProfile 중 오류:', e);
-      }
-    }
-
-    // 선호 회사 선택 여부 확인 (기존 회원 보호용)
-    try {
-      const preferCompany = me?.prefer_company;
-      const preferCompanyCount =
-        Array.isArray(preferCompany) ? preferCompany.length : 0;
-      if (!preferCompanyCount || preferCompanyCount === 0) {
-        toast.error('선호 스타일에서 선호 회사를 선택해주세요.');
-        return;
-      }
-    } catch (e) {
-      // 예외가 나더라도 매칭 전에 안전하게 막힌 상태이므로 추가 처리 없음
-      toast.error('선호 스타일에서 선호 회사를 선택해주세요.');
-      return;
-    }
-
-    // 선호 지역 선택 여부 확인 (기존 회원 보호용, 시/도 단위)
-    try {
-      const preferRegion = me?.prefer_region;
-      const preferRegionCount =
-        Array.isArray(preferRegion) ? preferRegion.length : 0;
-      if (!preferRegionCount || preferRegionCount === 0) {
-        toast.error('선호 스타일에서 선호 지역을 선택해주세요.');
-        return;
-      }
-    } catch (e) {
-      toast.error('선호 스타일에서 선호 지역을 선택해주세요.');
-      return;
-    }
-
-    // 선호 학력 선택 여부 확인
-    try {
-      const rawEducations = me?.preferred_educations;
-      let educationList: string[] = [];
-
-      if (Array.isArray(rawEducations)) {
-        educationList = rawEducations as string[];
-      } else if (typeof rawEducations === 'string' && rawEducations.trim().length > 0) {
-        try {
-          const parsed = JSON.parse(rawEducations);
-          if (Array.isArray(parsed)) {
-            educationList = parsed;
-          } else if (parsed) {
-            educationList = [String(parsed)];
-          }
-        } catch {
-          educationList = [rawEducations.trim()];
-        }
-      }
-
-      if (!educationList || educationList.length === 0) {
-        toast.error('선호 스타일에서 선호 학력을 선택해주세요.');
-        return;
-      }
-    } catch (e) {
-      toast.error('선호 스타일에서 선호 학력을 선택해주세요.');
-      return;
-    }
-
-    // 프로필 학력 선택 여부 확인
-    if (!me?.education || String(me.education).trim() === '') {
-      toast.error('프로필에서 학력을 선택해주세요.');
-      return;
-    }
-
-    if (bodyTypes.length !== 3) {
-      toast.error('원활한 매칭을 위해 프로필에서 체형 3개를 선택해 주세요.');
-      return;
-    }
-
-    // 이메일 인증 체크
-    if (!checkEmailVerification()) {
-      return;
-    }
-    setShowMatchingConfirmModal(true);
-  };
-
-  // 1) 첫 번째 모달: "이 정보로 신청" 클릭 시 → ⭐ 차감 확인 모달로 이동
-  const handleMatchingConfirm = () => {
-    setShowMatchingConfirmModal(false);
-    setShowMatchingStarConfirmModal(true);
-  };
-
-  // 2) 두 번째 모달: 확인 클릭 시 보상형 광고 표시
-  const handleMatchingStarConfirm = async () => {
-    if (!user?.id) return;
+    if (diffInSeconds < 60) return '방금 전';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}분 전`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}시간 전`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}일 전`;
     
-    // 네이티브 앱에서만 광고 표시
-    if (!isNativeApp()) {
-      await handleActualMatching();
-      return;
-    }
-    
-    setActionLoading(true);
-    let removeListeners: (() => Promise<void>) | null = null;
-    
-    try {
-      // WebView 준비 확인
-      const waitForWebViewReady = () => {
-        return new Promise<void>((resolve) => {
-          if (document.readyState === 'complete') {
-            setTimeout(resolve, 1000);
+    // 7일 이상이면 날짜 표시
+    return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+  };
+
+  // 서버에서 이미 정렬된 데이터를 받으므로 클라이언트 정렬 불필요
+
+  // 쿨다운 타이머 업데이트
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setPostCooldown(prev => prev > 0 ? prev - 1 : 0);
+      setCommentCooldowns(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(key => {
+          const postId = parseInt(key);
+          if (updated[postId] > 0) {
+            updated[postId] -= 1;
           } else {
-            window.addEventListener('load', () => {
-              setTimeout(resolve, 1000);
-            });
+            delete updated[postId];
           }
         });
-      };
-      
-      await waitForWebViewReady();
-      
-      // AdMob 모듈 로드
-      let RewardedAd;
-      let RewardedInterstitialAd;
-      let AdMob;
-      try {
-        const admobModule = await import('@capgo/capacitor-admob');
-        RewardedAd = admobModule.RewardedAd;
-        RewardedInterstitialAd = admobModule.RewardedInterstitialAd || admobModule.RewardedAd;
-        AdMob = admobModule.AdMob;
-      } catch (importError: any) {
-        toast.error('광고 모듈을 불러올 수 없습니다.');
-        setActionLoading(false);
-        return;
-      }
-      
-      // 플랫폼별 광고 ID 설정
-      const { Capacitor } = await import('@capacitor/core');
-      const platform = Capacitor.getPlatform();
-      const isIOS = platform === 'ios';
-      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
-      const adId = isTesting 
-        ? 'ca-app-pub-3940256099942544/5354046379' // Google 테스트 Rewarded Interstitial ID
-        : isIOS
-          ? 'ca-app-pub-1352765336263182/8848248607' // iOS 보상형
-          : 'ca-app-pub-1352765336263182/8702080467'; // Android 보상형
-      
-      // 보상형 전면 광고 생성
-      const rewardedAd = new RewardedInterstitialAd({
-        adUnitId: adId,
+        return updated;
       });
+    }, 1000);
 
-      // 플러그인 이벤트 기반으로 "리워드 지급" 여부를 판정해야 함
-      let rewarded = false;
-      let dismissed = false;
-      let showFailed: string | undefined;
-      let rewardPromise: Promise<void> | null = null;
-      
-      // 광고 로드
+    return () => clearInterval(timer as unknown as number);
+  }, []);
+
+  // 현재 회차 정보 조회 (커뮤니티 전용: 준비중 상태 제외)
+  useEffect(() => {
+    const fetchPeriod = async () => {
       try {
-        await rewardedAd.load();
-      } catch (loadError: any) {
-        // 로드 실패 시 재시도
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        await rewardedAd.load();
+        const data = await matchingApi.getMatchingPeriodForCommunity();
+        const period = data?.current || null;
+        if (period?.id) {
+          setCurrentPeriodId(period.id);
+          setCurrentPeriod(period);
+        } else {
+          // 회차가 없거나 준비중 상태만 있는 경우
+          setCurrentPeriodId(null);
+          setCurrentPeriod(null);
+        }
+      } catch (error) {
+        console.error('[MainPage] 회차 정보 조회 오류:', error);
+        toast.error('회차 정보를 불러올 수 없습니다.');
+        setCurrentPeriodId(null);
+        setCurrentPeriod(null);
       }
+    };
 
-      // 로드 성공 후에 리스너를 등록
-      {
-        let rewardHandle: any;
-        let dismissHandle: any;
-        let showFailHandle: any;
+    fetchPeriod();
+  }, []);
 
-        removeListeners = async () => {
-          try { await rewardHandle?.remove?.(); } catch {}
-          try { await dismissHandle?.remove?.(); } catch {}
-          try { await showFailHandle?.remove?.(); } catch {}
-        };
+  // selectedAnonymousNumber를 ref로 보관 (loadData 재실행 방지, 관리자 익명 ID 변경 시 likes만 갱신)
+  const selectedAnonymousNumberRef = useRef(selectedAnonymousNumber);
+  selectedAnonymousNumberRef.current = selectedAnonymousNumber;
 
-        rewardPromise = new Promise<void>((resolve, reject) => {
-          const safeResolve = async () => {
-            await removeListeners?.();
-            resolve();
-          };
-          const safeReject = async (err: any) => {
-            await removeListeners?.();
-            reject(err);
-          };
+  // 내 익명 ID 및 게시글 목록 조회 (첫 페이지)
+  const loadData = useCallback(async () => {
+    if (!currentPeriodId || !user) return;
 
-          (async () => {
-            try {
-              rewardHandle = await AdMob.addListener('rewardedi.reward', (event: any) => {
-                // console.log('[AdMob] rewardedi.reward 이벤트 수신', event);
-                if (rewarded) return;
-                rewarded = true;
-                // console.log('[AdMob] ✅ 보상 지급 확인');
-                safeResolve();
-              });
-
-              dismissHandle = await AdMob.addListener('rewardedi.dismiss', (event: any) => {
-                // console.log('[AdMob] rewardedi.dismiss 이벤트 수신', event);
-                if (dismissed) return;
-                dismissed = true;
-                // console.log('[AdMob] ❌ 광고 닫힘 확인 (중간에 닫음)');
-                safeResolve();
-              });
-
-              showFailHandle = await AdMob.addListener('rewardedi.showfail', (event: any) => {
-                // console.log('[AdMob] rewardedi.showfail 이벤트 수신', event);
-                showFailed = event?.error || event?.message || '광고 표시 실패';
-                safeReject(new Error(showFailed || '광고 표시 실패'));
-              });
-              
-              // console.log('[AdMob] 📡 보상형 전면 광고 이벤트 리스너 등록 완료');
-            } catch (e) {
-              console.error('[AdMob] ❌ 이벤트 리스너 등록 실패:', e);
-              safeReject(e);
-            }
-          })();
-        });
-      }
-      
-      // 광고 표시
-      await rewardedAd.show();
-
-      // rewarded.reward(보상) 또는 rewarded.dismiss(닫힘) 이벤트를 기다림
-      await Promise.race([
-        rewardPromise!,
-        new Promise<void>((_, reject) => setTimeout(() => reject(new Error('광고 응답이 지연되었습니다. 잠시 후 다시 시도해주세요.')), 90_000)),
+    setLoading(true);
+    try {
+      const anonymousNum = user?.isAdmin && selectedAnonymousNumberRef.current ? selectedAnonymousNumberRef.current : undefined;
+      const [identity, postsResult, likesResult, gaugeResult] = await Promise.all([
+        communityApi.getMyIdentity(currentPeriodId),
+        communityApi.getPosts(currentPeriodId, 20, 0, sortOrder, filter),
+        communityApi.getMyLikes(currentPeriodId, anonymousNum),
+        communityApi.getStarGauge(currentPeriodId).catch(() => ({ gaugeProgress: 0, gaugeMax: 2, starsEarned: 0, segmentCount: 2, starMaxPerPeriod: 3 }))
       ]);
 
-      // 광고 시청 완료 여부에 따라 매칭 신청 처리
-      if (rewarded) {
-        // 광고 시청 완료 → 매칭 신청 진행
-        await handleActualMatching();
-      } else {
-        // 광고를 끝까지 시청하지 않음
-        setActionLoading(false);
-        setShowMatchingStarConfirmModal(false);
-        if (!dismissed) {
-          toast.warning('광고를 끝까지 시청해야 매칭 신청이 완료됩니다.');
-        } else {
-          toast.info('광고를 끝까지 시청해야 매칭 신청이 완료됩니다.');
-        }
-      }
-    } catch (error: any) {
-      toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
-      setActionLoading(false);
+      setMyIdentity(identity);
+      setPosts(postsResult.posts);
+      setOffset(20);
+      setHasMore(postsResult.hasMore);
+      setLikedPostIds(likesResult.likedPostIds);
+      setStarGauge(gaugeResult);
+
+      starApi.getMyStars().then((data) => {
+        const balance = typeof data?.balance === 'number' ? data.balance : 0;
+        window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+      }).catch(() => {});
+    } catch (error) {
+      toast.error('데이터를 불러오는데 실패했습니다.');
     } finally {
-      try { await removeListeners?.(); } catch {}
+      setLoading(false);
+    }
+  }, [currentPeriodId, user, sortOrder, filter]);
+
+  // [관리자] 익명 ID 변경 시 좋아요 목록만 갱신 (전체 loadData 재실행 방지)
+  useEffect(() => {
+    if (!currentPeriodId || !user?.isAdmin) return;
+    const refreshLikes = async () => {
+      const anonymousNum = selectedAnonymousNumber ?? undefined;
+      try {
+        const likesResult = await communityApi.getMyLikes(currentPeriodId, anonymousNum);
+        setLikedPostIds(likesResult.likedPostIds);
+      } catch {
+        // 조용히 실패
+      }
+    };
+    refreshLikes();
+  }, [currentPeriodId, user?.isAdmin, selectedAnonymousNumber]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 매칭 신청 상태 변경 시 게시글 목록 갱신 (태그 업데이트)
+  useEffect(() => {
+    const handleMatchingStatusChanged = () => {
+      if (currentPeriodId && user) {
+        // 게시글 목록만 다시 로드 (태그 갱신)
+        const refreshPosts = async () => {
+          try {
+            const { posts: fetchedPosts, hasMore: more } = await communityApi.getPosts(
+              currentPeriodId!,
+              20,
+              0,
+              sortOrder,
+              filter
+            );
+            setPosts(fetchedPosts);
+            setOffset(20);
+            setHasMore(more);
+          } catch (error) {
+            // 조용히 실패 (사용자에게 알림 없음)
+          }
+        };
+        refreshPosts();
+      }
+    };
+
+    window.addEventListener('matching-status-changed', handleMatchingStatusChanged);
+
+    return () => {
+      window.removeEventListener('matching-status-changed', handleMatchingStatusChanged);
+    };
+  }, [currentPeriodId, user, sortOrder, filter]);
+
+  // URL 파라미터로 특정 게시글로 이동 및 댓글창 열기
+  useEffect(() => {
+    const postIdParam = searchParams.get('postId');
+    const openComments = searchParams.get('openComments') === 'true';
+    
+    if (!postIdParam || !posts.length) return;
+    
+    const targetPostId = parseInt(postIdParam, 10);
+    if (isNaN(targetPostId)) return;
+    
+    // 게시글이 현재 로드된 목록에 있는지 확인
+    const targetPost = posts.find(p => p.id === targetPostId);
+    
+    if (targetPost) {
+      // 게시글이 있으면 댓글창 열기 및 스크롤
+      if (openComments && !expandedPosts.has(targetPostId)) {
+        // 댓글 로드 및 댓글창 열기
+        const loadAndOpenComments = async () => {
+          try {
+            const { comments: fetchedComments } = await communityApi.getComments(targetPostId);
+            setComments(prev => ({ ...prev, [targetPostId]: fetchedComments }));
+            setExpandedPosts(prev => new Set(prev).add(targetPostId));
+            
+            // 스크롤 (약간의 딜레이를 두어 DOM 업데이트 후 실행)
+            setTimeout(() => {
+              const postElement = postRefs.current[targetPostId];
+              if (postElement) {
+                postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 300);
+          } catch (error) {
+            toast.error('댓글을 불러오는데 실패했습니다.');
+          }
+        };
+        
+        loadAndOpenComments();
+      } else if (!openComments) {
+        // 댓글창은 열지 않고 스크롤만
+        setTimeout(() => {
+          const postElement = postRefs.current[targetPostId];
+          if (postElement) {
+            postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }
+      
+      // URL 파라미터 제거 (한 번만 실행되도록)
+      setSearchParams({}, { replace: true });
+    } else {
+      // 게시글이 현재 목록에 없으면 더 로드 시도 (최대 5페이지까지)
+      const tryLoadMore = async () => {
+        let currentOffset = offset;
+        let attempts = 0;
+        const maxAttempts = 5; // 최대 5페이지 (100개 게시글)
+        
+        while (attempts < maxAttempts) {
+          try {
+            const { posts: morePosts, hasMore: more } = await communityApi.getPosts(
+              currentPeriodId!,
+              20,
+              currentOffset,
+              sortOrder,
+              filter
+            );
+            
+            if (morePosts.length === 0) break;
+            
+            setPosts(prev => [...prev, ...morePosts]);
+            currentOffset += 20;
+            setOffset(currentOffset);
+            setHasMore(more);
+            
+            // 찾는 게시글이 있는지 확인
+            const found = morePosts.find(p => p.id === targetPostId);
+            if (found) {
+              // 찾았으면 댓글창 열기
+              if (openComments) {
+                try {
+                  const { comments: fetchedComments } = await communityApi.getComments(targetPostId);
+                  setComments(prev => ({ ...prev, [targetPostId]: fetchedComments }));
+                  setExpandedPosts(prev => new Set(prev).add(targetPostId));
+                } catch (error) {
+                  // 댓글 로드 실패는 무시
+                }
+              }
+              
+              // 스크롤
+              setTimeout(() => {
+                const postElement = postRefs.current[targetPostId];
+                if (postElement) {
+                  postElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+              }, 300);
+              
+              // URL 파라미터 제거
+              setSearchParams({}, { replace: true });
+              break;
+            }
+            
+            if (!more) break; // 더 이상 로드할 게시글이 없으면 중단
+            attempts++;
+          } catch (error) {
+            break;
+          }
+        }
+      };
+      
+      if (currentPeriodId && hasMore) {
+        tryLoadMore();
+      }
+    }
+  }, [posts, searchParams, expandedPosts, currentPeriodId, offset, sortOrder, filter, hasMore, setSearchParams]);
+
+  // [관리자 전용] 익명 ID 목록 조회
+  const loadAdminIdentities = useCallback(async () => {
+    if (!currentPeriodId || !user?.isAdmin) return;
+
+    try {
+      const { identities } = await communityApi.getAdminIdentities(currentPeriodId);
+      setAdminIdentities(identities);
+      
+      // 첫 번째 익명 ID를 기본 선택
+      if (identities.length > 0 && !selectedAnonymousNumber) {
+        setSelectedAnonymousNumber(identities[0].anonymousNumber);
+      }
+    } catch (error) {
+      // 익명 ID 조회 실패 (무시)
+    }
+  }, [currentPeriodId, user, selectedAnonymousNumber]);
+
+  useEffect(() => {
+    if (user?.isAdmin) {
+      loadAdminIdentities();
+    }
+  }, [user, loadAdminIdentities]);
+
+  // 더 많은 게시글 로드 (페이지네이션)
+  const loadMore = async () => {
+    if (!currentPeriodId || !hasMore || loadingMore) return;
+
+    setLoadingMore(true);
+    try {
+      const { posts: morePosts, hasMore: more } = await communityApi.getPosts(currentPeriodId, 20, offset, sortOrder, filter);
+      setPosts(prev => [...prev, ...morePosts]);
+      setOffset(prev => prev + 20);
+      setHasMore(more);
+    } catch (error) {
+      toast.error('데이터를 불러오는데 실패했습니다.');
+    } finally {
+      setLoadingMore(false);
     }
   };
 
-  // 실제 매칭 신청 처리
-  const handleActualMatching = async () => {
-    if (!user?.id) return;
-    setActionLoading(true);
+  // [관리자 전용] 새 익명 ID 생성 (자동 번호)
+  const handleCreateIdentity = async () => {
+    if (!currentPeriodId) return;
+    
+    setCreatingIdentity(true);
     try {
-      const res = await matchingApi.requestMatching(user.id);
-      // ✅ 사이드바 별 잔액 즉시 반영
-      await syncSidebarStarBalance(res?.newStarBalance);
-      toast.success('매칭 신청이 완료되었습니다!');
-
-      // 백엔드 업데이트 완료를 위한 지연 시간 증가
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // 순차적으로 상태 업데이트 (users 테이블 우선 업데이트)
-      await fetchUser(true);
-      await fetchMatchingStatus();
-
-      // 커뮤니티 페이지 태그 갱신을 위한 이벤트 발생
-      window.dispatchEvent(new CustomEvent('matching-status-changed'));
-
-      setShowMatchingStarConfirmModal(false);
+      const result = await communityApi.createAdminIdentity(currentPeriodId);
+      toast.success(result.message);
+      await loadAdminIdentities(); // 목록 새로고침
+      setSelectedAnonymousNumber(result.anonymousNumber); // 새로 만든 ID를 선택
     } catch (error: any) {
-      const code = error?.response?.data?.code;
-      const msg = error?.response?.data?.message || '매칭 신청에 실패했습니다.';
+      toast.error(error?.response?.data?.error || '익명 ID 생성에 실패했습니다.');
+    } finally {
+      setCreatingIdentity(false);
+    }
+  };
 
-      // ⭐ 부족 시: 안내 토스트 후 모달 닫기
-      if (code === 'INSUFFICIENT_STARS') {
-        toast.error(msg);
-        setShowMatchingStarConfirmModal(false);
-        setShowMatchingConfirmModal(false);
+  // [관리자 전용] 익명 ID 일괄 생성 (N개)
+  const handleCreateBulkIdentities = async () => {
+    if (!currentPeriodId) return;
+    
+    const count = parseInt(bulkCreateCount, 10);
+    if (!count || count < 1 || count > 100) {
+      toast.error('생성 개수는 1개 이상 100개 이하여야 합니다.');
+      return;
+    }
+    
+    setCreatingBulkIdentity(true);
+    try {
+      const result = await communityApi.createAdminIdentitiesBulk(currentPeriodId, count);
+      toast.success(result.message);
+      await loadAdminIdentities(); // 목록 새로고침
+      setBulkCreateCount('1'); // 입력 필드 초기화
+      // 마지막 생성된 ID를 선택
+      if (result.identities && result.identities.length > 0) {
+        const lastIdentity = result.identities[result.identities.length - 1];
+        setSelectedAnonymousNumber(lastIdentity.anonymousNumber);
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || '익명 ID 일괄 생성에 실패했습니다.');
+    } finally {
+      setCreatingBulkIdentity(false);
+    }
+  };
+
+  // 게시글 작성
+  const handleSubmitPost = async () => {
+    if (!currentPeriodId) return;
+    if (!newPostContent.trim()) {
+      toast.warn('내용을 입력해주세요.');
+      return;
+    }
+    if (newPostContent.length < 12) {
+      toast.warn('게시글은 12자 이상 작성해주세요.');
+      return;
+    }
+    const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+    const fixedPostTag = selectedIdentity?.fixedDisplayTag;
+    // 관리자 익명 작성 시: 태그 선택 필수
+    if (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !fixedPostTag && !selectedPostDisplayTag) {
+      toast.warn('익명으로 작성할 때는 태그를 선택해주세요.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
+      const displayTag = user?.isAdmin && !postAsAdmin && showTagSelector
+        ? (fixedPostTag ?? selectedPostDisplayTag)
+        : undefined;
+      await communityApi.createPost(currentPeriodId, newPostContent, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
+      setNewPostContent('');
+      setPostCooldown(30); // 30초 쿨다운 시작
+      const prevStars = starGauge?.starsEarned ?? 0;
+      const prevFragments = starGauge?.fragmentCount ?? 0;
+      communityApi.getStarGauge(currentPeriodId).then((newGauge) => {
+        setStarGauge(newGauge);
+        const earned = (newGauge?.starsEarned ?? 0) - prevStars;
+        const earnedFragments = (newGauge?.fragmentCount ?? 0) - prevFragments;
+        toast.success(
+          earnedFragments > 0 ? (
+            <>게시글이 작성되었습니다.<br />별조각✨을 {earnedFragments}개 획득하였습니다.</>
+          ) : '게시글이 작성되었습니다.'
+        );
+        if (earned > 0) {
+          setShowStarEarnedModal(true);
+          starApi.getMyStars().then((data) => {
+            const balance = typeof data?.balance === 'number' ? data.balance : 0;
+            window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+          }).catch(() => {});
+        }
+      }).catch(() => {
+        toast.success('게시글이 작성되었습니다.');
+      });
+      loadData();
+      if (user?.isAdmin) {
+        loadAdminIdentities(); // 관리자 익명 ID 목록 갱신
+      }
+    } catch (error: any) {
+      const errorData = error?.response?.data;
+      
+      // 429 에러 (쿨다운 또는 횟수 제한)
+      if (error?.response?.status === 429) {
+        if (errorData?.cooldown) {
+          setPostCooldown(errorData.cooldown);
+        }
+        toast.error(errorData?.error || '게시글 작성에 실패했습니다.');
+      } else {
+        toast.error(errorData?.error || '게시글 작성에 실패했습니다.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // 좋아요 토글
+  const handleToggleLike = async (postId: number) => {
+    try {
+      // 관리자는 현재 선택된 익명 번호로 좋아요
+      const anonymousNum = user?.isAdmin ? selectedAnonymousNumber : undefined;
+      const { liked } = await communityApi.toggleLike(postId, anonymousNum || undefined);
+      if (liked) {
+        setLikedPostIds(prev => [...prev, postId]);
+      } else {
+        setLikedPostIds(prev => prev.filter(id => id !== postId));
+      }
+
+      // 게시글 목록 갱신 (like_count 반영)
+      setPosts(prev => prev.map(post => {
+        if (post.id === postId) {
+          return { ...post, like_count: post.like_count + (liked ? 1 : -1) };
+        }
+        return post;
+      }));
+    } catch (error: any) {
+      // 410 에러 (삭제된 게시글)인 경우
+      if (error?.response?.status === 410 && error?.response?.data?.code === 'POST_DELETED') {
+        toast.error('삭제된 게시글입니다. 페이지를 새로고침합니다.');
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        toast.error('좋아요 처리에 실패했습니다.');
+      }
+    }
+  };
+
+  // 댓글 토글
+  const handleToggleComments = async (postId: number) => {
+    if (expandedPosts.has(postId)) {
+      setExpandedPosts(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(postId);
+        return newSet;
+      });
+    } else {
+      // 이미 캐시된 댓글이 있으면 API 호출 없이 즉시 펼치기
+      if (comments[postId]) {
+        setExpandedPosts(prev => new Set(prev).add(postId));
         return;
       }
-
-      toast.error(msg);
-    } finally {
-      setActionLoading(false);
+      setLoadingComments(prev => new Set(prev).add(postId));
+      setExpandedPosts(prev => new Set(prev).add(postId)); // 즉시 펼쳐서 로딩 표시
+      try {
+        const { comments: fetchedComments } = await communityApi.getComments(postId);
+        setComments(prev => ({ ...prev, [postId]: fetchedComments }));
+      } catch (error) {
+        toast.error('댓글을 불러오는데 실패했습니다.');
+      } finally {
+        setLoadingComments(prev => {
+          const next = new Set(prev);
+          next.delete(postId);
+          return next;
+        });
+      }
     }
   };
 
-  // 매칭 신청 취소 (모달에서만 호출)
-  const handleCancel = async () => {
-    if (!user?.id) return;
-    setActionLoading(true);
+  // 댓글 작성
+  const handleSubmitComment = async (postId: number) => {
+    const content = commentInputs[postId];
+    if (!content?.trim()) {
+      toast.warn('댓글 내용을 입력해주세요.');
+      return;
+    }
+    if (content.length > 100) {
+      toast.warn('댓글은 100자 이내로 작성해주세요.');
+      return;
+    }
+    const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+    const fixedCommentTag = selectedIdentity?.fixedDisplayTag;
+    if (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !fixedCommentTag && !selectedCommentDisplayTag) {
+      toast.warn('익명으로 작성할 때는 태그를 선택해주세요.');
+      return;
+    }
+
     try {
-      const res = await matchingApi.cancelMatching(user.id);
-      // ✅ 사이드바 별 잔액 즉시 반영
-      await syncSidebarStarBalance(res?.newStarBalance);
-      const msg = res?.message || '매칭 신청이 취소되었습니다.';
-      toast.success(msg);
-      
-      // 백엔드 업데이트 완료를 위한 지연 시간 증가
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 순차적으로 상태 업데이트 (users 테이블 우선 업데이트)
-      await fetchUser(true);
-      await fetchMatchingStatus();
+      const preferredNumber = user?.isAdmin ? selectedAnonymousNumber : undefined;
+      const displayTag = user?.isAdmin && !postAsAdmin && showTagSelector
+        ? (fixedCommentTag ?? selectedCommentDisplayTag)
+        : undefined;
+      const { comment: newComment } = await communityApi.createComment(postId, content, preferredNumber ?? undefined, postAsAdmin || undefined, displayTag);
+      setCommentInputs(prev => ({ ...prev, [postId]: '' }));
+      setCommentCooldowns(prev => ({ ...prev, [postId]: 10 })); // 10초 쿨다운 시작
+      if (currentPeriodId) {
+        const prevStars = starGauge?.starsEarned ?? 0;
+        const prevFragments = starGauge?.fragmentCount ?? 0;
+        communityApi.getStarGauge(currentPeriodId).then((newGauge) => {
+          setStarGauge(newGauge);
+          const earned = (newGauge?.starsEarned ?? 0) - prevStars;
+          const earnedFragments = (newGauge?.fragmentCount ?? 0) - prevFragments;
+          toast.success(
+            earnedFragments > 0 ? (
+              <>댓글이 작성되었습니다.<br />별조각✨을 {earnedFragments}개 획득하였습니다.</>
+            ) : '댓글이 작성되었습니다.'
+          );
+          if (earned > 0) {
+            setShowStarEarnedModal(true);
+            starApi.getMyStars().then((data) => {
+              const balance = typeof data?.balance === 'number' ? data.balance : 0;
+              window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+            }).catch(() => {});
+          }
+        }).catch(() => {
+          toast.success('댓글이 작성되었습니다.');
+        });
+      } else {
+        toast.success('댓글이 작성되었습니다.');
+      }
 
-      // 커뮤니티 페이지 태그 갱신을 위한 이벤트 발생
-      window.dispatchEvent(new CustomEvent('matching-status-changed'));
+      // createComment 응답으로 댓글 목록 갱신 (getComments 호출 제거)
+      const normalizedComment = {
+        ...newComment,
+        blocked_by_me: false,
+        report_count: newComment.report_count ?? 0,
+        is_deleted: false,
+      };
+      setComments(prev => ({
+        ...prev,
+        [postId]: [...(prev[postId] ?? []), normalizedComment],
+      }));
+
+      // 게시글 comment_count 증가
+      setPosts(prev => prev.map(post => {
+        if (post.id === postId) {
+          return { ...post, comment_count: post.comment_count + 1 };
+        }
+        return post;
+      }));
       
-      setShowCancelConfirmModal(false);
+      if (user?.isAdmin) {
+        loadAdminIdentities(); // 관리자 익명 ID 목록 갱신
+      }
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || '신청 취소에 실패했습니다.');
-    } finally {
-      setActionLoading(false);
+      const errorData = error?.response?.data;
+      
+      // 410 에러 (삭제된 게시글)인 경우
+      if (error?.response?.status === 410 && errorData?.code === 'POST_DELETED') {
+        toast.error('삭제된 게시글입니다. 페이지를 새로고침합니다.');
+        setTimeout(() => window.location.reload(), 1500);
+      } 
+      // 429 에러 (쿨다운)
+      else if (error?.response?.status === 429) {
+        if (errorData?.cooldown) {
+          setCommentCooldowns(prev => ({ ...prev, [postId]: errorData.cooldown }));
+        }
+        toast.error(errorData?.error || '댓글 작성에 실패했습니다.');
+      } 
+      else {
+        toast.error(errorData?.error || '댓글 작성에 실패했습니다.');
+      }
     }
   };
 
+  // 게시글 삭제 요청
+  const requestDeletePost = (postId: number) => {
+    setDeleteTarget({ type: 'post', id: postId });
+    setShowDeleteModal(true);
+  };
 
+  // 댓글 삭제 요청
+  const requestDeleteComment = (postId: number, commentId: number) => {
+    setDeleteTarget({ type: 'comment', id: commentId, postId });
+    setShowDeleteModal(true);
+  };
 
-  // 닉네임 또는 이메일로 인사 (닉네임이 있으면 닉네임, 없으면 이메일)
-  const displayName = profile?.nickname || user?.email?.split('@')[0] || '사용자';
+  // 삭제 확인
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
 
-  // 정지 상태 체크 (최우선 필터링)
-  const isBanned = user.is_banned === true;
-  const bannedUntil = user.banned_until ? new Date(user.banned_until) : null;
-  const isPermanentBan = isBanned && !bannedUntil;
-  const isTemporaryBan = isBanned && bannedUntil;
-  const isBanExpired = isTemporaryBan && bannedUntil && bannedUntil < now;
+    try {
+      if (deleteTarget.type === 'post') {
+        await communityApi.deletePost(deleteTarget.id);
+        toast.success('게시글이 삭제되었습니다.');
+        loadData();
+      } else if (deleteTarget.type === 'comment' && deleteTarget.postId) {
+        await communityApi.deleteComment(deleteTarget.id);
+        toast.success('댓글이 삭제되었습니다.');
 
-  // 정지 상태일 때 UI 분기
-  if (isBanned && !isBanExpired) {
-    const banMessage = isPermanentBan 
-      ? '영구정지로 인해 매칭 신청이 불가능합니다.'
-      : `매칭 신청이 불가능합니다.\n${formatKST(user.banned_until!)}까지 정지되었습니다.`;
+        // 댓글 목록 갱신
+        const { comments: fetchedComments } = await communityApi.getComments(deleteTarget.postId);
+        setComments(prev => ({ ...prev, [deleteTarget.postId!]: fetchedComments }));
+
+        // 게시글 comment_count 감소
+        setPosts(prev => prev.map(post => {
+          if (post.id === deleteTarget.postId) {
+            return { ...post, comment_count: Math.max(post.comment_count - 1, 0) };
+          }
+          return post;
+        }));
+      }
+      if (currentPeriodId) {
+        communityApi.getStarGauge(currentPeriodId).then((newGauge) => {
+          setStarGauge(newGauge);
+          starApi.getMyStars().then((data) => {
+            const balance = typeof data?.balance === 'number' ? data.balance : 0;
+            window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance } }));
+          }).catch(() => {});
+        }).catch(() => {});
+      }
+    } catch (error) {
+      toast.error('삭제에 실패했습니다.');
+    } finally {
+      setShowDeleteModal(false);
+      setDeleteTarget(null);
+    }
+  };
+
+  // 차단 확인 모달 열기
+  const requestBlockUser = (periodId: number, anonymousNumber: number, postId?: number) => {
+    setBlockTarget({ periodId, anonymousNumber, postId });
+    setShowBlockModal(true);
+  };
+
+  const handleAdminViewProfile = async (periodId: number, anonymousNumber: number) => {
+    if (!user?.isAdmin || !currentPeriodId) return;
+    setProfileModalLoading(true);
+    setShowProfileModal(true);
+    setProfileModalData(null);
+    try {
+      const data = await communityApi.getUserByAnonymous(periodId, anonymousNumber);
+      setProfileModalData({
+        anonymousNumber,
+        email: data.email,
+        profile: data.profile || {}
+      });
+    } catch (err) {
+      toast.error('프로필을 불러오는데 실패했습니다.');
+      setShowProfileModal(false);
+    } finally {
+      setProfileModalLoading(false);
+    }
+  };
+
+  // 익명 사용자 차단 실행 (모달에서 확인 시)
+  const confirmBlockUser = async () => {
+    if (!blockTarget) return;
+    try {
+      await communityApi.blockUser(blockTarget.periodId, blockTarget.anonymousNumber);
+      toast.success('차단되었습니다.');
+      setShowBlockModal(false);
+      setBlockTarget(null);
+      loadData();
+      if (blockTarget.postId != null) {
+        const { comments: fetchedComments } = await communityApi.getComments(blockTarget.postId);
+        setComments(prev => ({ ...prev, [blockTarget.postId!]: fetchedComments }));
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || '차단에 실패했습니다.');
+    }
+  };
+
+  // 차단 해제
+  const handleUnblockUser = async (periodId: number, anonymousNumber: number, postId?: number) => {
+    try {
+      await communityApi.unblockUser(periodId, anonymousNumber);
+      toast.success('차단이 해제되었습니다.');
+      loadData();
+      if (postId != null) {
+        const { comments: fetchedComments } = await communityApi.getComments(postId);
+        setComments(prev => ({ ...prev, [postId]: fetchedComments }));
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || '차단 해제에 실패했습니다.');
+    }
+  };
+
+  // 신고 요청
+  const requestReport = (targetType: 'post' | 'comment', targetId: number) => {
+    const reportKey = `${targetType}:${targetId}`;
     
+    // 이미 신고한 항목인지 확인
+    if (reportedItems.has(reportKey)) {
+      toast.info('이미 신고한 ' + (targetType === 'post' ? '게시글' : '댓글') + '입니다.');
+      return;
+    }
+    
+    setReportTarget({ type: targetType, id: targetId });
+    setReportCategory('욕설');
+    setReportDetail('');
+    setShowReportModal(true);
+  };
+
+  // 신고 확인
+  const confirmReport = async () => {
+    if (!reportTarget) return;
+
+    const reason = `[${reportCategory}] ${reportDetail.trim() || '상세 내용 없음'}`;
+    const reportKey = `${reportTarget.type}:${reportTarget.id}`;
+
+    try {
+      // 관리자는 현재 선택된 익명 번호로 신고
+      const anonymousNum = user?.isAdmin ? selectedAnonymousNumber : undefined;
+      await communityApi.reportContent(reportTarget.type, reportTarget.id, reason, anonymousNum || undefined);
+      
+      // 신고 성공 시 reportedItems에 추가
+      setReportedItems(prev => new Set(prev).add(reportKey));
+      
+      toast.success('신고가 접수되었습니다.');
+      setShowReportModal(false);
+      setReportTarget(null);
+      setReportCategory('욕설');
+      setReportDetail('');
+      
+      // 페이지 갱신 (신고 누적으로 삭제된 게시글/댓글 반영)
+      loadData();
+    } catch (error: any) {
+      // 410 에러 (삭제된 게시글/댓글)인 경우
+      if (error?.response?.status === 410) {
+        const code = error?.response?.data?.code;
+        if (code === 'POST_DELETED') {
+          toast.error('삭제된 게시글입니다. 페이지를 새로고침합니다.');
+        } else if (code === 'COMMENT_DELETED') {
+          toast.error('삭제된 댓글입니다. 페이지를 새로고침합니다.');
+        } else {
+          toast.error('삭제된 항목입니다. 페이지를 새로고침합니다.');
+        }
+        setShowReportModal(false);
+        setReportTarget(null);
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      }
+      
+      const errorMsg = error?.response?.data?.error || '신고에 실패했습니다.';
+      
+      // 이미 신고한 경우 reportedItems에 추가
+      if (errorMsg.includes('이미 신고')) {
+        setReportedItems(prev => new Set(prev).add(reportKey));
+      }
+      
+      toast.error(errorMsg);
+      setShowReportModal(false);
+      setReportTarget(null);
+    }
+  };
+
+  // [관리자 전용] 강제 삭제
+  const handleAdminDelete = async (targetType: 'post' | 'comment', targetId: number, postId?: number) => {
+    if (!window.confirm(`정말로 이 ${targetType === 'post' ? '게시글' : '댓글'}을(를) 삭제하시겠습니까?\n\n삭제된 글은 "관리자에 의해 차단된 글입니다"로 표시됩니다.`)) {
+      return;
+    }
+
+    try {
+      if (targetType === 'post') {
+        await communityApi.adminDeletePost(targetId);
+        toast.success('게시글이 삭제되었습니다.');
+      } else {
+        await communityApi.adminDeleteComment(targetId);
+        toast.success('댓글이 삭제되었습니다.');
+      }
+      
+      // 페이지 갱신
+      loadData();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || '삭제에 실패했습니다.');
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (!currentPeriodId) {
+      // 회차 없음 화면: 회차 정보만 재조회 (loadData는 useEffect에서 자동 실행)
+      try {
+        const data = await matchingApi.getMatchingPeriodForCommunity();
+        const period = data?.current || null;
+        if (period?.id) {
+          setCurrentPeriodId(period.id);
+          setCurrentPeriod(period);
+        }
+      } catch {
+        toast.error('회차 정보를 불러올 수 없습니다.');
+      }
+    } else {
+      // 게시글 목록 등만 다시 로드 (전체 페이지 새로고침 대신)
+      loadData();
+    }
+  };
+
+  const getPeriodStatusText = (status: string, periodNum: number) => {
+    if (status === '진행중') return `${periodNum}회차 매칭 신청중`;
+    if (status === '발표완료') return `${periodNum}회차 매칭 진행중`;
+    if (status === '종료') return `${periodNum}회차 매칭 종료`;
+    return `${periodNum}회차`;
+  };
+
+  const getResetInfo = (status: string, periodNum: number) => {
+    if (status === '종료') return `${periodNum + 1}회차 신청 시작 시 초기화`;
+    if (status === '진행중') return `${periodNum}회차 매칭 발표 시 초기화`;
+    if (status === '발표완료') return `${periodNum}회차 매칭 종료 시 초기화`;
+    return '';
+  };
+
+  if (loading) {
     return (
-      <MainContainer $sidebarOpen={sidebarOpen}>
-        <TopHeaderRow>
-          <div style={{ width: '100%' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <TopWelcomeTitle>
-                환영합니다,{' '}
-                <NicknameSpan
-                  onClick={() => setShowProfileModal(true)}
-                  style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-                >
-                  {displayName}
-                </NicknameSpan>
-                님!
-              </TopWelcomeTitle>
-              {/* 알림 종: 모바일에서 fixed로 상단 고정 (사이드바 버튼과 같은 줄). 데스크톱에서는 스페이서 숨김 */}
-              <div className="main-notification-bell-spacer" style={{ width: 40, height: 40, flexShrink: 0 }} aria-hidden="true" />
-              <div className="main-notification-bell-fixed" style={{
-                position: 'fixed', top: 16, right: 20, zIndex: 1000,
-              }}>
-                <button
-                  type="button"
-                  onClick={() => { navigate('/notifications'); }}
-                  style={{
-                    border: 'none', background: 'rgba(15,23,42,0.4)', borderRadius: '999px',
-                    width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', color: '#e5e7eb', boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
-                    padding: 0, position: 'relative',
-                  }}
-                >
-                  <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
-                </button>
+      <Container $sidebarOpen={sidebarOpen}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 4rem)',
+        }}>
+          <InlineSpinner text="커뮤니티를 불러오는 중..." />
+        </div>
+      </Container>
+    );
+  }
+
+  if (!currentPeriodId) {
+    return (
+      <Container $sidebarOpen={sidebarOpen}>
+        {/* 환영문구 + 알림 플로팅 */}
+        <div style={{ marginBottom: '2rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: '0.4rem' }}>
+            <h1 style={{ color: '#ffffff', margin: 0, fontSize: '2.4rem', fontWeight: 800, lineHeight: 1.3, textShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
+              환영합니다, <span style={{ color: '#fffb8a' }}>{displayName}</span> 님!
+            </h1>
+            <div style={{ width: 40, flexShrink: 0 }} aria-hidden="true" />
+          </div>
+          <FloatingNotificationButton
+                type="button"
+                onClick={() => navigate('/notifications')}
+                title="알림함"
+              >
+                <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
                 {notificationUnreadCount > 0 && (
-                  <div style={{
+                  <span style={{
                     position: 'absolute', top: -4, right: -4,
                     background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', color: 'white',
                     borderRadius: '50%', minWidth: 22, height: 22,
@@ -2773,426 +2227,140 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                     zIndex: 10, padding: '0 4px',
                   }}>
                     {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
-                  </div>
-                )}
-              </div>
-            </div>
-            <TopWelcomeSubtitle>
-              직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
-            </TopWelcomeSubtitle>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
-              <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
-                <span>{isNativeApp() ? '푸시알림이 필요한 이유' : '아이폰 푸시알림 안내'}</span>
-                <FaInfoCircle size={10} />
-              </IosGuideButton>
-              <PushToggleBlock style={{ margin: 0 }}>
-                <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
-                <SwitchLabel>
-                  <SwitchInput
-                    type="checkbox"
-                    checked={isPushEnabled}
-                    onChange={() => {
-                      if (isPushBusy) {
-                        return; // 토큰 발급 중에는 무시
-                      }
-                      
-                      if (!isPushEnabled) {
-                        // 네이티브 앱에서는 안내 모달 표시 안함
-                        if (!isNativeApp()) {
-                          setShowPushConfirmModal(true);
-                        } else {
-                          handleTogglePush();
-                        }
-                      } else {
-                        handleTogglePush();
-                      }
-                    }}
-                    disabled={isLoading || isPushBusy}
-                    title={isLoading ? '로딩 중입니다...' : isPushBusy ? '푸시 알림 설정 중...' : ''}
-                  />
-                  <SwitchSlider />
-                </SwitchLabel>
-                {isNativeApp() && pushPermissionStatus === 'denied' && !isPushBusy && (
-                  <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
-                    (알림 권한 필요)
                   </span>
                 )}
-              </PushToggleBlock>
-            </div>
-          </div>
-        </TopHeaderRow>
-
-        {/* 커뮤니티 바로가기 카드 (별도) */}
-        {communityEnabled && (
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.95)',
-            border: '1px solid rgba(124, 58, 237, 0.15)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            marginBottom: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '10px',
-            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
-          }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ 
-                color: '#7C3AED', 
-                fontSize: '0.75rem',
-                fontWeight: '500',
-                margin: 0,
-                lineHeight: '1.3',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                💬 매칭 되기 전까지 심심하시죠?
-              </p>
-              <p style={{ 
-                color: '#9ca3af', 
-                fontSize: '0.7rem',
-                margin: '2px 0 0 0',
-                lineHeight: '1.2',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                커뮤니티에서 익명으로 자유롭게 소통해보세요
-              </p>
-            </div>
-            <button
-              onClick={() => navigate('/community')}
-              style={{
-                position: 'relative',
-                background: 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)',
-                color: 'white',
-                border: 'none',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 4px rgba(124, 58, 237, 0.2)',
-                whiteSpace: 'nowrap',
-                flexShrink: 0
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 2px 6px rgba(124, 58, 237, 0.3)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 1px 4px rgba(124, 58, 237, 0.2)';
-              }}
-            >
-              <NewBadge>NEW!</NewBadge>
-              커뮤니티
-            </button>
-          </div>
-        )}
-
-        {/* 가위바위보 아레나 바로가기 카드 */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.95)',
-          border: '1px solid rgba(124, 58, 237, 0.15)',
-          borderRadius: '10px',
-          padding: '10px 14px',
-          marginBottom: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '10px',
-          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{
-              color: '#7C3AED',
-              fontSize: '0.75rem',
-              fontWeight: '500',
-              margin: 0,
-              lineHeight: '1.3',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              ⭐ 별이 모자라다구? 가위바위보는 할 줄 알지?
-            </p>
-            <p style={{
-              color: '#9ca3af',
-              fontSize: '0.7rem',
-              margin: '2px 0 0 0',
-              lineHeight: '1.2',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              하루 세판 가위바위보를 해서 별을 더 획득해보세요!
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/rps-arena')}
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              fontSize: '0.75rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 1px 4px rgba(102, 126, 234, 0.2)',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-              overflow: 'visible'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 2px 6px rgba(102, 126, 234, 0.3)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 1px 4px rgba(102, 126, 234, 0.2)';
-            }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: -6, lineHeight: 1, overflow: 'visible' }}>
-              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(2px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 3 }}>🗿</span>
-              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-5px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))', zIndex: 2 }}>✂️</span>
-              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-1px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 1 }}>📄</span>
-            </span>
-          </button>
-        </div>
-
-        <WelcomeSection>
-          {/* 이메일 인증 알림 */}
-          {user?.is_verified === false && (
-            <div style={{
-              background: 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)',
-              border: '2px solid #f39c12',
-              borderRadius: '16px',
-              padding: '20px',
-              marginTop: '1.5rem',
-              textAlign: 'center',
-              boxShadow: '0 4px 12px rgba(243, 156, 18, 0.2)'
-            }}>
-              <div style={{ 
-                fontSize: '1.1rem', 
-                fontWeight: '600', 
-                color: '#d68910', 
-                marginBottom: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}>
-                <span>⚠️</span>
-                <span>이메일 인증이 필요합니다</span>
+              </FloatingNotificationButton>
+          <p style={{ color: '#e5e7ff', fontSize: '1.05rem', margin: 0, marginBottom: '1.4rem', lineHeight: 1.5, textShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
+            직장인 커뮤니티에 오신 것을 환영합니다.
+          </p>
+          {/* 가위바위보, 매칭신청 디렉션 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.4rem' }}>
+            <div style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: '#7C3AED', fontSize: '0.75rem', fontWeight: 500, margin: 0 }}>⭐ 별이 모자라다구? 가위바위보는 할 줄 알지?</p>
+                <p style={{ color: '#9ca3af', fontSize: '0.7rem', margin: '2px 0 0 0' }}>하루 세판 가위바위보를 해서 별을 더 획득해보세요!</p>
               </div>
-              <p style={{ 
-                color: '#856404', 
-                margin: '0 0 16px 0', 
-                fontSize: '0.95rem',
-                lineHeight: '1.4'
-              }}>
-                매칭 신청 및 프로필 수정을 위해서는 이메일 인증을 완료해주세요.
-              </p>
               <button
-                onClick={() => setShowEmailVerificationModal(true)}
+                onClick={() => navigate('/rps-arena')}
                 style={{
-                  background: '#f39c12',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   color: 'white',
                   border: 'none',
-                  padding: '12px 24px',
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  fontWeight: '600',
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  boxShadow: '0 2px 8px rgba(243, 156, 18, 0.3)'
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.background = '#e67e22';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.background = '#f39c12';
-                  e.currentTarget.style.transform = 'translateY(0)';
+                  boxShadow: '0 1px 4px rgba(102, 126, 234, 0.2)',
+                  whiteSpace: 'nowrap',
+                  flexShrink: 0,
+                  overflow: 'visible'
                 }}
               >
-                📧 이메일 인증하기
+                <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: -6, lineHeight: 1, overflow: 'visible' }}>
+                  <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(2px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 3 }}>🗿</span>
+                  <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-5px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))', zIndex: 2 }}>✂️</span>
+                  <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-1px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 1 }}>📄</span>
+                </span>
               </button>
             </div>
-          )}
-          
-          {/* 정지 상태 안내 */}
-          <div style={{
-            background: 'linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)',
-            border: '2px solid #feb2b2',
-            borderRadius: '16px',
-            padding: '24px',
-            marginTop: '2rem',
-            textAlign: 'center',
-            boxShadow: '0 4px 12px rgba(254, 178, 178, 0.2)'
-          }}>
-            <div style={{
-              fontSize: '1.5rem',
-              fontWeight: '700',
-              color: '#e53e3e',
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
-            }}>
-              <span style={{ fontSize: '1.8rem' }}>⚠️</span>
-              {isPermanentBan ? '영구정지' : '기간정지'}
-            </div>
-            <div style={{
-              fontSize: '1.1rem',
-              color: '#c53030',
-              fontWeight: '600',
-              lineHeight: '1.6',
-              whiteSpace: 'pre-line'
-            }}>
-              {banMessage}
-            </div>
-            {isTemporaryBan && (
-              <div style={{
-                fontSize: '0.95rem',
-                color: '#744210',
-                marginTop: '12px',
-                fontWeight: '500'
-              }}>
-                정지 기간이 만료되면 자동으로 해제됩니다.
+            <div style={{ background: 'rgba(255,255,255,0.95)', border: '1px solid rgba(124,58,237,0.15)', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ color: '#7C3AED', fontSize: '0.75rem', fontWeight: 500, margin: 0 }}>💑 이번 회차 인연을 찾아보세요</p>
+                <p style={{ color: '#9ca3af', fontSize: '0.7rem', margin: '2px 0 0 0' }}>매칭 신청하고 이번 회차의 상대를 만나보세요!</p>
               </div>
-            )}
+              <button onClick={() => navigate('/matching-apply')} style={{ background: 'linear-gradient(135deg,#667eea,#764ba2)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 8, fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>매칭 신청</button>
+            </div>
           </div>
-        </WelcomeSection>
-        
-        {/* 정지 상태일 때는 QuickActions 숨김 */}
-      </MainContainer>
+          {latestNotice && (
+            <div
+              onClick={() => navigate(`/notice/${latestNotice.id}`)}
+              style={{
+                background: 'rgba(255,255,255,0.95)',
+                border: '1px solid rgba(124,58,237,0.15)',
+                borderRadius: 10,
+                padding: '10px 14px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.05)',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <FaBullhorn size={14} color="#6366f1" />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6366f1' }}>공지사항</span>
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{latestNotice.title}</span>
+              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                자세히 보기
+                <FaChevronRight size={12} />
+              </span>
+            </div>
+          )}
+        </div>
+        <HeaderSection>
+          <HeaderTitleRow>
+            <LeftGroup>
+              <HeaderTitle>📢 직쏠공 커뮤니티</HeaderTitle>
+              <HelpButton onClick={() => setShowIntroModal(true)} title="이용 안내">
+                <FaQuestion size={10} />
+              </HelpButton>
+            </LeftGroup>
+          </HeaderTitleRow>
+          <HeaderSubtitle>
+            아직 커뮤니티를 사용할 수 있는 회차가 없습니다.<br/>
+            회차가 시작되면 익명으로 소통하실 수 있습니다.
+          </HeaderSubtitle>
+        </HeaderSection>
+      </Container>
     );
   }
 
-  const handleOpenProfileModal = async () => {
-    try {
-      const me = await userApi.getMe();
-      if (me) {
-        try {
-          setProfile(me);
-        } catch (e) {
-          console.error('[MainPage] 프로필 모달 setProfile 중 오류:', e);
-        }
-      }
-    } catch (e) {
-      console.error('[MainPage] 프로필 모달용 프로필 조회 중 오류:', e);
-    } finally {
-      setShowProfileModal(true);
-    }
-  };
-
   return (
-    <MainContainer $sidebarOpen={sidebarOpen}>
-      <TopHeaderRow>
-        <div style={{ width: '100%' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <TopWelcomeTitle>
-              환영합니다,{' '}
-              <NicknameSpan
-                onClick={handleOpenProfileModal}
-                style={{ color: '#fffb8a', textDecorationColor: '#fffb8a' }}
-              >
-                {displayName}
-              </NicknameSpan>
-              님!
-            </TopWelcomeTitle>
-            {/* 알림 종: 모바일에서 fixed로 상단 고정 (사이드바 버튼과 같은 줄) */}
-            <div style={{ width: 40, height: 40, flexShrink: 0 }} aria-hidden="true" />
-            <div className="main-notification-bell-fixed" style={{
-              position: 'fixed', top: 16, right: 20, zIndex: 1000,
+    <Container $sidebarOpen={sidebarOpen}>
+      {/* 환영문구 + 알림 플로팅 */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: '0.4rem' }}>
+          <h1 style={{ color: '#ffffff', margin: 0, fontSize: '1.5rem', fontWeight: 800, textShadow: '0 3px 10px rgba(0,0,0,0.35)' }}>
+            환영합니다, <span style={{ color: '#fffb8a' }}>{displayName}</span> 님!
+          </h1>
+          <div style={{ width: 40, flexShrink: 0 }} aria-hidden="true" />
+        </div>
+        <FloatingNotificationButton
+          type="button"
+          onClick={() => navigate('/notifications')}
+          title="알림함"
+        >
+          <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
+          {notificationUnreadCount > 0 && (
+            <span style={{
+              position: 'absolute', top: -4, right: -4,
+              background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', color: 'white',
+              borderRadius: '50%', minWidth: 22, height: 22,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '0.75rem', fontWeight: 700,
+              boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)', border: '2px solid rgba(15,23,42,1)',
+              zIndex: 10, padding: '0 4px',
             }}>
-              <button
-                type="button"
-                onClick={() => { navigate('/notifications'); }}
-                style={{
-                  border: 'none', background: 'rgba(15,23,42,0.4)', borderRadius: '999px',
-                  width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  cursor: 'pointer', color: '#e5e7eb', boxShadow: '0 4px 10px rgba(15,23,42,0.5)',
-                  padding: 0, position: 'relative',
-                }}
-              >
-                <FaBell style={{ color: '#fbbf24', fontSize: '1.3rem' }} />
-              </button>
-              {notificationUnreadCount > 0 && (
-                <div style={{
-                  position: 'absolute', top: -4, right: -4,
-                  background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)', color: 'white',
-                  borderRadius: '50%', minWidth: 22, height: 22,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '0.75rem', fontWeight: 700,
-                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.6)', border: '2px solid rgba(15,23,42,1)',
-                  zIndex: 10, padding: '0 4px',
-                }}>
-                  {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
-                </div>
-              )}
-            </div>
-          </div>
-          <TopWelcomeSubtitle>
-            직장인 솔로 매칭 플랫폼에 오신 것을 환영합니다.
-          </TopWelcomeSubtitle>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '8px' }}>
-            <IosGuideButton type="button" onClick={() => setShowIosGuideModal(true)}>
-              <span>{isNativeApp() ? '푸시알림이 필요한 이유' : '아이폰 푸시알림 안내'}</span>
-              <FaInfoCircle size={10} />
-            </IosGuideButton>
-            <PushToggleBlock style={{ margin: 0 }}>
-              <span style={{ fontSize: '0.9rem', color: '#e5e7ff', fontWeight: 500 }}>푸시 알림</span>
-              <SwitchLabel>
-                  <SwitchInput
-                    type="checkbox"
-                    checked={isPushEnabled}
-                    onChange={() => {
-                      if (isPushBusy) {
-                        return; // 토큰 발급 중에는 무시
-                      }
-                      
-                      if (!isPushEnabled) {
-                        // 네이티브 앱에서는 안내 모달 표시 안함
-                        if (!isNativeApp()) {
-                          setShowPushConfirmModal(true);
-                        } else {
-                          handleTogglePush();
-                        }
-                      } else {
-                        handleTogglePush();
-                      }
-                    }}
-                    disabled={isLoading || isPushBusy}
-                    title={isLoading ? '로딩 중입니다...' : isPushBusy ? '푸시 알림 설정 중...' : ''}
-                  />
-                  <SwitchSlider />
-                </SwitchLabel>
-                {isNativeApp() && pushPermissionStatus === 'denied' && !isPushBusy && (
-                  <span style={{ fontSize: '0.75rem', color: '#ffcccc', marginLeft: '8px' }}>
-                    (알림 권한 필요)
-                  </span>
-                )}
-              </PushToggleBlock>
-            </div>
-          </div>
-        </TopHeaderRow>
+              {notificationUnreadCount > 9 ? '9+' : notificationUnreadCount}
+            </span>
+          )}
+        </FloatingNotificationButton>
+        <p style={{ color: '#e5e7ff', fontSize: '0.85rem', margin: 0, marginBottom: '1.4rem', lineHeight: 1.5, textShadow: '0 2px 6px rgba(0,0,0,0.35)' }}>
+          직쏠공 커뮤니티에 오신 것을 환영합니다.
+        </p>
 
-        {/* 커뮤니티 바로가기 카드 (별도) */}
-        {communityEnabled && (
+        {/* 가위바위보, 매칭신청 디렉션 */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.4rem' }}>
           <div style={{
             background: 'rgba(255, 255, 255, 0.95)',
             border: '1px solid rgba(124, 58, 237, 0.15)',
             borderRadius: '10px',
             padding: '10px 14px',
-            marginBottom: '1rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -3200,35 +2368,17 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
             boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ 
-                color: '#7C3AED', 
-                fontSize: '0.75rem',
-                fontWeight: '500',
-                margin: 0,
-                lineHeight: '1.3',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                💬 매칭 되기 전까지 심심하시죠?
+              <p style={{ color: '#7C3AED', fontSize: '0.75rem', fontWeight: '500', margin: 0, lineHeight: '1.3' }}>
+                ⭐이 모자라다구? 가위바위보는 할 줄 알지?
               </p>
-              <p style={{ 
-                color: '#9ca3af', 
-                fontSize: '0.7rem',
-                margin: '2px 0 0 0',
-                lineHeight: '1.2',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                커뮤니티에서 익명으로 자유롭게 소통해보세요
+              <p style={{ color: '#9ca3af', fontSize: '0.7rem', margin: '2px 0 0 0', lineHeight: '1.2' }}>
+                가위바위보를 해서 별을 더 획득해보세요!
               </p>
             </div>
             <button
-              onClick={() => navigate('/community')}
+              onClick={() => navigate('/rps-arena')}
               style={{
-                position: 'relative',
-                background: 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
                 border: 'none',
                 padding: '6px 12px',
@@ -3236,1515 +2386,939 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
                 fontSize: '0.75rem',
                 fontWeight: '600',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 1px 4px rgba(124, 58, 237, 0.2)',
+                boxShadow: '0 1px 4px rgba(102, 126, 234, 0.2)',
                 whiteSpace: 'nowrap',
-                flexShrink: 0
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 2px 6px rgba(124, 58, 237, 0.3)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 1px 4px rgba(124, 58, 237, 0.2)';
+                flexShrink: 0,
+                overflow: 'visible'
               }}
             >
-              <NewBadge>NEW!</NewBadge>
-              커뮤니티
+              <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: -6, lineHeight: 1, overflow: 'visible' }}>
+                <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(2px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 3 }}>🗿</span>
+                <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-5px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))', zIndex: 2 }}>✂️</span>
+                <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-1px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 1 }}>📄</span>
+              </span>
             </button>
           </div>
-        )}
-
-        {/* 가위바위보 아레나 바로가기 카드 */}
-        <div style={{
-          background: 'rgba(255, 255, 255, 0.95)',
-          border: '1px solid rgba(124, 58, 237, 0.15)',
-          borderRadius: '10px',
-          padding: '10px 14px',
-          marginBottom: '1rem',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '10px',
-          boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{
-              color: '#7C3AED',
-              fontSize: '0.75rem',
-              fontWeight: '500',
-              margin: 0,
-              lineHeight: '1.3',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              ⭐ 별이 모자라다구? 가위바위보는 할 줄 알지?
-            </p>
-            <p style={{
-              color: '#9ca3af',
-              fontSize: '0.7rem',
-              margin: '2px 0 0 0',
-              lineHeight: '1.2',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              하루 세판 가위바위보를 해서 별을 더 획득해보세요!
-            </p>
-          </div>
-          <button
-            onClick={() => navigate('/rps-arena')}
-            style={{
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              border: 'none',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              fontSize: '0.75rem',
-              fontWeight: '600',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 1px 4px rgba(102, 126, 234, 0.2)',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-              overflow: 'visible'
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 2px 6px rgba(102, 126, 234, 0.3)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 1px 4px rgba(102, 126, 234, 0.2)';
-            }}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'flex-end', gap: -6, lineHeight: 1, overflow: 'visible' }}>
-              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(2px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 3 }}>🗿</span>
-              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-5px)', filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.3))', zIndex: 2 }}>✂️</span>
-              <span style={{ display: 'inline-block', transform: 'scale(1.7) translateY(-1px)', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.25))', zIndex: 1 }}>📄</span>
-            </span>
-          </button>
-        </div>
-
-      <WelcomeSection>
-        {/* 최신 공지사항 카드 */}
-        {latestNotice && (
-          <LatestNoticeCard
-            onClick={() => navigate(`/notice/${latestNotice.id}`)}
-          >
-            <LatestNoticeLeft>
-              <LatestNoticeHeader>
-                <FaBullhorn size={16} color="#4F46E5" />
-                <LatestNoticeLabel>
-                  <span>공지사항</span>
-                </LatestNoticeLabel>
-              </LatestNoticeHeader>
-              <LatestNoticeTitle>
-                {latestNotice.title}
-              </LatestNoticeTitle>
-            </LatestNoticeLeft>
-            <LatestNoticeRight>
-              <span>자세히 보기</span>
-              <FaChevronRight size={12} />
-            </LatestNoticeRight>
-          </LatestNoticeCard>
-        )}
-        
-        {/* 추가 매칭 도전 안내 배너 (매칭 공지 ~ 종료 사이에만 노출, 이메일 인증 완료된 사용자만) */}
-        {period && isExtraMatchingWindow && user?.is_verified === true && (
-          <ExtraMatchingNoticeCard>
-            <div style={{ fontSize: '0.9rem', color: '#111827', fontWeight: 600 }}>
-              추가 매칭 도전 기회가 열렸습니다.
-              <div style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: 400, marginTop: 4 }}>
-                이번 회차에서 매칭이 아쉬웠다면, 별을 사용해 한 번 더 인연을 찾아보세요.
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigate('/extra-matching')}
-              style={{
-                padding: '8px 16px',
-                borderRadius: 999,
-                border: 'none',
-                background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
-                color: '#fff',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                opacity: 1,
-              }}
-            >
-              추가 매칭 도전하러 가기
-            </button>
-          </ExtraMatchingNoticeCard>
-        )}
-        
-        {/* 이메일 인증 알림 */}
-        {user?.is_verified === false && (
           <div style={{
-            background: 'linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%)',
-            border: '2px solid #f39c12',
-            borderRadius: '16px',
-            padding: '20px',
-            marginTop: '1.5rem',
-            marginBottom: '1.5rem',
-            textAlign: 'center',
-            boxShadow: '0 4px 12px rgba(243, 156, 18, 0.2)'
+            background: 'rgba(255, 255, 255, 0.95)',
+            border: '1px solid rgba(124, 58, 237, 0.15)',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '10px',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)'
           }}>
-            <div style={{ 
-              fontSize: '1.1rem', 
-              fontWeight: '600', 
-              color: '#d68910', 
-              marginBottom: '12px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
-            }}>
-              <span>⚠️</span>
-              <span>이메일 인증이 필요합니다</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ color: '#7C3AED', fontSize: '0.75rem', fontWeight: '500', margin: 0, lineHeight: '1.3' }}>
+                💑 커뮤니티 이벤트에 참여해보세요!
+              </p>
+              <p style={{ color: '#9ca3af', fontSize: '0.7rem', margin: '2px 0 0 0', lineHeight: '1.2' }}>
+                이벤트를 신청하고 상대를 찾아보세요!
+              </p>
             </div>
-            <p style={{ 
-              color: '#856404', 
-              margin: '0 0 16px 0', 
-              fontSize: '0.95rem',
-              lineHeight: '1.4'
-            }}>
-              매칭 신청 및 프로필 수정을 위해서는 이메일 인증을 완료해주세요.
-            </p>
             <button
-              onClick={() => setShowEmailVerificationModal(true)}
+              onClick={() => navigate('/matching-apply')}
               style={{
-                background: '#f39c12',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 color: 'white',
                 border: 'none',
-                padding: '12px 24px',
+                padding: '6px 12px',
                 borderRadius: '8px',
-                fontSize: '1rem',
+                fontSize: '0.5rem',
                 fontWeight: '600',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
-                boxShadow: '0 2px 8px rgba(243, 156, 18, 0.3)'
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.background = '#e67e22';
-                e.currentTarget.style.transform = 'translateY(-1px)';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = '#f39c12';
-                e.currentTarget.style.transform = 'translateY(0)';
+                flexShrink: 0,
               }}
             >
-              📧 이메일 인증하기
+              신청하러가기
             </button>
           </div>
-        )}
-        
-        <ButtonRow>
-        <MatchingButton onClick={handleMatchingRequest} disabled={buttonDisabled || actionLoading || statusLoading}>
-          {(actionLoading && !showCancel) ? '처리 중...' : buttonLabel}
-        </MatchingButton>
-        {showCancel && (
-          <MatchingButton onClick={() => setShowCancelConfirmModal(true)} disabled={actionLoading || statusLoading} style={{ background: '#ccc', color: '#333' }}>
-            {actionLoading ? '처리 중...' : '신청 취소하기'}
-          </MatchingButton>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 8 }}>
-          <div style={{ textAlign: periodLabel.startsWith('신청기간 :') ? 'left' : 'center', marginLeft: periodLabel.startsWith('신청기간 :') ? 12 : 0, color: '#888', whiteSpace: 'pre-line', flex: 1 }}>{periodLabel}</div>
-          {hasScheduleData && (
-            <button
-              type="button"
-              onClick={() => setShowScheduleModal(true)}
+          {latestNotice && (
+            <div
+              onClick={() => navigate(`/notice/${latestNotice.id}`)}
               style={{
-                background: 'none',
-                border: 'none',
-                padding: 6,
-                cursor: 'pointer',
-                color: '#999',
-                opacity: 0.8,
-              }}
-              title="일정 보기"
-            >
-              <FaCalendarAlt size={18} />
-            </button>
-          )}
-        </div>
-        {reapplyMessage && (
-          <div style={{ textAlign: 'center', marginTop: 4, color: '#e74c3c', whiteSpace: 'pre-line', fontWeight: 600 }}>{reapplyMessage}</div>
-        )}
-        {nextPeriodLabel && (
-          <NextPeriodWrapper>
-            <NextPeriodBadge>
-              <span
-                style={{
-                  fontSize: '0.85rem',
-                  fontWeight: 700,
-                  color: '#4F46E5',
-                  background: 'rgba(79, 70, 229, 0.1)',
-                  padding: '3px 8px',
-                  borderRadius: 999,
-                }}
-              >
-                다음 회차 신청
-              </span>
-              <span
-                style={{
-                  fontSize: '0.9rem',
-                  color: '#111827',
-                  fontWeight: 600,
-                  textAlign: 'left',
-                  flex: 1,
-                }}
-              >
-                {nextPeriodLabel}
-              </span>
-            </NextPeriodBadge>
-          </NextPeriodWrapper>
-        )}
-      </ButtonRow>
-      {/* 프로필 카드 모달 */}
-      {showProfileModal && (
-        <ModalOverlay onClick={() => setShowProfileModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()}>
-            <ProfileCard
-              nickname={profile?.nickname || displayName}
-              birthYear={profile?.birth_year || 0}
-              gender={profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
-              job={profile?.education || '-'}
-              company={getDisplayCompanyName(profile?.company, profile?.custom_company_name)}
-              mbti={profile?.mbti}
-              maritalStatus={profile?.marital_status}
-              appeal={profile?.appeal}
-              interests={profile?.interests}
-              appearance={profile?.appearance}
-              personality={profile?.personality}
-              height={profile?.height}
-              body_type={profile?.body_type}
-              residence={profile?.residence}
-              drinking={profile?.drinking}
-              smoking={profile?.smoking}
-              religion={profile?.religion}
-            />
-            <div style={{ textAlign: 'right', marginTop: 16 }}>
-              <button onClick={() => setShowProfileModal(false)} style={{ padding: '6px 18px', borderRadius: 6, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>닫기</button>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-      {/* 상대방 프로필 모달 */}
-      {showPartnerModal && partnerProfile && (
-        <ModalOverlay onClick={() => setShowPartnerModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()}>
-            <ProfileCard
-              nickname={partnerProfile.nickname}
-              birthYear={partnerProfile.birth_year}
-              gender={partnerProfile.gender === 'male' ? '남성' : partnerProfile.gender === 'female' ? '여성' : '-'}
-              job={partnerProfile.education || '-'}
-              company={getDisplayCompanyName(partnerProfile.company, partnerProfile.custom_company_name)}
-              mbti={partnerProfile.mbti}
-              maritalStatus={partnerProfile.marital_status}
-              appeal={partnerProfile.appeal}
-              interests={partnerProfile.interests}
-              appearance={partnerProfile.appearance}
-              personality={partnerProfile.personality}
-              height={partnerProfile.height}
-              body_type={partnerProfile.body_type}
-              residence={partnerProfile.residence}
-              drinking={partnerProfile.drinking}
-              smoking={partnerProfile.smoking}
-              religion={partnerProfile.religion}
-            />
-            <div style={{ textAlign: 'right', marginTop: 16 }}>
-              <button onClick={() => setShowPartnerModal(false)} style={{ padding: '6px 18px', borderRadius: 6, border: 'none', background: '#4F46E5', color: '#fff', fontWeight: 600, cursor: 'pointer' }}>닫기</button>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-      {showMatchingConfirmModal && (
-        <ModalOverlay onClick={() => setShowMatchingConfirmModal(false)}>
-          <ModalContent
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '90vw',
-              maxWidth: 420,
-              minWidth: 220,
-              height: '90vh',
-              minHeight: 220,
-              maxHeight: '90vh',
-              padding: '36px 36px 0 36px', // 좌우 패딩 24px로 늘림
-              overflow: 'hidden',
-              position: 'relative',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-            }}
-          >
-            {/* 경고문구+안내+프로필 요약을 한 스크롤 영역에 묶음 (flex:1, minHeight:0, overflowY:auto) */}
-            <div style={{
-              width: '100%',
-              flex: 1,
-              minHeight: 0,
-              overflowY: 'auto', // 한 번에 스크롤
-              overflowX: 'hidden',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              padding: '0 4px', // 내부 스크롤 컨테이너도 좌우 약간 여유
-              gap: 0,
-            }}>
-              {/* 경고문구+아이콘 */}
-              <div style={{
-                width: '100%',
-                maxWidth: '100%',
-                display: 'flex',
-                flexDirection: 'row',
-                alignItems: 'flex-start',
-                justifyContent: 'flex-start',
-                background: 'rgba(255, 235, 238, 0.97)',
-                color: '#e74c3c',
-                borderRadius: 12,
-                padding: '14px 18px', // 경고문구도 좌우 18px로
-                fontWeight: 700,
-                fontSize: '1rem',
-                margin: '0 0 18px 0', // 좌우 마진은 0, 패딩으로만 여백
-                gap: 14,
-                zIndex: 2,
-                boxShadow: '0 2px 8px rgba(231,76,60,0.07)',
-                wordBreak: 'break-all',
-                textAlign: 'left',
-                whiteSpace: 'normal',
-                overflow: 'visible',
-              }}>
-                <FaExclamationTriangle style={{ marginRight: 10, fontSize: '2em', flexShrink: 0, marginTop: 2 }} />
-                <span style={{ lineHeight: 1.5, wordBreak: 'break-all', textAlign: 'left', whiteSpace: 'normal' }}>매칭 신청 시점의 프로필/선호 스타일이 매칭에 사용됩니다.</span>
-              </div>
-              {/* 안내문구(서브) */}
-              <div style={{
-                width: '100%',
-                maxWidth: '100%',
-                background: 'none',
-                color: '#888',
-                borderRadius: 8,
-                padding: '0 8px 0 28px', // 안내문구도 좌우 8px, 왼쪽 28px(아이콘)
-                fontWeight: 500,
-                fontSize: '0.97rem',
-                lineHeight: 1.5,
-                margin: '0 0 24px 0',
-                zIndex: 1,
-                boxSizing: 'border-box',
-                overflow: 'visible', // 내부 스크롤 없음
-                wordBreak: 'break-all',
-                whiteSpace: 'normal',
-              }}>
-                신청 후에는 프로필/선호 스타일을 변경해도 이번 매칭에는 반영되지 않습니다.
-              </div>
-              {/* 프로필/선호 스타일 요약 */}
-              <div style={{
-                border: 'none',
-                borderRadius: '14px',
-                padding: '18px 0 10px 0',
-                maxWidth: '100%',
-                background: 'none',
-                fontSize: '1rem',
-                margin: '0 auto',
-                width: '100%',
-                boxSizing: 'border-box',
-                overflow: 'visible', // 내부 스크롤 없음
-              }}>
-                <div style={{marginBottom:14}}>
-                  <div style={{fontWeight:700,fontSize:'1.18rem',color:'#4F46E5',marginBottom:2}}>{profile?.nickname || displayName}</div>
-                  <div style={{fontSize:'0.98rem',color:'#666'}}>
-                    {profile?.birth_year || 0}년생 · {profile?.gender === 'male' ? '남성' : profile?.gender === 'female' ? '여성' : '-'}
-                    {getDisplayCompanyName(profile?.company, profile?.custom_company_name) ? ` · ${getDisplayCompanyName(profile?.company, profile?.custom_company_name)}` : ''}
-                  </div>
-                </div>
-                <div style={{
-                  display:'flex',
-                  flexWrap:'wrap',
-                  gap: 6,
-                  marginBottom:10,
-                  width:'100%',
-                  maxWidth:'100%',
-                  overflowX:'hidden',
-                }}>
-                  {/* MBTI */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>MBTI</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.mbti || '-'}</span>
-                  </div>
-                  {/* 학력 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>학력</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.education || '-'}</span>
-                  </div>
-                  {/* 결혼상태 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>결혼상태</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.marital_status || '-'}</span>
-                  </div>
-                  {/* 키 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>키</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.height ? `${profile.height}cm` : '-'}</span>
-                  </div>
-                  {/* 흡연 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>흡연</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.smoking || '-'}</span>
-                  </div>
-                  {/* 음주 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>음주</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.drinking || '-'}</span>
-                  </div>
-                  {/* 종교 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 120px',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>종교</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.religion || '-'}</span>
-                  </div>
-                  {/* 체형 - row 배치, ,로 join해서 한 줄로 모두 표시 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 100%',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>체형</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{(() => {
-                      const val = profile?.body_type;
-                      let arr: any[] = [];
-                      if (!val) arr = [];
-                      else if (Array.isArray(val)) arr = val;
-                      else {
-                        try { arr = JSON.parse(val); if (!Array.isArray(arr)) arr = [String(val)]; } catch { arr = [String(val)]; }
-                      }
-                      return arr.length > 0 ? arr.join(', ') : '-';
-                    })()}</span>
-                  </div>
-                  {/* 거주지 - 체형 밑 한 줄 전체 사용 */}
-                  <div style={{display:'flex',flexDirection:'row',alignItems:'center',flex:'1 1 100%',minWidth:0,marginRight:0,marginBottom:6,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
-                    <span style={{fontWeight:600,color:'#4F46E5',fontSize:'0.98rem',marginRight:4}}>거주지</span>
-                    <span style={{color:'#222',fontSize:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
-                      {profile?.residence || '-'}
-                    </span>
-                  </div>
-                </div>
-                <div style={{marginBottom:10}}>
-                  <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>자기소개</div>
-                  <div style={{background:'#f8f6fd',borderRadius:8,minHeight:36,whiteSpace:'pre-line',color:'#444',fontSize:'0.98rem',padding:'10px 12px'}}>{profile?.appeal || '아직 자기소개가 없습니다.'}</div>
-                </div>
-                {/* 관심사/외모/성격 요약 */}
-                <div style={{marginBottom:10,marginTop:10}}>
-                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                    <div>
-                      <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>제 관심사는요</div>
-                      <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
-                        const arr = profile?.interests ? (Array.isArray(profile.interests) ? profile.interests : (()=>{try{return JSON.parse(profile.interests);}catch{return[];}})()) : [];
-                        return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
-                      })()}</div>
-                    </div>
-                    <div>
-                      <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>이런 얘기 많이 들어요</div>
-                      <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
-                        const arr = profile?.appearance ? (Array.isArray(profile.appearance) ? profile.appearance : (()=>{try{return JSON.parse(profile.appearance);}catch{return[];}})()) : [];
-                        return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
-                      })()}</div>
-                    </div>
-                    <div>
-                      <div style={{fontWeight:600,color:'#4F46E5',marginBottom:2}}>저는 이런 사람이에요</div>
-                      <div style={{color:'#333',fontSize:'0.98rem',lineHeight:'1.7'}}>{(() => {
-                        const arr = profile?.personality ? (Array.isArray(profile.personality) ? profile.personality : (()=>{try{return JSON.parse(profile.personality);}catch{return[];}})()) : [];
-                        return arr.length > 0 ? arr.slice(0,3).join(', ') : '-';
-                      })()}</div>
-                    </div>
-                  </div>
-                </div>
-                {/* 선호 스타일 요약 */}
-                <div style={{marginTop:18,marginBottom:6}}>
-                  <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>선호 스타일</div>
-                  <div style={{fontSize:'0.98rem',color:'#333',lineHeight:'1.7'}}>
-                    <b>나이:</b> {(() => {
-                      if (typeof profile?.preferred_age_min === 'number' && typeof profile?.preferred_age_max === 'number') {
-                        if (profile.preferred_age_min === -99 && profile.preferred_age_max === 99) {
-                          return '상관없음';
-                        }
-                        const min = profile.preferred_age_min < 0 ? `${Math.abs(profile.preferred_age_min)}살 연하` : profile.preferred_age_min === 0 ? '동갑' : `${profile.preferred_age_min}살 연상`;
-                        const max = profile.preferred_age_max < 0 ? `${Math.abs(profile.preferred_age_max)}살 연하` : profile.preferred_age_max === 0 ? '동갑' : `${profile.preferred_age_max}살 연상`;
-                        return `${min} ~ ${max}`;
-                      }
-                      return '-';
-                    })()}<br/>
-                    <b>키:</b> {(() => {
-                      if (typeof profile?.preferred_height_min === 'number' && typeof profile?.preferred_height_max === 'number') {
-                        if (profile.preferred_height_min === 150 && profile.preferred_height_max === 199) {
-                          return '상관없음';
-                        }
-                        return `${profile.preferred_height_min}cm ~ ${profile.preferred_height_max}cm`;
-                      }
-                      return '-';
-                    })()}<br/>
-                    <b>체형:</b> {(() => {
-                      const arr = profile?.preferred_body_types ? (Array.isArray(profile.preferred_body_types) ? profile.preferred_body_types : (()=>{try{return JSON.parse(profile.preferred_body_types);}catch{return[];}})()) : [];
-                      return arr.length > 0 ? arr.join(', ') : '-';
-                    })()}<br/>
-                    <b>회사:</b> {(() => {
-                      const ids = (profile as any)?.prefer_company;
-                      if (!ids || !Array.isArray(ids) || !companies.length) return '-';
-                      const names = ids
-                        .map((id: number) => {
-                          const found = companies.find(c => Number(c.id) === id);
-                          return found?.name;
-                        })
-                        .filter((name): name is string => !!name);
-                      return names.length > 0 ? names.join(', ') : '-';
-                    })()}<br/>
-                    <b>학력:</b> {(() => {
-                      const arr = profile?.preferred_educations ? (Array.isArray(profile.preferred_educations) ? profile.preferred_educations : (()=>{try{return JSON.parse(profile.preferred_educations);}catch{return[];}})()) : [];
-                      return arr.length > 0 ? arr.join(', ') : '-';
-                    })()}<br/>
-                    <b>지역:</b> {(() => {
-                      const arr = profile?.prefer_region;
-                      if (!arr || !Array.isArray(arr)) return '-';
-                      return arr.length > 0 ? arr.join(', ') : '-';
-                    })()}<br/>
-                    <b>결혼상태:</b> {(() => {
-                      const arr = profile?.preferred_marital_statuses ? (Array.isArray(profile.preferred_marital_statuses) ? profile.preferred_marital_statuses : (()=>{try{return JSON.parse(profile.preferred_marital_statuses);}catch{return[];}})()) : [];
-                      return arr.length > 0 ? arr.join(', ') : '-';
-                    })()}
-                  </div>
-                </div>
-              </div>
-            </div>
-            {/* 버튼 영역은 flex column 하단에 고정, flex-shrink:0 */}
-            <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center', flexShrink: 0, paddingBottom: 24 }}>
-              <button onClick={handleMatchingConfirm} style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#7C3AED', color: '#fff', fontWeight: 700, fontSize: '1.08rem', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }} disabled={actionLoading}>
-                {actionLoading ? '신청 중...' : '이 정보로 신청'}
-              </button>
-              <button onClick={() => setShowMatchingConfirmModal(false)} style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#eee', color: '#333', fontWeight: 600, fontSize: '1.08rem', cursor: 'pointer' }}>취소</button>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* ⭐ 차감 확인 모달 */}
-      {showMatchingStarConfirmModal && (
-        <ModalOverlay
-          onClick={() => {
-            setShowMatchingStarConfirmModal(false);
-            setShowMatchingConfirmModal(true);
-          }}
-        >
-          <ModalContent
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 380,
-              minWidth: 220,
-              maxWidth: '95vw',
-              height: 'auto',
-              minHeight: 0,
-              maxHeight: '80vh',
-              padding: '28px 20px 22px 20px',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              position: 'relative',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-            }}
-          >
-            <div style={{ width: '100%' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: 'rgba(124, 58, 237, 0.10)',
-                  color: '#4F46E5',
-                  borderRadius: 12,
-                  padding: '12px 14px',
-                  fontWeight: 800,
-                  fontSize: '1.05rem',
-                  gap: 8,
-                }}
-              >
-                매칭 신청 ⭐ 차감 안내
-              </div>
-              <div
-                style={{
-                  marginTop: 12,
-                  color: '#333',
-                  lineHeight: 1.6,
-                  fontSize: '0.98rem',
-                }}
-              >
-                매칭 신청 시 보유하신 <b>⭐{MAIN_MATCH_STAR_COST}개</b>가 사용되며,<br />
-                추 후 신청 마감 전 신청 취소 시 다시 환불됩니다.<br/>
-                {isNativeApp() && (
-                  <>
-                    <br/><span style={{ color: '#666' }}>확인을 누르시면 짧은 광고 시청 후<br/>매칭 신청이 완료됩니다.</span><br/>
-                  </>
-                )}
-                <br/>매칭을 신청하시겠습니까?
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center' }}>
-              <button
-                onClick={handleMatchingStarConfirm}
-                style={{
-                  padding: '10px 28px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#7C3AED',
-                  color: '#fff',
-                  fontWeight: 800,
-                  fontSize: '1.06rem',
-                  cursor: actionLoading ? 'not-allowed' : 'pointer',
-                  opacity: actionLoading ? 0.7 : 1,
-                }}
-                disabled={actionLoading}
-              >
-                {actionLoading ? '신청 중...' : '확인'}
-              </button>
-              <button
-                onClick={() => {
-                  setShowMatchingStarConfirmModal(false);
-                  setShowMatchingConfirmModal(true);
-                }}
-                style={{
-                  padding: '10px 28px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: '#eee',
-                  color: '#333',
-                  fontWeight: 700,
-                  fontSize: '1.06rem',
-                  cursor: 'pointer',
-                }}
-              >
-                {isNativeApp() ? '취소(광고보지 않음)' : '취소'}
-              </button>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* 신청 취소 커스텀 모달 */}
-      {showCancelConfirmModal && (
-        <ModalOverlay onClick={() => setShowCancelConfirmModal(false)}>
-          <ModalContent
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: 380,
-              minWidth: 220,
-              maxWidth: '95vw',
-              height: 'auto',
-              minHeight: 0,
-              maxHeight: '80vh',
-              padding: '32px 20px 24px 20px',
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              position: 'relative',
-              boxSizing: 'border-box',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              marginBottom: 18,
-              width: '100%',
-              alignItems: 'stretch',
-            }}>
-              <div style={{
+                background: 'rgba(255, 255, 255, 0.95)',
+                border: '1px solid rgba(124, 58, 237, 0.15)',
+                borderRadius: '10px',
+                padding: '10px 14px',
                 display: 'flex',
                 alignItems: 'center',
-                background: 'rgba(255, 235, 238, 0.95)',
-                color: '#e74c3c',
-                borderRadius: 10,
-                padding: '10px 14px',
-                fontWeight: 700,
-                fontSize: '1.07rem',
-                marginBottom: 0,
-                gap: 8,
-              }}>
-                <span style={{fontSize:'1.25em',display:'flex',alignItems:'center'}}>
-                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{marginRight:4}} xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="10" fill="#e74c3c"/><path d="M10 5v5.5" stroke="#fff" strokeWidth="1.7" strokeLinecap="round"/><circle cx="10" cy="14.2" r="1.1" fill="#fff"/></svg>
-                </span>
-                정말 매칭 신청을 취소하시겠습니까?
-              </div>
-              <div style={{
-                background: 'none',
-                color: '#888',
-                borderRadius: 8,
-                padding: '6px 10px 0 32px',
-                fontWeight: 500,
-                fontSize: '0.97rem',
-                lineHeight: 1.5,
-                marginTop: 0,
-              }}>
-                신청 취소 후 <b style={{color:'#e74c3c'}}>{cancelTime}분 동안 재신청이 불가</b>합니다.<br/>
-                취소 시 <b style={{color:'#7C3AED'}}>⭐{MAIN_MATCH_STAR_COST}개</b>가 환불됩니다.<br/>
-                정말로 취소하시려면 아래 버튼을 눌러주세요.
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center' }}>
-              <button onClick={handleCancel} style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#e74c3c', color: '#fff', fontWeight: 700, fontSize: '1.08rem', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.7 : 1 }} disabled={actionLoading}>
-                {actionLoading ? '취소 중...' : '정말 취소'}
-              </button>
-              <button onClick={() => setShowCancelConfirmModal(false)} style={{ padding: '10px 28px', borderRadius: 8, border: 'none', background: '#eee', color: '#333', fontWeight: 600, fontSize: '1.08rem', cursor: 'pointer' }}>닫기</button>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-      {showScheduleModal && schedulePeriod && (
-        <ModalOverlay onClick={() => setShowScheduleModal(false)}>
-          <ScheduleModalContent onClick={(e) => e.stopPropagation()}>
-            <ScheduleModalTitle>
-              <FaCalendarAlt style={{ color: '#667eea' }} />
-              {schedulePeriod.periodNumber ? `${schedulePeriod.periodNumber}회차 매칭 일정` : '매칭 일정'}
-            </ScheduleModalTitle>
-            <ScheduleRow>
-              <ScheduleRowLabel>매칭 신청기간</ScheduleRowLabel>
-              <ScheduleRowValue>
-                {formatPeriodShort(schedulePeriod.application_start)} ~ {formatPeriodShort(schedulePeriod.application_end)}
-              </ScheduleRowValue>
-            </ScheduleRow>
-            <ScheduleRow>
-              <ScheduleRowLabel>매칭 결과 발표일</ScheduleRowLabel>
-              <ScheduleRowValue>
-                {schedulePeriod.matching_announce ? formatPeriodShort(schedulePeriod.matching_announce) : '-'}
-              </ScheduleRowValue>
-            </ScheduleRow>
-            <ScheduleRow>
-              <ScheduleRowLabel>매칭 종료일</ScheduleRowLabel>
-              <ScheduleRowValue>
-                {schedulePeriod.finish ? formatPeriodShort(schedulePeriod.finish) : '-'}
-              </ScheduleRowValue>
-            </ScheduleRow>
-            <div style={{ marginTop: 20, textAlign: 'center' }}>
-              <button
-                onClick={() => setShowScheduleModal(false)}
-                style={{ padding: '10px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', fontWeight: 600, fontSize: '0.95rem', cursor: 'pointer' }}
-              >
-                닫기
-              </button>
-            </div>
-          </ScheduleModalContent>
-        </ModalOverlay>
-      )}
-      </WelcomeSection>
-      
-      {/* 주요 기능 카드들 */}
-      <QuickActions>
-        {quickActions.map((action, index) => {
-          const baseAction = action as BaseQuickAction;
-          return (
-            <ActionCard
-              key={index}
-              onClick={!baseAction.disabled ? baseAction.action : undefined}
-              style={baseAction.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
+                justifyContent: 'space-between',
+                gap: '10px',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.05)',
+                cursor: 'pointer',
+              }}
             >
-              <ActionHeader>
-                <ActionIcon>{baseAction.icon}</ActionIcon>
-                <ActionTitle>{baseAction.title}</ActionTitle>
-              </ActionHeader>
-              {baseAction.title === '매칭 현황'
-                ? (() => {
-                    const { status, period, color } = getMatchingStatusDisplay();
-                    return (
-                      <StatusChatWrapper>
-                        {/* 버튼: 회색 박스 위, 우측 정렬 */}
-                        <div
-                          style={{
-                            marginTop: 4,
-                            display: 'flex',
-                            justifyContent: 'flex-end',
-                          }}
-                        >
-                          <div style={{ position: 'relative', display: 'inline-block' }}>
-                            {/* 안읽은 메시지 뱃지 */}
-                            {canChat && unreadCount > 0 && (
-                              <div
-                                style={{
-                                  position: 'absolute',
-                                  top: '-8px',
-                                  right: '-8px',
-                                  background:
-                                    'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-                                  color: 'white',
-                                  borderRadius: '50%',
-                                  width: '20px',
-                                  height: '20px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.7rem',
-                                  fontWeight: '700',
-                                  boxShadow: '0 2px 8px rgba(231, 76, 60, 0.4)',
-                                  zIndex: 10,
-                                  border: '2px solid white',
-                                }}
-                              >
-                                {unreadCount > 9 ? '9+' : unreadCount}
-                              </div>
-                            )}
-                            <button
-                              style={{
-                                background:
-                                  'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
-                                color: '#fff',
-                                border: 'none',
-                                borderRadius: 20,
-                                padding: '8px 18px',
-                                fontWeight: 600,
-                                fontSize: '0.95rem',
-                                cursor: canChat ? 'pointer' : 'not-allowed',
-                                opacity: canChat ? 1 : 0.5,
-                                transition: 'all 0.2s ease',
-                                boxShadow: canChat
-                                  ? '0 3px 10px rgba(124,58,237,0.3)'
-                                  : '0 2px 6px rgba(0,0,0,0.1)',
-                                whiteSpace: 'nowrap',
-                              }}
-                              disabled={!canChat}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (canChat) navigate(`/chat/${partnerUserId}`);
-                              }}
-                              onMouseEnter={(e) => {
-                                if (canChat) {
-                                  e.currentTarget.style.transform = 'translateY(-2px)';
-                                  e.currentTarget.style.boxShadow =
-                                    '0 5px 15px rgba(124,58,237,0.4)';
-                                }
-                              }}
-                              onMouseLeave={(e) => {
-                                if (canChat) {
-                                  e.currentTarget.style.transform = 'translateY(0)';
-                                  e.currentTarget.style.boxShadow =
-                                    '0 3px 10px rgba(124,58,237,0.3)';
-                                }
-                              }}
-                            >
-                              상대방과 연락하기
-                            </button>
-                          </div>
-                        </div>
+              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <FaBullhorn size={14} color="#6366f1" />
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#6366f1' }}>공지사항</span>
+                </div>
+                <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{latestNotice.title}</span>
+              </div>
+              <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#4f46e5', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                자세히 보기
+                <FaChevronRight size={12} />
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
 
-                        {/* 회색 박스 */}
-                        <div
-                          style={{
-                            marginTop: 0,
-                            background:
-                              'linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%)',
-                            borderRadius: 16,
-                            padding: '18px 18px 20px',
-                            boxShadow: '0 4px 12px rgba(102,126,234,0.08)',
-                            letterSpacing: '-0.01em',
-                            border: '1px solid rgba(102,126,234,0.1)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: (period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? 'center' : undefined,
-                            minHeight: (period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? 56 : undefined,
-                          }}
-                        >
-                          <div
-                            style={{
-                              fontWeight: 700,
-                              fontSize: '1.2rem',
-                              color,
-                              marginBottom: (period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? 0 : (period ? 8 : 0),
-                              lineHeight: 1.3,
-                              textAlign: 'center',
-                            }}
-                          >
-                            {status}
-                          </div>
-                          {(period?.startsWith('신청기간 :') || status === '신청 완료' || status === '매칭 실패') ? null : (period || hasScheduleData) && (
-                            <div
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 8,
-                              }}
-                            >
-                              <div
-                                style={{
-                                  fontSize: '0.95rem',
-                                  color: '#555',
-                                  fontWeight: 500,
-                                  whiteSpace: 'pre-line',
-                                  lineHeight: 1.4,
-                                  textAlign: 'center',
-                                  flex: 1,
-                                }}
-                              >
-                                {period}
-                              </div>
-                              {hasScheduleData && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowScheduleModal(true);
-                                  }}
-                                  style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    padding: 6,
-                                    cursor: 'pointer',
-                                    color: '#999',
-                                    opacity: 0.8,
-                                  }}
-                                  title="일정 보기"
-                                >
-                                  <FaCalendarAlt size={18} />
-                                </button>
-                              )}
-                            </div>
-                          )}
-
-                          {/* 매칭 성공 시 상대방 프로필 박스 */}
-                          {status === '매칭 성공' && partnerUserId && canChat && (
-                            <div
-                              style={{
-                                background:
-                                  'linear-gradient(135deg, #f0f4ff 0%, #e6f0ff 100%)',
-                                borderRadius: 12,
-                                padding: '8px 16px 8px 12px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8,
-                                boxShadow: '0 3px 10px rgba(102,126,234,0.12)',
-                                minWidth: 100,
-                                cursor: partnerProfileError ? 'not-allowed' : 'pointer',
-                                border: '1.5px solid #dbeafe',
-                                transition: 'all 0.2s ease',
-                                marginTop: 16,
-                                justifyContent: 'center',
-                                pointerEvents: partnerProfileError ? 'none' : 'auto',
-                                opacity: partnerProfileError ? 0.6 : 1,
-                              }}
-                              onClick={async (e) => {
-                                if (partnerProfileError) return;
-                                e.stopPropagation();
-                                await fetchPartnerProfile(partnerUserId!);
-                                setShowPartnerModal(true);
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.boxShadow =
-                                  '0 5px 18px rgba(102,126,234,0.18)';
-                                e.currentTarget.style.transform = 'translateY(-2px)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.boxShadow =
-                                  '0 3px 10px rgba(102,126,234,0.12)';
-                                e.currentTarget.style.transform = 'translateY(0)';
-                              }}
-                            >
-                              <FaChevronRight
-                                size={18}
-                                color="#7C3AED"
-                                style={{ marginRight: 2 }}
-                              />
-                              <ProfileIcon gender={partnerProfile?.gender || ''} size={28} />
-                              <span
-                                style={{
-                                  fontWeight: 700,
-                                  color:
-                                    partnerProfile?.gender === 'male' ||
-                                    partnerProfile?.gender === '남성'
-                                      ? '#7C3AED'
-                                      : partnerProfile?.gender === 'female' ||
-                                        partnerProfile?.gender === '여성'
-                                      ? '#F472B6'
-                                      : '#bbb',
-                                  fontSize: '1.01rem',
-                                  whiteSpace: 'nowrap',
-                                }}
-                              >
-                                {(() => {
-                                  if (partnerProfileError) {
-                                    return '프로필 없음';
-                                  }
-                                  if (partnerProfileLoading) {
-                                    return '로딩 중...';
-                                  }
-                                  if (!partnerProfile?.nickname) {
-                                    return '상대방';
-                                  }
-                                  return partnerProfile.nickname;
-                                })()}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* 카운트다운 (매칭 성공 + 채팅 가능일 때, 박스 안 하단에) */}
-                          {canChat && countdown && (
-                            <div
-                              style={{
-                                marginTop: 12,
-                                padding: '12px 16px',
-                                background:
-                                  'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%)',
-                                borderRadius: 12,
-                                border: '1px solid rgba(124, 58, 237, 0.2)',
-                                textAlign: 'center',
-                              }}
-                            >
-                              <div
-                                style={{
-                                  color: '#7C3AED',
-                                  fontSize: '0.85rem',
-                                  fontWeight: 600,
-                                  marginBottom: 4,
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: 6,
-                                }}
-                              >
-                                <FaRegClock size={14} />
-                                <span>채팅 가능 시간</span>
-                              </div>
-                              <div
-                                style={{
-                                  color: '#111827',
-                                  fontSize: '1rem',
-                                  fontWeight: 700,
-                                  letterSpacing: '0.03em',
-                                  textShadow: '0 1px 2px rgba(124, 58, 237, 0.2)',
-                                }}
-                              >
-                                {countdown}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 박스 아래 안내 문구 (항상 세로로 아래에 쌓임) */}
-                        {!canChat && (
-                          <div
-                            style={{
-                              color: '#aaa',
-                              fontSize: '0.95rem',
-                              marginTop: 6,
-                              textAlign: 'center',
-                            }}
-                          >
-                            매칭이 성공하면 <br />
-                            상대방과 연락하기 버튼이 활성화됩니다.
-                          </div>
-                        )}
-                      </StatusChatWrapper>
-                    );
-                  })() : (
-                    <ActionDescription>{baseAction.description}</ActionDescription>
-                  )}
-              {/* 채팅하기 카드만 커스텀 안내문구/버튼 */}
-              {baseAction.title === '상대방과 약속잡기' ? (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
-                    <div style={{ position: 'relative', display: 'inline-block' }}>
-                      {/* 안읽은 메시지 뱃지 */}
-                      {canChat && unreadCount > 0 && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '-8px',
-                          right: '-8px',
-                          background: 'linear-gradient(135deg, #e74c3c 0%, #c0392b 100%)',
-                          color: 'white',
-                          borderRadius: '50%',
-                          width: '20px',
-                          height: '20px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.7rem',
-                          fontWeight: '700',
-                          boxShadow: '0 2px 8px rgba(231, 76, 60, 0.4)',
-                          zIndex: 10,
-                          border: '2px solid white'
-                        }}>
-                          {unreadCount > 9 ? '9+' : unreadCount}
-                        </div>
-                      )}
-                      <button
-                        style={{
-                          background: 'linear-gradient(135deg, #7C3AED 0%, #4F46E5 100%)',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: 20,
-                          padding: '8px 20px',
-                          fontWeight: 600,
-                          fontSize: '1.05rem',
-                          cursor: canChat ? 'pointer' : 'not-allowed',
-                          opacity: canChat ? 1 : 0.5,
-                          transition: 'all 0.2s ease',
-                          boxShadow: canChat ? '0 3px 10px rgba(124,58,237,0.3)' : '0 2px 6px rgba(0,0,0,0.1)',
-                        }}
-                        disabled={!canChat}
-                        onClick={e => {
-                          e.stopPropagation();
-                          if (canChat) navigate(`/chat/${partnerUserId}`);
-                        }}
-                        onMouseEnter={e => {
-                          if (canChat) {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 5px 15px rgba(124,58,237,0.4)';
-                          }
-                        }}
-                        onMouseLeave={e => {
-                          if (canChat) {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 3px 10px rgba(124,58,237,0.3)';
-                          }
-                        }}
-                      >상대방과 연락하기</button>
-                    </div>
-                  </div>
-                  {!canChat && (
-                    <div style={{ color: '#aaa', fontSize: '0.95rem', marginTop: 6 }}>
-                      
-                    </div>
-                  )}
-                  {canChat && countdown && (
-                    <div style={{ 
-                      marginTop: 12,
-                      padding: '12px 16px',
-                      background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.1) 0%, rgba(79, 70, 229, 0.1) 100%)',
-                      borderRadius: 12,
-                      border: '1px solid rgba(124, 58, 237, 0.2)',
-                      textAlign: 'center'
-                    }}>
-                      <div style={{ 
-                        color: '#7C3AED', 
-                        fontSize: '0.85rem', 
-                        fontWeight: 600,
-                        marginBottom: 4,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6
-                      }}>
-                        <span style={{ fontSize: '1rem' }}>⏰</span>
-                        채팅방 마감 시간
-                      </div>
-                      <div style={{ 
-                        fontWeight: 700, 
-                        fontSize: '1.1rem',
-                        color: '#7C3AED',
-                        textShadow: '0 1px 2px rgba(124, 58, 237, 0.2)'
-                      }}>
-                        {countdown}
-                      </div>
-                    </div>
-                  )}
-                </>
-              ) : null}
-            </ActionCard>
+      <HeaderSection>
+        <HeaderTitleRow>
+          <LeftGroup>
+            <HeaderTitle>💬 직쏠공 커뮤니티</HeaderTitle>
+            <HelpButton onClick={() => setShowIntroModal(true)} title="이용 안내">
+              <FaQuestion size={10} />
+            </HelpButton>
+          </LeftGroup>
+        </HeaderTitleRow>
+        {user?.isAdmin && (
+          <AdminToggleFloating>
+            <AdminToggleLabel>익명</AdminToggleLabel>
+            <AdminToggleSwitch
+              type="button"
+              $on={!postAsAdmin}
+              onClick={() => setPostAsAdmin(prev => !prev)}
+              title={postAsAdmin ? '익명으로 전환' : '관리자로 전환'}
+            />
+          </AdminToggleFloating>
+        )}
+        
+        {currentPeriod && (() => {
+          const resetInfo = getResetInfo(currentPeriod.status, currentPeriod.periodNumber || currentPeriod.id);
+          if (!resetInfo) return null;
+          return (
+            <PeriodStatusWrapper>
+              <ResetInfoText>
+                현재 커뮤니티는 {resetInfo} 됩니다
+              </ResetInfoText>
+            </PeriodStatusWrapper>
           );
-        })}
-      </QuickActions>
+        })()}
 
-      {/* 컴팩트 2x2 그리드 카드들 */}
-      <CompactGrid>
-        {compactActions.map((action, index) => (
-          <CompactCard
-            key={index}
-            onClick={!action.disabled ? action.action : undefined}
-            style={action.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none', background: '#f3f3f3' } : {}}
-          >
-            <CompactIcon>{action.icon}</CompactIcon>
-            <CompactTitle>{action.title}</CompactTitle>
-          </CompactCard>
-        ))}
-      </CompactGrid>
+        {/* 별조각 게이지 (2+3+5=10, 회차당 최대 3개) */}
+        <StarGaugeSection>
+          <StarGaugeHeaderRow>
+            <StarGaugeCaption>별조각을 모아⭐을 만들어보세요</StarGaugeCaption>
+            <StarCountBadge style={{ flexShrink: 0 }}>
+              <StarCountLabel>⭐  :  </StarCountLabel> {starGauge?.starsEarned ?? 0} / 3
+            </StarCountBadge>
+          </StarGaugeHeaderRow>
+          <StarGaugeTopRow>
+            <StarGaugeLabel>✨ 별조각</StarGaugeLabel>
+            <StarGaugeBar>
+              <StarGaugeFill $progress={starGauge?.gaugeProgress ?? 0} $max={starGauge?.gaugeMax ?? 2} />
+              {Array.from({ length: (starGauge?.segmentCount ?? 2) - 1 }, (_, i) => (
+                <StarGaugeSegmentDivider key={i} $position={((i + 1) / (starGauge?.segmentCount ?? 2)) * 100} />
+              ))}
+            </StarGaugeBar>
+            <StarGaugeText>
+              {starGauge && starGauge.starsEarned >= (starGauge.starMaxPerPeriod ?? 3)
+                ? <span style={{ color: '#22c55e' }}>✓</span>
+                : `${starGauge?.gaugeProgress ?? 0} / ${starGauge?.gaugeMax ?? 2}`}
+            </StarGaugeText>
+            <StarGaugeInfoBtn onClick={() => setShowStarGaugeModal(true)} title="별조각 설명">
+              <FaInfoCircle size={16} />
+            </StarGaugeInfoBtn>
+          </StarGaugeTopRow>
+        </StarGaugeSection>
+      </HeaderSection>
 
-      {/* 푸시 알림 활성화 확인 모달 */}
-      {showPushConfirmModal && (
-        <ModalOverlay onClick={() => setShowPushConfirmModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
-            <div style={{ width: '100%', maxWidth: '420px' }}>
-              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
-                웹 푸시 알림을 켜시겠어요?
-              </h2>
-              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                {'푸시 알림을 켜시면 매칭 신청 시작, 매칭 결과 발표, 새로운 채팅 메시지 등을\n브라우저 알림으로 받아보실 수 있습니다.\n\n' +
-                  '이 기능을 사용하시려면, 곧 뜨는 브라우저 알림 팝업에서 반드시 "허용"을 선택해주세요.\n' +
-                  '"차단"을 선택하신 경우에는, 브라우저의 사이트 설정에서 직접 알림을 허용으로 변경해야 합니다.'}
-              </p>
-              <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-                푸시 알림을 켜지 않으셔도 서비스 이용은 가능하지만,
-                {'\n'}새로운 매칭/메시지 알림을 실시간으로 받으실 수 없습니다.
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
-                <button
+      {/* 별조각으로 별 획득 축하 모달 */}
+      <Modal
+        show={showStarEarnedModal}
+        onClose={() => setShowStarEarnedModal(false)}
+        title="축하합니다! ⭐"
+        cancelText="확인"
+      >
+        <div style={{ color: '#374151', lineHeight: 1.7, textAlign: 'center' }}>
+          <p style={{ margin: 0, fontWeight: 600, fontSize: '1.1rem' }}>
+            별조각을 모아 ⭐을 만들었습니다!
+          </p>
+        </div>
+      </Modal>
+
+      {/* 별조각 설명 모달 */}
+      <Modal
+        show={showStarGaugeModal}
+        onClose={() => setShowStarGaugeModal(false)}
+        title="✨ 별조각 안내"
+        cancelText="닫기"
+      >
+        <div style={{ color: '#374151', lineHeight: 1.6 }}>
+          <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>획득 방법</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 글 작성: 별조각 2개</p>
+          <p style={{ marginBottom: '0.75rem', marginLeft: '0.5rem' }}>• 댓글 작성: 별조각 1개 (타인 글에만, 같은 글당 1개)</p>
+          <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>⭐ 만들기</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 1번째 ⭐: 별조각 2개</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 2번째 ⭐: 별조각 3개 추가 (총 5개)</p>
+          <p style={{ marginBottom: '0.75rem', marginLeft: '0.5rem' }}>• 3번째 ⭐: 별조각 5개 추가 (총 10개)</p>
+          <p style={{ marginBottom: 0, fontWeight: 600, color: '#f59e0b' }}>• 회차당 최대 ⭐ 3개까지 획득 가능</p>
+        </div>
+      </Modal>
+
+      {/* 이용 안내 모달 (주의사항 + 커뮤니티 소개) */}
+      <Modal
+        show={showIntroModal}
+        onClose={() => setShowIntroModal(false)}
+        title="💬 익명게시판 이용 안내"
+        cancelText="닫기"
+      >
+        <div style={{ color: '#374151', lineHeight: '1.4' }}>
+          <p style={{ marginBottom: '0.5rem', fontWeight: 600, color: '#7C3AED' }}>📝 작성 규칙</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 게시글: <strong>12자 이상</strong>, 댓글: <strong>100자 이내</strong></p>
+          <p style={{ marginBottom: '0.5rem', marginLeft: '0.5rem' }}>• 게시글: <strong>1시간에 최대 5개</strong>까지 작성 가능</p>
+          
+          <p style={{ marginBottom: '0.5rem', marginTop: '0.75rem', fontWeight: 600, color: '#10b981' }}>⏱️ 도배 방지</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 게시글: <strong>30초에 한 번</strong>만 작성 가능</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 댓글: <strong>10초에 한 번</strong>만 작성 가능</p>
+          <p style={{ marginBottom: '0.5rem', marginLeft: '0.5rem' }}>• 동일한 내용을 연속으로 작성할 수 없습니다</p>
+          
+          <p style={{ marginBottom: '0.5rem', marginTop: '0.75rem', fontWeight: 600, color: '#ef4444' }}>🚫 금지 행위</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• <strong>욕설 및 비속어</strong> 사용</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• <strong>성적인 발언</strong> 및 성희롱</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• <strong>특정인에 대한 비난</strong> 및 명예훼손</p>
+          <p style={{ marginBottom: '0.3rem', marginLeft: '0.5rem' }}>• 개인정보 노출 및 유포</p>
+          <p style={{ marginBottom: '0.5rem', marginLeft: '0.5rem' }}>• 스팸 및 도배 행위</p>
+          
+          <p style={{ marginBottom: '0.5rem', marginTop: '0.75rem', fontWeight: 600, color: '#f59e0b' }}>⚖️ 제재 안내</p>
+          <p style={{ marginBottom: '0.5rem', marginLeft: '0.5rem' }}>• <strong>일정 수 이상의 신고</strong>가 누적되면 자동삭제됩니다.</p>
+          <p style={{ marginBottom: '1.25rem', marginLeft: '0.5rem' }}>• 기타 타인에게 불편을 줄 수 있는 글은 관리자에 의해 <strong>경고 없이 삭제</strong>될 수 있습니다.</p>
+          
+          <p style={{ marginBottom: '0.5rem', fontWeight: 600, color: '#6366f1' }}>💬 익명게시판 소개</p>
+          <p style={{ marginBottom: '0.75rem' }}>익명으로 자유롭게 소통하세요.</p>
+          <p style={{ marginBottom: '0.75rem' }}>해당 페이지는 회차 시작, 발표, 종료 시 자동 초기화됩니다.</p>
+          <p style={{ marginBottom: 0 }}>후기를 이야기하고, 셀프 자기소개를 공유해보세요.</p>
+        </div>
+      </Modal>
+
+      {/* 삭제 확인 모달 */}
+      <Modal
+        show={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setDeleteTarget(null);
+        }}
+        onConfirm={confirmDelete}
+        title="삭제 확인"
+        confirmText="삭제"
+        cancelText="취소"
+      >
+        <p>{deleteTarget?.type === 'post' ? '게시글을 삭제하시겠습니까?' : '댓글을 삭제하시겠습니까?'}</p>
+        <p style={{ color: '#ef4444', marginTop: '0.5rem', fontSize: '0.9rem' }}>삭제된 내용은 복구할 수 없습니다.</p>
+        <p style={{ color: '#ef4444', marginTop: 0, fontSize: '0.9rem' }}>획득한 별조각과 별이 사라집니다.</p>
+      </Modal>
+
+      {/* 신고 모달 */}
+      <Modal
+        show={showReportModal}
+        onClose={() => {
+          setShowReportModal(false);
+          setReportTarget(null);
+          setReportCategory('욕설');
+          setReportDetail('');
+        }}
+        onConfirm={confirmReport}
+        title="🚨 신고하기"
+        confirmText="신고 접수"
+        cancelText="취소"
+      >
+        <div>
+          <ReportLabel>신고 사유 선택 *</ReportLabel>
+          <ReportCategoryGrid>
+            {['욕설', '성적 발언', '특정인 비난', '스팸/광고', '기타'].map(category => (
+              <CategoryButton
+                key={category}
+                $selected={reportCategory === category}
+                onClick={() => setReportCategory(category)}
+                type="button"
+              >
+                {category}
+              </CategoryButton>
+            ))}
+          </ReportCategoryGrid>
+
+          <ReportLabel>상세 내용 (선택)</ReportLabel>
+          <ReportTextarea
+            placeholder="신고 사유를 자세히 작성해주세요..."
+            value={reportDetail}
+            onChange={(e) => setReportDetail(e.target.value)}
+            maxLength={200}
+          />
+          <div style={{ textAlign: 'right', fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
+            {reportDetail.length} / 200
+          </div>
+        </div>
+      </Modal>
+
+      {/* 차단 확인 모달 */}
+      <Modal
+        show={showBlockModal}
+        onClose={() => {
+          setShowBlockModal(false);
+          setBlockTarget(null);
+        }}
+        onConfirm={confirmBlockUser}
+        title="사용자 차단"
+        confirmText="차단"
+        cancelText="취소"
+      >
+        <p>
+          {blockTarget && (
+            <>익명{blockTarget.anonymousNumber}님을(를) 차단하시겠습니까?</>
+          )}
+        </p>
+        <p style={{ color: '#6b7280', marginTop: '0.5rem', fontSize: '0.9rem' }}>
+          해당 사용자의 글과 댓글이 <strong>차단된 사용자</strong>로 음영 처리되어 표시됩니다.
+        </p>
+      </Modal>
+
+      {/* [관리자 전용] 익명 사용자 프로필 모달 */}
+      <Modal
+        show={showProfileModal}
+        onClose={() => {
+          setShowProfileModal(false);
+          setProfileModalData(null);
+        }}
+        title={profileModalData ? `익명${profileModalData.anonymousNumber} 프로필` : '프로필'}
+        cancelText="닫기"
+      >
+        <div style={{ minHeight: '80px', color: '#374151' }}>
+          {profileModalLoading ? (
+            <p style={{ textAlign: 'center', color: '#6b7280' }}>불러오는 중...</p>
+          ) : profileModalData ? (
+            <div>
+              <div style={{ marginBottom: 12, padding: '8px 12px', background: '#f3f4f6', borderRadius: 8, fontSize: '0.9rem' }}>
+                <strong>이메일</strong>: {profileModalData.email}
+              </div>
+              <ProfileCard
+                nickname={profileModalData.profile?.nickname || '-'}
+                birthYear={profileModalData.profile?.birth_year || 0}
+                gender={profileModalData.profile?.gender === 'male' ? '남성' : profileModalData.profile?.gender === 'female' ? '여성' : '-'}
+                job={profileModalData.profile?.education || '-'}
+                company={getDisplayCompanyName(profileModalData.profile?.company, profileModalData.profile?.custom_company_name)}
+                mbti={profileModalData.profile?.mbti}
+                maritalStatus={profileModalData.profile?.marital_status}
+                appeal={profileModalData.profile?.appeal}
+                interests={profileModalData.profile?.interests}
+                appearance={profileModalData.profile?.appearance}
+                personality={profileModalData.profile?.personality}
+                height={profileModalData.profile?.height}
+                body_type={profileModalData.profile?.body_type}
+                residence={profileModalData.profile?.residence}
+                drinking={profileModalData.profile?.drinking}
+                smoking={profileModalData.profile?.smoking}
+                religion={profileModalData.profile?.religion}
+              />
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+
+      {/* [관리자 전용] 익명 ON이면 익명 ID 박스 표시 */}
+      {user?.isAdmin && !postAsAdmin && (
+            <AdminIdentitySection>
+              <AnonymousIdBoxRow>
+                {!anonymousIdBoxCollapsed && (
+                  <>
+                    {adminIdentities.length > 0 && selectedAnonymousNumber && (
+                      <span
+                        style={{
+                          padding: '0.4rem 0.8rem',
+                          borderRadius: '8px',
+                          background: adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.colorCode || '#888888',
+                          color: 'white',
+                          fontSize: '0.9rem',
+                          fontWeight: 700,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        }}
+                      >
+                        익명{selectedAnonymousNumber}
+                      </span>
+                    )}
+                    <select
+                      value={selectedAnonymousNumber || ''}
+                      onChange={(e) => setSelectedAnonymousNumber(Number(e.target.value))}
+                      style={{
+                        padding: '0.5rem',
+                        borderRadius: '8px',
+                        border: '2px solid #7C3AED',
+                        background: 'white',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        fontWeight: 600
+                      }}
+                    >
+                      {adminIdentities.length === 0 && <option value="">익명 ID 없음</option>}
+                      {adminIdentities.map(identity => (
+                        <option key={identity.anonymousNumber} value={identity.anonymousNumber}>
+                          익명{identity.anonymousNumber}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={handleCreateIdentity}
+                      disabled={creatingIdentity || creatingBulkIdentity}
+                      style={{
+                        padding: '0.5rem 1rem',
+                        borderRadius: '8px',
+                        border: '2px solid #10B981',
+                        background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#10B981',
+                        color: 'white',
+                        cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
+                        fontSize: '0.9rem',
+                        fontWeight: 600,
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#059669';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#10B981';
+                      }}
+                    >
+                      {creatingIdentity ? '생성 중...' : '+ 새 익명 ID 생성'}
+                    </button>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={bulkCreateCount}
+                        onChange={(e) => setBulkCreateCount(e.target.value)}
+                        disabled={creatingIdentity || creatingBulkIdentity}
+                        placeholder="개수"
+                        style={{
+                          width: '60px',
+                          padding: '0.5rem',
+                          borderRadius: '8px',
+                          border: '2px solid #7C3AED',
+                          background: 'white',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          textAlign: 'center'
+                        }}
+                      />
+                      <button
+                        onClick={handleCreateBulkIdentities}
+                        disabled={creatingIdentity || creatingBulkIdentity}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          borderRadius: '8px',
+                          border: '2px solid #7C3AED',
+                          background: (creatingIdentity || creatingBulkIdentity) ? '#9CA3AF' : '#7C3AED',
+                          color: 'white',
+                          cursor: (creatingIdentity || creatingBulkIdentity) ? 'not-allowed' : 'pointer',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#6D28D9';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!creatingIdentity && !creatingBulkIdentity) e.currentTarget.style.background = '#7C3AED';
+                        }}
+                      >
+                        {creatingBulkIdentity ? '생성 중...' : '다중 생성'}
+                      </button>
+                    </div>
+                  </>
+                )}
+                <CollapseButton
                   type="button"
-                  onClick={() => setShowPushConfirmModal(false)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: 8,
-                    border: '1px solid #d1d5db',
-                    background: '#f9fafb',
-                    color: '#4b5563',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    minWidth: 90,
-                  }}
+                  onClick={() => setAnonymousIdBoxCollapsed(prev => !prev)}
+                  title={anonymousIdBoxCollapsed ? '펼치기' : '접기'}
                 >
-                  아니요
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setShowPushConfirmModal(false);
-                    await handleTogglePush();
-                  }}
+                  {anonymousIdBoxCollapsed ? <FaChevronDown /> : <FaChevronUp />}
+                </CollapseButton>
+              </AnonymousIdBoxRow>
+            </AdminIdentitySection>
+      )}
+
+      <WriteSection>
+        {user?.isAdmin && !postAsAdmin && showTagSelector && (() => {
+          const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+          const fixedTag = selectedIdentity?.fixedDisplayTag;
+          return (
+            <div style={{ marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#374151' }}>표시 태그:</span>
+              {fixedTag ? (
+                <span style={{ padding: '0.4rem 0.6rem', borderRadius: '8px', background: '#e5e7eb', fontSize: '0.9rem', fontWeight: 600 }}>
+                  {fixedTag} (고정)
+                </span>
+              ) : (
+                <select
+                  value={selectedPostDisplayTag}
+                  onChange={(e) => setSelectedPostDisplayTag(e.target.value)}
                   style={{
-                    padding: '10px 20px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: '8px',
+                    border: '2px solid #7C3AED',
+                    background: 'white',
                     fontSize: '0.9rem',
                     fontWeight: 600,
-                    cursor: 'pointer',
-                    minWidth: 110,
-                  }}
-                >
-                  네, 켤게요
-                </button>
-              </div>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* 푸시 권한이 차단되어 더 이상 팝업이 뜨지 않을 때: 앱 설정으로 이동 안내 */}
-      {showPushSettingsModal && (
-        <ModalOverlay onClick={() => setShowPushSettingsModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
-            <div style={{ width: '100%', maxWidth: '420px' }}>
-              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
-                알림 권한이 꺼져 있어요
-              </h2>
-              <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                {Capacitor.getPlatform() === 'ios'
-                  ? '매칭 상대방과의 원활한 채팅을 위해 알림 권한이 필요합니다.\n\n' +
-                    '아래 버튼을 눌러 설정으로 이동한 뒤,\n' +
-                    '아이폰 설정 > 직쏠공 > 알림에서 "알림 허용"을 켜주세요.'
-                  : '기기에서 알림 권한이 거부되어, 더 이상 권한 팝업이 뜨지 않습니다.\n\n' +
-                    '아래 버튼을 눌러 설정으로 이동한 뒤,\n' +
-                    '설정 > 애플리케이션 > 직쏠공 > 알림에서 "허용"으로 변경해주세요.'}
-              </p>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowPushSettingsModal(false)}
-                  style={{
-                    padding: '10px 18px',
-                    borderRadius: 8,
-                    border: '1px solid #d1d5db',
-                    background: '#f9fafb',
-                    color: '#4b5563',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    minWidth: 90,
-                  }}
-                >
-                  닫기
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setShowPushSettingsModal(false);
-                    await openNativeAppSettings();
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: 8,
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                    color: 'white',
-                    fontSize: '0.9rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    minWidth: 130,
-                  }}
-                >
-                  설정으로 이동
-                </button>
-              </div>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* 푸시알림 안내 모달 (플랫폼별로 다른 내용) */}
-      {showIosGuideModal && (
-        <ModalOverlay onClick={() => setShowIosGuideModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '520px', height: 'auto', maxHeight: '90vh', padding: '2.5rem 1.75rem' }}>
-            <div style={{ width: '100%', maxWidth: '420px' }}>
-              {isNativeApp() ? (
-                <>
-                  <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
-                    푸시알림이 필요한 이유
-                  </h2>
-                  <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                    {'푸시 알림을 켜시면 중요한 순간을 놓치지 않고 실시간으로 소통할 수 있습니다.\n\n' +
-                      '📌 매칭 결과 발표\n' +
-                      '매칭 결과가 나온 시점을 놓치면 상대방이 오랫동안 기다릴 수 있습니다. 푸시 알림을 통해 즉시 확인하고 상대방과 연락을 시작할 수 있습니다.\n\n' +
-                      '💬 채팅 메시지 알림\n' +
-                      '채팅을 통해 메시지를 주고받을 때 알림을 받지 못하면 서로 연락이 어려워 오해를 살 수 있습니다. 푸시 알림을 통해 상대방의 메시지를 빠르게 확인하고 답변할 수 있어 더 원활한 소통이 가능합니다.\n\n' +
-                      '🔔 기타 중요한 알림\n' +
-                      '매칭 신청 시작, 시스템 공지 등 중요한 정보도 실시간으로 받아보실 수 있습니다.'}
-                  </p>
-                  <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-                    푸시 알림을 켜시면 더욱 편리하고 빠른 소통이 가능합니다.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>
-                    아이폰(iOS) 푸시 알림 안내
-                  </h2>
-                  <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                    {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n' +
-                      '아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n' +
-                      '1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n' +
-                      '2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n' +
-                      '3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n' +
-                      '4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
-                  </p>
-                  <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>
-                    위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.
-                  </p>
-                </>
-              )}
-              <div style={{ textAlign: 'center' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowIosGuideModal(false)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: 8,
-                    border: '1px solid #d1d5db',
-                    background: '#f9fafb',
-                    color: '#4b5563',
-                    fontSize: '0.9rem',
-                    cursor: 'pointer',
-                    minWidth: 90,
-                  }}
-                >
-                  닫기
-                </button>
-              </div>
-            </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
-
-      {/* 이메일 인증 모달 */}
-      {showEmailVerificationModal && (
-        <ModalOverlay onClick={() => setShowEmailVerificationModal(false)}>
-          <ModalContent onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', height: 'auto', maxHeight: '90vh' }}>
-            <div style={{ padding: '2rem' }}>
-              <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center' }}>이메일 인증</h2>
-              <p style={{ color: '#666', marginBottom: '1.5rem', textAlign: 'center' }}>
-                이 기능을 사용하려면 이메일 인증이 필요합니다.
-              </p>
-              
-              {emailVerificationStep === 'input' && (
-                <div>
-                  <input
-                    type="text"
-                    placeholder="인증번호 6자리를 입력하세요"
-                    value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value)}
-                    maxLength={6}
-                    style={{
-                      width: '100%',
-                      padding: '12px',
-                      borderRadius: '8px',
-                      border: '2px solid #e1e5e9',
-                      fontSize: '1rem',
-                      marginBottom: '1rem',
-                      textAlign: 'center'
-                    }}
-                  />
-                  
-                  <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                    <button
-                      onClick={handleEmailVerification}
-                      disabled={!verificationCode || isVerifying}
-                      style={{
-                        flex: 1,
-                        padding: '12px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        background: '#667eea',
-                        color: 'white',
-                        fontSize: '1rem',
-                        cursor: verificationCode && !isVerifying ? 'pointer' : 'not-allowed',
-                        opacity: verificationCode && !isVerifying ? 1 : 0.5
-                      }}
-                    >
-                      {isVerifying ? '인증 중...' : '인증 확인'}
-                    </button>
-                    
-                    <button
-                      onClick={handleResendVerificationEmail}
-                      disabled={isResending}
-                      style={{
-                        flex: 1,
-                        padding: '12px',
-                        borderRadius: '8px',
-                        border: '2px solid #667eea',
-                        background: 'transparent',
-                        color: '#667eea',
-                        fontSize: '1rem',
-                        cursor: isResending ? 'not-allowed' : 'pointer'
-                      }}
-                    >
-                      {isResending ? '재발송 중...' : '메일 재발송'}
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              <div style={{ textAlign: 'center' }}>
-                <button
-                  onClick={() => setShowEmailVerificationModal(false)}
-                  style={{
-                    padding: '8px 16px',
-                    borderRadius: '6px',
-                    border: '2px solid #ddd',
-                    background: 'transparent',
-                    color: '#888',
-                    fontSize: '0.9rem',
                     cursor: 'pointer'
                   }}
                 >
-                  나중에 하기
-                </button>
-              </div>
+                  <option value="">태그 선택 (필수)</option>
+                  {allowedDisplayTags.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              )}
             </div>
-          </ModalContent>
-        </ModalOverlay>
-      )}
+          );
+        })()}
+        <WriteTextarea
+          placeholder="게시글을 입력하세요... (최소 12자)"
+          value={newPostContent}
+          onChange={(e) => setNewPostContent(e.target.value)}
+          rows={3}
+          maxLength={500}
+        />
+        <WriteFooter>
+          <CharCount $over={newPostContent.length > 500}>
+            {newPostContent.length} / 500
+          </CharCount>
+          <WriteButton
+            onClick={handleSubmitPost}
+            disabled={
+              submitting ||
+              !newPostContent.trim() ||
+              newPostContent.length < 12 ||
+              (postCooldown > 0 && !user?.isAdmin) ||
+              (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedPostDisplayTag))
+            }
+          >
+            {submitting ? '작성 중...' : postCooldown > 0 && !user?.isAdmin ? `${postCooldown}초 후 작성 가능` : '게시'}
+          </WriteButton>
+        </WriteFooter>
+      </WriteSection>
 
-    </MainContainer>
+      {/* 필터 및 정렬 옵션 */}
+      <SortSection>
+        <SortSelect 
+          value={filter} 
+          onChange={(e) => setFilter(e.target.value as 'all' | 'mine')}
+        >
+          <option value="all">전체</option>
+          <option value="mine">내가 쓴 글</option>
+        </SortSelect>
+        <SortSelect 
+          value={sortOrder} 
+          onChange={(e) => setSortOrder(e.target.value as 'latest' | 'popular')}
+        >
+          <option value="latest">최신순</option>
+          <option value="popular">추천순</option>
+        </SortSelect>
+      </SortSection>
+
+      <PostsContainer>
+        {posts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: '#9ca3af' }}>
+            아직 게시글이 없습니다. 첫 번째 게시글을 작성해보세요!
+          </div>
+        ) : (
+          <>
+          {posts.map(post => {
+            if (post.is_deleted) {
+              return (
+                <DeletedPostCard 
+                  key={post.id}
+                  ref={(el) => {
+                    postRefs.current[post.id] = el;
+                  }}
+                >
+                  {post.is_author_deleted 
+                    ? '작성자에 의해 삭제된 글입니다.'
+                    : post.is_admin_deleted 
+                    ? '관리자에 의해 차단된 글입니다.' 
+                    : '신고 누적으로 삭제된 글입니다.'}
+                </DeletedPostCard>
+              );
+            }
+
+            const isMyPost = user?.id === post.user_id;
+            const isLiked = likedPostIds.includes(post.id);
+            const isExpanded = expandedPosts.has(post.id);
+            const isContentExpanded = expandedPostContent.has(post.id);
+            // 3줄 초과 판단: 개행 문자가 3개 이상(4줄 이상)이거나, 글자 수가 90자 이상
+            const lineBreaks = (post.content.match(/\n/g) || []).length;
+            const needsExpand = lineBreaks > 2 || post.content.length > 90;
+
+            // 차단된 글: 내용 숨기고 "차단된 사용자의 글 입니다" + 차단 해제 버튼만 표시
+            if (post.blocked_by_me) {
+              return (
+                <BlockedCardWrapper
+                  key={post.id}
+                  ref={(el) => { postRefs.current[post.id] = el; }}
+                >
+                  <div style={{ padding: '1rem 1.25rem' }}>
+                    {!isMyPost && !post.is_admin_post && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+                        <IconButton onClick={() => handleUnblockUser(post.period_id, post.anonymous_number)} title="차단 해제">
+                          <span style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 600 }}>차단 해제</span>
+                        </IconButton>
+                      </div>
+                    )}
+                    <span style={{ color: '#6b7280', fontSize: '0.95rem' }}>차단된 사용자의 글 입니다.</span>
+                  </div>
+                </BlockedCardWrapper>
+              );
+            }
+
+            const cardContent = (
+              <PostCard 
+                key={post.id}
+                ref={(el) => {
+                  postRefs.current[post.id] = el;
+                }}
+              >
+                <PostHeader>
+                  <PostAuthor>
+                    {post.is_admin_post ? (
+                      <AdminBadge>👑 관리자</AdminBadge>
+                    ) : (
+                      user?.isAdmin ? (
+                        <button
+                          type="button"
+                          onClick={() => handleAdminViewProfile(post.period_id, post.anonymous_number)}
+                          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                          title="프로필 보기"
+                        >
+                          <AnonymousName $color={post.color_code}>익명{post.anonymous_number}</AnonymousName>
+                        </button>
+                      ) : (
+                        <AnonymousName $color={post.color_code}>익명{post.anonymous_number}</AnonymousName>
+                      )
+                    )}
+                    {post.tag && !post.is_admin_post && <StatusTag $type={post.tag}>{post.tag}</StatusTag>}
+                    <TimeStamp>{getRelativeTime(post.created_at)}</TimeStamp>
+                  </PostAuthor>
+                  <PostActions>
+                    {user?.isAdmin && (
+                      <IconButton 
+                        onClick={() => handleAdminDelete('post', post.id)} 
+                        title="관리자 차단"
+                        style={{ color: '#dc2626' }}
+                      >
+                        <FaBan />
+                      </IconButton>
+                    )}
+                    {!isMyPost && !post.is_admin_post && (
+                      <IconButton onClick={() => requestBlockUser(post.period_id, post.anonymous_number)} title="이 사용자 차단">
+                        <FaUserSlash style={{ color: '#6b7280' }} />
+                      </IconButton>
+                    )}
+                    {!isMyPost && (
+                      <IconButton onClick={() => requestReport('post', post.id)} title="신고">
+                        <FaExclamationTriangle />
+                        {user?.isAdmin && post.report_count > 0 && (
+                          <span style={{ 
+                            marginLeft: '4px', 
+                            fontSize: '0.75rem', 
+                            fontWeight: 'bold', 
+                            color: '#ef4444' 
+                          }}>
+                            {post.report_count}
+                          </span>
+                        )}
+                      </IconButton>
+                    )}
+                    {isMyPost && (
+                      <IconButton onClick={() => requestDeletePost(post.id)} title="삭제">
+                        <FaTrash />
+                      </IconButton>
+                    )}
+                  </PostActions>
+                </PostHeader>
+
+                <PostContent $collapsed={needsExpand && !isContentExpanded}>
+                  {post.content}
+                </PostContent>
+                {needsExpand && (
+                  <ShowMoreButton
+                    onClick={() => {
+                      setExpandedPostContent(prev => {
+                        const newSet = new Set(prev);
+                        if (isContentExpanded) {
+                          newSet.delete(post.id);
+                        } else {
+                          newSet.add(post.id);
+                        }
+                        return newSet;
+                      });
+                    }}
+                  >
+                    {isContentExpanded ? (
+                      <>접기 <FaChevronUp /></>
+                    ) : (
+                      <>더보기 <FaChevronDown /></>
+                    )}
+                  </ShowMoreButton>
+                )}
+
+                <PostFooter>
+                  <LikeButton $liked={isLiked} onClick={() => handleToggleLike(post.id)}>
+                    {isLiked ? <FaHeart /> : <FaRegHeart />}
+                    <span>{post.like_count}</span>
+                  </LikeButton>
+                  <CommentButton onClick={() => handleToggleComments(post.id)}>
+                    <FaComment />
+                    <span>{post.comment_count}</span>
+                  </CommentButton>
+                </PostFooter>
+
+                {isExpanded && (
+                  <CommentsSection>
+                    {loadingComments.has(post.id) ? (
+                      <div style={{ padding: '1rem', textAlign: 'center' }}>
+                        <InlineSpinner text="댓글 불러오는 중..." />
+                      </div>
+                    ) : (comments[post.id] ?? []).map(comment => {
+                      if (comment.is_deleted) {
+                        return (
+                          <CommentItem 
+                            key={comment.id} 
+                            style={{ 
+                              background: '#e5e7eb', 
+                              textAlign: 'center', 
+                              color: 'rgb(98, 109, 126)', 
+                              fontStyle: 'italic', 
+                              fontSize: '0.8rem'
+                            }}
+                          >
+                            {comment.is_author_deleted 
+                              ? '작성자에 의해 삭제된 댓글입니다.'
+                              : comment.is_admin_deleted 
+                              ? '관리자에 의해 차단된 댓글입니다.' 
+                              : '신고 누적으로 삭제된 댓글입니다.'}
+                          </CommentItem>
+                        );
+                      }
+
+                      const isMyComment = user?.id === comment.user_id;
+                      const isCommentExpanded = expandedCommentContent.has(comment.id);
+                      // 3줄 초과 판단: 개행 문자가 3개 이상(4줄 이상)이거나, 글자 수가 70자 이상
+                      const commentLineBreaks = (comment.content.match(/\n/g) || []).length;
+                      const commentNeedsExpand = commentLineBreaks > 2 || comment.content.length > 70;
+
+                      // 차단된 댓글: 내용 숨기고 "차단된 사용자의 댓글 입니다" + 차단 해제 버튼만 표시
+                      if (comment.blocked_by_me) {
+                        return (
+                          <BlockedCommentWrapper key={comment.id}>
+                            <div style={{ padding: '0.75rem' }}>
+                              {!isMyComment && !comment.is_admin_post && (
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.35rem' }}>
+                                  <IconButton onClick={() => handleUnblockUser(post.period_id, comment.anonymous_number, post.id)} title="차단 해제">
+                                    <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>차단 해제</span>
+                                  </IconButton>
+                                </div>
+                              )}
+                              <span style={{ color: '#6b7280', fontSize: '0.85rem' }}>차단된 사용자의 댓글 입니다.</span>
+                            </div>
+                          </BlockedCommentWrapper>
+                        );
+                      }
+
+                      const commentContent = (
+                        <CommentItem key={comment.id}>
+                          <CommentHeader>
+                            <PostAuthor>
+                              {comment.is_admin_post ? (
+                                <AdminBadge style={{ fontSize: '0.75rem' }}>👑 관리자</AdminBadge>
+                              ) : (
+                                user?.isAdmin ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAdminViewProfile(post.period_id, comment.anonymous_number)}
+                                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted', fontSize: 'inherit' }}
+                                    title="프로필 보기"
+                                  >
+                                    <AnonymousName $color={comment.color_code} style={{ fontSize: '0.9rem' }}>익명{comment.anonymous_number}</AnonymousName>
+                                  </button>
+                                ) : (
+                                  <AnonymousName $color={comment.color_code} style={{ fontSize: '0.9rem' }}>익명{comment.anonymous_number}</AnonymousName>
+                                )
+                              )}
+                              {comment.tag && !comment.is_admin_post && <StatusTag $type={comment.tag}>{comment.tag}</StatusTag>}
+                              <TimeStamp style={{ fontSize: '0.75rem' }}>{getRelativeTime(comment.created_at)}</TimeStamp>
+                            </PostAuthor>
+                            <PostActions>
+                              {user?.isAdmin && (
+                                <IconButton 
+                                  onClick={() => handleAdminDelete('comment', comment.id, post.id)} 
+                                  title="관리자 차단"
+                                  style={{ color: '#dc2626' }}
+                                >
+                                  <FaBan size={12} />
+                                </IconButton>
+                              )}
+                              {!isMyComment && !comment.is_admin_post && (
+                                <IconButton onClick={() => requestBlockUser(post.period_id, comment.anonymous_number, post.id)} title="이 사용자 차단">
+                                  <FaUserSlash size={12} style={{ color: '#6b7280' }} />
+                                </IconButton>
+                              )}
+                              {!isMyComment && (
+                                <IconButton onClick={() => requestReport('comment', comment.id)} title="신고">
+                                  <FaExclamationTriangle size={12} />
+                                  {user?.isAdmin && comment.report_count > 0 && (
+                                    <span style={{ 
+                                      marginLeft: '3px', 
+                                      fontSize: '0.7rem', 
+                                      fontWeight: 'bold', 
+                                      color: '#ef4444' 
+                                    }}>
+                                      {comment.report_count}
+                                    </span>
+                                  )}
+                                </IconButton>
+                              )}
+                              {isMyComment && (
+                                <IconButton onClick={() => requestDeleteComment(post.id, comment.id)} title="삭제">
+                                  <FaTrash size={12} />
+                                </IconButton>
+                              )}
+                            </PostActions>
+                          </CommentHeader>
+                          <CommentContent $collapsed={commentNeedsExpand && !isCommentExpanded}>
+                            {comment.content}
+                          </CommentContent>
+                          {commentNeedsExpand && (
+                            <ShowMoreButton
+                              style={{ fontSize: '0.75rem', marginTop: '0.25rem' }}
+                              onClick={() => {
+                                setExpandedCommentContent(prev => {
+                                  const newSet = new Set(prev);
+                                  if (isCommentExpanded) {
+                                    newSet.delete(comment.id);
+                                  } else {
+                                    newSet.add(comment.id);
+                                  }
+                                  return newSet;
+                                });
+                              }}
+                            >
+                              {isCommentExpanded ? (
+                                <>접기 <FaChevronUp /></>
+                              ) : (
+                                <>더보기 <FaChevronDown /></>
+                              )}
+                            </ShowMoreButton>
+                          )}
+                        </CommentItem>
+                      );
+                      return commentContent;
+                    })}
+
+                    <div style={{ marginTop: '1rem' }}>
+                      {user?.isAdmin && (
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          flexWrap: 'wrap',
+                          gap: '0.5rem', 
+                          marginBottom: '0.5rem',
+                          fontSize: '0.85rem',
+                          color: '#6b7280'
+                        }}>
+                          <span>댓글 작성자:</span>
+                          <span 
+                            style={{ 
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '6px',
+                              background: postAsAdmin ? '#dc2626' : (adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.colorCode || '#888888'),
+                              color: 'white',
+                              fontSize: '0.8rem',
+                              fontWeight: 700
+                            }}
+                          >
+                            {postAsAdmin ? '👑 관리자' : (adminIdentities.length > 0 && selectedAnonymousNumber ? `익명${selectedAnonymousNumber}` : '—')}
+                          </span>
+                        </div>
+                      )}
+                      {user?.isAdmin && !postAsAdmin && showTagSelector && (() => {
+                        const selectedIdentity = adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber);
+                        const fixedTag = selectedIdentity?.fixedDisplayTag;
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>표시 태그:</span>
+                            {fixedTag ? (
+                              <span style={{ padding: '0.35rem 0.5rem', borderRadius: '6px', background: '#e5e7eb', fontSize: '0.85rem', fontWeight: 600 }}>
+                                {fixedTag} (고정)
+                              </span>
+                            ) : (
+                              <select
+                                value={selectedCommentDisplayTag}
+                                onChange={(e) => setSelectedCommentDisplayTag(e.target.value)}
+                                style={{
+                                  padding: '0.35rem 0.5rem',
+                                  borderRadius: '6px',
+                                  border: '2px solid #7C3AED',
+                                  background: 'white',
+                                  fontSize: '0.85rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <option value="">태그 선택 (필수)</option>
+                                {allowedDisplayTags.map(t => (
+                                  <option key={t} value={t}>{t}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      <CommentInput
+                        placeholder="댓글을 입력하세요... (최대 100자)"
+                        value={commentInputs[post.id] || ''}
+                        onChange={(e) => setCommentInputs(prev => ({ ...prev, [post.id]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (commentInputs[post.id]?.trim()) {
+                              handleSubmitComment(post.id);
+                            }
+                          }
+                        }}
+                        maxLength={100}
+                      />
+                      <CommentSubmitButton
+                        onClick={() => handleSubmitComment(post.id)}
+                        disabled={
+                          !commentInputs[post.id]?.trim() ||
+                          (commentCooldowns[post.id] > 0 && !user?.isAdmin) ||
+                          (user?.isAdmin && !postAsAdmin && tagRequiredForAnonymous && !(adminIdentities.find(i => i.anonymousNumber === selectedAnonymousNumber)?.fixedDisplayTag ?? selectedCommentDisplayTag))
+                        }
+                      >
+                        {commentCooldowns[post.id] > 0 && !user?.isAdmin 
+                          ? `${commentCooldowns[post.id]}초 후 작성 가능` 
+                          : '댓글 작성'}
+                      </CommentSubmitButton>
+                    </div>
+                  </CommentsSection>
+                )}
+              </PostCard>
+            );
+            return cardContent;
+          })}
+          {hasMore && (
+            <LoadMoreButton onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? '로딩 중...' : '더 보기'}
+            </LoadMoreButton>
+          )}
+          </>
+        )}
+      </PostsContainer>
+    </Container>
   );
 };
 
-export default MainPage; 
+export default MainPage;
+

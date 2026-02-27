@@ -451,6 +451,12 @@ export const systemApi = {
     const response = await api.get('/system/version-policy');
     return response.data;
   },
+
+  // 사이드바 메뉴 순서 조회 (order가 null이면 프론트 기본값 사용)
+  getSidebarMenuOrder: async (): Promise<{ order: string[] | null }> => {
+    const response = await api.get('/system/sidebar-menu-order');
+    return response.data;
+  },
 };
 
 // 별 / 출석 API
@@ -601,6 +607,7 @@ export const adminApi = {
     extraMatching?: { enabled: boolean };
     community?: { enabled: boolean };
     rpsStatsExcluded?: { nicknames: string[] };
+    sidebarMenuOrder?: string[] | null;
     versionPolicy?: {
       ios?: { minimumVersion?: string; latestVersion?: string; storeUrl?: string };
       android?: { minimumVersion?: string; latestVersion?: string; storeUrl?: string };
@@ -608,6 +615,12 @@ export const adminApi = {
     };
   }> => {
     const response = await api.get('/admin/system-settings');
+    return response.data;
+  },
+
+  // 사이드바 메뉴 순서 업데이트
+  updateSidebarMenuOrder: async (order: string[]): Promise<{ success: boolean; order: string[]; message?: string }> => {
+    const response = await api.put('/admin/system-settings/sidebar-menu-order', { order });
     return response.data;
   },
 

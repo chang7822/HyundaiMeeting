@@ -33,6 +33,7 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage.tsx';
 import ResetPasswordVerifyPage from './pages/auth/ResetPasswordVerifyPage.tsx';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage.tsx';
 import MainPage from './pages/MainPage.tsx';
+import MatchingApplyPage from './pages/MatchingApplyPage.tsx';
 import AdminPage from './pages/admin/AdminPage.tsx';
 import ProfilePage from './pages/ProfilePage.tsx';
 import PreferencePage from './pages/PreferencePage.tsx';
@@ -47,7 +48,6 @@ import NoticeManagerPage from './pages/admin/NoticeManagerPage.tsx';
 import FaqManagerPage from './pages/admin/FaqManagerPage.tsx';
 import ReportManagementPage from './pages/admin/ReportManagementPage.tsx';
 import MatchingHistoryPage from './pages/MatchingHistoryPage.tsx';
-import CommunityPage from './pages/CommunityPage.tsx';
 import ExtraMatchingPage from './pages/ExtraMatchingPage.tsx';
 import NotificationsPage from './pages/NotificationsPage.tsx';
 import AdminNotificationPage from './pages/admin/AdminNotificationPage.tsx';
@@ -835,6 +835,17 @@ const AppInner: React.FC = () => {
             </div>
           </ProtectedRoute>
         } />
+        <Route path="/matching-apply" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
+              <MatchingApplyPage
+                key={location.state?.forceReload || 'matching-apply'}
+                sidebarOpen={sidebarOpen}
+              />
+            </div>
+          </ProtectedRoute>
+        } />
         <Route path="/profile" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
@@ -903,14 +914,7 @@ const AppInner: React.FC = () => {
             </div>
           </ProtectedRoute>
         } />
-        <Route path="/community" element={
-          <ProtectedRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-              <CommunityPage sidebarOpen={sidebarOpen} />
-            </div>
-          </ProtectedRoute>
-        } />
+        <Route path="/community" element={<Navigate to="/main" replace />} />
         <Route path="/extra-matching" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>

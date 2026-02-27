@@ -69,10 +69,10 @@ self.addEventListener('notificationclick', function(event) {
         linkUrl = data.senderId ? `/chat/${data.senderId}` : '/main';
         break;
       case 'community_comment':
-        linkUrl = data.postId ? `/community?postId=${data.postId}&openComments=true` : '/community';
+        linkUrl = data.postId ? `/main?postId=${data.postId}&openComments=true` : '/main';
         break;
       case 'community_delete':
-        linkUrl = '/community';
+        linkUrl = '/main';
         break;
       case 'notice':
         linkUrl = '/notice';
@@ -86,10 +86,8 @@ self.addEventListener('notificationclick', function(event) {
         linkUrl = '/extra-matching';
         break;
       case 'matching_application_start':
-        linkUrl = '/main';
-        break;
       case 'matching_result_announce':
-        linkUrl = '/matching-history';
+        linkUrl = '/matching-apply';
         break;
       default:
         linkUrl = '/main';

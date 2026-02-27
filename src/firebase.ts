@@ -170,10 +170,10 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
             if (data.senderId) linkUrl = `/chat/${data.senderId}`;
             break;
           case 'community_comment':
-            if (data.postId) linkUrl = `/community?postId=${data.postId}&openComments=true`;
+            if (data.postId) linkUrl = `/main?postId=${data.postId}&openComments=true`;
             break;
           case 'community_delete':
-            linkUrl = '/community';
+            linkUrl = '/main';
             break;
           case 'notice':
             linkUrl = '/notice';
@@ -187,14 +187,12 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
             linkUrl = '/extra-matching';
             break;
           case 'matching_application_start':
-            linkUrl = '/main';
-            break;
           case 'matching_result_announce':
-            linkUrl = '/matching-history';
+            linkUrl = '/matching-apply';
             break;
           default:
             if (data.postId) {
-              linkUrl = `/community?postId=${data.postId}&openComments=true`;
+              linkUrl = `/main?postId=${data.postId}&openComments=true`;
             } else {
               linkUrl = '/main';
             }

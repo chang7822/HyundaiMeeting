@@ -1162,7 +1162,7 @@ router.post('/posts', authenticate, async (req, res) => {
             type: 'community_post',
             title: '📝 커뮤니티 신규 게시글',
             body: notifBody,
-            linkUrl: `/community?postId=${post.id}&openComments=true`,
+            linkUrl: `/main?postId=${post.id}&openComments=true`,
             meta: { post_id: post.id, period_id }
           });
         }
@@ -1172,7 +1172,7 @@ router.post('/posts', authenticate, async (req, res) => {
           '📝 커뮤니티 신규 게시글',
           notifBody,
           {
-            linkUrl: `/community?postId=${post.id}&openComments=true`,
+            linkUrl: `/main?postId=${post.id}&openComments=true`,
             postId: String(post.id),
             type: 'community_post'
           }
@@ -1249,7 +1249,7 @@ router.post('/admin/delete-post/:postId', authenticate, async (req, res) => {
           type: 'community_delete',
           title: '⚠️ 게시글이 삭제되었습니다',
           body: '관리자에 의해 회원님의 게시글이 삭제되었습니다.',
-          linkUrl: '/community',
+          linkUrl: '/main',
           meta: { target_type: 'post', target_id: postId, reason: 'admin_deleted' }
         });
 
@@ -1347,7 +1347,7 @@ router.post('/admin/delete-comment/:commentId', authenticate, async (req, res) =
           type: 'community_delete',
           title: '⚠️ 댓글이 삭제되었습니다',
           body: '관리자에 의해 회원님의 댓글이 삭제되었습니다.',
-          linkUrl: '/community',
+          linkUrl: '/main',
           meta: { target_type: 'comment', target_id: commentId, reason: 'admin_deleted' }
         });
 
@@ -1819,7 +1819,7 @@ router.post('/comments', authenticate, async (req, res) => {
                 type: 'community_comment',
                 title: '💬 새 댓글이 달렸습니다',
                 body: baseBody + contentSuffix,
-                linkUrl: `/community?postId=${post_id}&openComments=true`,
+                linkUrl: `/main?postId=${post_id}&openComments=true`,
                 meta: { post_id: post_id, comment_id: comment.id }
               });
             } catch (notifErr) {
@@ -1833,7 +1833,7 @@ router.post('/comments', authenticate, async (req, res) => {
           type: 'community_comment',
           title: '💬 새 댓글',
           body: '게시글에 새 댓글이 달렸습니다.' + contentSuffix,
-          linkUrl: `/community?postId=${post_id}&openComments=true`,
+          linkUrl: `/main?postId=${post_id}&openComments=true`,
           postId: String(post_id)
         });
 
@@ -2267,7 +2267,7 @@ router.post('/reports', authenticate, async (req, res) => {
           type: 'community_report',
           title: '🚨 커뮤니티 신고 접수',
           body: `${contentType}에 신고가 접수되었습니다. (누적 ${newReportCount}건)`,
-          linkUrl: '/community',
+          linkUrl: '/main',
           meta: { target_type, target_id, report_count: newReportCount }
         });
       }
@@ -2329,7 +2329,7 @@ router.post('/reports', authenticate, async (req, res) => {
             type: 'community_delete',
             title: `⚠️ ${contentType}이 삭제되었습니다`,
             body: `신고 누적으로 인해 회원님의 ${contentType}이 삭제되었습니다.`,
-            linkUrl: '/community',
+            linkUrl: '/main',
             meta: { target_type, target_id, reason: 'report_threshold' }
           });
 

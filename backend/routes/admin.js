@@ -275,6 +275,22 @@ router.get('/system-settings', authenticate, async (req, res) => {
       console.error('[admin][system-settings] rps_stats_excluded_nicknames 조회 오류');
     }
 
+    // 사이드바 메뉴 순서 (path 배열, 없으면 null → 프론트 기본값 사용)
+    let sidebarMenuOrder = null;
+    try {
+      const { data: sidebarRow, error: sidebarError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'sidebar_menu_order')
+        .maybeSingle();
+
+      if (!sidebarError && sidebarRow && sidebarRow.value && Array.isArray(sidebarRow.value.order)) {
+        sidebarMenuOrder = sidebarRow.value.order;
+      }
+    } catch (sidebarErr) {
+      console.error('[admin][system-settings] sidebar_menu_order 조회 오류');
+    }
+
     res.json({
       success: true,
       maintenance: {
@@ -299,6 +315,7 @@ router.get('/system-settings', authenticate, async (req, res) => {
       rpsStatsExcluded: {
         nicknames: rpsStatsExcludedNicknames,
       },
+      sidebarMenuOrder: sidebarMenuOrder,
     });
   } catch (error) {
     console.error('[admin][system-settings] 조회 오류');
@@ -589,6 +606,43 @@ router.put('/system-settings/rps-stats-excluded', authenticate, async (req, res)
     return res.json({ success: true, nicknames: trimmed, message: '저장되었습니다.' });
   } catch (err) {
     console.error('[admin][system-settings] rps-stats-excluded 오류', err);
+    return res.status(500).json({ success: false, message: '저장 중 오류가 발생했습니다.' });
+  }
+});
+
+// 사이드바 메뉴 순서 업데이트 (관리자 전용)
+router.put('/system-settings/sidebar-menu-order', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const order = Array.isArray(req.body?.order) ? req.body.order : [];
+    const validPaths = ['/main', '/matching-apply', '/profile', '/preference', '/extra-matching', '/rps-arena', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
+    const filtered = order.filter((p) => typeof p === 'string' && validPaths.includes(p));
+    if (filtered.length !== validPaths.length) {
+      return res.status(400).json({ success: false, message: '유효하지 않은 메뉴 순서입니다. 모든 메뉴가 포함되어야 합니다.' });
+    }
+
+    const value = { order: filtered };
+
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert(
+        {
+          key: 'sidebar_menu_order',
+          value,
+          updated_by: req.user.userId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      );
+
+    if (error) {
+      console.error('[admin][system-settings] sidebar-menu-order 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '사이드바 메뉴 순서 저장에 실패했습니다.' });
+    }
+
+    return res.json({ success: true, order: filtered, message: '사이드바 메뉴 순서가 저장되었습니다.' });
+  } catch (err) {
+    console.error('[admin][system-settings] sidebar-menu-order 오류', err);
     return res.status(500).json({ success: false, message: '저장 중 오류가 발생했습니다.' });
   }
 });

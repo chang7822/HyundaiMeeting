@@ -35,14 +35,14 @@ const parseArray = (value?: string) => {
 const labelStyle: React.CSSProperties = {
   fontWeight: 600,
   color: '#4F46E5',
-  fontSize: '0.98rem',
-  minWidth: 80,
+  fontSize: 'clamp(0.88rem, 2.2vw, 0.98rem)',
+  minWidth: 72,
   flex: 0,
   textAlign: 'left',
 };
 const valueStyle: React.CSSProperties = {
   color: '#222',
-  fontSize: '1rem',
+  fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
   flex: 1,
   textAlign: 'right',
   whiteSpace: 'nowrap',
@@ -50,18 +50,18 @@ const valueStyle: React.CSSProperties = {
   textOverflow: 'ellipsis',
 };
 const sectionStyle: React.CSSProperties = {
-  marginBottom: 10,
+  marginBottom: 8,
   display: 'flex',
   alignItems: 'center',
   gap: 8,
   maxWidth: '100%',
   flexWrap: 'wrap',
 };
-const divider = <div style={{borderTop:'1px solid #eee',margin:'12px 0'}} />;
+const divider = <div style={{borderTop:'1px solid #eee',margin:'10px 0 12px 0'}} />;
 const boxStyle: React.CSSProperties = {
   background: '#f3f0fa',
   borderRadius: 8,
-  padding: '10px 12px',
+  padding: 'clamp(8px, 2vw, 10px) clamp(10px, 2.5vw, 12px)',
   marginTop: 6,
   marginBottom: 6,
   display: 'flex',
@@ -77,7 +77,7 @@ const tagStyle: React.CSSProperties = {
   color: '#5b3ec8',
   borderRadius: 6,
   padding: '4px 10px',
-  fontSize: '0.97rem',
+  fontSize: 'clamp(0.88rem, 2.2vw, 0.97rem)',
   fontWeight: 500,
   marginBottom: 2,
 };
@@ -115,31 +115,29 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
     <div style={{
       border: 'none',
       borderRadius: '18px',
-      padding: '20px 10px 20px 10px',
-      width: '95%',
+      padding: 'clamp(16px, 4vw, 20px) clamp(14px, 3vw, 24px)',
+      width: '100%',
       maxWidth: '100%',
-      minWidth: '220px',
+      minWidth: 0,
       maxHeight: '80vh',
       overflowY: 'auto',
       boxShadow: '0 4px 24px rgba(80,60,180,0.10)',
       background: 'linear-gradient(135deg, #f7f7fa 0%, #e9e6f7 100%)',
-      fontSize: '1rem',
+      fontSize: 'clamp(0.9rem, 2.2vw, 1rem)',
       position: 'relative',
       margin: '0 auto',
       boxSizing: 'border-box',
-      // 반응형 폭 확장 (불필요, 모달이 이미 폭을 제한하므로)
     }}>
-      <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:18}}>
+      <div style={{display:'flex',alignItems:'center',gap:'clamp(10px, 2.5vw, 12px)',marginBottom:'clamp(14px, 3vw, 18px)'}}>
         <ProfileIcon gender={gender} />
-        <div>
-          <div style={{fontWeight:700,fontSize:'1.25rem',color:'#4F46E5',marginBottom:2}}>{nickname}</div>
-          <div style={{fontSize:'0.98rem',color:'#666'}}>
-            {birthYear}년생 · {gender}
-            {company ? <><br/>{company}</> : ''}
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{fontWeight:700,fontSize:'clamp(1.1rem, 2.8vw, 1.25rem)',color:'#4F46E5',marginBottom:2}}>{nickname}</div>
+          <div style={{fontSize:'clamp(0.88rem, 2.2vw, 0.98rem)',color:'#666',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+            {birthYear}년생 · {gender}{company ? ` · ${company}` : ''}
           </div>
         </div>
       </div>
-      <div style={{borderTop:'1px solid #e0e0e0', margin:'10px 0 14px 0'}} />
+      <div style={{borderTop:'1px solid #e0e0e0', margin:'clamp(8px, 2vw, 10px) 0 clamp(12px, 2.5vw, 14px) 0'}} />
       <div style={sectionStyle}>
         <span style={labelStyle}>키</span>
         <span style={valueStyle}>{height ? `${height}cm` : '-'}</span>
@@ -178,37 +176,37 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
         <span style={valueStyle}>{maritalStatus || '-'}</span>
       </div>
       {divider}
-      <div style={{marginBottom:10}}>
-        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><FaRegStar style={{color:'#7C3AED'}}/><span style={{fontWeight:600,color:'#4F46E5'}}>관심사</span></div>
+      <div style={{marginBottom:'clamp(8px, 2vw, 10px)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><FaRegStar style={{color:'#7C3AED'}}/><span style={{fontWeight:600,color:'#4F46E5',fontSize:'clamp(0.88rem, 2.2vw, 0.98rem)'}}>관심사</span></div>
         <div style={boxStyle}>
           {parseArray(interests).length > 0 ? parseArray(interests).map((item:string,idx:number)=>(<span key={idx} style={tagStyle}>{item}</span>)) : <span style={{color:'#aaa'}}>없음</span>}
         </div>
       </div>
-      <div style={{marginBottom:10}}>
-        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><FaRegCommentDots style={{color:'#7C3AED'}}/><span style={{fontWeight:600,color:'#4F46E5'}}>이런 말 자주들어요</span></div>
+      <div style={{marginBottom:'clamp(8px, 2vw, 10px)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><FaRegCommentDots style={{color:'#7C3AED'}}/><span style={{fontWeight:600,color:'#4F46E5',fontSize:'clamp(0.88rem, 2.2vw, 0.98rem)'}}>이런 말 자주들어요</span></div>
         <div style={boxStyle}>
           {parseArray(appearance).length > 0 ? parseArray(appearance).map((item:string,idx:number)=>(<span key={idx} style={tagStyle}>{item}</span>)) : <span style={{color:'#aaa'}}>없음</span>}
         </div>
       </div>
-      <div style={{marginBottom:10}}>
-        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><FaRegSmile style={{color:'#7C3AED'}}/><span style={{fontWeight:600,color:'#4F46E5'}}>나는 이런 사람이에요</span></div>
+      <div style={{marginBottom:'clamp(8px, 2vw, 10px)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}><FaRegSmile style={{color:'#7C3AED'}}/><span style={{fontWeight:600,color:'#4F46E5',fontSize:'clamp(0.88rem, 2.2vw, 0.98rem)'}}>나는 이런 사람이에요</span></div>
         <div style={boxStyle}>
           {parseArray(personality).length > 0 ? parseArray(personality).map((item:string,idx:number)=>(<span key={idx} style={tagStyle}>{item}</span>)) : <span style={{color:'#aaa'}}>없음</span>}
         </div>
       </div>
       {divider}
       <div style={{marginBottom:0}}>
-        <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4}}>자기소개</div>
+        <div style={{fontWeight:600,color:'#4F46E5',marginBottom:4,fontSize:'clamp(0.88rem, 2.2vw, 0.98rem)'}}>자기소개</div>
         <div style={{
           ...boxStyle,
           background:'#f8f6fd',
           minHeight:48,
           whiteSpace:'pre-line',
           color:'#444',
-          fontSize:'0.98rem',
-          maxWidth: '95%',
+          fontSize:'clamp(0.9rem, 2.2vw, 0.98rem)',
+          maxWidth: '100%',
           overflowWrap: 'break-word',
-          wordBreak: 'break-all',
+          wordBreak: 'break-word',
         }}>{appeal || '아직 자기소개가 없습니다.'}</div>
       </div>
     </div>
