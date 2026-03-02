@@ -3,6 +3,7 @@ const router = express.Router();
 const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
 const { getMessaging } = require('../firebaseAdmin');
+const { sendPushToAdmin } = require('../pushService');
 
 /**
  * User-Agent에서 상세한 기기/브라우저 정보 감지
@@ -442,6 +443,41 @@ router.post('/send-admin', authenticate, async (req, res) => {
   } catch (e) {
     console.error('[push][send-admin] 예외:', e);
     return res.status(500).json({ success: false, message: '관리자 푸시 전송 중 서버 오류가 발생했습니다.' });
+  }
+});
+
+/**
+ * 광고 에러 발생 시 관리자에게 푸시 알림
+ * - body: { type: 'no_fill' | 'ad_blocked', context: 'attendance' | 'matching' | 'rps' }
+ */
+router.post('/notify-ad-error', authenticate, async (req, res) => {
+  try {
+    const userId = req.user && req.user.userId;
+    const { type, context } = req.body || {};
+
+    if (!userId || !type || !context) {
+      return res.status(400).json({ success: false, message: 'type, context가 필요합니다.' });
+    }
+
+    const validTypes = ['no_fill', 'ad_blocked'];
+    const validContexts = ['attendance', 'matching', 'rps'];
+    if (!validTypes.includes(type) || !validContexts.includes(context)) {
+      return res.status(400).json({ success: false, message: '유효하지 않은 type 또는 context입니다.' });
+    }
+
+    const contextLabels = { attendance: '출석체크', matching: '매칭신청', rps: '가위바위보' };
+    const typeLabels = { no_fill: '광고 인벤토리 부족', ad_blocked: '광고 서버 연결 실패' };
+    const title = '[광고 에러] ' + typeLabels[type];
+    const body = `${contextLabels[context]} 광고 시청 중 ${typeLabels[type]} 발생 (사용자 ID: ${userId})`;
+
+    sendPushToAdmin(title, body, { type: 'ad_error', adErrorType: type, context }).catch((err) => {
+      console.error('[push][notify-ad-error] 관리자 푸시 발송 실패:', err);
+    });
+
+    return res.json({ success: true });
+  } catch (e) {
+    console.error('[push][notify-ad-error] 예외:', e);
+    return res.status(500).json({ success: false, message: '처리 중 오류가 발생했습니다.' });
   }
 });
 

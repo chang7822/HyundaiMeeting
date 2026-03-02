@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'react-toastify';
-import { starApi, systemApi, adminApi, adminReportApi } from '../../services/api.ts';
+import { starApi, systemApi, adminApi, adminReportApi, pushApi } from '../../services/api.ts';
 import { useAuth } from '../../contexts/AuthContext.tsx';
 import ProfileDetailModal from './ProfileDetailModal.tsx';
 
@@ -1135,7 +1135,9 @@ const RpsArenaPage: React.FC<{
       const isNoFill = /no\s*fill/i.test(errStr);
       if (isAdBlocked) {
         toast.warning('광고 서버에 연결할 수 없습니다. 네트워크 연결 또는 광고 차단 설정(AdsGuard 등)을 확인해주세요.');
+        pushApi.notifyAdError('ad_blocked', 'rps').catch(() => {});
       } else if (isNoFill) {
+        pushApi.notifyAdError('no_fill', 'rps').catch(() => {});
         toast.info('준비된 광고 부족으로 광고시청을 생략합니다.');
         try {
           const res = await starApi.rpsAddExtra(3, 3);

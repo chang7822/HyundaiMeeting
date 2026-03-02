@@ -2616,7 +2616,9 @@ const MatchingApplyPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       const isNoFill = /no\s*fill/i.test(errStr);
       if (isAdBlocked) {
         toast.warning('광고 서버에 연결할 수 없습니다. 네트워크 연결 또는 광고 차단 설정(AdsGuard 등)을 확인해주세요.');
+        pushApi.notifyAdError('ad_blocked', 'matching').catch(() => {});
       } else if (isNoFill) {
+        pushApi.notifyAdError('no_fill', 'matching').catch(() => {});
         toast.info('준비된 광고 부족으로 광고시청을 생략합니다.');
         await handleActualMatching();
       } else {

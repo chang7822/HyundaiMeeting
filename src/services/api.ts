@@ -1286,6 +1286,11 @@ export const pushApi = {
     const response = await api.post('/push/send-admin', { email, title, message });
     return response.data;
   },
+
+  // 광고 에러 발생 시 관리자에게 푸시 알림
+  notifyAdError: async (type: 'no_fill' | 'ad_blocked', context: 'attendance' | 'matching' | 'rps'): Promise<void> => {
+    await api.post('/push/notify-ad-error', { type, context });
+  },
 };
 
 // Logs API

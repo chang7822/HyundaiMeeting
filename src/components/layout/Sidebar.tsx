@@ -25,7 +25,7 @@ import {
   FaSave,
   FaTimes,
 } from 'react-icons/fa';
-import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi, systemApi } from '../../services/api.ts';
+import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi, systemApi, pushApi } from '../../services/api.ts';
 import { isNativeApp } from '../../firebase.ts';
 import { Capacitor } from '@capacitor/core';
 import { getCurrentVersion, fetchVersionPolicy } from '../../utils/versionCheck.ts';
@@ -1245,7 +1245,9 @@ const Sidebar: React.FC<{
       const isNoFill = /no\s*fill/i.test(errStr);
       if (isAdBlocked) {
         toast.warning('광고 서버에 연결할 수 없습니다. 네트워크 연결 또는 광고 차단 설정(AdsGuard 등)을 확인해주세요.');
+        pushApi.notifyAdError('ad_blocked', 'attendance').catch(() => {});
       } else if (isNoFill) {
+        pushApi.notifyAdError('no_fill', 'attendance').catch(() => {});
         toast.info('준비된 광고 부족으로 광고시청을 생략합니다.');
         try {
           const res = await starApi.adReward();
