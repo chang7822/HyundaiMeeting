@@ -4,6 +4,7 @@ const { supabase } = require('../database');
 const authenticate = require('../middleware/authenticate');
 const { getMessaging } = require('../firebaseAdmin');
 const { sendPushToAdmin } = require('../pushService');
+const { sendAdminNotificationEmail } = require('../utils/emailService');
 
 /**
  * User-Agent에서 상세한 기기/브라우저 정보 감지
@@ -472,6 +473,10 @@ router.post('/notify-ad-error', authenticate, async (req, res) => {
 
     sendPushToAdmin(title, body, { type: 'ad_error', adErrorType: type, context }).catch((err) => {
       console.error('[push][notify-ad-error] 관리자 푸시 발송 실패:', err);
+    });
+
+    sendAdminNotificationEmail(title, body).catch((err) => {
+      console.error('[push][notify-ad-error] 관리자 메일 발송 실패:', err);
     });
 
     return res.json({ success: true });
