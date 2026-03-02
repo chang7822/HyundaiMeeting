@@ -2611,7 +2611,17 @@ const MatchingApplyPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
         }
       }
     } catch (error: any) {
-      toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
+      const errStr = String(error?.message ?? error?.error ?? '');
+      const isAdBlocked = /googleads|doubleclick|failed to connect|ad server/i.test(errStr);
+      const isNoFill = /no\s*fill/i.test(errStr);
+      if (isAdBlocked) {
+        toast.warning('광고 서버에 연결할 수 없습니다. 네트워크 연결 또는 광고 차단 설정(AdsGuard 등)을 확인해주세요.');
+      } else if (isNoFill) {
+        toast.info('준비된 광고 부족으로 광고시청을 생략합니다.');
+        await handleActualMatching();
+      } else {
+        toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
+      }
       setActionLoading(false);
     } finally {
       try { await removeListeners?.(); } catch {}

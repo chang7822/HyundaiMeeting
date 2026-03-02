@@ -1240,7 +1240,34 @@ const Sidebar: React.FC<{
         }
       }
     } catch (error: any) {
-      toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
+      const errStr = String(error?.message ?? error?.error ?? '');
+      const isAdBlocked = /googleads|doubleclick|failed to connect|ad server/i.test(errStr);
+      const isNoFill = /no\s*fill/i.test(errStr);
+      if (isAdBlocked) {
+        toast.warning('광고 서버에 연결할 수 없습니다. 네트워크 연결 또는 광고 차단 설정(AdsGuard 등)을 확인해주세요.');
+      } else if (isNoFill) {
+        toast.info('준비된 광고 부족으로 광고시청을 생략합니다.');
+        try {
+          const res = await starApi.adReward();
+          if (res.success && typeof res.newBalance === 'number') {
+            setStarBalance(res.newBalance);
+            window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
+            toast.success(res.message || '광고 보상 별이 지급되었습니다.');
+            setAttendanceModalOpen(false);
+            setHasAdToday(true);
+            setHasDailyToday(true);
+          } else {
+            toast.error(res.message || '보상 지급에 실패했습니다.');
+            setAttendanceModalOpen(false);
+          }
+        } catch (rewardError: any) {
+          const errorMessage = rewardError?.response?.data?.message || '보상 지급 중 오류가 발생했습니다.';
+          toast.error(errorMessage);
+          setAttendanceModalOpen(false);
+        }
+      } else if (!isAdBlocked) {
+        toast.error(error?.message || '광고 처리 중 오류가 발생했습니다.');
+      }
     } finally {
       try { await removeListeners?.(); } catch { }
       setAdSubmitting(false);

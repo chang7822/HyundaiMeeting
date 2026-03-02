@@ -1130,7 +1130,29 @@ const RpsArenaPage: React.FC<{
         toast.warning('광고를 끝까지 시청해야 보상을 받을 수 있어요.');
       }
     } catch (err: any) {
-      toast.error(err?.message || '광고 처리 중 오류가 발생했습니다.');
+      const errStr = String(err?.message ?? err?.error ?? '');
+      const isAdBlocked = /googleads|doubleclick|failed to connect|ad server/i.test(errStr);
+      const isNoFill = /no\s*fill/i.test(errStr);
+      if (isAdBlocked) {
+        toast.warning('광고 서버에 연결할 수 없습니다. 네트워크 연결 또는 광고 차단 설정(AdsGuard 등)을 확인해주세요.');
+      } else if (isNoFill) {
+        toast.info('준비된 광고 부족으로 광고시청을 생략합니다.');
+        try {
+          const res = await starApi.rpsAddExtra(3, 3);
+          if (res && typeof res.used === 'number' && typeof res.extra === 'number') {
+            setRpsDaily({ used: res.used, extra: res.extra });
+          }
+          if (typeof res?.newBalance === 'number') {
+            setStarBalance(res.newBalance);
+            window.dispatchEvent(new CustomEvent('stars-updated', { detail: { balance: res.newBalance } }));
+          }
+          toast.success('3판 더 할 수 있어요! ⭐ 3개도 환급되었어요.');
+        } catch (e: any) {
+          toast.error(e?.response?.data?.message || '보상 지급 중 오류가 발생했습니다.');
+        }
+      } else if (!isAdBlocked) {
+        toast.error(err?.message || '광고 처리 중 오류가 발생했습니다.');
+      }
     } finally {
       try { await removeListeners?.(); } catch {}
       setAdLoading(false);
