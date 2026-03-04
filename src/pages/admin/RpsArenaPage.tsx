@@ -806,6 +806,7 @@ const RpsArenaPage: React.FC<{
   const [betAmount, setBetAmount] = useState<number | null>(null);
   const [rpsDaily, setRpsDaily] = useState<{ used: number; extra: number }>({ used: 0, extra: 0 });
   const [adLoading, setAdLoading] = useState(false);
+  const [rewardedAdEnabled, setRewardedAdEnabled] = useState(true);
   const [startingGame, setStartingGame] = useState(false);
   const [androidStoreUrl, setAndroidStoreUrl] = useState<string | null>(null);
   const [iosStoreUrl, setIosStoreUrl] = useState<string | null>(null);
@@ -876,6 +877,19 @@ const RpsArenaPage: React.FC<{
       if (data?.android?.storeUrl) setAndroidStoreUrl(data.android.storeUrl);
       if (data?.ios?.storeUrl) setIosStoreUrl(data.ios.storeUrl);
     }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    systemApi.getRewardedAdEnabled()
+      .then((res) => setRewardedAdEnabled(res?.enabled !== false))
+      .catch(() => setRewardedAdEnabled(true));
+    const handler = () => {
+      systemApi.getRewardedAdEnabled()
+        .then((res) => setRewardedAdEnabled(res?.enabled !== false))
+        .catch(() => setRewardedAdEnabled(true));
+    };
+    window.addEventListener('rewarded-ad-setting-changed', handler);
+    return () => window.removeEventListener('rewarded-ad-setting-changed', handler);
   }, []);
 
   useEffect(() => {
@@ -1066,12 +1080,36 @@ const RpsArenaPage: React.FC<{
   };
 
   const handleExtraPlayAd = async () => {
-    if (!preloadedRewarded || adLoading) return;
+    if (adLoading) return;
+    if (!Capacitor.isNativePlatform()) {
+      toast.error('광고 보기는 앱에서만 사용 가능합니다.');
+      return;
+    }
     setAdLoading(true);
     let removeListeners: (() => Promise<void>) | undefined;
     try {
       const admobModule = await import('@capgo/capacitor-admob');
       const AdMob = admobModule.AdMob;
+      const RewardedInterstitialAd = admobModule.RewardedInterstitialAd || admobModule.RewardedAd;
+      const platform = Capacitor.getPlatform();
+      const isIOS = platform === 'ios';
+      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+      const adId = isTesting
+        ? 'ca-app-pub-3940256099942544/5354046379'
+        : isIOS
+          ? 'ca-app-pub-1352765336263182/8848248607'
+          : 'ca-app-pub-1352765336263182/8702080467';
+
+      let rewardedAd = preloadedRewarded;
+      if (!rewardedAd) {
+        rewardedAd = new RewardedInterstitialAd({ adUnitId: adId });
+        try {
+          await rewardedAd.load();
+        } catch (loadErr: any) {
+          throw loadErr;
+        }
+      }
+
       let rewarded = false;
       let rewardHandle: any;
       let dismissHandle: any;
@@ -1111,7 +1149,10 @@ const RpsArenaPage: React.FC<{
         })();
       });
 
-      await preloadedRewarded.show();
+      await Promise.race([
+        rewardedAd.show(),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('광고 표시가 지연되었습니다. 잠시 후 다시 시도해주세요.')), 15000)),
+      ]);
       const gotReward = await Promise.race([
         rewardPromise,
         new Promise<boolean>((_, rej) => setTimeout(() => rej(new Error('광고 응답이 지연되었습니다.')), 90000)),
@@ -1159,7 +1200,9 @@ const RpsArenaPage: React.FC<{
       try { await removeListeners?.(); } catch {}
       setAdLoading(false);
       // 보상형 광고는 1회 시청 후 소비되므로, 다음 클릭을 위해 다시 로드
-      preloadedRewarded?.load?.().catch(() => {});
+      if (preloadedRewarded) {
+        preloadedRewarded.load?.().catch(() => {});
+      }
     }
   };
 
@@ -1305,8 +1348,15 @@ const RpsArenaPage: React.FC<{
                   {!running ? (
                     isNativeApp ? (
                       playsRemaining <= 0 ? (
-                        <ExtraPlayBtn onClick={handleExtraPlayAd} disabled={adLoading}>
-                          {adLoading ? '광고 로딩…' : '광고 보고 3판 더 + ⭐3개 환급'}
+                        <ExtraPlayBtn
+                          onClick={handleExtraPlayAd}
+                          disabled={adLoading || !rewardedAdEnabled}
+                        >
+                          {!rewardedAdEnabled
+                            ? '광고 보기 (일시 중단)'
+                            : adLoading
+                              ? '광고 로딩…'
+                              : '광고 보고 3판 더 + ⭐3개 환급'}
                         </ExtraPlayBtn>
                       ) : (
                         <Btn

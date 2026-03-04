@@ -291,6 +291,22 @@ router.get('/system-settings', authenticate, async (req, res) => {
       console.error('[admin][system-settings] sidebar_menu_order 조회 오류');
     }
 
+    // 보상형 광고 사용 여부 (기본값: true)
+    let rewardedAdEnabled = true;
+    try {
+      const { data: rewardedRow, error: rewardedError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'rewarded_ad_enabled')
+        .maybeSingle();
+
+      if (!rewardedError && rewardedRow?.value) {
+        rewardedAdEnabled = rewardedRow.value.enabled !== false;
+      }
+    } catch (rewardedErr) {
+      console.error('[admin][system-settings] rewarded_ad_enabled 조회 오류:', rewardedErr);
+    }
+
     res.json({
       success: true,
       maintenance: {
@@ -316,6 +332,7 @@ router.get('/system-settings', authenticate, async (req, res) => {
         nicknames: rpsStatsExcludedNicknames,
       },
       sidebarMenuOrder: sidebarMenuOrder,
+      rewardedAdEnabled,
     });
   } catch (error) {
     console.error('[admin][system-settings] 조회 오류');
@@ -526,6 +543,29 @@ router.put('/system-settings/community', authenticate, async (req, res) => {
 });
 
 // 버전 정책 업데이트 (관리자 전용)
+router.put('/system-settings/rewarded-ad', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { enabled } = req.body || {};
+
+    const value = { enabled: !!enabled };
+
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({ key: 'rewarded_ad_enabled', value }, { onConflict: 'key' });
+
+    if (error) {
+      console.error('[admin][system-settings] rewarded_ad 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '보상형 광고 설정 변경에 실패했습니다.' });
+    }
+
+    return res.json({ success: true, rewardedAdEnabled: value.enabled });
+  } catch (err) {
+    console.error('[admin][system-settings] rewarded_ad 오류', err);
+    return res.status(500).json({ success: false, message: '설정 변경 중 오류가 발생했습니다.' });
+  }
+});
+
 router.put('/system-settings/version-policy', authenticate, async (req, res) => {
   try {
     if (!ensureAdmin(req, res)) return;

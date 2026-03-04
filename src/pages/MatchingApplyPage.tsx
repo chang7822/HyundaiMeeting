@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell, FaCalendarAlt, FaHandshake } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, extraMatchingApi, starApi, adminApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, extraMatchingApi, starApi, adminApi, systemApi } from '../services/api.ts';
 import { toast } from 'react-toastify';
 import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
 import { userApi } from '../services/api.ts';
@@ -1017,6 +1017,7 @@ const MatchingApplyPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
   const [showPushSettingsModal, setShowPushSettingsModal] = useState(false);
   const [extraMatchingFeatureEnabled, setExtraMatchingFeatureEnabled] = useState<boolean>(false);
   const [communityEnabled, setCommunityEnabled] = useState<boolean>(true);
+  const [rewardedAdEnabled, setRewardedAdEnabled] = useState<boolean>(true);
   
   // 페이지 초기 로딩 완료 여부 (핵심 데이터 3개가 모두 로드되면 true)
   const [isPageReady, setIsPageReady] = useState(false);
@@ -1623,6 +1624,19 @@ const MatchingApplyPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     fetchCommunitySettings();
     return () => { cancelled = true; };
   }, [user?.isAdmin]);
+
+  useEffect(() => {
+    systemApi.getRewardedAdEnabled()
+      .then((res) => setRewardedAdEnabled(res?.enabled !== false))
+      .catch(() => setRewardedAdEnabled(true));
+    const handler = () => {
+      systemApi.getRewardedAdEnabled()
+        .then((res) => setRewardedAdEnabled(res?.enabled !== false))
+        .catch(() => setRewardedAdEnabled(true));
+    };
+    window.addEventListener('rewarded-ad-setting-changed', handler);
+    return () => window.removeEventListener('rewarded-ad-setting-changed', handler);
+  }, []);
 
   // 선호 회사 이름 매핑용 회사 목록 로드
   useEffect(() => {
@@ -2451,9 +2465,13 @@ const MatchingApplyPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
     setShowMatchingConfirmModal(true);
   };
 
-  // 1) 첫 번째 모달: "이 정보로 신청" 클릭 시 → ⭐ 차감 확인 모달로 이동
+  // 1) 첫 번째 모달: "이 정보로 신청" 클릭 시 → ⭐ 차감 확인 모달로 이동 (또는 광고 OFF 시 바로 매칭)
   const handleMatchingConfirm = () => {
     setShowMatchingConfirmModal(false);
+    if (!rewardedAdEnabled || !isNativeApp()) {
+      handleActualMatching();
+      return;
+    }
     setShowMatchingStarConfirmModal(true);
   };
 

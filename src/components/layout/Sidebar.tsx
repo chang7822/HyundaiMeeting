@@ -657,6 +657,7 @@ const Sidebar: React.FC<{
   const [notificationUnreadCount, setNotificationUnreadCount] = useState<number>(0);
   const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
   const [communityEnabled, setCommunityEnabled] = useState<boolean | null>(null);
+  const [rewardedAdEnabled, setRewardedAdEnabled] = useState<boolean>(true);
   const [sidebarMenuOrder, setSidebarMenuOrder] = useState<string[] | null>(null);
   const [menuOrderEditing, setMenuOrderEditing] = useState(false);
   const [menuOrderDraft, setMenuOrderDraft] = useState<string[]>([]);
@@ -1007,6 +1008,28 @@ const Sidebar: React.FC<{
       cancelled = true;
     };
   }, [user?.isAdmin]);
+
+  // 보상형 광고 사용 여부 조회 (모든 사용자)
+  useEffect(() => {
+    let cancelled = false;
+    systemApi.getRewardedAdEnabled()
+      .then((res) => {
+        if (!cancelled) setRewardedAdEnabled(res?.enabled !== false);
+      })
+      .catch(() => {
+        if (!cancelled) setRewardedAdEnabled(true);
+      });
+    const handler = () => {
+      systemApi.getRewardedAdEnabled()
+        .then((res) => setRewardedAdEnabled(res?.enabled !== false))
+        .catch(() => setRewardedAdEnabled(true));
+    };
+    window.addEventListener('rewarded-ad-setting-changed', handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('rewarded-ad-setting-changed', handler);
+    };
+  }, []);
 
   const loadSidebarMenuOrder = useCallback(() => {
     systemApi.getSidebarMenuOrder()
@@ -1713,10 +1736,15 @@ const Sidebar: React.FC<{
               <AttendancePrimaryButton
                 type="button"
                 onClick={handleAdReward}
-                disabled={adSubmitting || !isNativeApp() || hasDailyToday}
-                style={{ background: 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' }}
+                disabled={adSubmitting || !isNativeApp() || hasDailyToday || !rewardedAdEnabled}
+                style={{
+                  background: rewardedAdEnabled ? 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)' : '#9ca3af',
+                  opacity: rewardedAdEnabled ? 1 : 0.7,
+                }}
               >
-                <span>{adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}</span>
+                <span>
+                  {!rewardedAdEnabled ? '광고 보기 (일시 중단)' : adSubmitting ? '광고 보상 중...' : '광고 보기 (⭐2)'}
+                </span>
                 {!isNativeApp() && <AppOnlyBadge>앱 전용</AppOnlyBadge>}
               </AttendancePrimaryButton>
             </AttendanceModalActions>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
+import { Capacitor } from '@capacitor/core';
 import { adminApi, pushApi } from '../../services/api.ts';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
@@ -193,6 +194,9 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [extraMatchingExpireSaving, setExtraMatchingExpireSaving] = useState(false);
   const [community, setCommunity] = useState(true);
   const [communitySaving, setCommunitySaving] = useState(false);
+  const [rewardedAd, setRewardedAd] = useState(true);
+  const [rewardedAdSaving, setRewardedAdSaving] = useState(false);
+  const [rewardedAdTesting, setRewardedAdTesting] = useState(false);
 
   // 푸시 알림 전송 관련 상태
   const [users, setUsers] = useState<any[]>([]);
@@ -231,6 +235,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         setExtraMatching(res?.extraMatching?.enabled !== false);
         setExtraMatchingApplyExpireHoursInput(String(typeof (res?.extraMatching as any)?.applyExpireHours === 'number' ? (res.extraMatching as any).applyExpireHours : 24));
         setCommunity(res?.community?.enabled !== false);
+        setRewardedAd(res?.rewardedAdEnabled !== false);
         
         // 버전 정책 로드
         if (res?.versionPolicy) {
@@ -381,6 +386,61 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       toast.error('커뮤니티 설정을 변경하지 못했습니다.');
     } finally {
       setCommunitySaving(false);
+    }
+  };
+
+  const handleToggleRewardedAd = async () => {
+    const next = !rewardedAd;
+    setRewardedAd(next);
+    setRewardedAdSaving(true);
+    try {
+      await adminApi.updateRewardedAd(next);
+      toast.success(next ? '보상형 광고가 활성화되었습니다.' : '보상형 광고가 비활성화되었습니다.');
+      window.dispatchEvent(new CustomEvent('rewarded-ad-setting-changed', { detail: { enabled: next } }));
+    } catch (e) {
+      console.error('[SettingsPage] 보상형 광고 업데이트 오류:', e);
+      setRewardedAd(!next);
+      toast.error('보상형 광고 설정을 변경하지 못했습니다.');
+    } finally {
+      setRewardedAdSaving(false);
+    }
+  };
+
+  const handleTestRewardedAd = async () => {
+    if (!Capacitor.isNativePlatform()) {
+      toast.warning('보상형 광고 테스트는 앱에서만 가능합니다.');
+      return;
+    }
+    setRewardedAdTesting(true);
+    try {
+      const admobModule = await import('@capgo/capacitor-admob');
+      const AdMob = admobModule.AdMob;
+      const RewardedInterstitialAd = admobModule.RewardedInterstitialAd || admobModule.RewardedAd;
+      const platform = Capacitor.getPlatform();
+      const isIOS = platform === 'ios';
+      const isTesting = process.env.REACT_APP_ADMOB_TESTING !== 'false';
+      const adId = isTesting
+        ? 'ca-app-pub-3940256099942544/5354046379'
+        : isIOS
+          ? 'ca-app-pub-1352765336263182/8848248607'
+          : 'ca-app-pub-1352765336263182/8702080467';
+      const ad = new RewardedInterstitialAd({ adUnitId: adId });
+      await ad.load();
+      await ad.show();
+      toast.success('광고가 정상적으로 표시되었습니다. (NO FILL 아님)');
+    } catch (e: any) {
+      const errStr = String(e?.message ?? e?.error ?? '');
+      const isNoFill = /no\s*fill/i.test(errStr);
+      const isAdBlocked = /googleads|doubleclick|failed to connect|ad server/i.test(errStr);
+      if (isNoFill) {
+        toast.warning('NO FILL: 준비된 광고가 없습니다. 광고 인벤토리 부족 상태입니다.');
+      } else if (isAdBlocked) {
+        toast.warning('광고 서버 연결 실패: 네트워크 또는 광고 차단 설정을 확인해주세요.');
+      } else {
+        toast.error(e?.message || '광고 테스트 실패');
+      }
+    } finally {
+      setRewardedAdTesting(false);
     }
   };
 
@@ -655,6 +715,55 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
                 <SwitchSlider />
               </SwitchLabel>
             </ToggleRow>
+          </Section>
+
+          <Section>
+            <SectionTitle>보상형 광고</SectionTitle>
+            <SectionDescription>
+              출석체크·가위바위보·매칭신청 시 광고 시청 기능을 활성화/비활성화합니다.
+              {'\n'}NO FILL 등으로 광고가 지속적으로 실패할 때 OFF로 두면 광고 버튼이 비활성화되고, 매칭신청은 광고 없이 바로 진행됩니다.
+            </SectionDescription>
+            <ToggleRow>
+              <ToggleLabel>
+                <span>보상형 광고 사용</span>
+                <ToggleDescription>
+                  {rewardedAd
+                    ? '보상형 광고가 활성화되어 있습니다. (출석·가위바위보·매칭신청 시 광고 시청 가능)'
+                    : '보상형 광고가 비활성화되어 있습니다. (광고 버튼 비활성화, 매칭신청은 광고 없이 진행)'}
+                </ToggleDescription>
+              </ToggleLabel>
+              <SwitchLabel>
+                <SwitchInput
+                  type="checkbox"
+                  checked={rewardedAd}
+                  onChange={handleToggleRewardedAd}
+                  disabled={loading || rewardedAdSaving}
+                />
+                <SwitchSlider />
+              </SwitchLabel>
+            </ToggleRow>
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={handleTestRewardedAd}
+                disabled={rewardedAdTesting || loading}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontWeight: 600,
+                  cursor: rewardedAdTesting || loading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {rewardedAdTesting ? '테스트 중...' : '보상형 광고 테스트'}
+              </button>
+              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                앱에서만 테스트 가능. NO FILL 시 경고 메시지가 표시됩니다.
+              </span>
+            </div>
           </Section>
 
           <Section>

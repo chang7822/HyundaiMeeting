@@ -108,6 +108,28 @@ router.get('/version-policy', async (req, res) => {
   }
 });
 
+// 보상형 광고 사용 여부 조회 (공개 API)
+router.get('/rewarded-ad-enabled', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'rewarded_ad_enabled')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[system][rewarded-ad-enabled] 조회 오류:', error);
+      return res.json({ enabled: true });
+    }
+
+    const enabled = !data?.value ? true : (data.value.enabled !== false);
+    res.json({ enabled });
+  } catch (err) {
+    console.error('[system][rewarded-ad-enabled] 조회 오류:', err);
+    return res.json({ enabled: true });
+  }
+});
+
 // 사이드바 메뉴 순서 조회 (공개 API, 로그인 전/후 모두 사용)
 router.get('/sidebar-menu-order', async (req, res) => {
   try {

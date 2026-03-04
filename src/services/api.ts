@@ -457,6 +457,12 @@ export const systemApi = {
     const response = await api.get('/system/sidebar-menu-order');
     return response.data;
   },
+
+  // 보상형 광고 사용 여부 조회
+  getRewardedAdEnabled: async (): Promise<{ enabled: boolean }> => {
+    const response = await api.get('/system/rewarded-ad-enabled');
+    return response.data;
+  },
 };
 
 // 별 / 출석 API
@@ -606,6 +612,7 @@ export const adminApi = {
     devMode?: { enabled: boolean };
     extraMatching?: { enabled: boolean };
     community?: { enabled: boolean };
+    rewardedAdEnabled?: boolean;
     rpsStatsExcluded?: { nicknames: string[] };
     sidebarMenuOrder?: string[] | null;
     versionPolicy?: {
@@ -656,6 +663,12 @@ export const adminApi = {
 
   updateCommunity: async (enabled: boolean): Promise<any> => {
     const response = await api.put('/admin/system-settings/community', { enabled });
+    return response.data;
+  },
+
+  // 보상형 광고 사용 토글
+  updateRewardedAd: async (enabled: boolean): Promise<{ success: boolean; rewardedAdEnabled?: boolean }> => {
+    const response = await api.put('/admin/system-settings/rewarded-ad', { enabled });
     return response.data;
   },
 
