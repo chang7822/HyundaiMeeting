@@ -7,6 +7,7 @@ import styled from 'styled-components';
 import { FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { pushApi } from '../services/api.ts';
+import IosWebAppGuideModal from './IosWebAppGuideModal.tsx';
 import { useAuth } from '../contexts/AuthContext.tsx';
 import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase.ts';
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -403,31 +404,26 @@ const PushToggleRow: React.FC = () => {
         </ModalOverlay>
       )}
 
-      {showIosGuideModal && (
+      {showIosGuideModal && isNativeApp() && (
         <ModalOverlay onClick={() => setShowIosGuideModal(false)}>
           <ModalContent onClick={e => e.stopPropagation()}>
-            {isNativeApp() ? (
-              <>
-                <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>푸시알림이 필요한 이유</h2>
-                <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                  {'푸시 알림을 켜시면 중요한 순간을 놓치지 않고 실시간으로 소통할 수 있습니다.\n\n📌 매칭 결과 발표\n매칭 결과가 나온 시점을 놓치면 상대방이 오랫동안 기다릴 수 있습니다. 푸시 알림을 통해 즉시 확인하고 상대방과 연락을 시작할 수 있습니다.\n\n💬 채팅 메시지 알림\n채팅을 통해 메시지를 주고받을 때 알림을 받지 못하면 서로 연락이 어려워 오해를 살 수 있습니다. 푸시 알림을 통해 상대방의 메시지를 빠르게 확인하고 답변할 수 있어 더 원활한 소통이 가능합니다.\n\n🔔 기타 중요한 알림\n매칭 신청 시작, 시스템 공지 등 중요한 정보도 실시간으로 받아보실 수 있습니다.'}
-                </p>
-                <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>푸시 알림을 켜시면 더욱 편리하고 빠른 소통이 가능합니다.</p>
-              </>
-            ) : (
-              <>
-                <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>아이폰(iOS) 푸시 알림 안내</h2>
-                <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
-                  {'아이폰 Safari에서는 일반 웹사이트에서의 웹 푸시가 제한적입니다.\n\n아이폰에서 푸시 알림을 받으시려면 아래 순서로 진행해 주세요.\n\n1) Safari에서 직쏠공(automatchingway.com)에 접속합니다.\n2) 하단 공유 버튼(⬆️) → "홈 화면에 추가"를 눌러 아이콘을 만듭니다.\n3) 홈 화면에 추가된 직쏠공 아이콘으로 다시 접속합니다.\n4) 메인 화면의 푸시 알림 토글을 켜고, 나타나는 알림 허용 팝업에서 "허용"을 선택합니다.'}
-                </p>
-                <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>위 과정을 통해서만 아이폰 홈 화면 앱 형태에서 푸시 알림을 받으실 수 있습니다.</p>
-              </>
-            )}
+            <h2 style={{ color: '#333', marginBottom: '1rem', textAlign: 'center', fontSize: '1.3rem' }}>푸시알림이 필요한 이유</h2>
+            <p style={{ color: '#555', fontSize: '0.95rem', lineHeight: 1.6, whiteSpace: 'pre-line', marginBottom: '1.25rem' }}>
+              {'푸시 알림을 켜시면 중요한 순간을 놓치지 않고 실시간으로 소통할 수 있습니다.\n\n📌 매칭 결과 발표\n매칭 결과가 나온 시점을 놓치면 상대방이 오랫동안 기다릴 수 있습니다. 푸시 알림을 통해 즉시 확인하고 상대방과 연락을 시작할 수 있습니다.\n\n💬 채팅 메시지 알림\n채팅을 통해 메시지를 주고받을 때 알림을 받지 못하면 서로 연락이 어려워 오해를 살 수 있습니다. 푸시 알림을 통해 상대방의 메시지를 빠르게 확인하고 답변할 수 있어 더 원활한 소통이 가능합니다.\n\n🔔 기타 중요한 알림\n매칭 신청 시작, 시스템 공지 등 중요한 정보도 실시간으로 받아보실 수 있습니다.'}
+            </p>
+            <p style={{ color: '#777', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '1.5rem' }}>푸시 알림을 켜시면 더욱 편리하고 빠른 소통이 가능합니다.</p>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <button type="button" onClick={() => setShowIosGuideModal(false)} style={{ padding: '10px 20px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer' }}>확인</button>
             </div>
           </ModalContent>
         </ModalOverlay>
+      )}
+      {showIosGuideModal && !isNativeApp() && (
+        <IosWebAppGuideModal
+          isOpen={true}
+          onClose={() => setShowIosGuideModal(false)}
+          title="아이폰(iOS) 푸시 알림 안내"
+        />
       )}
     </>
   );

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
+import IosWebAppGuideModal from '../components/IosWebAppGuideModal.tsx';
 import { Capacitor } from '@capacitor/core';
 import { companyApi, systemApi } from '../services/api.ts';
 import type { Company } from '../types/index.ts';
@@ -114,6 +115,7 @@ const StoreBadgesRow = styled.div`
   }
 `;
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- 앱 링크 주석 해제 시 사용
 const StoreBadgeLink = styled.a`
   display: inline-block;
   transition: all 0.3s ease;
@@ -136,6 +138,41 @@ const StoreBadgeLink = styled.a`
     img {
       height: 50px;
     }
+  }
+`;
+
+const IosWebAppBanner = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 60px;
+  min-width: 180px;
+  padding: 0 20px;
+  border-radius: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+
+  &:hover {
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.25);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  @media (max-width: 768px) {
+    height: 50px;
+    min-width: 160px;
+    font-size: 0.9rem;
   }
 `;
 
@@ -508,8 +545,9 @@ const PrimaryActionButton = styled.button`
 
 const LandingPage = () => {
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading } = useAuth() as any;
+  const { isLoading } = useAuth() as any;
   const [showIntro, setShowIntro] = useState(false);
+  const [showIosWebAppGuide, setShowIosWebAppGuide] = useState(false);
   const [showCompanies, setShowCompanies] = useState(false);
   const [activeCompanies, setActiveCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
@@ -526,9 +564,10 @@ const LandingPage = () => {
   // 랜딩페이지 마운트 시 로딩 중 표시된 전역 배너 숨김
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    if (window.globalBannerAd && window.globalBannerShowing) {
-      window.globalBannerShowing = false;
-      window.globalBannerAd.hide?.().catch(() => {});
+    const w = window as Window & { globalBannerAd?: any; globalBannerShowing?: boolean };
+    if (w.globalBannerAd && w.globalBannerShowing) {
+      w.globalBannerShowing = false;
+      w.globalBannerAd.hide?.().catch(() => {});
     }
   }, []);
 
@@ -661,27 +700,25 @@ const LandingPage = () => {
         </Button>
       </ButtonContainer>
 
-      {/* <StoreBadgesRow>
-        {androidStoreUrl && (
+      <StoreBadgesRow>
+        {/* 앱 링크 배너는 주석 유지. 나중에 살리면 iOS 웹앱 배너와 나란히 표시됨 */}
+        {/* {androidStoreUrl && (
           <StoreBadgeLink href={androidStoreUrl} target="_blank" rel="noopener noreferrer" title="Google Play">
-            <img
-              src="https://play.google.com/intl/ko/badges/static/images/badges/ko_badge_web_generic.png"
-              alt="Google Play에서 다운로드"
-            />
+            <img src="https://play.google.com/intl/ko/badges/static/images/badges/ko_badge_web_generic.png" alt="Google Play에서 다운로드" />
           </StoreBadgeLink>
         )}
         {iosStoreUrl && (
           <StoreBadgeLink href={iosStoreUrl} target="_blank" rel="noopener noreferrer" title="App Store">
-            <img
-              src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-              alt="App Store에서 다운로드"
-            />
+            <img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" alt="App Store에서 다운로드" />
           </StoreBadgeLink>
         )}
         {!androidStoreUrl && !iosStoreUrl && (
           <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem' }}>앱 다운로드 링크 준비 중</span>
-        )}
-      </StoreBadgesRow> */}
+        )} */}
+        <IosWebAppBanner type="button" onClick={() => setShowIosWebAppGuide(true)}>
+          📱 iOS 웹앱 적용
+        </IosWebAppBanner>
+      </StoreBadgesRow>
       
       <Features>
         <FeatureCard>
@@ -1135,6 +1172,12 @@ const LandingPage = () => {
           </IntroModalContent>
         </IntroModalOverlay>
       )}
+
+      <IosWebAppGuideModal
+        isOpen={showIosWebAppGuide}
+        onClose={() => setShowIosWebAppGuide(false)}
+        title="iOS 홈화면에 웹앱 추가하기"
+      />
     </LandingContainer>
   );
 };

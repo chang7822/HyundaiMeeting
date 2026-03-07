@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>빨간 박스 추가</title>
+  <style>
+    body { font-family: 'Malgun Gothic', sans-serif; padding: 16px; max-width: 500px; margin: 0 auto; }
+    h1 { font-size: 1.2rem; }
+    .step { margin: 12px 0; }
+    input[type="file"] { margin: 8px 0; }
+    canvas { display: block; margin: 12px 0; border: 1px solid #ccc; max-width: 100%; cursor: crosshair; }
+    .coords { font-size: 0.85rem; color: #666; margin-top: 4px; }
+    button { padding: 8px 16px; margin: 4px; cursor: pointer; background: #667eea; color: white; border: none; border-radius: 8px; }
+    button:hover { background: #5a67d8; }
+    .save { background: #10b981; }
+    .save:hover { background: #059669; }
+    .hint { font-size: 0.8rem; color: #888; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <h1>📱 iOS 가이드 이미지에 빨간 박스 추가</h1>
+  <p class="hint">이미지를 선택한 뒤, 박스를 넣을 위치를 <strong>드래그</strong>로 지정하세요. 저장한 파일로 원본을 덮어쓰면 됩니다.</p>
+
+  <div class="step">
+    <label>이미지 선택: <input type="file" id="file" accept="image/*"></label>
+  </div>
+
+  <div id="wrap" style="display:none">
+    <div class="coords" id="coords"></div>
+    <canvas id="c"></canvas>
+    <div>
+      <button type="button" onclick="clearBox()">박스 지우기</button>
+      <button type="button" class="save" onclick="download()">이미지 저장</button>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('file');
+    const canvas = document.getElementById('c');
+    const ctx = canvas.getContext('2d');
+    const wrap = document.getElementById('wrap');
+    const coordsEl = document.getElementById('coords');
+
+    let img = null;
+    let box = null; // { x, y, w, h } 비율 0~1
+    let dragStart = null;
+
+    fileInput.onchange = (e) => {
+      const f = e.target.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        img = new Image();
+        img.onload = () => {
+          canvas.width = img.width;
+          canvas.height = img.height;
+          box = null;
+          draw();
+          wrap.style.display = 'block';
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(f);
+    };
+
+    function draw() {
+      if (!img) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      if (box) {
+        const x = box.x * canvas.width;
+        const y = box.y * canvas.height;
+        const w = box.w * canvas.width;
+        const h = box.h * canvas.height;
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = Math.max(3, canvas.width / 200);
+        ctx.strokeRect(x, y, w, h);
+      }
+    }
+
+    canvas.onmousedown = (e) => {
+      const r = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / r.width;
+      const scaleY = canvas.height / r.height;
+      const x = (e.clientX - r.left) * scaleX / canvas.width;
+      const y = (e.clientY - r.top) * scaleY / canvas.height;
+      dragStart = { x, y };
+    };
+
+    canvas.onmousemove = (e) => {
+      if (!dragStart) return;
+      const r = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / r.width;
+      const scaleY = canvas.height / r.height;
+      const x = (e.clientX - r.left) * scaleX / canvas.width;
+      const y = (e.clientY - r.top) * scaleY / canvas.height;
+      box = {
+        x: Math.min(dragStart.x, x),
+        y: Math.min(dragStart.y, y),
+        w: Math.abs(x - dragStart.x),
+        h: Math.abs(y - dragStart.y)
+      };
+      draw();
+      coordsEl.textContent = box.w > 0.01 ? `박스: x=${(box.x*100).toFixed(1)}% y=${(box.y*100).toFixed(1)}% w=${(box.w*100).toFixed(1)}% h=${(box.h*100).toFixed(1)}%` : '';
+    };
+
+    canvas.onmouseup = () => { dragStart = null; };
+    canvas.onmouseleave = () => { dragStart = null; };
+
+    function clearBox() {
+      box = null;
+      draw();
+      coordsEl.textContent = '';
+    }
+
+    function download() {
+      if (!img || !box || box.w < 0.01) {
+        alert('먼저 이미지를 선택하고 박스 영역을 드래그해주세요.');
+        return;
+      }
+      const a = document.createElement('a');
+      a.download = fileInput.files[0].name;
+      a.href = canvas.toDataURL('image/png');
+      a.click();
+    }
+  </script>
+</body>
+</html>
