@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { User, UserProfile, LoginCredentials, AuthContextType } from '../types/index.ts';
-import { authApi, userApi } from '../services/api.ts';
+import { User, UserProfile, LoginCredentials, AuthContextType } from '../types/index';
+import { authApi, userApi } from '../services/api';
 import { Capacitor } from '@capacitor/core';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

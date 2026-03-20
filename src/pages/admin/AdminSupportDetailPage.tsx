@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { getAdminSupportInquiry, addAdminSupportReply } from '../../services/api.ts';
+import { getAdminSupportInquiry, addAdminSupportReply } from '../../services/api';
 
 // ===================================
 // 스타일드 컴포넌트

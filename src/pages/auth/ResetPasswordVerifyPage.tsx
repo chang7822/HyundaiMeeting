@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
-import { authApi } from '../../services/api.ts';
+import { authApi } from '../../services/api';
 import { FaArrowLeft } from 'react-icons/fa';
 
 const Container = styled.div`

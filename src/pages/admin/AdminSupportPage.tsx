@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { FaSyncAlt } from 'react-icons/fa';
-import { getAdminSupportInquiries } from '../../services/api.ts';
+import { getAdminSupportInquiries } from '../../services/api';
 
 // ===================================
 // 스타일드 컴포넌트

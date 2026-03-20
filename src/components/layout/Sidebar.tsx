@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import { useAuth } from '../../contexts/AuthContext.tsx';
+import { useAuth } from '../../contexts/AuthContext';
 import { toast } from 'react-toastify';
 import {
   FaHome,
@@ -25,10 +25,10 @@ import {
   FaSave,
   FaTimes,
 } from 'react-icons/fa';
-import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi, systemApi, pushApi } from '../../services/api.ts';
-import { isNativeApp } from '../../firebase.ts';
+import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi, systemApi, pushApi } from '../../services/api';
+import { isNativeApp } from '../../firebase';
 import { Capacitor } from '@capacitor/core';
-import { getCurrentVersion, fetchVersionPolicy } from '../../utils/versionCheck.ts';
+import { getCurrentVersion, fetchVersionPolicy } from '../../utils/versionCheck';
 
 const SidebarContainer = styled.div<{ $isOpen: boolean }>`
   width: 280px;

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { notificationApi } from '../services/api.ts';
-import InlineSpinner from '../components/InlineSpinner.tsx';
+import { notificationApi } from '../services/api';
+import InlineSpinner from '../components/InlineSpinner';
 import { FaBell, FaCheckCircle, FaInbox, FaTimes } from 'react-icons/fa';
 
 const PageContainer = styled.div<{ $sidebarOpen: boolean }>`

@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import styled from 'styled-components';
-import { companyApi } from '../../services/api.ts';
-import { Company } from '../../types/index.ts';
+import { companyApi } from '../../services/api';
+import { Company } from '../../types/index';
 import { FaArrowLeft } from 'react-icons/fa';
-import CustomCompanyNameModal from '../../components/CustomCompanyNameModal.tsx';
+import CustomCompanyNameModal from '../../components/CustomCompanyNameModal';
 import { toast } from 'react-toastify';
 
 const Container = styled.div`

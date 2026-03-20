@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import styled from 'styled-components';
 import { FaSyncAlt, FaServer, FaClock, FaFilter } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { logsApi } from '../../services/api.ts';
-import InlineSpinner from '../../components/InlineSpinner.tsx';
+import { logsApi } from '../../services/api';
+import InlineSpinner from '../../components/InlineSpinner';
 
 interface LogsPageProps {
   sidebarOpen: boolean;

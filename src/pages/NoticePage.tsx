@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styled from 'styled-components';
 import DOMPurify from 'dompurify';
-import { noticeApi } from '../services/api.ts';
+import { noticeApi } from '../services/api';
 import { 
   FaArrowLeft, 
   FaBullhorn, 

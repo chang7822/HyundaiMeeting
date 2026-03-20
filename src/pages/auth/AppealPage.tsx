@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { authApi } from '../../services/api.ts';
-import { useAuth } from '../../contexts/AuthContext.tsx';
+import { authApi } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { FaArrowLeft } from 'react-icons/fa';
 
 const Container = styled.div`

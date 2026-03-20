@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import { adminCompanyApi } from '../../services/api.ts';
+import { adminCompanyApi } from '../../services/api';
 import { FaPlus, FaTrash, FaSave, FaCheckSquare, FaSquare } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 

@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { toast } from 'react-toastify';
 import { FaTimes } from 'react-icons/fa';
-import { matchingHistoryApi } from '../services/api.ts';
-import ReportModal from '../components/ReportModal.tsx';
-import ReportDetailModal from '../components/ReportDetailModal.tsx';
-import InlineSpinner from '../components/InlineSpinner.tsx';
+import { matchingHistoryApi } from '../services/api';
+import ReportModal from '../components/ReportModal';
+import ReportDetailModal from '../components/ReportDetailModal';
+import InlineSpinner from '../components/InlineSpinner';
 
 interface MatchingHistoryPageProps {
   sidebarOpen: boolean;

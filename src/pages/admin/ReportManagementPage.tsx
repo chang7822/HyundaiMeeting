@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { FaSyncAlt } from 'react-icons/fa';
-import { adminReportApi } from '../../services/api.ts';
-import InlineSpinner from '../../components/InlineSpinner.tsx';
+import { adminReportApi } from '../../services/api';
+import InlineSpinner from '../../components/InlineSpinner';
 
 interface ReportManagementPageProps {
   sidebarOpen: boolean;

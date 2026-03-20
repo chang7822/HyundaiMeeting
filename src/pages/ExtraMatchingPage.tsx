@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { FaTimes, FaClock, FaBan, FaBoxOpen } from 'react-icons/fa';
-import { extraMatchingApi } from '../services/api.ts';
-import { userApi } from '../services/api.ts';
-import { formatRemainingTime, formatAutoRejectRemaining, isExpired } from '../utils/extraMatchingUtils.ts';
+import { extraMatchingApi } from '../services/api';
+import { userApi } from '../services/api';
+import { formatRemainingTime, formatAutoRejectRemaining, isExpired } from '../utils/extraMatchingUtils';
 import { useNavigate } from 'react-router-dom';
-import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
-import { useAuth } from '../contexts/AuthContext.tsx';
+import { getDisplayCompanyName } from '../utils/companyDisplay';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ExtraMatchingPageProps {
   sidebarOpen: boolean;

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
-import { getAdminProfileCategories, getAdminProfileOptions, saveAdminProfileCategories, saveAdminProfileOptions } from '../../services/api.ts';
+import { getAdminProfileCategories, getAdminProfileOptions, saveAdminProfileCategories, saveAdminProfileOptions } from '../../services/api';
 
 import { FaPlus, FaTrash, FaEdit, FaSave, FaTimes, FaArrowUp, FaArrowDown } from 'react-icons/fa';
 import { toast } from 'react-toastify';

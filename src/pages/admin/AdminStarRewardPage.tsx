@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { adminApi } from '../../services/api.ts';
-import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
+import { adminApi } from '../../services/api';
+import { getDisplayCompanyName } from '../../utils/companyDisplay';
 
 const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;

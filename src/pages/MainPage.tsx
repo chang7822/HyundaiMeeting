@@ -3,12 +3,12 @@ import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FaHeart, FaRegHeart, FaComment, FaExclamationTriangle, FaTrash, FaChevronDown, FaChevronUp, FaBan, FaUserSlash, FaQuestion, FaInfoCircle, FaBell, FaBullhorn, FaChevronRight } from 'react-icons/fa';
-import { communityApi, matchingApi, adminApi, starApi, notificationApi, noticeApi } from '../services/api.ts';
-import { useAuth } from '../contexts/AuthContext.tsx';
-import InlineSpinner from '../components/InlineSpinner.tsx';
-import ProfileCard from '../components/ProfileCard.tsx';
-import PushToggleRow from '../components/PushToggleRow.tsx';
-import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import { communityApi, matchingApi, adminApi, starApi, notificationApi, noticeApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import InlineSpinner from '../components/InlineSpinner';
+import ProfileCard from '../components/ProfileCard';
+import PushToggleRow from '../components/PushToggleRow';
+import { getDisplayCompanyName } from '../utils/companyDisplay';
 import { Capacitor } from '@capacitor/core';
 
 interface MainPageProps {

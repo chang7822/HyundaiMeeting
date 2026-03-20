@@ -1,21 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext.tsx';
-import { matchingApi, chatApi, userApi, reportApi } from '../services/api.ts';
-import ChatHeader from '../components/Chat/ChatHeader.tsx';
-import ChatWindow from '../components/Chat/ChatWindow.tsx';
-import ChatInput from '../components/Chat/ChatInput.tsx';
+import { useAuth } from '../contexts/AuthContext';
+import { matchingApi, chatApi, userApi, reportApi } from '../services/api';
+import ChatHeader from '../components/Chat/ChatHeader';
+import ChatWindow from '../components/Chat/ChatWindow';
+import ChatInput from '../components/Chat/ChatInput';
 import { toast } from 'react-toastify';
-import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import { getDisplayCompanyName } from '../utils/companyDisplay';
 import { Capacitor } from '@capacitor/core';
 
 import { io, Socket } from 'socket.io-client';
 import styled from 'styled-components';
-import ProfileCard from '../components/ProfileCard.tsx';
+import ProfileCard from '../components/ProfileCard';
 import Modal from 'react-modal';
-import InlineSpinner from '../components/InlineSpinner.tsx';
-import ReportModal from '../components/ReportModal.tsx';
-import { API_BASE_URL } from '../services/api.ts';
+import InlineSpinner from '../components/InlineSpinner';
+import ReportModal from '../components/ReportModal';
+import { API_BASE_URL } from '../services/api';
 
 // Socket URL: API URL에서 /api를 제거하여 생성
 // 환경변수 REACT_APP_SOCKET_URL이 있으면 우선 사용, 없으면 API URL 기반으로 생성

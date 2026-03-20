@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { faqApi } from '../../services/api.ts';
+import { faqApi } from '../../services/api';
 import { 
   FaPlus, 
   FaEdit, 

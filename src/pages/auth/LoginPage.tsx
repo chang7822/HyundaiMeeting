@@ -3,8 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
-import { useAuth } from '../../contexts/AuthContext.tsx';
-import { LoginCredentials } from '../../types/index.ts';
+import { useAuth } from '../../contexts/AuthContext';
+import { LoginCredentials } from '../../types/index';
 import { FaEye, FaEyeSlash, FaTimes } from 'react-icons/fa';
 
 const LoginContainer = styled.div`

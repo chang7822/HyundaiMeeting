@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import Modal from 'react-modal';
-import { companyApi } from '../../services/api.ts';
-import { Company } from '../../types/index.ts';
-import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
+import { companyApi } from '../../services/api';
+import { Company } from '../../types/index';
+import { getDisplayCompanyName } from '../../utils/companyDisplay';
 
 const ProfileDetailModal = ({ isOpen, onRequestClose, user, overlayZIndex }: { isOpen: boolean; onRequestClose: () => void; user: any; overlayZIndex?: number }) => {
   const [companies, setCompanies] = useState<Company[]>([]);

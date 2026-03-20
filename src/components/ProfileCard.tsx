@@ -1,6 +1,6 @@
 import React from 'react';
 import { FaUserCircle, FaRegSmile, FaRegStar, FaRegCommentDots } from 'react-icons/fa';
-import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import { getDisplayCompanyName } from '../utils/companyDisplay';
 
 interface ProfileCardProps {
   nickname: string;

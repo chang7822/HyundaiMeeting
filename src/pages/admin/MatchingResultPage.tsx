@@ -3,10 +3,10 @@ import styled from 'styled-components';
 import Modal from 'react-modal';
 import { FaSyncAlt, FaComments, FaTimes, FaExclamationTriangle, FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import ProfileDetailModal from './ProfileDetailModal.tsx';
-import { apiUrl, adminMatchingApi, adminChatApi } from '../../services/api.ts';
-import InlineSpinner from '../../components/InlineSpinner.tsx';
-import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
+import ProfileDetailModal from './ProfileDetailModal';
+import { apiUrl, adminMatchingApi, adminChatApi } from '../../services/api';
+import InlineSpinner from '../../components/InlineSpinner';
+import { getDisplayCompanyName } from '../../utils/companyDisplay';
 
 // read_at은 DB에서 timestamp without time zone으로 저장되어 'Z' 없이 반환됨 → UTC로 해석하도록 보정
 function parseAsUtc(dateStr: string | null | undefined): Date | null {

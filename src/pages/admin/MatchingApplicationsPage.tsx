@@ -3,10 +3,10 @@ import styled from 'styled-components';
 import Modal from 'react-modal';
 import { FaSort, FaCheck, FaTimes, FaSyncAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import ProfileDetailModal from './ProfileDetailModal.tsx';
-import { adminMatchingApi } from '../../services/api.ts';
-import InlineSpinner from '../../components/InlineSpinner.tsx';
-import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
+import ProfileDetailModal from './ProfileDetailModal';
+import { adminMatchingApi } from '../../services/api';
+import InlineSpinner from '../../components/InlineSpinner';
+import { getDisplayCompanyName } from '../../utils/companyDisplay';
 
 const Container = styled.div<{ $sidebarOpen: boolean }>`
   margin: 40px auto;

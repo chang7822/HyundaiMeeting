@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import IosWebAppGuideModal from '../components/IosWebAppGuideModal.tsx';
+import IosWebAppGuideModal from '../components/IosWebAppGuideModal';
 import { Capacitor } from '@capacitor/core';
-import { companyApi, systemApi } from '../services/api.ts';
-import type { Company } from '../types/index.ts';
-import { useAuth } from '../contexts/AuthContext.tsx';
+import { companyApi, systemApi } from '../services/api';
+import type { Company } from '../types/index';
+import { useAuth } from '../contexts/AuthContext';
 
 const LandingContainer = styled.div`
   min-height: 100vh;

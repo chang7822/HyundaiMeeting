@@ -1,8 +1,8 @@
 import React from 'react';
 import { FaArrowLeft, FaExclamationTriangle } from 'react-icons/fa';
 import styled from 'styled-components';
-import { ProfileIcon } from '../ProfileCard.tsx';
-import { getDisplayCompanyName } from '../../utils/companyDisplay.ts';
+import { ProfileIcon } from '../ProfileCard';
+import { getDisplayCompanyName } from '../../utils/companyDisplay';
 
 interface ChatHeaderProps {
   partner: {

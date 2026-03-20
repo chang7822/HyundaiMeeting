@@ -10,7 +10,7 @@
 
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
-import { systemApi } from '../services/api.ts';
+import { systemApi } from '../services/api';
 
 export interface VersionPolicy {
   // 현재 서버에서 관리하는 버전 정보

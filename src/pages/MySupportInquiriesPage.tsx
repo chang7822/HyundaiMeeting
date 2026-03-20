@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getMySupportInquiries } from '../services/api.ts';
+import { getMySupportInquiries } from '../services/api';
 
 // ===================================
 // 스타일드 컴포넌트

@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { getProfileCategories, getProfileOptions } from '../../services/api.ts';
+import { getProfileCategories, getProfileOptions } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
-import { ProfileCategory, ProfileOption, EDUCATION_OPTIONS, type EducationLevel } from '../../types/index.ts';
+import { ProfileCategory, ProfileOption, EDUCATION_OPTIONS, type EducationLevel } from '../../types/index';
 import { toast } from 'react-toastify';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaArrowLeft } from 'react-icons/fa';
-import AddressSelectModal from '../../components/AddressSelectModal.tsx';
+import AddressSelectModal from '../../components/AddressSelectModal';
 
 const Container = styled.div`
   min-height: 100vh;

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import styled from 'styled-components';
-import { authApi, companyApi } from '../../services/api.ts';
-import { Company } from '../../types/index.ts';
+import { authApi, companyApi } from '../../services/api';
+import { Company } from '../../types/index';
 import { FaArrowLeft } from 'react-icons/fa';
 
 const Container = styled.div`

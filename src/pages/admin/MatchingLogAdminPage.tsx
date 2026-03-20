@@ -3,8 +3,8 @@ import styled from 'styled-components';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import Modal from 'react-modal';
-import { adminMatchingApi } from '../../services/api.ts';
-import InlineSpinner from '../../components/InlineSpinner.tsx';
+import { adminMatchingApi } from '../../services/api';
+import InlineSpinner from '../../components/InlineSpinner';
 
 // API 함수들
 const fetchMatchingLogs = async () => {

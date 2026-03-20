@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { adminApi } from '../../services/api.ts';
+import { adminApi } from '../../services/api';
 
 const Container = styled.div<{ $sidebarOpen?: boolean }>`
   flex: 1;

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
 import { Capacitor } from '@capacitor/core';
-import { adminApi, pushApi } from '../../services/api.ts';
+import { adminApi, pushApi } from '../../services/api';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;

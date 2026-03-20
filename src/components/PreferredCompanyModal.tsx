@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { toast } from 'react-toastify';
-import { Company } from '../types/index.ts';
-import { companyApi } from '../services/api.ts';
+import { Company } from '../types/index';
+import { companyApi } from '../services/api';
 
 interface PreferredCompanyModalProps {
   isOpen: boolean;

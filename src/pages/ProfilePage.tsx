@@ -2,14 +2,14 @@ import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getProfileCategories, getProfileOptions, userApi, authApi } from '../services/api.ts';
-import AddressSelectModal from '../components/AddressSelectModal.tsx';
-import { ProfileCategory, ProfileOption, User, UserProfile, EDUCATION_OPTIONS, type EducationLevel } from '../types/index.ts';
+import { getProfileCategories, getProfileOptions, userApi, authApi } from '../services/api';
+import AddressSelectModal from '../components/AddressSelectModal';
+import { ProfileCategory, ProfileOption, User, UserProfile, EDUCATION_OPTIONS, type EducationLevel } from '../types/index';
 import Slider from 'rc-slider';
-import { useAuth } from '../contexts/AuthContext.tsx';
+import { useAuth } from '../contexts/AuthContext';
 import { FaEye, FaEyeSlash, FaCheckCircle, FaTimesCircle, FaTimes } from 'react-icons/fa';
-import InlineSpinner from '../components/InlineSpinner.tsx';
-import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import InlineSpinner from '../components/InlineSpinner';
+import { getDisplayCompanyName } from '../utils/companyDisplay';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;

@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getProfileCategories, getProfileOptions } from '../../services/api.ts';
-import { ProfileCategory, ProfileOption, EDUCATION_OPTIONS } from '../../types/index.ts';
+import { getProfileCategories, getProfileOptions } from '../../services/api';
+import { ProfileCategory, ProfileOption, EDUCATION_OPTIONS } from '../../types/index';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaArrowLeft } from 'react-icons/fa';
-import PreferredCompanyModal from '../../components/PreferredCompanyModal.tsx';
-import PreferredRegionModal from '../../components/PreferredRegionModal.tsx';
-import PreferenceMultiSelectModal from '../../components/PreferenceMultiSelectModal.tsx';
+import PreferredCompanyModal from '../../components/PreferredCompanyModal';
+import PreferredRegionModal from '../../components/PreferredRegionModal';
+import PreferenceMultiSelectModal from '../../components/PreferenceMultiSelectModal';
 
 const Container = styled.div`
   min-height: 100vh;

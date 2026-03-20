@@ -2,16 +2,16 @@ import React, { useState, useEffect, useMemo } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getProfileCategories, getProfileOptions, userApi, companyApi } from '../services/api.ts';
-import { ProfileCategory, ProfileOption, Company, EDUCATION_OPTIONS } from '../types/index.ts';
+import { getProfileCategories, getProfileOptions, userApi, companyApi } from '../services/api';
+import { ProfileCategory, ProfileOption, Company, EDUCATION_OPTIONS } from '../types/index';
 import Slider from 'rc-slider';
 import 'rc-slider/assets/index.css';
 import { FaTimes } from 'react-icons/fa';
-import { useAuth } from '../contexts/AuthContext.tsx';
-import InlineSpinner from '../components/InlineSpinner.tsx';
-import PreferredCompanyModal from '../components/PreferredCompanyModal.tsx';
-import PreferredRegionModal from '../components/PreferredRegionModal.tsx';
-import PreferenceMultiSelectModal from '../components/PreferenceMultiSelectModal.tsx';
+import { useAuth } from '../contexts/AuthContext';
+import InlineSpinner from '../components/InlineSpinner';
+import PreferredCompanyModal from '../components/PreferredCompanyModal';
+import PreferredRegionModal from '../components/PreferredRegionModal';
+import PreferenceMultiSelectModal from '../components/PreferenceMultiSelectModal';
 
 const MainContainer = styled.div<{ $sidebarOpen: boolean }>`
   flex: 1;

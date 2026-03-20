@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ProfileCategory, ProfileOption } from '../types/index.ts';
+import { User, UserProfile, LoginCredentials, RegisterFormData, Company, Match, ChatMessage, ProfileCategory, ProfileOption } from '../types/index';
 import { toast } from 'react-toastify';
 
 // API Base URL 설정

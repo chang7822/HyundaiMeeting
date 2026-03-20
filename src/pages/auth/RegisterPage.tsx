@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
-import TermsAgreementModal from '../../components/TermsAgreementModal.tsx';
+import TermsAgreementModal from '../../components/TermsAgreementModal';
 
 const RegisterContainer = styled.div`
   min-height: 100vh;

@@ -6,10 +6,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { FaInfoCircle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { pushApi } from '../services/api.ts';
-import IosWebAppGuideModal from './IosWebAppGuideModal.tsx';
-import { useAuth } from '../contexts/AuthContext.tsx';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase.ts';
+import { pushApi } from '../services/api';
+import IosWebAppGuideModal from './IosWebAppGuideModal';
+import { useAuth } from '../contexts/AuthContext';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 const Row = styled.div`

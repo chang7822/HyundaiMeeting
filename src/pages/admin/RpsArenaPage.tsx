@@ -2,9 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import styled from 'styled-components';
 import { Capacitor } from '@capacitor/core';
 import { toast } from 'react-toastify';
-import { starApi, systemApi, adminApi, adminReportApi, pushApi } from '../../services/api.ts';
-import { useAuth } from '../../contexts/AuthContext.tsx';
-import ProfileDetailModal from './ProfileDetailModal.tsx';
+import { starApi, systemApi, adminApi, adminReportApi, pushApi } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
+import ProfileDetailModal from './ProfileDetailModal';
 
 const RPS_DAILY_LIMIT = 3;
 

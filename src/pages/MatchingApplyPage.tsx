@@ -1,16 +1,16 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
-import { useAuth } from '../contexts/AuthContext.tsx';
+import { useAuth } from '../contexts/AuthContext';
 import { FaComments, FaUser, FaRegStar, FaRegClock, FaChevronRight, FaExclamationTriangle, FaBullhorn, FaInfoCircle, FaBell, FaCalendarAlt, FaHandshake } from 'react-icons/fa';
-import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, extraMatchingApi, starApi, adminApi, systemApi } from '../services/api.ts';
+import { matchingApi, chatApi, authApi, companyApi, noticeApi, pushApi, extraMatchingApi, starApi, adminApi, systemApi } from '../services/api';
 import { toast } from 'react-toastify';
-import ProfileCard, { ProfileIcon } from '../components/ProfileCard.tsx';
-import { userApi } from '../services/api.ts';
-import { Company } from '../types/index.ts';
-import LoadingSpinner from '../components/LoadingSpinner.tsx';
-import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase.ts';
-import { getDisplayCompanyName } from '../utils/companyDisplay.ts';
+import ProfileCard, { ProfileIcon } from '../components/ProfileCard';
+import { userApi } from '../services/api';
+import { Company } from '../types/index';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase';
+import { getDisplayCompanyName } from '../utils/companyDisplay';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 
 // 액션 타입 정의
