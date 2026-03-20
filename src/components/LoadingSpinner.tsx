@@ -6,13 +6,7 @@ const INITIAL_SCREEN_HEIGHT = window.innerHeight;
 
 // 전역 배너 관리 (앱 전체에서 하나의 배너만 사용)
 // window 객체에 저장하여 다른 컴포넌트에서도 접근 가능
-declare global {
-  interface Window {
-    globalBannerAd: any;
-    globalBannerShowing: boolean;
-    globalBannerInitializing: boolean;
-  }
-}
+// 타입 선언은 src/global.d.ts 에서 관리
 
 if (typeof window !== 'undefined') {
   window.globalBannerAd = window.globalBannerAd || null;

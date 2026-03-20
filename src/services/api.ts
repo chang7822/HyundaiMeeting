@@ -1060,6 +1060,7 @@ export const reportApi = {
   // 신고 등록
   createReport: async (data: {
     reported_user_id: string;
+    reported_user_email?: string;
     period_id: number;
     report_type: string;
     report_details?: string;
