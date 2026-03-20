@@ -24,6 +24,7 @@ import {
   FaEdit,
   FaSave,
   FaTimes,
+  FaCoins,
 } from 'react-icons/fa';
 import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi, systemApi, pushApi } from '../../services/api';
 import { isNativeApp } from '../../firebase';
@@ -1303,7 +1304,7 @@ const Sidebar: React.FC<{
     }
   };
 
-  const DEFAULT_MENU_ORDER = ['/main', '/matching-apply', '/profile', '/preference', '/extra-matching', '/rps-arena', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
+  const DEFAULT_MENU_ORDER = ['/main', '/matching-apply', '/profile', '/preference', '/extra-matching', '/rps-arena', '/shop', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
 
   const userMenuItemsBase = [
     { path: '/main', icon: <FaHome />, text: '커뮤니티 홈', disabled: communityEnabled === false },
@@ -1318,6 +1319,7 @@ const Sidebar: React.FC<{
       hiddenWhenDisabled: true, // 비활성화 시 사이드바에서 숨김 (순서 편집 시에는 표시)
     },
     { path: '/rps-arena', icon: <FaHandScissors />, text: '가위바위보 멸망전' },
+    { path: '/shop', icon: <FaCoins />, text: '⭐ 별 충전소' },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
     { path: '/faq', icon: <FaQuestionCircle />, text: 'FAQ' },

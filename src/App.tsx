@@ -67,6 +67,7 @@ import SettingsPage from './pages/admin/SettingsPage';
 import BroadcastEmailPage from './pages/admin/BroadcastEmailPage';
 import LogsPage from './pages/admin/LogsPage';
 import RpsArenaPage from './pages/admin/RpsArenaPage';
+import ShopPage from './pages/ShopPage';
 
 // Components
 import Sidebar from './components/layout/Sidebar';
@@ -903,6 +904,14 @@ const AppInner: React.FC = () => {
                 preloadedRewarded={preloadedAdsRef.current.rewarded}
                 preloadedBanner={preloadedAdsRef.current.banner}
               />
+            </div>
+          </ProtectedRoute>
+        } />
+        <Route path="/shop" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
+              <ShopPage sidebarOpen={sidebarOpen} />
             </div>
           </ProtectedRoute>
         } />

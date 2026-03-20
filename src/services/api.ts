@@ -1500,4 +1500,31 @@ export const communityApi = {
   },
 };
 
+// ─────────────────────────────────────────────
+// shopApi — 별 상점 & 결제
+// ─────────────────────────────────────────────
+export const shopApi = {
+  // 활성 상품 목록 조회
+  getProducts: async (): Promise<any> => {
+    const response = await api.get('/payment/products');
+    return response.data;
+  },
+
+  // 가상계좌 발급 요청
+  issueVirtualAccount: async (data: {
+    productId: number;
+    bankCode: string;
+    customerName: string;
+  }): Promise<any> => {
+    const response = await api.post('/payment/virtual-account', data);
+    return response.data;
+  },
+
+  // 내 결제 내역 조회
+  getMyOrders: async (): Promise<any> => {
+    const response = await api.get('/payment/orders');
+    return response.data;
+  },
+};
+
 export default api;
