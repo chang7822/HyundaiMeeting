@@ -701,8 +701,8 @@ const LandingPage = () => {
       </ButtonContainer>
 
       <StoreBadgesRow>
-        {/* 앱 링크 배너는 주석 유지. 나중에 살리면 iOS 웹앱 배너와 나란히 표시됨 */}
-        {/* {androidStoreUrl && (
+
+        {androidStoreUrl && (
           <StoreBadgeLink href={androidStoreUrl} target="_blank" rel="noopener noreferrer" title="Google Play">
             <img src="https://play.google.com/intl/ko/badges/static/images/badges/ko_badge_web_generic.png" alt="Google Play에서 다운로드" />
           </StoreBadgeLink>
@@ -714,7 +714,7 @@ const LandingPage = () => {
         )}
         {!androidStoreUrl && !iosStoreUrl && (
           <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem' }}>앱 다운로드 링크 준비 중</span>
-        )} */}
+        )}
         <IosWebAppBanner type="button" onClick={() => setShowIosWebAppGuide(true)}>
           📱 iOS 웹앱 적용
         </IosWebAppBanner>
