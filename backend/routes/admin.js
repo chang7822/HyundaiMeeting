@@ -307,6 +307,21 @@ router.get('/system-settings', authenticate, async (req, res) => {
       console.error('[admin][system-settings] rewarded_ad_enabled 조회 오류:', rewardedErr);
     }
 
+    let starShopEnabled = false;
+    try {
+      const { data: starShopRow, error: starShopError } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'star_shop_enabled')
+        .maybeSingle();
+
+      if (!starShopError && starShopRow?.value && starShopRow.value.enabled === true) {
+        starShopEnabled = true;
+      }
+    } catch (starShopErr) {
+      console.error('[admin][system-settings] star_shop_enabled 조회 오류:', starShopErr);
+    }
+
     res.json({
       success: true,
       maintenance: {
@@ -333,6 +348,7 @@ router.get('/system-settings', authenticate, async (req, res) => {
       },
       sidebarMenuOrder: sidebarMenuOrder,
       rewardedAdEnabled,
+      starShopEnabled,
     });
   } catch (error) {
     console.error('[admin][system-settings] 조회 오류');
@@ -562,6 +578,28 @@ router.put('/system-settings/rewarded-ad', authenticate, async (req, res) => {
     return res.json({ success: true, rewardedAdEnabled: value.enabled });
   } catch (err) {
     console.error('[admin][system-settings] rewarded_ad 오류', err);
+    return res.status(500).json({ success: false, message: '설정 변경 중 오류가 발생했습니다.' });
+  }
+});
+
+router.put('/system-settings/star-shop', authenticate, async (req, res) => {
+  try {
+    if (!ensureAdmin(req, res)) return;
+    const { enabled } = req.body || {};
+    const value = { enabled: !!enabled };
+
+    const { error } = await supabase
+      .from('app_settings')
+      .upsert({ key: 'star_shop_enabled', value }, { onConflict: 'key' });
+
+    if (error) {
+      console.error('[admin][system-settings] star_shop 업데이트 오류:', error);
+      return res.status(500).json({ success: false, message: '별 충전소 설정 변경에 실패했습니다.' });
+    }
+
+    return res.json({ success: true, starShopEnabled: value.enabled });
+  } catch (err) {
+    console.error('[admin][system-settings] star_shop 오류', err);
     return res.status(500).json({ success: false, message: '설정 변경 중 오류가 발생했습니다.' });
   }
 });

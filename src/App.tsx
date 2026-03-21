@@ -67,6 +67,7 @@ import SettingsPage from './pages/admin/SettingsPage';
 import BroadcastEmailPage from './pages/admin/BroadcastEmailPage';
 import LogsPage from './pages/admin/LogsPage';
 import RpsArenaPage from './pages/admin/RpsArenaPage';
+import AdminPaymentPage from './pages/admin/AdminPaymentPage';
 import ShopPage from './pages/ShopPage';
 
 // Components
@@ -911,7 +912,7 @@ const AppInner: React.FC = () => {
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-              <ShopPage sidebarOpen={sidebarOpen} />
+              <ShopPage />
             </div>
           </ProtectedRoute>
         } />
@@ -1111,6 +1112,14 @@ const AppInner: React.FC = () => {
             <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
               <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
               <ExtraMatchingAdminPage sidebarOpen={sidebarOpen} />
+            </div>
+          </AdminRoute>
+        } />
+        <Route path="/admin/payment-history" element={
+          <AdminRoute>
+            <div className="app-layout" style={{ display: 'flex', minHeight: '100vh', background: '#f7f7fa' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
+              <AdminPaymentPage sidebarOpen={sidebarOpen} />
             </div>
           </AdminRoute>
         } />

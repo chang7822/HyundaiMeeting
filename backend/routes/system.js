@@ -130,6 +130,28 @@ router.get('/rewarded-ad-enabled', async (req, res) => {
   }
 });
 
+// 별 충전소(유료 상점) 사용 여부 — 기본 OFF, app_settings.star_shop_enabled { enabled: true } 일 때만 ON
+router.get('/star-shop-enabled', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'star_shop_enabled')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[system][star-shop-enabled] 조회 오류:', error);
+      return res.json({ enabled: false });
+    }
+
+    const enabled = !!(data?.value && data.value.enabled === true);
+    res.json({ enabled });
+  } catch (err) {
+    console.error('[system][star-shop-enabled] 조회 오류:', err);
+    return res.json({ enabled: false });
+  }
+});
+
 // 사이드바 메뉴 순서 조회 (공개 API, 로그인 전/후 모두 사용)
 router.get('/sidebar-menu-order', async (req, res) => {
   try {

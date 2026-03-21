@@ -61,7 +61,25 @@ self.addEventListener('notificationclick', function(event) {
   // data에서 linkUrl 추출 또는 타입별로 생성
   const data = event.notification.data || {};
   let linkUrl = data.linkUrl;
-  
+
+  // 별 충전 완료: 알림만, URL 이동 없이 앱 포커스만
+  if (data.type === 'star_purchase') {
+    event.waitUntil(
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+        for (let i = 0; i < clientList.length; i++) {
+          const client = clientList[i];
+          if (client.url && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        if (clients.openWindow) {
+          return clients.openWindow('/');
+        }
+      })
+    );
+    return;
+  }
+
   // linkUrl이 없으면 타입별로 생성
   if (!linkUrl) {
     switch (data.type) {

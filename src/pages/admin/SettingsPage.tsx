@@ -153,6 +153,17 @@ const SwitchSlider = styled.span`
   }
 `;
 
+/** 회원 노출 기능 토글을 한곳에 모음 */
+const FeatureTogglesPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+`;
+
 const PlaceholderArea = styled.div`
   margin-top: 2rem;
   padding: 1.5rem;
@@ -197,6 +208,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
   const [rewardedAd, setRewardedAd] = useState(true);
   const [rewardedAdSaving, setRewardedAdSaving] = useState(false);
   const [rewardedAdTesting, setRewardedAdTesting] = useState(false);
+  const [starShop, setStarShop] = useState(false);
+  const [starShopSaving, setStarShopSaving] = useState(false);
 
   // 푸시 알림 전송 관련 상태
   const [users, setUsers] = useState<any[]>([]);
@@ -236,6 +249,7 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
         setExtraMatchingApplyExpireHoursInput(String(typeof (res?.extraMatching as any)?.applyExpireHours === 'number' ? (res.extraMatching as any).applyExpireHours : 24));
         setCommunity(res?.community?.enabled !== false);
         setRewardedAd(res?.rewardedAdEnabled !== false);
+        setStarShop(res?.starShopEnabled === true);
         
         // 버전 정책 로드
         if (res?.versionPolicy) {
@@ -403,6 +417,23 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
       toast.error('보상형 광고 설정을 변경하지 못했습니다.');
     } finally {
       setRewardedAdSaving(false);
+    }
+  };
+
+  const handleToggleStarShop = async () => {
+    const next = !starShop;
+    setStarShop(next);
+    setStarShopSaving(true);
+    try {
+      await adminApi.updateStarShop(next);
+      toast.success(next ? '별 충전소가 활성화되었습니다.' : '별 충전소가 비활성화되었습니다.');
+      window.dispatchEvent(new CustomEvent('star-shop-setting-changed', { detail: { enabled: next } }));
+    } catch (e) {
+      console.error('[SettingsPage] 별 충전소 업데이트 오류:', e);
+      setStarShop(!next);
+      toast.error('별 충전소 설정을 변경하지 못했습니다.');
+    } finally {
+      setStarShopSaving(false);
     }
   };
 
@@ -607,31 +638,116 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
           </Section>
 
           <Section>
-            <SectionTitle>추가 매칭 도전 기능</SectionTitle>
+            <SectionTitle>회원 기능 ON / OFF</SectionTitle>
             <SectionDescription>
-              추가 매칭 도전 기능을 활성화/비활성화할 수 있습니다.
-              {'\n'}비활성화 시 사이드바 메뉴, 메인 페이지 배너, 알림 등 모든 관련 기능이 숨겨집니다.
+              회원에게 노출되는 주요 기능을 한곳에서 켜고 끕니다.
+              {'\n'}커뮤니티, 추가 매칭 도전, 보상형 광고, 별 충전소(유료) 순으로 정리되어 있습니다.
             </SectionDescription>
-            <ToggleRow>
-              <ToggleLabel>
-                <span>추가 매칭 도전 기능</span>
-                <ToggleDescription>
-                  {extraMatching
-                    ? '추가 매칭 도전 기능이 활성화되어 있습니다. (회원들이 기능을 사용할 수 있음)'
-                    : '추가 매칭 도전 기능이 비활성화되어 있습니다. (회원들에게 노출되지 않음)'}
-                </ToggleDescription>
-              </ToggleLabel>
-              <SwitchLabel>
-                <SwitchInput
-                  type="checkbox"
-                  checked={extraMatching}
-                  onChange={handleToggleExtraMatching}
-                  disabled={loading || extraMatchingSaving}
-                />
-                <SwitchSlider />
-              </SwitchLabel>
-            </ToggleRow>
-            <SectionDescription style={{ marginTop: '0.75rem' }}>
+            <FeatureTogglesPanel>
+              <ToggleRow>
+                <ToggleLabel>
+                  <span>커뮤니티 홈</span>
+                  <ToggleDescription>
+                    {community
+                      ? '커뮤니티 메뉴·접근이 활성화되어 있습니다.'
+                      : '비활성화 시 사이드바 메뉴가 비활성화되고 접근이 차단됩니다.'}
+                  </ToggleDescription>
+                </ToggleLabel>
+                <SwitchLabel>
+                  <SwitchInput
+                    type="checkbox"
+                    checked={community}
+                    onChange={handleToggleCommunity}
+                    disabled={loading || communitySaving}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+              </ToggleRow>
+              <ToggleRow>
+                <ToggleLabel>
+                  <span>추가 매칭 도전</span>
+                  <ToggleDescription>
+                    {extraMatching
+                      ? '사이드바·메인 배너·알림 등에서 기능이 노출됩니다.'
+                      : '비활성화 시 회원에게 노출되지 않습니다.'}
+                  </ToggleDescription>
+                </ToggleLabel>
+                <SwitchLabel>
+                  <SwitchInput
+                    type="checkbox"
+                    checked={extraMatching}
+                    onChange={handleToggleExtraMatching}
+                    disabled={loading || extraMatchingSaving}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+              </ToggleRow>
+              <ToggleRow>
+                <ToggleLabel>
+                  <span>보상형 광고</span>
+                  <ToggleDescription>
+                    {rewardedAd
+                      ? '출석·가위바위보·매칭신청 등에서 광고 시청이 가능합니다.'
+                      : '광고 버튼 비활성화, 매칭신청은 광고 없이 진행됩니다.'}
+                  </ToggleDescription>
+                </ToggleLabel>
+                <SwitchLabel>
+                  <SwitchInput
+                    type="checkbox"
+                    checked={rewardedAd}
+                    onChange={handleToggleRewardedAd}
+                    disabled={loading || rewardedAdSaving}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+              </ToggleRow>
+              <ToggleRow>
+                <ToggleLabel>
+                  <span>별 충전소 (유료 결제)</span>
+                  <ToggleDescription>
+                    {starShop
+                      ? '사이드바 별 배지에서 충전소로 이동할 수 있습니다. URL 직접 접근도 허용됩니다.'
+                      : '비활성화 시 충전소 페이지로 들어가면 홈으로 돌아갑니다. 배지는 "준비 중" 안내만 합니다.'}
+                  </ToggleDescription>
+                </ToggleLabel>
+                <SwitchLabel>
+                  <SwitchInput
+                    type="checkbox"
+                    checked={starShop}
+                    onChange={handleToggleStarShop}
+                    disabled={loading || starShopSaving}
+                  />
+                  <SwitchSlider />
+                </SwitchLabel>
+              </ToggleRow>
+            </FeatureTogglesPanel>
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={handleTestRewardedAd}
+                disabled={rewardedAdTesting || loading}
+                style={{
+                  padding: '0.5rem 1rem',
+                  borderRadius: 8,
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  color: '#475569',
+                  fontWeight: 600,
+                  cursor: rewardedAdTesting || loading ? 'not-allowed' : 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                {rewardedAdTesting ? '테스트 중...' : '보상형 광고 테스트'}
+              </button>
+              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                앱에서만 테스트 가능. NO FILL 시 경고 메시지가 표시됩니다.
+              </span>
+            </div>
+          </Section>
+
+          <Section>
+            <SectionTitle>추가 매칭 도전 — 호감 응답 만료</SectionTitle>
+            <SectionDescription>
               받은 호감에 대한 수락/거절 응답 만료 시간(시간 단위)입니다. 이 시간 내에 답변이 없으면 자동 거절됩니다.
             </SectionDescription>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
@@ -687,82 +803,6 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ sidebarOpen }) => {
               >
                 {extraMatchingExpireSaving ? '저장 중...' : '저장'}
               </button>
-            </div>
-          </Section>
-
-          <Section>
-            <SectionTitle>커뮤니티 기능</SectionTitle>
-            <SectionDescription>
-              커뮤니티 기능을 활성화/비활성화할 수 있습니다.
-              {'\n'}비활성화 시 사이드바 메뉴가 비활성화되며 접근이 차단됩니다. (문제 발생 시 디버깅용)
-            </SectionDescription>
-            <ToggleRow>
-              <ToggleLabel>
-                <span>커뮤니티 기능</span>
-                <ToggleDescription>
-                  {community
-                    ? '커뮤니티 기능이 활성화되어 있습니다. (회원들이 기능을 사용할 수 있음)'
-                    : '커뮤니티 기능이 비활성화되어 있습니다. (회원들에게 접근이 차단됨)'}
-                </ToggleDescription>
-              </ToggleLabel>
-              <SwitchLabel>
-                <SwitchInput
-                  type="checkbox"
-                  checked={community}
-                  onChange={handleToggleCommunity}
-                  disabled={loading || communitySaving}
-                />
-                <SwitchSlider />
-              </SwitchLabel>
-            </ToggleRow>
-          </Section>
-
-          <Section>
-            <SectionTitle>보상형 광고</SectionTitle>
-            <SectionDescription>
-              출석체크·가위바위보·매칭신청 시 광고 시청 기능을 활성화/비활성화합니다.
-              {'\n'}NO FILL 등으로 광고가 지속적으로 실패할 때 OFF로 두면 광고 버튼이 비활성화되고, 매칭신청은 광고 없이 바로 진행됩니다.
-            </SectionDescription>
-            <ToggleRow>
-              <ToggleLabel>
-                <span>보상형 광고 사용</span>
-                <ToggleDescription>
-                  {rewardedAd
-                    ? '보상형 광고가 활성화되어 있습니다. (출석·가위바위보·매칭신청 시 광고 시청 가능)'
-                    : '보상형 광고가 비활성화되어 있습니다. (광고 버튼 비활성화, 매칭신청은 광고 없이 진행)'}
-                </ToggleDescription>
-              </ToggleLabel>
-              <SwitchLabel>
-                <SwitchInput
-                  type="checkbox"
-                  checked={rewardedAd}
-                  onChange={handleToggleRewardedAd}
-                  disabled={loading || rewardedAdSaving}
-                />
-                <SwitchSlider />
-              </SwitchLabel>
-            </ToggleRow>
-            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <button
-                type="button"
-                onClick={handleTestRewardedAd}
-                disabled={rewardedAdTesting || loading}
-                style={{
-                  padding: '0.5rem 1rem',
-                  borderRadius: 8,
-                  border: '1px solid #cbd5e1',
-                  background: '#f8fafc',
-                  color: '#475569',
-                  fontWeight: 600,
-                  cursor: rewardedAdTesting || loading ? 'not-allowed' : 'pointer',
-                  fontSize: '0.9rem',
-                }}
-              >
-                {rewardedAdTesting ? '테스트 중...' : '보상형 광고 테스트'}
-              </button>
-              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                앱에서만 테스트 가능. NO FILL 시 경고 메시지가 표시됩니다.
-              </span>
             </div>
           </Section>
 

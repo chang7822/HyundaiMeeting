@@ -24,7 +24,6 @@ import {
   FaEdit,
   FaSave,
   FaTimes,
-  FaCoins,
 } from 'react-icons/fa';
 import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi, systemApi, pushApi } from '../../services/api';
 import { isNativeApp } from '../../firebase';
@@ -338,7 +337,7 @@ const StarRow = styled.div`
   font-size: 0.82rem;
 `;
 
-const StarBadge = styled.div`
+const StarBadgeButton = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -348,6 +347,17 @@ const StarBadge = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.28);
   font-size: 0.8rem;
   font-weight: 600;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease;
+
+  &:hover {
+    background: rgba(250, 250, 255, 0.26);
+  }
+  &:active {
+    transform: scale(0.98);
+  }
 `;
 
 const AttendanceButton = styled.button`
@@ -659,6 +669,7 @@ const Sidebar: React.FC<{
   const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
   const [communityEnabled, setCommunityEnabled] = useState<boolean | null>(null);
   const [rewardedAdEnabled, setRewardedAdEnabled] = useState<boolean>(true);
+  const [starShopEnabled, setStarShopEnabled] = useState<boolean>(false);
   const [sidebarMenuOrder, setSidebarMenuOrder] = useState<string[] | null>(null);
   const [menuOrderEditing, setMenuOrderEditing] = useState(false);
   const [menuOrderDraft, setMenuOrderDraft] = useState<string[]>([]);
@@ -1032,12 +1043,32 @@ const Sidebar: React.FC<{
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      systemApi.getStarShopEnabled()
+        .then((res) => {
+          if (!cancelled) setStarShopEnabled(res?.enabled === true);
+        })
+        .catch(() => {
+          if (!cancelled) setStarShopEnabled(false);
+        });
+    };
+    load();
+    const onStarShopChange = () => load();
+    window.addEventListener('star-shop-setting-changed', onStarShopChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('star-shop-setting-changed', onStarShopChange);
+    };
+  }, []);
+
   const loadSidebarMenuOrder = useCallback(() => {
     systemApi.getSidebarMenuOrder()
       .then((res) => {
         if (res?.order && Array.isArray(res.order)) {
-          // /community → /main 마이그레이션, /matching-apply 없으면 추가
-          let order = res.order.filter((p: string) => p !== '/community');
+          // /community → /main 마이그레이션, 별 충전소는 사이드바 메뉴에서 제외
+          let order = res.order.filter((p: string) => p !== '/community' && p !== '/shop');
           if (!order.includes('/matching-apply')) {
             const idx = order.indexOf('/main');
             order = [...order.slice(0, idx >= 0 ? idx + 1 : 0), '/matching-apply', ...order.slice(idx >= 0 ? idx + 1 : 0)];
@@ -1304,7 +1335,7 @@ const Sidebar: React.FC<{
     }
   };
 
-  const DEFAULT_MENU_ORDER = ['/main', '/matching-apply', '/profile', '/preference', '/extra-matching', '/rps-arena', '/shop', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
+  const DEFAULT_MENU_ORDER = ['/main', '/matching-apply', '/profile', '/preference', '/extra-matching', '/rps-arena', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
 
   const userMenuItemsBase = [
     { path: '/main', icon: <FaHome />, text: '커뮤니티 홈', disabled: communityEnabled === false },
@@ -1319,7 +1350,6 @@ const Sidebar: React.FC<{
       hiddenWhenDisabled: true, // 비활성화 시 사이드바에서 숨김 (순서 편집 시에는 표시)
     },
     { path: '/rps-arena', icon: <FaHandScissors />, text: '가위바위보 멸망전' },
-    { path: '/shop', icon: <FaCoins />, text: '⭐ 별 충전소' },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
     { path: '/faq', icon: <FaQuestionCircle />, text: 'FAQ' },
@@ -1350,7 +1380,8 @@ const Sidebar: React.FC<{
       );
 
   const handleStartMenuOrderEdit = () => {
-    const order = (sidebarMenuOrder && sidebarMenuOrder.length > 0) ? [...sidebarMenuOrder] : [...DEFAULT_MENU_ORDER];
+    const raw = (sidebarMenuOrder && sidebarMenuOrder.length > 0) ? [...sidebarMenuOrder] : [...DEFAULT_MENU_ORDER];
+    const order = raw.filter((p) => p !== '/shop');
     setMenuOrderDraft(order);
     setMenuOrderEditing(true);
   };
@@ -1368,8 +1399,9 @@ const Sidebar: React.FC<{
   const handleSaveMenuOrder = async () => {
     setMenuOrderSaving(true);
     try {
-      await adminApi.updateSidebarMenuOrder(menuOrderDraft);
-      setSidebarMenuOrder(menuOrderDraft);
+      const cleaned = menuOrderDraft.filter((p) => p !== '/shop');
+      await adminApi.updateSidebarMenuOrder(cleaned);
+      setSidebarMenuOrder(cleaned);
       setMenuOrderEditing(false);
       setMenuOrderDraft([]);
       toast.success('사이드바 메뉴 순서가 저장되었습니다.');
@@ -1388,6 +1420,7 @@ const Sidebar: React.FC<{
     { path: '/admin/user-matching-overview', icon: <span role="img" aria-label="users">👥</span>, text: '회원 매칭 조회' },
     { path: '/admin/extra-matching-status', icon: <span role="img" aria-label="star">⭐</span>, text: '추가 매칭도전 현황' },
     { path: '/admin/star-rewards', icon: <span role="img" aria-label="gift">🎁</span>, text: '이벤트 별 지급' },
+    { path: '/admin/payment-history', icon: <span role="img" aria-label="payment">💳</span>, text: '결제 내역 관리' },
     { path: '/admin/report-management', icon: <FaExclamationTriangle />, text: '신고 관리' },
     { path: '/admin/support', icon: <FaHeadset />, text: '고객센터 관리' },
     { path: '/admin/category-manager', icon: <span role="img" aria-label="tree">🌳</span>, text: '카테고리 관리' },
@@ -1496,7 +1529,17 @@ const Sidebar: React.FC<{
                   </span>
                 </NicknameRow>
                 <StarRow>
-                  <StarBadge>
+                  <StarBadgeButton
+                    type="button"
+                    title={starShopEnabled ? '별 충전소로 이동' : '별 충전소 준비 중'}
+                    onClick={() => {
+                      if (starShopEnabled) {
+                        handleNavClick('/shop');
+                      } else {
+                        toast.info('별 충전소는 준비 중입니다.');
+                      }
+                    }}
+                  >
                     <FaStar style={{ color: '#FCD34D' }} />
                     <span>
                       {starLoading
@@ -1505,7 +1548,7 @@ const Sidebar: React.FC<{
                           ? `별 ${starBalance}개`
                           : '별 정보 없음'}
                     </span>
-                  </StarBadge>
+                  </StarBadgeButton>
                   <AttendanceButton
                     type="button"
                     onClick={() => setAttendanceModalOpen(true)}

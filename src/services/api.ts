@@ -463,6 +463,12 @@ export const systemApi = {
     const response = await api.get('/system/rewarded-ad-enabled');
     return response.data;
   },
+
+  /** 별 충전소(유료) — 서버에서 true일 때만 노출 */
+  getStarShopEnabled: async (): Promise<{ enabled: boolean }> => {
+    const response = await api.get('/system/star-shop-enabled');
+    return response.data;
+  },
 };
 
 // 별 / 출석 API
@@ -613,6 +619,7 @@ export const adminApi = {
     extraMatching?: { enabled: boolean };
     community?: { enabled: boolean };
     rewardedAdEnabled?: boolean;
+    starShopEnabled?: boolean;
     rpsStatsExcluded?: { nicknames: string[] };
     sidebarMenuOrder?: string[] | null;
     versionPolicy?: {
@@ -669,6 +676,11 @@ export const adminApi = {
   // 보상형 광고 사용 토글
   updateRewardedAd: async (enabled: boolean): Promise<{ success: boolean; rewardedAdEnabled?: boolean }> => {
     const response = await api.put('/admin/system-settings/rewarded-ad', { enabled });
+    return response.data;
+  },
+
+  updateStarShop: async (enabled: boolean): Promise<{ success: boolean; starShopEnabled?: boolean }> => {
+    const response = await api.put('/admin/system-settings/star-shop', { enabled });
     return response.data;
   },
 
@@ -1520,9 +1532,57 @@ export const shopApi = {
     return response.data;
   },
 
+  /** 진행 중 결제 통합 취소 (가상계좌 입금대기 / 간편결제 PENDING 등) */
+  cancelPendingPayment: async (data: { orderId: string }): Promise<{ success: boolean }> => {
+    const response = await api.post('/payment/cancel-pending', data);
+    return response.data;
+  },
+
+  /** @deprecated cancelPendingPayment 와 동일 */
+  cancelVirtualAccount: async (data: { orderId: string }): Promise<{ success: boolean }> => {
+    const response = await api.post('/payment/cancel-pending', data);
+    return response.data;
+  },
+
   // 내 결제 내역 조회
   getMyOrders: async (): Promise<any> => {
     const response = await api.get('/payment/orders');
+    return response.data;
+  },
+
+  getTossClientKey: async (): Promise<{ clientKey: string }> => {
+    const response = await api.get('/payment/toss-client-key');
+    return response.data;
+  },
+
+  prepareEasyPay: async (data: { productId: number }): Promise<{
+    orderId: string;
+    orderName: string;
+    amount: number;
+    customerKey: string;
+  }> => {
+    const response = await api.post('/payment/easy-pay/prepare', data);
+    return response.data;
+  },
+
+  confirmPayment: async (data: { paymentKey: string; orderId: string; amount: string | number }): Promise<{
+    success: boolean;
+    newBalance?: number;
+    alreadyDone?: boolean;
+  }> => {
+    const response = await api.post('/payment/confirm', data);
+    return response.data;
+  },
+
+  // [관리자] 전체 결제 내역 조회
+  adminGetOrders: async (params?: { status?: string; page?: number; limit?: number }): Promise<any> => {
+    const response = await api.get('/payment/admin/orders', { params });
+    return response.data;
+  },
+
+  // [관리자] 결제 통계 조회
+  adminGetStats: async (): Promise<any> => {
+    const response = await api.get('/payment/admin/stats');
     return response.data;
   },
 };

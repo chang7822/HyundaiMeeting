@@ -883,6 +883,78 @@ cron.schedule('0 * * * * *', async () => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// 만료된 가상계좌 주문 자동 CANCELED 처리: 5분마다
+// ─────────────────────────────────────────────────────────────
+cron.schedule('0 */5 * * * *', async () => {
+  try {
+    const now = new Date().toISOString();
+    const { data: expiredOrders, error } = await supabase
+      .from('payment_orders')
+      .select('id, order_id')
+      .eq('status', 'WAITING_FOR_DEPOSIT')
+      .lt('due_date', now);
+
+    if (error) {
+      console.error('[스케줄러] 만료 가상계좌 조회 오류:', error);
+      return;
+    }
+
+    if (!expiredOrders || expiredOrders.length === 0) return;
+
+    const ids = expiredOrders.map((o) => o.id);
+    const { error: updateError } = await supabase
+      .from('payment_orders')
+      .update({ status: 'CANCELED' })
+      .in('id', ids);
+
+    if (updateError) {
+      console.error('[스케줄러] 만료 가상계좌 업데이트 오류:', updateError);
+    } else {
+      console.log(`[스케줄러] 만료 가상계좌 ${ids.length}건 CANCELED 처리`);
+    }
+  } catch (e) {
+    console.error('[스케줄러] 만료 가상계좌 처리 오류:', e);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 간편결제 창만 닫고 끝난 PENDING 주문 정리: 10분마다 (15분 경과분)
+// ─────────────────────────────────────────────────────────────
+cron.schedule('0 */10 * * * *', async () => {
+  try {
+    const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: stale, error } = await supabase
+      .from('payment_orders')
+      .select('id')
+      .eq('pay_channel', 'easy_pay')
+      .eq('status', 'PENDING')
+      .lt('created_at', cutoff);
+
+    if (error) {
+      console.error('[스케줄러] 간편결제 PENDING 조회 오류:', error);
+      return;
+    }
+    if (!stale || stale.length === 0) return;
+
+    const ids = stale.map((o) => o.id);
+    const { error: upErr } = await supabase
+      .from('payment_orders')
+      .update({ status: 'CANCELED' })
+      .in('id', ids);
+
+    if (upErr) {
+      console.error('[스케줄러] 간편결제 PENDING 정리 오류:', upErr);
+    } else {
+      console.log(`[스케줄러] 간편결제 미완료 PENDING ${ids.length}건 CANCELED 처리`);
+    }
+  } catch (e) {
+    console.error('[스케줄러] 간편결제 PENDING 정리 오류:', e);
+  }
+});
+
 console.log('[스케줄러] 매칭 회차 스케줄러가 시작되었습니다.');
 console.log('[스케줄러] 정지 해제 스케줄러가 시작되었습니다. (10초마다)');
-console.log('[스케줄러] 24시간 호감 만료 스케줄러가 시작되었습니다. (1분마다)'); 
+console.log('[스케줄러] 24시간 호감 만료 스케줄러가 시작되었습니다. (1분마다)');
+console.log('[스케줄러] 만료 가상계좌 정리 스케줄러가 시작되었습니다. (5분마다)');
+console.log('[스케줄러] 간편결제 미완료 PENDING 정리 스케줄러가 시작되었습니다. (10분마다, 15분 경과)');

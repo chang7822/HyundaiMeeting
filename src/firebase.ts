@@ -166,6 +166,10 @@ export async function setupNativePushListeners(onNotificationReceived?: (notific
 
       if (!linkUrl) {
         switch (data.type) {
+          case 'star_purchase':
+            // 별 충전 알림: 메시지만 안내, 화면 이동 없음
+            linkUrl = '';
+            break;
           case 'chat_unread':
             if (data.senderId) linkUrl = `/chat/${data.senderId}`;
             break;
