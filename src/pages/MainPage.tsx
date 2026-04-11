@@ -9,7 +9,6 @@ import ProfileCard, { ProfileIcon } from '../components/ProfileCard';
 import { userApi } from '../services/api';
 import { Company } from '../types/index';
 import LoadingSpinner from '../components/LoadingSpinner';
-import PushToggleRow from '../components/PushToggleRow';
 import { getFirebaseMessaging, FIREBASE_VAPID_KEY, isNativeApp, getNativePushToken, setupNativePushListeners, getNativePushPermissionStatus, requestNativePushPermission } from '../firebase';
 import { getDisplayCompanyName } from '../utils/companyDisplay';
 import { Capacitor, registerPlugin } from '@capacitor/core';
@@ -4088,9 +4087,6 @@ const MainPage = ({ sidebarOpen }: { sidebarOpen: boolean }) => {
       )}
       </WelcomeSection>
       
-      {/* 푸시 알림 설정 */}
-      <PushToggleRow />
-
       {/* 주요 기능 카드들 */}
       <QuickActions>
         {quickActions.map((action, index) => {

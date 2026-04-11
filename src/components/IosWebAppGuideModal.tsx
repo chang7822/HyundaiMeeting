@@ -110,14 +110,6 @@ const ImageWrap = styled.div`
   align-items: center;
   justify-content: center;
 
-  img {
-    display: block;
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-  }
 `;
 
 const Dots = styled.div`
@@ -218,7 +210,27 @@ const IosWebAppGuideModal: React.FC<{ isOpen: boolean; onClose: () => void; titl
                 }
               }}
             >
-              <img src={IOS_WEBAPP_STEPS[step].img} alt={`단계 ${step + 1}`} draggable={false} />
+              {IOS_WEBAPP_STEPS.map((s, i) => (
+                <img
+                  key={i}
+                  src={s.img}
+                  alt={`단계 ${i + 1}`}
+                  draggable={false}
+                  decoding="async"
+                  style={{
+                    position: i === 0 ? 'relative' : 'absolute',
+                    inset: 0,
+                    maxWidth: '100%',
+                    maxHeight: '100%',
+                    width: 'auto',
+                    height: 'auto',
+                    objectFit: 'contain',
+                    opacity: i === step ? 1 : 0,
+                    transition: 'opacity 0.2s ease',
+                    pointerEvents: i === step ? 'auto' : 'none',
+                  }}
+                />
+              ))}
             </ImageWrap>
           </div>
           <Dots>

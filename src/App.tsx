@@ -649,31 +649,42 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
-  // 네이티브 앱 푸시 알림 클릭 처리
+  // 네이티브 앱 / 서비스 워커 푸시 알림 클릭 처리
   const pendingNavigationRef = useRef<string | null>(null);
 
+  const handlePushLinkUrl = useCallback((linkUrl: string) => {
+    if (!linkUrl) return;
+    pendingNavigationRef.current = linkUrl;
+    if (isAuthenticated && !isLoading) {
+      navigate(linkUrl, { replace: true });
+      pendingNavigationRef.current = null;
+    }
+  }, [navigate, isAuthenticated, isLoading]);
+
+  // 네이티브 앱: push-notification-clicked 커스텀 이벤트
   useEffect(() => {
     const handlePushNotificationClick = (event: CustomEvent) => {
-      const { linkUrl } = event.detail || {};
-      if (linkUrl) {
-        // 먼저 pendingNavigationRef 설정
-        pendingNavigationRef.current = linkUrl;
-
-        if (isAuthenticated && !isLoading) {
-          // 인증 완료 상태면 즉시 이동 (replace로 히스토리 남기지 않음)
-          navigate(linkUrl, { replace: true });
-          pendingNavigationRef.current = null;
-        }
-        // 인증 대기 중이면 pendingNavigationRef에 저장된 상태로 대기
-      }
+      handlePushLinkUrl(event.detail?.linkUrl);
     };
-
     window.addEventListener('push-notification-clicked', handlePushNotificationClick as EventListener);
-
     return () => {
       window.removeEventListener('push-notification-clicked', handlePushNotificationClick as EventListener);
     };
-  }, [navigate, isAuthenticated, isLoading]);
+  }, [handlePushLinkUrl]);
+
+  // 웹/PWA(iOS 포함): 서비스 워커 postMessage 수신
+  useEffect(() => {
+    if (!navigator.serviceWorker) return;
+    const handleSWMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'push-notification-clicked') {
+        handlePushLinkUrl(event.data.linkUrl);
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handleSWMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener('message', handleSWMessage);
+    };
+  }, [handlePushLinkUrl]);
 
   // 인증 완료 후 대기 중인 네비게이션 실행
   useEffect(() => {

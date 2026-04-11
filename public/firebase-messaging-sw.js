@@ -69,10 +69,10 @@ self.addEventListener('notificationclick', function(event) {
         linkUrl = data.senderId ? `/chat/${data.senderId}` : '/main';
         break;
       case 'community_comment':
-        linkUrl = data.postId ? `/main?postId=${data.postId}&openComments=true` : '/main';
+        linkUrl = data.postId ? `/community?postId=${data.postId}&openComments=true` : '/community';
         break;
       case 'community_delete':
-        linkUrl = '/main';
+        linkUrl = '/community';
         break;
       case 'notice':
         linkUrl = '/notice';
@@ -87,23 +87,22 @@ self.addEventListener('notificationclick', function(event) {
         break;
       case 'matching_application_start':
       case 'matching_result_announce':
-        linkUrl = '/matching-apply';
+        linkUrl = '/main';
         break;
       default:
         linkUrl = '/main';
     }
   }
   
-  // 클라이언트가 열려있으면 해당 페이지로 이동, 없으면 새로 열기
+  // 클라이언트가 열려있으면 postMessage로 이동 요청, 없으면 새로 열기
+  // iOS Safari는 WindowClient.navigate()를 지원하지 않으므로 postMessage 사용
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
-      // 이미 열려있는 클라이언트가 있으면 포커스
-      for (let i = 0; i < clientList.length; i++) {
-        const client = clientList[i];
-        if (client.url && 'focus' in client) {
-          client.navigate(linkUrl);
-          return client.focus();
-        }
+      // 이미 열려있는 클라이언트가 있으면 메시지 전송 후 포커스
+      if (clientList.length > 0) {
+        const client = clientList[0];
+        client.postMessage({ type: 'push-notification-clicked', linkUrl: linkUrl });
+        return client.focus();
       }
       // 열려있는 클라이언트가 없으면 새로 열기
       if (clients.openWindow) {

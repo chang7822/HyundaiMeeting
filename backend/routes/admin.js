@@ -655,7 +655,7 @@ router.put('/system-settings/sidebar-menu-order', authenticate, async (req, res)
   try {
     if (!ensureAdmin(req, res)) return;
     const order = Array.isArray(req.body?.order) ? req.body.order : [];
-    const validPaths = ['/main', '/matching-apply', '/profile', '/preference', '/extra-matching', '/rps-arena', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
+    const validPaths = ['/main', '/community', '/profile', '/preference', '/extra-matching', '/rps-arena', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
     const filtered = order.filter((p) => typeof p === 'string' && validPaths.includes(p));
     if (filtered.length !== validPaths.length) {
       return res.status(400).json({ success: false, message: '유효하지 않은 메뉴 순서입니다. 모든 메뉴가 포함되어야 합니다.' });
