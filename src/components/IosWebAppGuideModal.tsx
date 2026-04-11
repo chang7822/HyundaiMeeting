@@ -2,16 +2,16 @@
  * iOS 홈화면 웹앱 추가 가이드 모달 (이미지 슬라이드)
  * 랜딩페이지, 메인페이지(푸시알림 안내) 등에서 공통 사용
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { Capacitor } from '@capacitor/core';
-import img0 from '../image/image0.png';
-import img1 from '../image/image1.png';
-import img2 from '../image/image2.png';
-import img3 from '../image/image3.png';
-import img4 from '../image/image4.png';
-import img5 from '../image/image5.png';
-import img6 from '../image/image6.png';
+import img0 from '../image/image0.webp';
+import img1 from '../image/image1.webp';
+import img2 from '../image/image2.webp';
+import img3 from '../image/image3.webp';
+import img4 from '../image/image4.webp';
+import img5 from '../image/image5.webp';
+import img6 from '../image/image6.webp';
 
 const IOS_WEBAPP_STEPS: Array<{ img: string; desc: string }> = [
   { img: img0, desc: 'Safari 화면 하단의 ⋯ 버튼을 눌러주세요.' },
@@ -166,6 +166,14 @@ const IosWebAppGuideModal: React.FC<{ isOpen: boolean; onClose: () => void; titl
   const [step, setStep] = useState(0);
   const swipeStartX = useRef<number | null>(null);
 
+  useEffect(() => {
+    IOS_WEBAPP_STEPS.forEach(({ img }) => {
+      const image = new Image();
+      image.src = img;
+      image.decode?.().catch(() => {});
+    });
+  }, []);
+
   if (!isOpen) return null;
 
   const handleSwipe = (start: number, end: number) => {
@@ -218,8 +226,10 @@ const IosWebAppGuideModal: React.FC<{ isOpen: boolean; onClose: () => void; titl
                   draggable={false}
                   decoding="async"
                   style={{
-                    position: i === 0 ? 'relative' : 'absolute',
-                    inset: 0,
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
                     maxWidth: '100%',
                     maxHeight: '100%',
                     width: 'auto',
