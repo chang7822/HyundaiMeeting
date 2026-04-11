@@ -33,7 +33,7 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordVerifyPage from './pages/auth/ResetPasswordVerifyPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import MainPage from './pages/MainPage';
-import MatchingApplyPage from './pages/MatchingApplyPage';
+import CommunityPage from './pages/CommunityPage';
 import AdminPage from './pages/admin/AdminPage';
 import ProfilePage from './pages/ProfilePage';
 import PreferencePage from './pages/PreferencePage';
@@ -835,17 +835,6 @@ const AppInner: React.FC = () => {
             </div>
           </ProtectedRoute>
         } />
-        <Route path="/matching-apply" element={
-          <ProtectedRoute>
-            <div className="app-layout" style={{ display: 'flex' }}>
-              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
-              <MatchingApplyPage
-                key={location.state?.forceReload || 'matching-apply'}
-                sidebarOpen={sidebarOpen}
-              />
-            </div>
-          </ProtectedRoute>
-        } />
         <Route path="/profile" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>
@@ -914,7 +903,14 @@ const AppInner: React.FC = () => {
             </div>
           </ProtectedRoute>
         } />
-        <Route path="/community" element={<Navigate to="/main" replace />} />
+        <Route path="/community" element={
+          <ProtectedRoute>
+            <div className="app-layout" style={{ display: 'flex' }}>
+              <Sidebar isOpen={sidebarOpen} onToggle={handleSidebarToggle} preloadedRewarded={preloadedAdsRef.current.rewarded} />
+              <CommunityPage sidebarOpen={sidebarOpen} />
+            </div>
+          </ProtectedRoute>
+        } />
         <Route path="/extra-matching" element={
           <ProtectedRoute>
             <div className="app-layout" style={{ display: 'flex' }}>

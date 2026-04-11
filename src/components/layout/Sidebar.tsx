@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { useAuth } from '../../contexts/AuthContext';
@@ -17,13 +17,9 @@ import {
   FaExclamationTriangle,
   FaHeadset,
   FaRegStar,
-  FaHandshake,
   FaHandScissors,
   FaBell,
   FaCog,
-  FaEdit,
-  FaSave,
-  FaTimes,
 } from 'react-icons/fa';
 import { matchingApi, starApi, notificationApi, extraMatchingApi, userApi, adminApi, systemApi, pushApi } from '../../services/api';
 import { isNativeApp } from '../../firebase';
@@ -658,10 +654,6 @@ const Sidebar: React.FC<{
   const [extraMatchingInWindow, setExtraMatchingInWindow] = useState<boolean | null>(null);
   const [communityEnabled, setCommunityEnabled] = useState<boolean | null>(null);
   const [rewardedAdEnabled, setRewardedAdEnabled] = useState<boolean>(true);
-  const [sidebarMenuOrder, setSidebarMenuOrder] = useState<string[] | null>(null);
-  const [menuOrderEditing, setMenuOrderEditing] = useState(false);
-  const [menuOrderDraft, setMenuOrderDraft] = useState<string[]>([]);
-  const [menuOrderSaving, setMenuOrderSaving] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [emailNotificationEnabled, setEmailNotificationEnabled] = useState<boolean | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -1031,34 +1023,6 @@ const Sidebar: React.FC<{
     };
   }, []);
 
-  const loadSidebarMenuOrder = useCallback(() => {
-    systemApi.getSidebarMenuOrder()
-      .then((res) => {
-        if (res?.order && Array.isArray(res.order)) {
-          // /community → /main 마이그레이션, /matching-apply 없으면 추가
-          let order = res.order.filter((p: string) => p !== '/community');
-          if (!order.includes('/matching-apply')) {
-            const idx = order.indexOf('/main');
-            order = [...order.slice(0, idx >= 0 ? idx + 1 : 0), '/matching-apply', ...order.slice(idx >= 0 ? idx + 1 : 0)];
-          }
-          setSidebarMenuOrder(order);
-        } else {
-          setSidebarMenuOrder(null);
-        }
-      })
-      .catch(() => setSidebarMenuOrder(null));
-  }, []);
-
-  useEffect(() => {
-    loadSidebarMenuOrder();
-  }, [loadSidebarMenuOrder]);
-
-  useEffect(() => {
-    const handler = () => loadSidebarMenuOrder();
-    window.addEventListener('sidebar-menu-order-updated', handler);
-    return () => window.removeEventListener('sidebar-menu-order-updated', handler);
-  }, [loadSidebarMenuOrder]);
-
   const handleDailyAttendance = async () => {
     if (!user?.id) return;
     setAttendanceSubmitting(true);
@@ -1303,11 +1267,8 @@ const Sidebar: React.FC<{
     }
   };
 
-  const DEFAULT_MENU_ORDER = ['/main', '/matching-apply', '/profile', '/preference', '/extra-matching', '/rps-arena', '/matching-history', '/notice', '/faq', '/support/my-inquiries', 'chat'];
-
-  const userMenuItemsBase = [
-    { path: '/main', icon: <FaHome />, text: '커뮤니티 홈', disabled: communityEnabled === false },
-    { path: '/matching-apply', icon: <FaHandshake />, text: '매칭 신청' },
+  const userMenuItems = [
+    { path: '/main', icon: <FaHome />, text: '홈' },
     { path: '/profile', icon: <FaUser />, text: '프로필' },
     { path: '/preference', icon: <FaStar />, text: '선호 스타일' },
     {
@@ -1315,10 +1276,16 @@ const Sidebar: React.FC<{
       icon: <FaRegStar />,
       text: '추가 매칭 도전',
       disabled: extraMatchingInWindow === false || user?.is_verified !== true,
-      hiddenWhenDisabled: true, // 비활성화 시 사이드바에서 숨김 (순서 편집 시에는 표시)
+      hiddenWhenDisabled: true,
     },
     { path: '/rps-arena', icon: <FaHandScissors />, text: '가위바위보 멸망전' },
     { path: '/matching-history', icon: <FaHistory />, text: '매칭 이력' },
+    {
+      path: '/community',
+      icon: <FaComments />,
+      text: '커뮤니티',
+      disabled: communityEnabled === false,
+    },
     { path: '/notice', icon: <FaBullhorn />, text: '공지사항' },
     { path: '/faq', icon: <FaQuestionCircle />, text: 'FAQ' },
     { path: '/support/my-inquiries', icon: <FaHeadset />, text: '고객센터' },
@@ -1327,57 +1294,13 @@ const Sidebar: React.FC<{
       icon: <FaComments />,
       text: isBanActive ? '채팅 불가 (정지됨)' : '상대방과 약속 잡기',
       disabled: !canChat,
-      hiddenWhenDisabled: true, // 채팅 비활성화 시 사이드바에서 숨김 (순서 편집 시에는 표시)
+      hiddenWhenDisabled: true,
     },
   ];
 
-  const getOrderKey = (path: string) => path.startsWith('/chat/') || path === '#' ? 'chat' : path;
-  const effectiveOrder = menuOrderEditing ? menuOrderDraft : (sidebarMenuOrder && sidebarMenuOrder.length > 0 ? sidebarMenuOrder : DEFAULT_MENU_ORDER);
-  const orderMap = new Map(effectiveOrder.map((p, i) => [p, i]));
-  const userMenuItems = [...userMenuItemsBase].sort((a, b) => {
-    const orderA = orderMap.get(getOrderKey(a.path)) ?? 999;
-    const orderB = orderMap.get(getOrderKey(b.path)) ?? 999;
-    return orderA - orderB;
-  });
-
-  // 비활성화 시 숨김 처리(hiddenWhenDisabled): 일반 모드에서만 숨기고, 순서 편집 시에는 모두 표시
-  const displayMenuItems = menuOrderEditing
-    ? userMenuItems
-    : userMenuItems.filter((item: { hiddenWhenDisabled?: boolean; disabled?: boolean }) =>
-        !(item.hiddenWhenDisabled && item.disabled)
-      );
-
-  const handleStartMenuOrderEdit = () => {
-    const order = (sidebarMenuOrder && sidebarMenuOrder.length > 0) ? [...sidebarMenuOrder] : [...DEFAULT_MENU_ORDER];
-    setMenuOrderDraft(order);
-    setMenuOrderEditing(true);
-  };
-  const handleCancelMenuOrderEdit = () => {
-    setMenuOrderEditing(false);
-    setMenuOrderDraft([]);
-  };
-  const handleMoveMenuOrder = (idx: number, direction: 'up' | 'down') => {
-    const next = [...menuOrderDraft];
-    const swap = direction === 'up' ? idx - 1 : idx + 1;
-    if (swap < 0 || swap >= next.length) return;
-    [next[idx], next[swap]] = [next[swap], next[idx]];
-    setMenuOrderDraft(next);
-  };
-  const handleSaveMenuOrder = async () => {
-    setMenuOrderSaving(true);
-    try {
-      await adminApi.updateSidebarMenuOrder(menuOrderDraft);
-      setSidebarMenuOrder(menuOrderDraft);
-      setMenuOrderEditing(false);
-      setMenuOrderDraft([]);
-      toast.success('사이드바 메뉴 순서가 저장되었습니다.');
-      window.dispatchEvent(new CustomEvent('sidebar-menu-order-updated'));
-    } catch (e: any) {
-      toast.error(e?.response?.data?.message || '저장에 실패했습니다.');
-    } finally {
-      setMenuOrderSaving(false);
-    }
-  };
+  const displayMenuItems = userMenuItems.filter((item: { hiddenWhenDisabled?: boolean; disabled?: boolean }) =>
+    !(item.hiddenWhenDisabled && item.disabled)
+  );
 
   const adminMenuItems = user?.isAdmin ? [
     { path: '/admin/matching-log', icon: <span role="img" aria-label="calendar">📅</span>, text: '매칭 회차 관리' },
@@ -1401,9 +1324,9 @@ const Sidebar: React.FC<{
 
   const handleNavClick = (path: string) => {
     // 현재 페이지에 있고, 클릭한 경로도 같은 경우 강제 재로드
-    if (location.pathname === path && (path === '/main' || path === '/matching-apply')) {
+    if (location.pathname === path && path === '/main') {
       navigate(path, { replace: true, state: { forceReload: Date.now() } });
-      window.dispatchEvent(new CustomEvent(path === '/main' ? 'main-page-reload' : 'matching-apply-page-reload'));
+      window.dispatchEvent(new CustomEvent('main-page-reload'));
       return;
     }
 
@@ -1535,136 +1458,20 @@ const Sidebar: React.FC<{
           <>
             <NavMenu>
               <MenuSection>
-                {user?.isAdmin && (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.5rem 1.5rem 0.25rem', gap: 8 }}>
-                    {!menuOrderEditing ? (
-                      <button
-                        type="button"
-                        onClick={handleStartMenuOrderEdit}
-                        title="메뉴 순서 편집"
-                        style={{
-                          padding: '4px 8px',
-                          borderRadius: 6,
-                          border: '1px solid rgba(255,255,255,0.4)',
-                          background: 'rgba(255,255,255,0.1)',
-                          color: '#fff',
-                          cursor: 'pointer',
-                          fontSize: '0.75rem',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 4,
-                        }}
-                      >
-                        <FaEdit size={10} />
-                      </button>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          type="button"
-                          onClick={handleSaveMenuOrder}
-                          disabled={menuOrderSaving}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            border: 'none',
-                            background: '#10b981',
-                            color: '#fff',
-                            cursor: menuOrderSaving ? 'not-allowed' : 'pointer',
-                            fontSize: '0.75rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                          }}
-                        >
-                          <FaSave size={10} /> {menuOrderSaving ? '저장 중...' : '저장'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleCancelMenuOrderEdit}
-                          disabled={menuOrderSaving}
-                          style={{
-                            padding: '4px 10px',
-                            borderRadius: 6,
-                            border: '1px solid rgba(255,255,255,0.5)',
-                            background: 'transparent',
-                            color: '#fff',
-                            cursor: menuOrderSaving ? 'not-allowed' : 'pointer',
-                            fontSize: '0.75rem',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 4,
-                          }}
-                        >
-                          <FaTimes size={10} /> 취소
-                        </button>
-                      </div>
+                {displayMenuItems.map((item) => (
+                  <NavItem
+                    key={item.path}
+                    active={location.pathname === item.path}
+                    onClick={() => !item.disabled && handleNavClick(item.path)}
+                    style={item.disabled ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
+                  >
+                    {item.icon}
+                    <NavText>{item.text}</NavText>
+                    {item.path === '/notifications' && notificationUnreadCount > 0 && (
+                      <NewChip>NEW</NewChip>
                     )}
-                  </div>
-                )}
-                {displayMenuItems.map((item, idx) => {
-                  const orderKey = getOrderKey(item.path);
-                  const orderIdx = menuOrderDraft.indexOf(orderKey);
-                  const isEditing = menuOrderEditing && orderIdx >= 0;
-                  return (
-                    <NavItem
-                      key={item.path}
-                      active={!menuOrderEditing && location.pathname === item.path}
-                      onClick={() => !menuOrderEditing && !item.disabled && handleNavClick(item.path)}
-                      style={item.disabled && !menuOrderEditing ? { opacity: 0.5, cursor: 'not-allowed', pointerEvents: 'none' } : {}}
-                    >
-                      {menuOrderEditing ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleMoveMenuOrder(orderIdx, 'up'); }}
-                              disabled={orderIdx <= 0}
-                              style={{
-                                padding: '2px 6px',
-                                border: 'none',
-                                background: orderIdx <= 0 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)',
-                                color: orderIdx <= 0 ? 'rgba(255,255,255,0.4)' : '#fff',
-                                borderRadius: 4,
-                                cursor: orderIdx <= 0 ? 'not-allowed' : 'pointer',
-                                fontSize: '0.65rem',
-                                lineHeight: 1,
-                              }}
-                            >
-                              ▲
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); handleMoveMenuOrder(orderIdx, 'down'); }}
-                              disabled={orderIdx >= menuOrderDraft.length - 1}
-                              style={{
-                                padding: '2px 6px',
-                                border: 'none',
-                                background: orderIdx >= menuOrderDraft.length - 1 ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.2)',
-                                color: orderIdx >= menuOrderDraft.length - 1 ? 'rgba(255,255,255,0.4)' : '#fff',
-                                borderRadius: 4,
-                                cursor: orderIdx >= menuOrderDraft.length - 1 ? 'not-allowed' : 'pointer',
-                                fontSize: '0.65rem',
-                                lineHeight: 1,
-                              }}
-                            >
-                              ▼
-                            </button>
-                          </div>
-                          {item.icon}
-                          <NavText>{item.text}</NavText>
-                        </div>
-                      ) : (
-                        <>
-                          {item.icon}
-                          <NavText>{item.text}</NavText>
-                          {item.path === '/notifications' && notificationUnreadCount > 0 && (
-                            <NewChip>NEW</NewChip>
-                          )}
-                        </>
-                      )}
-                    </NavItem>
-                  );
-                })}
+                  </NavItem>
+                ))}
               </MenuSection>
 
               {adminMenuItems.length > 0 && (
